@@ -1315,7 +1315,7 @@ function itemEnrichTags(it){
   if(/лютня|флейта|барабан|скрипка|волынка|рог([ ,.]|$)/.test(s)) t.push('instrument');
   if(/фокусировк|волшебная палочка|жезл/.test(s)) t.push('focus');
   if(/священ|молитвенник|реликви/.test(s)) t.push('holy');
-  if(/книга|том |фолиант|гримуар/.test(s)) t.push('book');
+  if(/книга|фолиант|гримуар|(^|[^а-я])том([^а-я]|$)/.test(s)) t.push('book');
   if(/факел|фонарь|свеча|лампа|светится|излучает свет/.test(s)) t.push('lightsrc');
   if(/рацион|паек|еда|пища|провизия|мех с вином|котелок/.test(s)) t.push('food');
   if(/палатка|спальник|огниво|походн|веревка|крюк|лом([ ,.]|$)|лопата/.test(s)) t.push('camp');
@@ -1516,6 +1516,183 @@ function seedAbilitiesDB(){
   return out;
 }
 
+/* ═══════════════ ТОРГАР ЖЕЛЕЗНАЯ ВЕРА — дварф-жрец Домена Жизни (перенос со скриншотов) ═══════════════ */
+const TORGAR_ITEMS = [
+ {id:'it_diamond_torg', n:'Бриллиант', type:'wondrous', rarity:'обычный', custom:true,
+  tags:['consumable','jewelry','gem','valuable'], slot:null,
+  weight:'1 фунт', cost:'100 зм', dmg:'', dmgType:'',
+  desc:'Этот прозрачный граненый алмаз обладает исключительным блеском и чистотой.\n• Материальный компонент: бриллианты такой высокой стоимости являются необходимым компонентом для могущественных заклинаний школы непостижимости и жизни, таких как Оживление или Воскрешение.\n• Для искателей приключений эти камни представляют огромную ценность как компактное и дорогое сокровище, которое легко обменять на золото.', props:''},
+ {id:'it_silver_comb', n:'Серебряная расческа', type:'wondrous', rarity:'необычный', custom:true,
+  tags:['magical','jewelry','quest'], slot:null,
+  weight:'0,5 фунта', cost:'25 зм', dmg:'', dmgType:'',
+  desc:'Этот изящный предмет туалета изготовлен из высококачественного серебра и украшен тонкой гравировкой. Она является не просто украшением, а ценным подношением, способным умилостивить тщеславных существ.\n• Если персонажи преподносят эту расческу в дар банши, любая проверка Харизмы для взаимодействия с ней считается автоматически успешной.\n• Умиротворение: предмет служит ключом к получению ответов от банши.\n• Помогает наладить отношения с организацией Арфистов.', props:''},
+ {id:'it_incense_t', n:'Благовония', type:'equipment', rarity:'обычный', custom:true,
+  tags:['consumable','radiant'], slot:null,
+  weight:'0', cost:'1 зм', dmg:'', dmgType:'',
+  desc:'Ароматические палочки и блоки спрессованных трав, собранных на горных склонах. При сгорании испускают густой белый дым с ароматом хвои и ладана.\n• Применение: необходимы для активации способности Успокаивающий дым у Тяжелой железной кадильницы. Одна порция горит в течение одного короткого отдыха или 1 часа.', props:''},
+ {id:'it_tinderbox_t', n:'Трутница', type:'equipment', rarity:'обычный', custom:true,
+  tags:['tool','camp','lightsrc'], slot:null,
+  weight:'1 фунт', cost:'5 зм', dmg:'', dmgType:'',
+  desc:'Маленькая металлическая коробочка, внутри которой находятся кремень, кресало и трут (обычно это сухая ветошь, пропитанная серой или селитрой), используемые для разведения огня.\n• Разведение костра, зажигание факела или свечи с помощью трутницы требует одного Действия.', props:''},
+ {id:'it_healer_kit_t', n:'Набор целителя', type:'equipment', rarity:'обычный', custom:true,
+  tags:['consumable','tool','healingit'], slot:null,
+  weight:'3 фунта', cost:'5 зм', dmg:'', dmgType:'',
+  desc:'Кожаная сумка с бинтами, мазями, шинами и антисептиками.\n• Использований: 10 раз.\n• Эффект: вы можете использовать действие и одну единицу использования этого набора, чтобы стабилизировать существо, у которого 0 хитов, без необходимости совершать проверку Мудрости (Медицина).', props:''},
+ {id:'it_censer_gory', n:'Тяжелая железная кадильница «Дыхание Гор»', type:'equipment', rarity:'артефакт', custom:true,
+  tags:['tool','holy','radiant'], slot:null,
+  weight:'3 фунта', cost:'—', dmg:'', dmgType:'',
+  desc:'Массивная кадильница на длинной цепи, сделанная из темного железа. Внутри всегда теплится уголек, готовый разжечь благовония.\n• Эффект Успокаивающий дым: если во время короткого отдыха использовать кадильницу и 1 порцию благовоний, все союзники, находящиеся рядом, восстанавливают дополнительные 1к4 хита за каждую потраченную Кость Хитов.\n• Эффект Очищение воздуха: в качестве бонусного действия вы можете крутануть кадильницу, создав облако дыма в радиусе 5 футов. Это дает вам преимущество на спасброски против эффектов, основанных на запахе или вдыхаемых ядах, на 1 минуту.', props:''},
+ {id:'it_warhammer_gorn', n:'Боевой молот «Упорство Горна»', type:'weapon', rarity:'обычный', custom:true,
+  tags:['melee','heavy','versatile','bludgeoning'], slot:'MAIN_HAND',
+  weight:'2 фунта', cost:'15 зм', dmg:'1к8 / 1к10', dmgType:'дробящий',
+  desc:'Тяжелый стальной молот с навершием в виде наковальни. На бойке выгравированы руны, означающие «Стойкость» и «Милосердие».\n• Урон: 1к8 дробящего (одноручное) / 1к10 дробящего (универсальное — если держать двумя руками).\n• Особенность: УНИВЕРСАЛЬНОЕ. Вы можете использовать этот молот одной рукой вместе со щитом или двумя руками для нанесения более мощного удара.', props:'Универсальное'},
+ {id:'it_chainmail_torgar', n:'Кольчуга Железного Щита', type:'armor', rarity:'обычный', custom:true,
+  tags:['heavyarmor','strreq','stealthdis'], slot:'CHEST',
+  weight:'55 фунтов', cost:'—', dmg:'', dmgType:'', ac:'16',
+  desc:'Набор переплетенных стальных колец, надеваемый поверх стеганого поддоспешника. Грудная часть усилена пластиной с гербом клана Торгара.\n• Требование: Сила 13.\n• Скрытность: Помеха (броски на Скрытность совершаются с наихудшим результатом).', props:'Помеха на Скрытность'},
+ {id:'it_holy_shield_life', n:'Святой Щит Жизни', type:'armor', rarity:'необычный', custom:true,
+  tags:['shield','magical','focus','holy'], slot:'OFF_HAND',
+  weight:'6 фунтов', cost:'—', dmg:'', dmgType:'', ac:'+2',
+  desc:'Массивный дубовый щит, обитый сталью. В центре изображено сияющее солнце — символ божества Жизни.\n• Эффект (Святой символ): этот щит служит магическим фокусом. Жрецу не нужно держать в руке амулет для сотворения заклинаний, пока этот щит у него в руках.', props:''},
+ {id:'it_pauldron_mentor', n:'Разбитый наплечник наставника', type:'armor', rarity:'редкий', custom:true,
+  tags:['mediumarmor','attuned','protection'], slot:'SHOULDERS',
+  weight:'2 фунта', cost:'—', dmg:'', dmgType:'', ac:'',
+  desc:'Левый наплечник из потемневшей стали с глубокой трещиной от когтей нежити. Несмотря на повреждение, от него исходит едва уловимое тепло.\n• Чудесный предмет (редкий), требует настройки.\n• Эффект Опека учителя: если в пределах 30 футов от вас находится союзник, у которого осталось менее половины здоровья, вы получаете Преимущество на спасброски от испуга.\n• Эффект Последний заслон: один раз в день, когда хиты Торгара опускаются до 0, он может совершить спасбросок Выносливости (СЛ 10). При успехе он остается с 1 хитом. (Восстанавливается после долгого отдыха.)', props:''},
+ {id:'it_potion_great_heal', n:'Зелье великого лечения', type:'potion', rarity:'необычный', custom:true,
+  tags:['potion','consumable','healingit'], slot:null,
+  weight:'0,5 фунта', cost:'150 зм', dmg:'', dmgType:'',
+  desc:'Это магическая красная жидкость, которая мерцает, если встряхнуть флакон. Вне зависимости от силы лечебного зелья (обычное, великое, превосходное или высшее), оно всегда имеет характерный красный цвет и блеск при движении.\n• Вы восстанавливаете 4к4 + 4 хита, когда выпиваете это зелье. Выпивание зелья или скармливание его другому существу требует одного действия.', props:''}
+];
+const TORGAR_REPLACED_ITEMS = ['Трутница','Набор целителя (10 исп.)'];
+
+const TORGAR_SPELLS = [
+ {id:'sp_sacred_flame', n:'Священное пламя', l:0, s:'Воплощение', c:'Жрц', t:'1 действие', r:'60 футов', cm:'В, С', d:'Мгновенная',
+  ritual:false, conc:false, custom:true, tags:['radiantdmg','singletarget','savethrow'],
+  x:'Сияние, похожее на пламя, опускается на существо, которое вы видите в пределах дистанции. Цель должна пройти спасбросок Ловкости, иначе получит 1к8 урона сиянием. Укрытия не дают цели преимущества при этом броске.',
+  hi:'С ростом мастерства заклинателя сила света возрастает: на 5 уровне — 2к8, на 11 уровне — 3к8, на 17 уровне — 4к8.'},
+ {id:'sp_guidance_t', n:'Наставление', l:0, s:'Прорицание', c:'Жрц', t:'1 действие', r:'Касание', cm:'В, С', d:'Мгновенная',
+  ritual:false, conc:false, custom:true, tags:['buff','singletarget','touch'],
+  x:'Вы касаетесь союзника, давая ему божественное руководство. Он может добавить 1к4 к одной проверке характеристики по своему выбору (один раз за 10 минут).', hi:''},
+ {id:'sp_guiding_bolt', n:'Направляющий снаряд', l:1, s:'Воплощение', c:'Жрц', t:'1 действие', r:'120 футов', cm:'В, С', d:'Мгновенная',
+  ritual:false, conc:false, custom:true, tags:['radiantdmg','debuff','offensive','attackroll'],
+  x:'Вспышка света устремляется к врагу: дальнобойная атака заклинанием, при попадании — 4к6 урона сиянием. При попадании следующий бросок атаки по этой цели любым вашим союзником будет совершен с преимуществом.', hi:''},
+ {id:'sp_lesser_restoration', n:'Малое восстановление', l:2, s:'Ограждение', c:'Жрц', t:'1 действие', r:'Касание', cm:'В, С', d:'Мгновенная',
+  ritual:false, conc:false, custom:true, tags:['support','restoration','touch','singletarget'],
+  x:'Вы касаетесь существа и снимаете с него одну болезнь или одно из следующих состояний: слепота, глухота, паралич или отравление.', hi:''},
+ {id:'sp_prayer_healing', n:'Молебен лечения', l:2, s:'Воплощение', c:'Жрц', t:'10 минут', r:'30 футов', cm:'В', d:'Мгновенная',
+  ritual:false, conc:false, custom:true, tags:['healing','multitarget','rangedsp'],
+  x:'Вы выбираете до шести видимых существ в пределах дистанции. Каждое восстанавливает количество хитов, равное 2к8 + модификатор Мудрости + 4.', hi:''},
+ {id:'sp_spiritual_weapon', n:'Духовное оружие', l:2, s:'Воплощение', c:'Жрц', t:'1 бонусное действие', r:'60 футов', cm:'В, С', d:'1 минута',
+  ritual:false, conc:false, custom:true, tags:['forcedmg','control','bonusaction'],
+  x:'Вы создаете парящее призрачное оружие в пределах дистанции. Когда вы накладываете это заклинание, вы можете совершить ближнюю атаку заклинанием по существу, находящемуся в пределах 5 футов от оружия. При попадании цель получает силовой урон, равный 1к8 + модификатор вашей заклинательной характеристики (Мудрость).\n• Бонусным действием в свой ход вы можете переместить оружие на расстояние до 20 футов и повторить атаку по существу в пределах 5 футов от него.\n• Это заклинание не требует концентрации.',
+  hi:'Прибавьте 1к8, если вы достигли 10 уровня.'},
+ {id:'sp_aid_t', n:'Подмога', l:2, s:'Ограждение', c:'Жрц', t:'1 действие', r:'50 футов', cm:'В, С', d:'8 часов',
+  ritual:false, conc:false, custom:true, tags:['buff','longduration','multitarget'],
+  x:'Вы выбираете до трех существ. Максимум хитов и текущие хиты каждой цели увеличиваются на 5 на время действия заклинания.', hi:''}
+];
+
+const TORGAR_ABILITIES = [
+ {id:'ab_dwarf_resilience', n:'Дварфская устойчивость', type:'racial', source:'Дварф', custom:true,
+  tags:['racial','advantage','resistance','save'], uses:null, rest:'',
+  x:'Ваша кровь закалена в суровых условиях гор. Вы обладаете преимуществом при спасбросках от яда и сопротивляемостью к урону ядом.'},
+ {id:'ab_dwarf_toughness', n:'Дварфская выносливость', type:'racial', source:'Холмовой дварф', custom:true,
+  tags:['racial','passive','con'], uses:null, rest:'',
+  x:'Расовая особенность, пассивная. Ваш максимум хитов увеличивается на 1, и он будет увеличиваться на 1 каждый раз, когда вы получаете новый уровень.'},
+ {id:'ab_life_armor', n:'Владение доспехами: Жрец (Домен Жизни)', type:'class', source:'Жрец (Домен Жизни)', custom:true,
+  tags:['classfeature','passive','defense','armorprof'], uses:null, rest:'',
+  x:'В отличие от многих других жрецов, ваш домен позволяет вам эффективно использовать самую тяжелую защиту. Вы владеете тяжелыми доспехами, не получая штрафов к накладыванию заклинаний.'},
+ {id:'ab_life_weapons', n:'Владение оружием: Жрец (Домен Жизни)', type:'class', source:'Жрец (Домен Жизни)', custom:true,
+  tags:['classfeature','passive','wis','weaponprof'], uses:null, rest:'',
+  x:'Вы прошли специальную подготовку, чтобы нести слово своего божества не только молитвой, но и сталью. Если в ваших руках дробящее оружие, значение вашей Мудрости или Телосложения (на выбор) увеличивается на 1, при этом значение не может превысить 20.'},
+ {id:'ab_alignment_lg', n:'Мировоззрение: Законопослушно-добрый', type:'other', source:'Мировоззрение', custom:true,
+  tags:['social','background','passive'], uses:null, rest:'',
+  x:'Вы верите, что порядок и добродетель — единственные столпы, способные спасти этот мир. Помощь слабым и искоренение зла — ваш священный долг.'},
+ {id:'ab_life_disciple', n:'Ученик Жизни', type:'class', source:'Жрец (Домен Жизни)', custom:true,
+  tags:['classfeature','passive','healing'], uses:null, rest:'',
+  x:'Классовая особенность (Домен Жизни), пассивная. Ваши заклинания лечения восстанавливают больше здоровья. Каждый раз, когда вы восстанавливаете хиты существа заклинанием 1-го круга или выше, оно восстанавливает дополнительные хиты в размере: 2 + круг заклинания.'},
+ {id:'ab_shelter_faithful', n:'Приют для верующих', type:'background', source:'Аколит', custom:true,
+  tags:['background','teambuff','social'], uses:null, rest:'',
+  x:'Особенность предыстории (Послушник), пассивная. Вы и ваши спутники можете рассчитывать на бесплатное лечение и уход в храмах вашего божества. Служители вашей веры помогут вам с кровом и едой, если это не подвергнет их опасности.'}
+];
+
+function buildTorgar(){
+  const skills={}; SKILLS.forEach(s=>skills[s[0]]={p:0,m:null});
+  /* ручные бонусы со значком ✱ — ровно как на листе Нексуса */
+  const manual={ 'Акробатика':1,'Уход за животными':1,'Магия':2,'Обман':0,'История':1,'Проницательность':5,
+    'Запугивание':0,'Расследование':0,'Медицина':5,'Природа':1,'Убеждение':3,'Религия':3,'Ловкость рук':1,'Скрытность':0 };
+  Object.keys(manual).forEach(k=>{ if(skills[k]) skills[k].m=manual[k]; });
+  const saves={str:false,dex:false,con:false,int:false,wis:true,cha:true}; /* владения жреца по правилам */
+  return {
+    id:'char_torgar', name:'Торгар Железная Вера', player:'', race:'Дварф', subrace:'Холмовой дварф',
+    cls:'Жрец', subcls:'Домен Жизни', bg:'Аколит', align:'Законно-добрый',
+    level:3, xp:900, ab:{str:14,dex:10,con:16,int:10,wis:16,cha:12},
+    hp:45, hpMax:45, hpTemp:0, ac:0, speed:'7,5 м (не снижается доспехом)', init:0,
+    hitDice:'3к8', inspiration:false, exhaustion:0,
+    saves, skills, cond:[], deaths:{s:0,f:0},
+    coins:{mm:0,sm:0,em:0,zm:0,pm:0},
+    inventory:[
+      {id:'inv_t1', itemId:'it_diamond_torg', qty:1, notes:''},
+      {id:'inv_t2', itemId:'it_silver_comb', qty:1, notes:''},
+      {id:'inv_t3', itemId:'it_incense_t', qty:5, notes:''},
+      {id:'inv_t4', itemId:'it_tinderbox_t', qty:1, notes:''},
+      {id:'inv_t5', itemId:'it_healer_kit_t', qty:3, notes:''},
+      {id:'inv_t6', itemId:'it_censer_gory', qty:1, notes:''},
+      {id:'inv_t7', itemId:'it_warhammer_gorn', qty:1, notes:''},
+      {id:'inv_t8', itemId:'it_chainmail_torgar', qty:1, notes:''},
+      {id:'inv_t9', itemId:'it_holy_shield_life', qty:1, notes:''},
+      {id:'inv_t10', itemId:'it_pauldron_mentor', qty:1, notes:''},
+      {id:'inv_t11', itemId:'it_potion_great_heal', qty:1, notes:''}
+    ],
+    equipment:{},   /* как на листе: КД 10, ничего не надето */
+    spellbook: TORGAR_SPELLS.map(sp=>({spellId:sp.id, prep:false})),
+    slots:{1:{cur:4,max:4},2:{cur:2,max:2}},
+    abilities: TORGAR_ABILITIES.map(a=>({abilityId:a.id, cur:null, notes:''})),
+    feats:[], langs:'Общий, Дварфский', notes:'', hpPend:false,
+    acOverride:null, initB:0, hdUsed:0, spellAb:'wis',
+    persona:{tr:'',id:'',bd:'',fl:'',ap:''}
+  };
+}
+
+/* Однократное вливание Торгара в своды и летопись (и на уже работающих устройствах) */
+async function ensureTorgar(){
+  const flag=await store.get('dndworld2:torgar');
+  if(flag==='1') return;
+  /* предметы: две записи справочника вытесняются версиями Торгара */
+  itemsDB=itemsDB.filter(o=>!TORGAR_REPLACED_ITEMS.includes(o.n));
+  TORGAR_ITEMS.forEach(it=>{
+    if(!itemsDB.some(o=>o.id===it.id)){
+      const o=Object.assign({},it);
+      o.tags=uniqTags((o.tags||[]).concat(itemEnrichTags(o)));
+      itemsDB.push(o);
+    }
+  });
+  /* заклинания: одноименные старые вытесняются версиями Торгара */
+  const spNames=TORGAR_SPELLS.map(s=>s.n);
+  spellsDB=spellsDB.filter(o=>!(spNames.includes(o.n) && !TORGAR_SPELLS.some(t=>t.id===o.id)));
+  TORGAR_SPELLS.forEach(sp=>{
+    if(!spellsDB.some(o=>o.id===sp.id)){
+      const o=Object.assign({},sp);
+      o.tags=uniqTags((o.tags||[]).concat(spellEnrichTags(o)));
+      spellsDB.push(o);
+    }
+  });
+  /* способности */
+  TORGAR_ABILITIES.forEach(ab=>{
+    if(!abilitiesDB.some(o=>o.id===ab.id)){
+      const o=Object.assign({},ab);
+      o.tags=uniqTags((o.tags||[]).concat(abilityEnrichTags(o)));
+      abilitiesDB.push(o);
+    }
+  });
+  /* герой */
+  if(!chars.some(c=>c.id==='char_torgar')){
+    const t=buildTorgar();
+    chars.push(typeof upgradeChar3==='function'?upgradeChar3(t):t);
+  }
+  await store.set('dndworld2:torgar','1');
+  scheduleSave();
+}
+
 /* ═══════════════ СОСТОЯНИЕ И ХРАНИЛИЩЕ ═══════════════ */
 let chars=[], journal=[], itemsDB=[], spellsDB=[], abilitiesDB=[];
 let racesDB=[], classesDB=[], rulesDB=[];   /* мировые своды: народы, призвания, записи мастера */
@@ -1627,6 +1804,7 @@ async function loadAll(){
     if(old && old.length) old.forEach(o=>chars.push(upgradeOldChar(o)));
   }
   chars.forEach(c=>{ if(typeof upgradeChar3==='function') upgradeChar3(c); });
+  if(typeof ensureTorgar==='function') await ensureTorgar();
   journal=(await readJSON('dndworld2:journal')) || (await readJSON('dndworld:journal')) || [];
   setStatus('Летопись открыта');
 }
@@ -1722,6 +1900,7 @@ function doImport(inp){
    КАМПАНЕЙСКИЙ контур (узел campaigns/{ключ}) — персонажи и журнал конкретной кампании.
    Firebase Realtime Database через REST (запись) и Server-Sent Events (живой поток).
    Если в код вписан DEFAULT_DB_URL, облако включается само на любом устройстве. */
+const CLOUD_PAUSED=true;   /* по решению мастера: облако временно на паузе, весь материал сайта ведется локально; кнопка «Подключить» работает */
 const DEFAULT_DB_URL='https://best-dnd-campaign-ever-default-rtdb.firebaseio.com';
 const DEFAULT_ROOM='SpeakFriendAndEnter2026';   /* кампания по умолчанию */
 
@@ -1907,6 +2086,7 @@ function syncDisconnect(){
 }
 function syncAutoStart(){
   syncLoadCfg();
+  if(CLOUD_PAUSED){ syncStatus('Облако: на паузе — весь материал ведется локально для всего сайта'); return; }
   if(syncCfg && syncCfg.on && syncBase() && typeof EventSource!=='undefined') syncConnect(false);
 }
 
@@ -1947,7 +2127,7 @@ function openSyncModal(){
   document.getElementById('syncUrlInp').value=(syncCfg&&syncCfg.url)||'';
   document.getElementById('syncRoomInp').value=(syncCfg&&syncCfg.room)||DEFAULT_ROOM;
   m.classList.remove('hidden');
-  syncStatus(syncOn?'Облако: подключено ✓':'Облако: не подключено', syncOn?'ok':'');
+  syncStatus(syncOn?'Облако: подключено ✓':(CLOUD_PAUSED?'Облако: на паузе по решению мастера — «Подключить» включит его снова':'Облако: не подключено'), syncOn?'ok':'');
 }
 function closeSyncModal(){ const m=document.getElementById('syncModal'); if(m) m.classList.add('hidden'); }
 function syncSaveAndConnect(){
