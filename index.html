@@ -436,6 +436,13 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 .sync-help code{background:var(--sheet);border:1px solid var(--frame);padding:1px 5px;font-size:.85em;word-break:break-all}
 .sync-note{margin-top:10px;font-style:italic;color:var(--rubric);font-size:.88rem}
 #cloudBtn.cloud-on{color:var(--ok);border-color:var(--ok)}
+.db-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.card-tools{float:right;display:flex;gap:4px}
+.fold-tools{float:right;display:flex;gap:4px;margin-left:8px}
+.mini{background:transparent;border:1px solid var(--frame);color:var(--ink-soft);cursor:pointer;font-size:.8rem;line-height:1;padding:3px 6px}
+.mini:hover{color:var(--rubric);border-color:var(--rubric)}
+.chk-row{display:flex;gap:12px;flex-wrap:wrap;margin:4px 0 8px}
+.chk{font-size:.9rem;color:var(--ink-soft);white-space:nowrap}
 
 </style>
 </head>
@@ -540,7 +547,7 @@ const CONDITIONS = [
 ];
 
 /* ═══════════════ РАСЫ ═══════════════ */
-const RACES = [
+const RACES_SEED = [
  {n:'Человек', ab:'+1 ко всем характеристикам', sz:'Средний', sp:'9 м',
   tr:['Дополнительный язык на выбор','Универсальность и быстрая обучаемость'],
   subs:[{n:'Вариант человека',d:'+1 к двум характеристикам, владение одним навыком и одна черта вместо +1 ко всем.'}]},
@@ -589,7 +596,7 @@ const BACKGROUNDS = [
 
 /* ═══════════════ КЛАССЫ ═══════════════ */
 /* lv: [уровень, «черта»] — используется и как справочник, и при повышении уровня */
-const CLASSES = [
+const CLASSES_SEED = [
  {n:'Варвар', hd:12, prime:'Сила', saves:['str','con'], armor:'Лёгкие и средние доспехи, щиты', weap:'Простое и воинское оружие',
   skills:'2 из: Атлетика, Внимательность, Выживание, Запугивание, Природа, Уход за животными',
   desc:'Свирепый воин первобытной ярости, черпающий силу в гневе и инстинктах.',
@@ -1272,7 +1279,7 @@ function seedSpellsDB(){
 function seedAbilitiesDB(){
   const out=[];
   /* расовые черты из справочника народов */
-  RACES.forEach(r=>{
+  RACES_SEED.forEach(r=>{
     r.tr.forEach(tr=>{
       const name=tr.split(':')[0].trim();
       out.push({id:'ab_'+slugify(r.n+'_'+name), n:name+' ('+r.n+')', type:'racial', source:r.n, custom:false,
@@ -1285,6 +1292,9 @@ function seedAbilitiesDB(){
 
 /* ═══════════════ СОСТОЯНИЕ И ХРАНИЛИЩЕ ═══════════════ */
 let chars=[], journal=[], itemsDB=[], spellsDB=[], abilitiesDB=[];
+let racesDB=[], classesDB=[], rulesDB=[];   /* мировые своды: народы, призвания, записи мастера */
+function seedRacesDB(){ return RACES_SEED.map(r=>Object.assign(JSON.parse(JSON.stringify(r)),{id:'race_'+uid()})); }
+function seedClassesDB(){ return CLASSES_SEED.map(c=>Object.assign(JSON.parse(JSON.stringify(c)),{id:'cls_'+uid()})); }
 let activeCharId=null, sheetTab='stats';
 let saveTimer=null;
 const memStore={};
@@ -1315,6 +1325,9 @@ function scheduleSave(){
     await persist('dndworld2:items',itemsDB);
     await persist('dndworld2:spells',spellsDB);
     await persist('dndworld2:abilities',abilitiesDB);
+    await persist('dndworld2:races',racesDB);
+    await persist('dndworld2:classes',classesDB);
+    await persist('dndworld2:rules',rulesDB);
     if(typeof syncTouch==='function') syncTouch();
   },600);
 }
@@ -1370,6 +1383,9 @@ async function loadAll(){
   itemsDB   = (await readJSON('dndworld2:items'))     || seedItemsDB();
   spellsDB  = (await readJSON('dndworld2:spells'))    || seedSpellsDB();
   abilitiesDB=(await readJSON('dndworld2:abilities')) || seedAbilitiesDB();
+  racesDB   = (await readJSON('dndworld2:races'))     || seedRacesDB();
+  classesDB = (await readJSON('dndworld2:classes'))   || seedClassesDB();
+  rulesDB   = (await readJSON('dndworld2:rules'))     || [];
   const savedChars=await readJSON('dndworld2:chars');
   if(savedChars){ chars=savedChars; }
   else{
@@ -1407,7 +1423,7 @@ function rollNotation(){
 }
 function doExport(){
   const blob=new Blob([JSON.stringify({app:'dndworld2', exported:new Date().toISOString(),
-    chars, journal, items:itemsDB, spells:spellsDB, abilities:abilitiesDB}, null, 2)], {type:'application/json'});
+    chars, journal, items:itemsDB, spells:spellsDB, abilities:abilitiesDB, races:racesDB, classes:classesDB, rules:rulesDB}, null, 2)], {type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob); a.download='dnd-world-letopis.json'; a.click();
   URL.revokeObjectURL(a.href);
@@ -1421,43 +1437,48 @@ function doImport(inp){
       if(data.app==='dndworld2'){
         chars=data.chars||[]; journal=data.journal||[];
         itemsDB=data.items||itemsDB; spellsDB=data.spells||spellsDB; abilitiesDB=data.abilities||abilitiesDB;
+        racesDB=data.races||racesDB; classesDB=data.classes||classesDB; rulesDB=data.rules||rulesDB;
       } else if(data.app==='dndworld'){
         journal=data.journal||journal;
         (data.chars||[]).forEach(o=>chars.push(upgradeOldChar(o)));
       } else { alert('Это не летопись D&D World.'); return; }
       scheduleSave(); scheduleJournalSave();
-      renderChars(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderAbilitiesDB();
+      renderChars(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderRaces(); renderClasses(); renderRules();
       alert('Летопись загружена.');
     }catch(e){ alert('Свиток повреждён: '+e.message); }
   };
   rd.readAsText(f); inp.value='';
 }
 
-/* ═══════════════ ОБЛАЧНАЯ СИНХРОНИЗАЦИЯ ═══════════════
+/* ═══════════════ ОБЛАЧНАЯ СИНХРОНИЗАЦИЯ: ДВА КОНТУРА ═══════════════
+   МИРОВОЙ контур (узел world) — своды всего сайта, вне кампаний и безусловно:
+     предметы и снаряжение, заклинания, способности, народы, призвания, справочник мастера.
+   КАМПАНЕЙСКИЙ контур (узел campaigns/{ключ}) — персонажи и журнал конкретной кампании.
    Firebase Realtime Database через REST (запись) и Server-Sent Events (живой поток).
-   Без SDK: нужна только ссылка на базу и ключ кампании. Вся летопись хранится
-   одной JSON-строкой (поле j), чтобы Firebase не выбрасывал пустые массивы. */
-let syncCfg=null, syncES=null, syncOn=false, syncPushTimer=null, syncRetryTimer=null;
-let syncLastAt=0, syncClientId=null, syncPendingRemote=null;
+   Если в код вписан DEFAULT_DB_URL, облако включается само на любом устройстве. */
+const DEFAULT_DB_URL='';        /* ← сюда вписывается общая база сайта */
+const DEFAULT_ROOM='main';      /* кампания по умолчанию */
+
+let syncCfg=null, syncOn=false, syncClientId=null;
 
 function lsGet(k){ try{ return window.localStorage.getItem(k); }catch(e){ return null; } }
 function lsSet(k,v){ try{ window.localStorage.setItem(k,v); }catch(e){} }
 
 function syncLoadCfg(){
   try{ syncCfg=JSON.parse(lsGet('dndworld2:synccfg')||'null'); }catch(e){ syncCfg=null; }
+  if(!syncCfg && DEFAULT_DB_URL){ syncCfg={url:DEFAULT_DB_URL, room:DEFAULT_ROOM, on:true}; syncSaveCfg(); }
   syncClientId=lsGet('dndworld2:clientid');
   if(!syncClientId){ syncClientId='cl_'+Math.random().toString(36).slice(2,10); lsSet('dndworld2:clientid',syncClientId); }
-  syncLastAt=+(lsGet('dndworld2:synclast')||0);
 }
 function syncSaveCfg(){ lsSet('dndworld2:synccfg', JSON.stringify(syncCfg||{})); }
 
-function syncUrl(){
-  if(!syncCfg||!syncCfg.url||!syncCfg.room) return null;
+function syncBase(){
+  if(!syncCfg||!syncCfg.url) return null;
   const u=String(syncCfg.url).trim().replace(/\/+$/,'');
-  const room=String(syncCfg.room).trim().replace(/[^a-zA-Z0-9_-]/g,'');
-  if(!/^https:\/\/.+/.test(u)||!room) return null;
-  return u+'/campaigns/'+room+'.json';
+  return /^https:\/\/.+/.test(u)? u : null;
 }
+function syncRoom(){ return String((syncCfg&&syncCfg.room)||'').trim().replace(/[^a-zA-Z0-9_-]/g,''); }
+
 function syncStatus(t,cls){
   const el=document.getElementById('syncStatus');
   if(el){ el.textContent=t; el.className='sync-status'+(cls?' '+cls:''); }
@@ -1465,121 +1486,162 @@ function syncStatus(t,cls){
   if(btn){ btn.classList.toggle('cloud-on', !!syncOn); btn.textContent=syncOn?'☁ Облако ✓':'☁ Облако'; }
 }
 
-/* ─── снимок состояния и применение чужих правок ─── */
-function syncPayload(){
-  return { by:syncClientId, at:Date.now(),
-    j: JSON.stringify({chars, journal, items:itemsDB, spells:spellsDB, abilities:abilitiesDB}) };
+/* ─── описание контура ───
+   ch = { name, key, url(), payload(), apply(данные), lastAt, es, pushTimer, retryTimer, pending } */
+function makeChan(name, key, urlFn, payloadFn, applyFn){
+  return { name, key, url:urlFn, payloadOf:payloadFn, applyData:applyFn,
+    lastAt:+(lsGet('dndworld2:synclast:'+key)||0), es:null, pushTimer:null, retryTimer:null, pending:null };
 }
+const chWorld=makeChan('мир','w',
+  ()=>{ const b=syncBase(); return b? b+'/world.json' : null; },
+  ()=>({ items:itemsDB, spells:spellsDB, abilities:abilitiesDB, races:racesDB, classes:classesDB, rules:rulesDB }),
+  (d)=>{
+    itemsDB=d.items||[]; spellsDB=d.spells||[]; abilitiesDB=d.abilities||[];
+    racesDB=d.races||racesDB; classesDB=d.classes||classesDB; rulesDB=d.rules||rulesDB;
+    renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderRaces(); renderClasses(); renderRules(); renderChars();
+  });
+const chCamp=makeChan('кампания','c',
+  ()=>{ const b=syncBase(), r=syncRoom(); return (b&&r)? b+'/campaigns/'+r+'.json' : null; },
+  ()=>({ chars, journal }),
+  (d)=>{ chars=d.chars||[]; journal=d.journal||[]; renderChars(); renderJournal(); });
+const syncChans=[chWorld, chCamp];
+
+/* ─── применение чужих правок ─── */
 async function syncPersistLocal(){
   await store.set('dndworld2:chars',   JSON.stringify(chars));
   await store.set('dndworld2:items',   JSON.stringify(itemsDB));
   await store.set('dndworld2:spells',  JSON.stringify(spellsDB));
   await store.set('dndworld2:abilities',JSON.stringify(abilitiesDB));
+  await store.set('dndworld2:races',   JSON.stringify(racesDB));
+  await store.set('dndworld2:classes', JSON.stringify(classesDB));
+  await store.set('dndworld2:rules',   JSON.stringify(rulesDB));
   await store.set('dndworld2:journal', JSON.stringify(journal));
 }
-function syncApplyRemote(msg){
-  /* если мастер прямо сейчас печатает в поле — подождём, чтобы не сбить ввод */
-  const ae=document.activeElement;
+function syncApplyRemote(ch,msg){
+  const ae=document.activeElement;   /* не сбивать набор текста */
   const typing=ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA') && ae.closest && ae.closest('.leaf');
   if(typing){
-    syncPendingRemote=msg;
-    clearTimeout(syncRetryTimer);
-    syncRetryTimer=setTimeout(()=>{ const m=syncPendingRemote; syncPendingRemote=null; if(m) syncApplyRemote(m); },2500);
+    ch.pending=msg;
+    clearTimeout(ch.retryTimer);
+    ch.retryTimer=setTimeout(()=>{ const m=ch.pending; ch.pending=null; if(m) syncApplyRemote(ch,m); },2500);
     return;
   }
   try{
     const d=JSON.parse(msg.j);
-    chars=d.chars||[]; journal=d.journal||[];
-    itemsDB=d.items||[]; spellsDB=d.spells||[]; abilitiesDB=d.abilities||[];
-    syncLastAt=msg.at||Date.now();
-    lsSet('dndworld2:synclast',String(syncLastAt)); lsSet('dndworld2:dirty','');
+    ch.applyData(d);
+    ch.lastAt=msg.at||Date.now();
+    lsSet('dndworld2:synclast:'+ch.key,String(ch.lastAt)); lsSet('dndworld2:dirty:'+ch.key,'');
     syncPersistLocal();
-    renderChars(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderAbilitiesDB();
-    syncStatus('Облако: получены изменения ✓','ok');
+    syncStatus('Облако: получены изменения ('+ch.name+') ✓','ok');
     setStatus('Летопись обновлена из облака ✓');
-  }catch(e){ syncStatus('Облако: не удалось разобрать данные — '+e.message,'err'); }
+  }catch(e){ syncStatus('Облако: не удалось разобрать данные ('+ch.name+')','err'); }
 }
 
-/* ─── отправка: вызывается ядром после каждого сохранения ─── */
+/* ─── отправка: ядро зовёт syncTouch после каждого сохранения ─── */
 function syncTouch(){
   if(!syncCfg||!syncCfg.on) return;
-  if(!syncOn){ lsSet('dndworld2:dirty','1'); return; }   /* правка без связи — отметим */
-  clearTimeout(syncPushTimer);
-  syncPushTimer=setTimeout(syncPushNow,1200);
+  syncChans.forEach(ch=>{
+    if(!ch.url()) return;
+    if(!syncOn){ lsSet('dndworld2:dirty:'+ch.key,'1'); return; }
+    clearTimeout(ch.pushTimer);
+    ch.pushTimer=setTimeout(()=>syncPushNow(ch),1200);
+  });
 }
-async function syncPushNow(){
-  const u=syncUrl(); if(!u||!syncOn) return;
-  const p=syncPayload();
+async function syncPushNow(ch){
+  const u=ch.url(); if(!u||!syncOn) return;
+  const p={ by:syncClientId, at:Date.now(), j:JSON.stringify(ch.payloadOf()) };
   try{
-    syncStatus('Облако: отправляю…');
+    syncStatus('Облако: отправляю ('+ch.name+')…');
     const r=await fetch(u,{method:'PUT',body:JSON.stringify(p)});
     if(!r.ok) throw new Error('HTTP '+r.status);
-    syncLastAt=p.at;
-    lsSet('dndworld2:synclast',String(p.at)); lsSet('dndworld2:dirty','');
-    syncStatus('Облако: сохранено ✓','ok');
-  }catch(e){ syncStatus('Облако: ошибка отправки — '+e.message,'err'); }
+    ch.lastAt=p.at;
+    lsSet('dndworld2:synclast:'+ch.key,String(p.at)); lsSet('dndworld2:dirty:'+ch.key,'');
+    syncStatus('Облако: сохранено ('+ch.name+') ✓','ok');
+  }catch(e){ syncStatus('Облако: ошибка отправки ('+ch.name+') — '+e.message,'err'); }
 }
 
-/* ─── живой поток (Server-Sent Events) ─── */
-function syncCloseStream(){ if(syncES){ try{ syncES.close(); }catch(e){} syncES=null; } }
-function syncOpenStream(u){
-  syncCloseStream();
+/* ─── живой поток ─── */
+function syncCloseStream(ch){ if(ch.es){ try{ ch.es.close(); }catch(e){} ch.es=null; } }
+function syncOpenStream(ch){
+  syncCloseStream(ch);
+  const u=ch.url(); if(!u) return;
   try{
-    syncES=new EventSource(u);
+    ch.es=new EventSource(u);
     const onPut=(ev)=>{
       try{
         const p=JSON.parse(ev.data);
-        if(!p || p.path!=='/' || !p.data) return;   /* интересна только полная запись корня */
+        if(!p || p.path!=='/' || !p.data) return;
         const msg=p.data;
-        if(msg.by===syncClientId) return;           /* эхо собственной записи */
-        if(!(msg.at>syncLastAt)) return;            /* уже применено */
-        syncApplyRemote(msg);
+        if(msg.by===syncClientId) return;
+        if(!(msg.at>ch.lastAt)) return;
+        syncApplyRemote(ch,msg);
       }catch(e){}
     };
-    syncES.addEventListener('put',onPut);
-    syncES.addEventListener('patch',onPut);
-    syncES.addEventListener('cancel',()=>syncStatus('Облако: доступ закрыт правилами базы','err'));
-    syncES.addEventListener('auth_revoked',()=>syncStatus('Облако: истёк доступ — проверьте правила базы','err'));
-    syncES.onerror=()=>{ if(syncOn) syncStatus('Облако: связь прервана, переподключаюсь…','err'); };
+    ch.es.addEventListener('put',onPut);
+    ch.es.addEventListener('patch',onPut);
+    ch.es.addEventListener('cancel',()=>syncStatus('Облако: доступ закрыт правилами базы','err'));
+    ch.es.addEventListener('auth_revoked',()=>syncStatus('Облако: истёк доступ — проверьте правила базы','err'));
+    ch.es.onerror=()=>{ if(syncOn) syncStatus('Облако: связь прервана ('+ch.name+'), переподключаюсь…','err'); };
   }catch(e){ syncStatus('Облако: живой поток недоступен — '+e.message,'err'); }
+}
+
+/* ─── рукопожатие одного контура ─── */
+async function syncHandshake(ch, cloud, interactive){
+  const dirty=lsGet('dndworld2:dirty:'+ch.key)==='1';
+  if(cloud && cloud.j && cloud.at){
+    if(cloud.at>ch.lastAt){
+      let take=true;
+      if(interactive || dirty){
+        take=window.confirm('В облаке уже есть данные («'+ch.name+'», запись от '+new Date(cloud.at).toLocaleString()+').\n\nОК — взять из облака (заменит данные на этом устройстве).\nОтмена — заменить облако данными этого устройства.');
+      }
+      if(take) syncApplyRemote(ch,cloud); else await syncPushNow(ch);
+    } else if(dirty){ await syncPushNow(ch); }
+  } else {
+    await syncPushNow(ch);       /* узел пуст — кладём свои данные */
+  }
+  syncOpenStream(ch);
 }
 
 /* ─── подключение / отключение ─── */
 async function syncConnect(interactive){
-  const u=syncUrl();
-  if(!u){ syncStatus('Укажите ссылку на базу (https://…) и ключ кампании латиницей','err'); return; }
-  syncCloseStream();
+  if(!syncBase()){ syncStatus('Укажите ссылку на базу (https://…)','err'); return; }
+  syncChans.forEach(syncCloseStream);
   syncStatus('Облако: подключаюсь…');
-  let cloud=null;
+  /* забираем оба узла */
+  let cloudW=null, cloudC=null;
   try{
-    const r=await fetch(u);
+    const r=await fetch(chWorld.url());
     if(!r.ok) throw new Error('HTTP '+r.status);
-    cloud=await r.json();
+    cloudW=await r.json();
   }catch(e){ syncOn=false; syncStatus('Облако: нет доступа — '+e.message,'err'); return; }
-  syncOn=true; syncCfg.on=true; syncSaveCfg();
-  const dirty=lsGet('dndworld2:dirty')==='1';
-  if(cloud && cloud.j && cloud.at){
-    if(cloud.at>syncLastAt){
-      let take=true;
-      if(interactive || dirty){
-        take=window.confirm('В облаке уже есть летопись (запись от '+new Date(cloud.at).toLocaleString()+').\n\nОК — взять летопись из облака (заменит данные на этом устройстве).\nОтмена — заменить облако данными этого устройства.');
-      }
-      if(take) syncApplyRemote(cloud); else await syncPushNow();
-    } else if(dirty){ await syncPushNow(); }
-  } else {
-    await syncPushNow();          /* облако пустое — кладём свою летопись */
+  if(chCamp.url()){
+    try{ const r=await fetch(chCamp.url()); if(r.ok) cloudC=await r.json(); }catch(e){}
   }
-  syncOpenStream(u);
-  syncStatus('Облако: подключено ✓','ok');
+  syncOn=true; syncCfg.on=true; syncSaveCfg();
+  /* перенос старого формата: раньше весь мир лежал внутри кампании */
+  if((!cloudW || !cloudW.j) && cloudC && cloudC.j){
+    try{
+      const old=JSON.parse(cloudC.j);
+      if(old.items||old.spells||old.abilities){
+        itemsDB=old.items||itemsDB; spellsDB=old.spells||spellsDB; abilitiesDB=old.abilities||abilitiesDB;
+        await syncPushNow(chWorld);
+        cloudW={by:syncClientId, at:chWorld.lastAt, j:JSON.stringify(chWorld.payloadOf())};
+        syncStatus('Облако: своды мира вынесены из кампании в общий контур ✓','ok');
+      }
+    }catch(e){}
+  }
+  await syncHandshake(chWorld, cloudW, interactive);
+  if(chCamp.url()) await syncHandshake(chCamp, cloudC, interactive);
+  syncStatus('Облако: подключено ✓ (мир — общий'+(chCamp.url()?', кампания «'+syncRoom()+'»':'; кампания не задана')+')','ok');
 }
 function syncDisconnect(){
-  syncCloseStream(); syncOn=false;
+  syncChans.forEach(syncCloseStream); syncOn=false;
   if(syncCfg){ syncCfg.on=false; syncSaveCfg(); }
   syncStatus('Облако: отключено');
 }
 function syncAutoStart(){
   syncLoadCfg();
-  if(syncCfg && syncCfg.on && syncUrl() && typeof EventSource!=='undefined') syncConnect(false);
+  if(syncCfg && syncCfg.on && syncBase() && typeof EventSource!=='undefined') syncConnect(false);
 }
 
 /* ─── окно настройки ─── */
@@ -1591,11 +1653,11 @@ function openSyncModal(){
     m.innerHTML=
       '<div class="sync-box">'+
       '<div class="sync-head">☁ Облачная летопись</div>'+
-      '<div class="sync-sub">Изменения на всех устройствах сливаются в одну книгу и приходят друг к другу мгновенно.</div>'+
+      '<div class="sync-sub"><b>Своды мира</b> — предметы и снаряжение, заклинания, способности, народы, призвания, справочник мастера — общие для всего сайта и синхронизируются безусловно, вне кампаний. <b>Персонажи и журнал</b> живут в кампании и синхронизируются между устройствами с одинаковым ключом.</div>'+
       '<label class="sync-lbl">Ссылка на базу данных (Firebase Realtime Database)</label>'+
       '<input id="syncUrlInp" class="sync-inp" placeholder="https://ваш-проект-default-rtdb.europe-west1.firebasedatabase.app">'+
-      '<label class="sync-lbl">Ключ кампании (латиницей — общий для всех устройств группы)</label>'+
-      '<input id="syncRoomInp" class="sync-inp" placeholder="moya-kampaniya">'+
+      '<label class="sync-lbl">Ключ кампании — для персонажей и журнала (можно оставить main)</label>'+
+      '<input id="syncRoomInp" class="sync-inp" placeholder="main">'+
       '<div class="sync-btns">'+
       '<button class="btn sm" onclick="syncSaveAndConnect()">Подключить</button>'+
       '<button class="btn ghost sm" onclick="syncDisconnect()">Отключить</button>'+
@@ -1607,17 +1669,17 @@ function openSyncModal(){
       '<li>Откройте <b>console.firebase.google.com</b> (нужен аккаунт Google) → «Создать проект». Название любое, Analytics можно выключить.</li>'+
       '<li>Слева: <b>Build → Realtime Database</b> → «Создать базу данных» → регион любой → <b>«Начать в тестовом режиме»</b>.</li>'+
       '<li>Над таблицей данных появится ссылка вида <i>https://…-default-rtdb.….firebasedatabase.app/</i> — скопируйте её в поле выше.</li>'+
-      '<li>Придумайте ключ кампании и нажмите «Подключить». На остальных устройствах введите ту же ссылку и тот же ключ.</li>'+
-      '<li>Тестовый режим действует 30 дней. Затем во вкладке <b>Правила</b> базы поставьте: <code>{"rules":{"campaigns":{".read":true,".write":true}}}</code> и нажмите «Опубликовать».</li>'+
+      '<li>Нажмите «Подключить». На остальных устройствах введите ту же ссылку; своды мира сойдутся сами, а для общих персонажей укажите одинаковый ключ кампании.</li>'+
+      '<li>Тестовый режим действует 30 дней. Затем во вкладке <b>Правила</b> базы поставьте: <code>{"rules":{".read":true,".write":true}}</code> и нажмите «Опубликовать».</li>'+
       '</ol>'+
-      '<div class="sync-note">Летопись доступна всякому, кто знает ссылку и ключ, — не храните в ней личные сведения и держите ключ в секрете, как пароль.</div>'+
+      '<div class="sync-note">Данные доступны всякому, кто знает ссылку на базу, — держите её в секрете, как пароль, и не храните в летописи личные сведения.</div>'+
       '</details>'+
       '</div>';
     document.body.appendChild(m);
     m.addEventListener('click',e=>{ if(e.target===m) closeSyncModal(); });
   }
   document.getElementById('syncUrlInp').value=(syncCfg&&syncCfg.url)||'';
-  document.getElementById('syncRoomInp').value=(syncCfg&&syncCfg.room)||('kampaniya-'+Math.random().toString(36).slice(2,8));
+  document.getElementById('syncRoomInp').value=(syncCfg&&syncCfg.room)||DEFAULT_ROOM;
   m.classList.remove('hidden');
   syncStatus(syncOn?'Облако: подключено ✓':'Облако: не подключено', syncOn?'ok':'');
 }
@@ -1625,17 +1687,66 @@ function closeSyncModal(){ const m=document.getElementById('syncModal'); if(m) m
 function syncSaveAndConnect(){
   syncCfg=syncCfg||{};
   syncCfg.url=document.getElementById('syncUrlInp').value.trim();
-  syncCfg.room=document.getElementById('syncRoomInp').value.trim();
+  syncCfg.room=document.getElementById('syncRoomInp').value.trim()||DEFAULT_ROOM;
   syncSaveCfg();
   syncConnect(true);
 }
+
+/* ═══════════════ СПРАВОЧНЫЕ ВКЛАДКИ (редактируемые своды мира) ═══════════════ */
+const refEditing={race:null, cls:null, rule:null, raceNew:false, clsNew:false, ruleNew:false};
+
+/* ─── НАРОДЫ ─── */
+function raceEditorHTML(){
+  const r=racesDB.find(x=>x.id===refEditing.race)||{n:'',ab:'',sz:'Средний',sp:'9 м',tr:[],subs:[]};
+  return '<div class="editor"><h3>'+(refEditing.race?'Правка народа':'Новый народ')+'</h3>'
+   +'<div class="f-grid">'
+   +'<div><label>Название</label><input type="text" id="edRcN" value="'+esc(r.n)+'"></div>'
+   +'<div><label>Бонусы характеристик</label><input type="text" id="edRcAb" value="'+esc(r.ab)+'" placeholder="+2 Ловкость"></div>'
+   +'<div><label>Размер</label><input type="text" id="edRcSz" value="'+esc(r.sz)+'"></div>'
+   +'<div><label>Скорость</label><input type="text" id="edRcSp" value="'+esc(r.sp)+'"></div>'
+   +'</div>'
+   +'<label>Черты народа — по одной на строку</label><textarea id="edRcTr" rows="5">'+esc((r.tr||[]).join('\n'))+'</textarea>'
+   +'<label>Подрасы — по одной на строку: Название — описание</label><textarea id="edRcSubs" rows="4">'+esc((r.subs||[]).map(s=>s.n+' — '+s.d).join('\n'))+'</textarea>'
+   +'<button class="btn rub" onclick="saveRaceEd()">Вписать в свод</button> '
+   +'<button class="btn ghost" onclick="refEditing.race=null;refEditing.raceNew=false;renderRaces()">Отложить перо</button></div>';
+}
+function saveRaceEd(){
+  const n=document.getElementById('edRcN').value.trim();
+  if(!n){ alert('У народа должно быть имя.'); return; }
+  const val={ n,
+    ab:document.getElementById('edRcAb').value.trim(),
+    sz:document.getElementById('edRcSz').value.trim()||'Средний',
+    sp:document.getElementById('edRcSp').value.trim()||'9 м',
+    tr:document.getElementById('edRcTr').value.split('\n').map(s=>s.trim()).filter(Boolean),
+    subs:document.getElementById('edRcSubs').value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{
+      const i=s.indexOf('—')>=0?s.indexOf('—'):s.indexOf('-');
+      return i>0? {n:s.slice(0,i).trim(), d:s.slice(i+1).trim()} : {n:s, d:''};
+    })
+  };
+  let r=racesDB.find(x=>x.id===refEditing.race);
+  if(r) Object.assign(r,val); else racesDB.push(Object.assign({id:'race_'+uid()},val));
+  refEditing.race=null; refEditing.raceNew=false;
+  scheduleSave(); renderRaces();
+}
+function delRace(id){
+  const r=racesDB.find(x=>x.id===id); if(!r) return;
+  if(!confirm('Вычеркнуть народ «'+r.n+'» из свода?')) return;
+  racesDB=racesDB.filter(x=>x.id!==id);
+  scheduleSave(); renderRaces();
+}
 function renderRaces(){
-  let h = '<h2 class="rubric">Народы мира</h2><div class="grid c2">';
-  RACES.forEach(r=>{
-    h += '<div class="card"><h4>'+esc(r.n)+'</h4>'
+  let h = '<div class="db-head"><h2 class="rubric">Народы мира</h2>'
+    + '<button class="btn sm rub" onclick="refEditing.raceNew=true;refEditing.race=null;renderRaces()">+ Добавить народ</button></div>';
+  if(refEditing.raceNew||refEditing.race) h += raceEditorHTML();
+  h += '<div class="grid c2">';
+  racesDB.forEach(r=>{
+    h += '<div class="card"><div class="card-tools">'
+      + '<button class="mini" title="Править" onclick="refEditing.race=\''+r.id+'\';refEditing.raceNew=false;renderRaces();window.scrollTo({top:0,behavior:\'smooth\'})">✎</button>'
+      + '<button class="mini" title="Вычеркнуть" onclick="delRace(\''+r.id+'\')">✕</button></div>'
+      + '<h4>'+esc(r.n)+'</h4>'
       + '<div class="meta">'+esc(r.ab)+' · размер: '+esc(r.sz)+' · скорость: '+esc(r.sp)+'</div>'
-      + '<ul>'+r.tr.map(t=>'<li>'+esc(t)+'</li>').join('')+'</ul>';
-    if(r.subs.length){
+      + '<ul>'+(r.tr||[]).map(t=>'<li>'+esc(t)+'</li>').join('')+'</ul>';
+    if((r.subs||[]).length){
       h += '<h3 class="sub" style="font-size:15px;margin:10px 0 6px"><span class="fl">❧</span>Подрасы</h3><ul>'
         + r.subs.map(s=>'<li><b>'+esc(s.n)+'.</b> '+esc(s.d)+'</li>').join('')+'</ul>';
     }
@@ -1645,22 +1756,78 @@ function renderRaces(){
   document.getElementById('tab-races').innerHTML = h;
 }
 
+/* ─── ПРИЗВАНИЯ ─── */
+function clsEditorHTML(){
+  const c=classesDB.find(x=>x.id===refEditing.cls)||{n:'',hd:8,prime:'',saves:[],armor:'',weap:'',skills:'',desc:'',subT:'Архетип (3 уровень)',subs:[],lv:[]};
+  const savesBoxes=Object.keys(AB_FULL).map(k=>
+    '<label class="chk"><input type="checkbox" class="edClSave" value="'+k+'"'+((c.saves||[]).includes(k)?' checked':'')+'> '+AB_FULL[k]+'</label>').join(' ');
+  return '<div class="editor"><h3>'+(refEditing.cls?'Правка призвания':'Новое призвание')+'</h3>'
+   +'<div class="f-grid">'
+   +'<div><label>Название</label><input type="text" id="edClN" value="'+esc(c.n)+'"></div>'
+   +'<div><label>Кость хитов (к…)</label><input type="number" id="edClHd" min="4" max="12" step="2" value="'+(c.hd||8)+'"></div>'
+   +'<div><label>Главная характеристика</label><input type="text" id="edClPrime" value="'+esc(c.prime||'')+'"></div>'
+   +'<div><label>Доспехи</label><input type="text" id="edClArm" value="'+esc(c.armor||'')+'"></div>'
+   +'<div><label>Оружие</label><input type="text" id="edClWeap" value="'+esc(c.weap||'')+'"></div>'
+   +'<div><label>Навыки на выбор</label><input type="text" id="edClSk" value="'+esc(c.skills||'')+'"></div>'
+   +'</div>'
+   +'<label>Спасброски</label><div class="chk-row">'+savesBoxes+'</div>'
+   +'<label>Описание</label><textarea id="edClDesc" rows="2">'+esc(c.desc||'')+'</textarea>'
+   +'<div class="f-grid"><div><label>Заголовок подклассов</label><input type="text" id="edClSubT" value="'+esc(c.subT||'')+'"></div></div>'
+   +'<label>Подклассы — по одному на строку: Название — описание</label><textarea id="edClSubs" rows="3">'+esc((c.subs||[]).map(s=>s[0]+' — '+s[1]).join('\n'))+'</textarea>'
+   +'<label>Черты по уровням — по одной на строку: уровень — черта</label><textarea id="edClLv" rows="6">'+esc((c.lv||[]).map(x=>x[0]+' — '+x[1]).join('\n'))+'</textarea>'
+   +'<button class="btn rub" onclick="saveClsEd()">Вписать в свод</button> '
+   +'<button class="btn ghost" onclick="refEditing.cls=null;refEditing.clsNew=false;renderClasses()">Отложить перо</button></div>';
+}
+function saveClsEd(){
+  const n=document.getElementById('edClN').value.trim();
+  if(!n){ alert('У призвания должно быть имя.'); return; }
+  const parsePairs=(txt)=>txt.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{
+    const i=s.indexOf('—')>=0?s.indexOf('—'):s.indexOf('-');
+    return i>0? [s.slice(0,i).trim(), s.slice(i+1).trim()] : [s,''];
+  });
+  const val={ n,
+    hd:+document.getElementById('edClHd').value||8,
+    prime:document.getElementById('edClPrime').value.trim(),
+    saves:[...document.querySelectorAll('.edClSave:checked')].map(x=>x.value),
+    armor:document.getElementById('edClArm').value.trim(),
+    weap:document.getElementById('edClWeap').value.trim(),
+    skills:document.getElementById('edClSk').value.trim(),
+    desc:document.getElementById('edClDesc').value.trim(),
+    subT:document.getElementById('edClSubT').value.trim()||'Архетип',
+    subs:parsePairs(document.getElementById('edClSubs').value),
+    lv:parsePairs(document.getElementById('edClLv').value).map(p=>[+p[0]||1, p[1]])
+  };
+  let c=classesDB.find(x=>x.id===refEditing.cls);
+  if(c) Object.assign(c,val); else classesDB.push(Object.assign({id:'cls_'+uid()},val));
+  refEditing.cls=null; refEditing.clsNew=false;
+  scheduleSave(); renderClasses();
+}
+function delCls(id){
+  const c=classesDB.find(x=>x.id===id); if(!c) return;
+  if(!confirm('Вычеркнуть призвание «'+c.n+'» из свода?')) return;
+  classesDB=classesDB.filter(x=>x.id!==id);
+  scheduleSave(); renderClasses();
+}
 function renderClasses(){
-  let h = '<h2 class="rubric">Двенадцать призваний</h2>';
-  CLASSES.forEach((c,i)=>{
+  let h = '<div class="db-head"><h2 class="rubric">Призвания</h2>'
+    + '<button class="btn sm rub" onclick="refEditing.clsNew=true;refEditing.cls=null;renderClasses()">+ Добавить призвание</button></div>';
+  if(refEditing.clsNew||refEditing.cls) h += clsEditorHTML();
+  classesDB.forEach(c=>{
     const feats = {};
-    c.lv.forEach(([l,f])=>{ (feats[l]=feats[l]||[]).push(f); });
+    (c.lv||[]).forEach(([l,f])=>{ (feats[l]=feats[l]||[]).push(f); });
     h += '<details class="classfold"><summary>'+esc(c.n)
-      + '<span class="hint">к'+c.hd+' · '+esc(c.prime)+'</span></summary><div class="fold-body">'
-      + '<p class="note-ital" style="margin:8px 0">'+esc(c.desc)+'</p>'
+      + '<span class="hint">к'+c.hd+' · '+esc(c.prime||'')+'</span>'
+      + '<span class="fold-tools"><button class="mini" title="Править" onclick="event.preventDefault();refEditing.cls=\''+c.id+'\';refEditing.clsNew=false;renderClasses();window.scrollTo({top:0,behavior:\'smooth\'})">✎</button>'
+      + '<button class="mini" title="Вычеркнуть" onclick="event.preventDefault();delCls(\''+c.id+'\')">✕</button></span></summary><div class="fold-body">'
+      + '<p class="note-ital" style="margin:8px 0">'+esc(c.desc||'')+'</p>'
       + '<div class="two-col"><div>'
-      + '<p><b>Кость хитов:</b> к'+c.hd+' &nbsp;·&nbsp; <b>Спасброски:</b> '+c.saves.map(k=>AB_FULL[k]).join(', ')+'</p>'
-      + '<p><b>Доспехи:</b> '+esc(c.armor)+'</p><p><b>Оружие:</b> '+esc(c.weap)+'</p>'
-      + '<p><b>Навыки:</b> '+esc(c.skills)+'</p>'
-      + '<h3 class="sub" style="font-size:16px"><span class="fl">❧</span>'+esc(c.subT)+'</h3><ul>'
-      + c.subs.map(s=>'<li><b>'+esc(s[0])+'.</b> '+esc(s[1])+'</li>').join('')+'</ul>'
+      + '<p><b>Кость хитов:</b> к'+c.hd+' &nbsp;·&nbsp; <b>Спасброски:</b> '+(c.saves||[]).map(k=>AB_FULL[k]||k).join(', ')+'</p>'
+      + '<p><b>Доспехи:</b> '+esc(c.armor||'—')+'</p><p><b>Оружие:</b> '+esc(c.weap||'—')+'</p>'
+      + '<p><b>Навыки:</b> '+esc(c.skills||'—')+'</p>'
+      + '<h3 class="sub" style="font-size:16px"><span class="fl">❧</span>'+esc(c.subT||'Архетипы')+'</h3><ul>'
+      + (c.subs||[]).map(s=>'<li><b>'+esc(s[0])+'.</b> '+esc(s[1])+'</li>').join('')+'</ul>'
       + '</div><div><h3 class="sub" style="font-size:16px;margin-top:0"><span class="fl">❧</span>Черты по уровням</h3><div class="lv-feats">'
-      + Object.keys(feats).map(l=>'<div><b>'+l+'</b> — '+feats[l].map(esc).join('; ')+'</div>').join('')
+      + Object.keys(feats).sort((a,b)=>a-b).map(l=>'<div><b>'+l+'</b> — '+feats[l].map(esc).join('; ')+'</div>').join('')
       + '</div></div></div></div></details>';
   });
   h += '<h3 class="sub"><span class="fl">❧</span>Ячейки заклинаний полного заклинателя</h3>'
@@ -1674,8 +1841,44 @@ function renderClasses(){
   document.getElementById('tab-classes').innerHTML = h;
 }
 
+/* ─── СПРАВОЧНИК МАСТЕРА ─── */
+function ruleEditorHTML(){
+  const r=rulesDB.find(x=>x.id===refEditing.rule)||{t:'',x:''};
+  return '<div class="editor"><h3>'+(refEditing.rule?'Правка записи':'Новая запись мастера')+'</h3>'
+   +'<div class="f-grid"><div><label>Заголовок</label><input type="text" id="edRuT" value="'+esc(r.t)+'"></div></div>'
+   +'<label>Текст записи</label><textarea id="edRuX" rows="7">'+esc(r.x)+'</textarea>'
+   +'<button class="btn rub" onclick="saveRuleEd()">Вписать в свод</button> '
+   +'<button class="btn ghost" onclick="refEditing.rule=null;refEditing.ruleNew=false;renderRules()">Отложить перо</button></div>';
+}
+function saveRuleEd(){
+  const t=document.getElementById('edRuT').value.trim();
+  if(!t){ alert('У записи должен быть заголовок.'); return; }
+  const x=document.getElementById('edRuX').value;
+  let r=rulesDB.find(v=>v.id===refEditing.rule);
+  if(r){ r.t=t; r.x=x; } else rulesDB.push({id:'rule_'+uid(), t, x});
+  refEditing.rule=null; refEditing.ruleNew=false;
+  scheduleSave(); renderRules();
+}
+function delRule(id){
+  const r=rulesDB.find(x=>x.id===id); if(!r) return;
+  if(!confirm('Вычеркнуть запись «'+r.t+'»?')) return;
+  rulesDB=rulesDB.filter(x=>x.id!==id);
+  scheduleSave(); renderRules();
+}
 function renderRules(){
-  let h = '<h2 class="rubric">Справочник мастера</h2>';
+  let h = '<div class="db-head"><h2 class="rubric">Справочник мастера</h2>'
+    + '<button class="btn sm rub" onclick="refEditing.ruleNew=true;refEditing.rule=null;renderRules()">+ Запись мастера</button></div>';
+  if(refEditing.ruleNew||refEditing.rule) h += ruleEditorHTML();
+  if(rulesDB.length){
+    h += '<h3 class="sub"><span class="fl">❧</span>Записи мастера</h3><div class="grid c2">';
+    rulesDB.forEach(r=>{
+      h += '<div class="card"><div class="card-tools">'
+        + '<button class="mini" title="Править" onclick="refEditing.rule=\''+r.id+'\';refEditing.ruleNew=false;renderRules();window.scrollTo({top:0,behavior:\'smooth\'})">✎</button>'
+        + '<button class="mini" title="Вычеркнуть" onclick="delRule(\''+r.id+'\')">✕</button></div>'
+        + '<h4>'+esc(r.t)+'</h4><p style="font-size:14.5px;white-space:pre-wrap">'+esc(r.x)+'</p></div>';
+    });
+    h += '</div>';
+  }
   h += '<h3 class="sub"><span class="fl">❧</span>Опыт и бонус мастерства</h3><div class="table-scroll"><table class="ms"><tr><th>Уровень</th><th>Опыт</th><th>Бонус мастерства</th><th>Уровень</th><th>Опыт</th><th>Бонус мастерства</th></tr>';
   for(let i=1;i<=10;i++){
     h += '<tr><td><b>'+i+'</b></td><td>'+XP_TABLE[i].toLocaleString('ru')+'</td><td>+'+PROF[i]+'</td>'
@@ -1696,7 +1899,6 @@ function renderRules(){
   h += '</table></div>';
   document.getElementById('tab-rules').innerHTML = h;
 }
-
 
 /* ═══════════════ ЖУРНАЛ КАМПАНИИ ═══════════════ */
 
@@ -2033,17 +2235,17 @@ function renderChars(){
   }
   box.innerHTML=h;
 }
-function raceOpts(sel){ return RACES.map(r=>'<option'+(r.n===sel?' selected':'')+'>'+r.n+'</option>').join(''); }
+function raceOpts(sel){ return racesDB.map(r=>'<option'+(r.n===sel?' selected':'')+'>'+r.n+'</option>').join(''); }
 function subraceOpts(race,sel){
-  const r=RACES.find(x=>x.n===race);
+  const r=racesDB.find(x=>x.n===race);
   let h='<option value=""'+(!sel?' selected':'')+'>—</option>';
   if(r) r.subs.forEach(s=>{ h+='<option'+(s.n===sel?' selected':'')+'>'+s.n+'</option>'; });
   return h;
 }
-function clsOpts(sel){ return CLASSES.map(c=>'<option'+(c.n===sel?' selected':'')+'>'+c.n+'</option>').join(''); }
+function clsOpts(sel){ return classesDB.map(c=>'<option'+(c.n===sel?' selected':'')+'>'+c.n+'</option>').join(''); }
 function bgOpts(sel){ return '<option value=""'+(!sel?' selected':'')+'>—</option>'+BACKGROUNDS.map(b=>'<option'+(b.n===sel?' selected':'')+'>'+b.n+'</option>').join(''); }
 function alignOpts(sel){ return ALIGNMENTS.map(a=>'<option'+(a===sel?' selected':'')+'>'+a+'</option>').join(''); }
-const classOf=c=>CLASSES.find(x=>x.n===c.cls)||CLASSES[0];
+const classOf=c=>classesDB.find(x=>x.n===c.cls)||classesDB[0]||CLASSES_SEED[0];
 
 function updC(key,val){ const c=cc(); if(!c) return; c[key]=val; scheduleSave(); }
 function updNum(key,val){ const c=cc(); if(!c) return; c[key]=+val||0; scheduleSave(); }
@@ -2074,7 +2276,7 @@ function applyHp(){
 }
 function addRaceTraitsToChar(){
   const c=cc(); if(!c) return;
-  const r=RACES.find(x=>x.n===c.race); if(!r) return;
+  const r=racesDB.find(x=>x.n===c.race); if(!r) return;
   r.tr.forEach(tr=>{
     const name=tr.split(':')[0].trim()+' ('+r.n+')';
     let db=abilitiesDB.find(a=>a.n===name);
@@ -2563,8 +2765,8 @@ function stNotes(c){
 
 /* ═══════════════ ЗАПУСК ═══════════════ */
 (async function init(){
-  renderRaces(); renderClasses(); renderRules();
   await loadAll();
+  renderRaces(); renderClasses(); renderRules();
   renderChars(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderAbilitiesDB();
   if(typeof syncAutoStart==='function') syncAutoStart();
 })();
