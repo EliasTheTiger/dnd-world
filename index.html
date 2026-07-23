@@ -478,6 +478,7 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 .fx-cast{color:#5e35b1;border-color:#5e35b1}
 .fx-cast.on{background:#5e35b1;color:#fff8ea}
 .fx-cast:hover{color:var(--rubric);border-color:var(--rubric)}
+.fx-off{opacity:.5;border-left-color:var(--ink-faint)}
 
 </style>
 </head>
@@ -2275,6 +2276,8 @@ function doImport(inp){
    эффекты выводятся из текста автоматически (deriveFx), поэтому механизм
    работает и для записей, которых еще нет. */
 
+let fxCacheT=0;
+function fxInvalidate(){ fxCacheT++; }
 const FX_STAT_RU={ac:'КД', hpmax:'макс. хиты', hp:'текущие хиты', init:'инициатива', speed:'скорость',
  atk:'броски атаки', dmg:'урон', passperc:'пасс. Внимательность',
  'ab.str':'Сила','ab.dex':'Ловкость','ab.con':'Телосложение','ab.int':'Интеллект','ab.wis':'Мудрость','ab.cha':'Харизма',
@@ -2288,8 +2291,11 @@ function deriveFx(rec, kind){
   const low=x.toLowerCase();
   let m;
   /* +N к КД (у брони базовый КД считает acAuto — ловим только явные бонусы) */
-  const acRe=/\+(\d+)\s*к\s*кд/gi;
-  while((m=acRe.exec(low))) t.push({stat:'ac',mode:'add',value:+m[1]});
+  const armorBase=(kind==='item'&&rec.type==='armor'&&rec.ac);   /* базу и бонусы такой брони считает acAuto */
+  if(!armorBase){
+    const acRe=/\+(\d+)\s*к\s*кд/gi;
+    while((m=acRe.exec(low))) t.push({stat:'ac',mode:'add',value:+m[1]});
+  }
   /* +N к броскам атаки */
   const atkRe=/\+(\d+)\s*к\s*броск[а-я]*\s*атак/gi;
   while((m=atkRe.exec(low))) t.push({stat:'atk',mode:'add',value:+m[1]});
@@ -2371,21 +2377,39 @@ function fxToLines(fx){
 
 /* ── активные источники эффектов героя ── */
 function isPassiveAbility(ab){ return ab && ab.uses==null && !ab.rest; }
+const EXHAUST_FX=['помеха на проверки характеристик','скорость уменьшена вдвое','помеха на броски атаки и спасброски','максимум хитов уменьшен вдвое','скорость равна 0','смерть'];
+function fxSrcKey(s){ return s.k+':'+s.id; }
+function toggleFxSource(charId,key){
+  const t=getCh(charId); if(!t) return;
+  t.fxOff=t.fxOff||[];
+  const i=t.fxOff.indexOf(key);
+  if(i>=0) t.fxOff.splice(i,1); else t.fxOff.push(key);
+  fxInvalidate(); scheduleSave(); renderChars();
+}
 function charFxSources(c){
   const out=[];
+  const off=c.fxOff||[];
   const eq=c.equipment||{}, wornEntry=new Set(Object.values(eq).filter(Boolean));
   (c.inventory||[]).forEach(e=>{
     const it=itemOf(e.itemId); if(!it) return;
     const worn=wornEntry.has(e.id);
     const wearable=!!it.slot;
     if((wearable&&worn)||(!wearable)){
-      const fx=recFx(it,'item'); if(fx.length) out.push({k:'item', id:it.id, label:it.n, why:(wearable?'надето':'в инвентаре'), fx});
+      const fx=recFx(it,'item');
+      if(fx.length){
+        const s={k:'item', id:it.id, label:it.n, why:(wearable?'надето':'в инвентаре'), fx, canOff:true};
+        s.off=off.includes(fxSrcKey(s)); out.push(s);
+      }
     }
   });
   (c.abilities||[]).forEach(e=>{
     const ab=abilityOf(e.abilityId); if(!ab) return;
     if(isPassiveAbility(ab)){
-      const fx=recFx(ab,'ability'); if(fx.length) out.push({k:'ability', id:ab.id, label:ab.n, why:'пассивная', fx});
+      const fx=recFx(ab,'ability');
+      if(fx.length){
+        const s={k:'ability', id:ab.id, label:ab.n, why:'пассивная', fx, canOff:true};
+        s.off=off.includes(fxSrcKey(s)); out.push(s);
+      }
     }
   });
   (c.activeFx||[]).forEach(a=>{
@@ -2393,17 +2417,30 @@ function charFxSources(c){
     if(a.k==='spell'){ rec=spellOf(a.id); label=rec?rec.n:label; }
     if(a.k==='ability'){ rec=abilityOf(a.id); label=rec?rec.n:label; }
     const fx=a.fx&&a.fx.length? a.fx : recFx(rec, a.k);
-    if(fx.length||a.k==='spell') out.push({k:a.k, id:a.id, uid:a.uid, label, why:(a.from?'наложено: '+a.from:'применено'), fx, removable:true});
+    if(fx.length||a.k==='spell'||a.k==='use') out.push({k:a.k, id:a.id, uid:a.uid, label, why:a.why||(a.from?'наложено: '+a.from:'применено'), fx, removable:true});
   });
+  /* истощение — канонические последствия по уровням */
+  const ex=+c.exhaustion||0;
+  if(ex>0){
+    out.push({k:'exhaustion', id:'ex', label:'Истощение (уровень '+ex+')', why:'состояние',
+      fx:EXHAUST_FX.slice(0,Math.min(6,ex)).map(v=>({stat:'note',mode:'text',value:v}))});
+  }
+  /* отмеченные состояния */
+  if((c.cond||[]).length){
+    out.push({k:'cond', id:'cond', label:'Состояния', why:'отмечены на листе',
+      fx:c.cond.map(n=>({stat:'note',mode:'text',value:n}))});
+  }
   return out;
 }
 function charFxAll(c){
+  if(c.__fxC && c.__fxC.t===fxCacheT) return c.__fxC.v;
   const list=[];
-  charFxSources(c).forEach(s=>s.fx.forEach(f=>{
+  charFxSources(c).forEach(s=>{ if(s.off) return; s.fx.forEach(f=>{
     let v=f.value;
     if(v==='lvl') v=c.level;
     list.push({stat:f.stat, mode:f.mode, value:v, note:f.note||'', label:s.label, k:s.k});
-  }));
+  });});
+  c.__fxC={t:fxCacheT, v:list};
   return list;
 }
 function fxSum(c,stat){
@@ -2432,14 +2469,27 @@ function fxUid(){ return 'fx_'+Math.random().toString(36).slice(2,9); }
 function applyFxTo(targetId, entry){
   const t=getCh(targetId); if(!t) return;
   t.activeFx=t.activeFx||[];
+  let fx=entry.fx;
+  if(!fx){
+    const rec=entry.k==='spell'?spellOf(entry.id):(entry.k==='ability'?abilityOf(entry.id):null);
+    fx=recFx(rec, entry.k);
+  }
+  /* текущие хиты — мгновенный эффект при наложении, а не постоянный модификатор */
+  const inst=fx.filter(f=>f.stat==='hp'&&f.mode==='add'&&typeof f.value==='number');
+  entry.fx=fx.filter(f=>!inst.includes(f));
   entry.uid=fxUid();
   t.activeFx.push(entry);
+  fxInvalidate();
+  let healed=0; inst.forEach(f=>healed+=f.value);
+  if(healed){ t.hp=Math.min(eHpMax(t),(+t.hp||0)+healed); }
   scheduleSave(); renderChars();
-  setStatus('✦ «'+entry.label+'» — эффект наложен на '+t.name+'.');
+  setStatus('✦ «'+entry.label+'» — эффект наложен на '+t.name+(healed?' (+'+healed+' к текущим хитам)':'')+'.');
 }
 function removeActiveFx(charId, uid){
   const t=getCh(charId); if(!t||!t.activeFx) return;
   t.activeFx=t.activeFx.filter(a=>a.uid!==uid);
+  fxInvalidate();
+  t.hp=Math.min(+t.hp||0, eHpMax(t));   /* максимум мог снизиться — подрезаем текущие */
   scheduleSave(); renderChars();
 }
 function pickTarget(actionLabel){
@@ -2457,7 +2507,18 @@ function castSpellFx(spellId, casterId){
   const caster=casterId?getCh(casterId):null;
   const targetId=pickTarget('⚡ Наложить «'+sp.n+'»'+(caster?' (заклинатель: '+caster.name+')':''));
   if(!targetId) return;
-  applyFxTo(targetId, {k:'spell', id:sp.id, label:sp.n, from:caster?caster.name:''});
+  const isConc=!!sp.conc||/концентрация/i.test(sp.d||'');
+  if(isConc&&caster){
+    /* правило концентрации: одно заклинание концентрации на заклинателя */
+    const olds=[];
+    chars.forEach(ch=>(ch.activeFx||[]).forEach(a=>{ if(a.conc&&a.casterId===caster.id) olds.push({ch,a}); }));
+    if(olds.length){
+      if(!window.confirm(caster.name+' уже концентрируется: «'+olds.map(o=>o.a.label).join('», «')+'».\n\nОК — прервать прежнюю концентрацию и наложить «'+sp.n+'».\nОтмена — не накладывать.')) return;
+      olds.forEach(o=>removeActiveFx(o.ch.id,o.a.uid));
+    }
+  }
+  const why='наложено'+(caster?': '+caster.name:'')+(isConc?' · концентрация':'')+(sp.d&&!/мгновенн/i.test(sp.d)?' · '+sp.d:'');
+  applyFxTo(targetId, {k:'spell', id:sp.id, label:sp.n, from:caster?caster.name:'', casterId:caster?caster.id:'', conc:isConc, why});
 }
 function toggleAbilityFx(abilityId){
   const c=cc(); if(!c) return;
@@ -2465,9 +2526,59 @@ function toggleAbilityFx(abilityId){
   const ex=c.activeFx.find(a=>a.k==='ability'&&a.id===abilityId);
   if(ex){ removeActiveFx(c.id, ex.uid); return; }
   const ab=abilityOf(abilityId); if(!ab) return;
-  applyFxTo(c.id, {k:'ability', id:ab.id, label:ab.n, from:''});
+  /* применение активной способности тратит использование */
+  if(ab.uses!=null){
+    const e=(c.abilities||[]).find(x=>x.abilityId===ab.id);
+    if(e){
+      const cur=e.cur==null?ab.uses:e.cur;
+      if(cur<=0){ if(!window.confirm('Заряды «'+ab.n+'» исчерпаны. Все равно применить эффект?')) return; }
+      else e.cur=cur-1;
+    }
+  }
+  applyFxTo(c.id, {k:'ability', id:ab.id, label:ab.n, from:'', why:'применено'+(ab.rest?' · восст.: '+ab.rest:'')});
 }
 function abilityFxActive(c,abilityId){ return (c.activeFx||[]).some(a=>a.k==='ability'&&a.id===abilityId); }
+
+/* ── употребление расходуемых предметов ── */
+function isConsumableItem(it){
+  return !!it && (it.type==='potion'||it.type==='scroll'||(it.tags||[]).includes('consumable'));
+}
+function deriveHeal(it){
+  const m=String(it.desc||'').replace(/\u0451/g,'е').toLowerCase()
+    .match(/восстанавлива[а-я]*\s+(\d+)\s*к\s*(\d+)(?:\s*\+\s*(\d+))?\s*хит/);
+  if(!m) return null;
+  return {cnt:+m[1], sides:+m[2], plus:+(m[3]||0)};
+}
+function useConsumable(entryId){
+  const c=cc(); if(!c) return;
+  const e=(c.inventory||[]).find(x=>x.id===entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  /* мгновенное исцеление из описания */
+  let msg='⚗ «'+it.n+'» употреблено';
+  const heal=deriveHeal(it);
+  if(heal){
+    const rolls=[]; for(let i=0;i<heal.cnt;i++) rolls.push(1+Math.floor(Math.random()*heal.sides));
+    const tot=rolls.reduce((a,b)=>a+b,0)+heal.plus;
+    c.hp=Math.min(eHpMax(c),(+c.hp||0)+tot);
+    const out=document.getElementById('diceOut');
+    if(out){ out.textContent=it.n+': '+heal.cnt+'к'+heal.sides+(heal.plus?' + '+heal.plus:'')+' → +'+tot+' хитов ('+rolls.join(', ')+')'; out.style.color='var(--ok)'; }
+    msg+=' · +'+tot+' хитов';
+  }
+  /* длящиеся и качественные эффекты — вешаем на героя с пометкой */
+  const lasting=recFx(it,'item').filter(f=>!(f.stat==='hp'&&f.mode==='add'));
+  if(lasting.length){
+    applyFxTo(c.id, {k:'use', id:it.id, label:it.n+' (употреблено)', fx:lasting, why:'употреблено из инвентаря'});
+  }
+  /* списываем одну штуку */
+  e.qty=(e.qty||1)-1;
+  if(e.qty<=0){
+    Object.keys(c.equipment||{}).forEach(k=>{ if(c.equipment[k]===e.id) delete c.equipment[k]; });
+    c.inventory=c.inventory.filter(x=>x.id!==e.id);
+    msg+=' · запас исчерпан';
+  }
+  fxInvalidate(); scheduleSave(); renderChars();
+  setStatus(msg+'.');
+}
 
 /* ── панель «Действующие эффекты» ── */
 function fxPanelHTML(c){
@@ -2483,8 +2594,9 @@ function fxPanelHTML(c){
       const cls=v>=0?'fx-plus':'fx-minus';
       return '<span class="'+cls+'">'+(FX_STAT_RU[f.stat]||f.stat.replace('skill.','навык: '))+' '+(v>0?'+':'')+v+(f.note?' <i>('+esc(f.note)+')</i>':'')+'</span>';
     }).join('<span class="fx-sep">·</span>');
-    h+='<div class="fx-row"><b class="fx-src">'+esc(s.label)+'</b><span class="fx-why">'+esc(s.why)+'</span>'
+    h+='<div class="fx-row'+(s.off?' fx-off':'')+'"><b class="fx-src">'+esc(s.label)+'</b><span class="fx-why">'+esc(s.why)+(s.off?' · отключено мастером':'')+'</span>'
       +'<span class="fx-items">'+(items||'<span class="fx-note">эффект описан в тексте записи</span>')+'</span>'
+      +(s.canOff?'<button class="mini" title="'+(s.off?'Включить эффект':'Отключить эффект (например, не выполнено условие)')+'" onclick="toggleFxSource(\''+c.id+'\',\''+fxSrcKey(s)+'\')">'+(s.off?'⏻ вкл':'⏻ выкл')+'</button>':'')
       +(s.removable?'<button class="del-x" title="Снять эффект" onclick="removeActiveFx(\''+c.id+'\',\''+s.uid+'\')">✕</button>':'')
       +'</div>';
   });
@@ -3327,6 +3439,7 @@ function upgradeChar3(c){
   if(c.spellAb===undefined) c.spellAb='';
   if(!c.persona) c.persona={tr:'',id:'',bd:'',fl:'',ap:''};
   if(!Array.isArray(c.activeFx)) c.activeFx=[];
+  if(!Array.isArray(c.fxOff)) c.fxOff=[];
   if(c.inspiration===undefined) c.inspiration=false;
   c._v3=true; return c;
 }
@@ -3349,6 +3462,7 @@ const spellOf=id=>spellsDB.find(x=>x.id===id);
 const abilityOf=id=>abilitiesDB.find(x=>x.id===id);
 
 function renderChars(){
+  if(typeof fxInvalidate==='function') fxInvalidate();
   const box=document.getElementById('tab-chars');
   if(activeCharId && cc()){ box.innerHTML=sheetHTML(cc()); return; }
   let h='<h2 class="rubric">Действующие лица</h2>'
@@ -3655,7 +3769,8 @@ function stInventory(c){
       const it=itemOf(e.itemId);
       const eq=isEquipped(c,e.id);
       const canEq=!!it.slot;
-      const extra='<span class="qty-box"><button class="mini-btn" onclick="invQty(\''+e.id+'\',-1)">−</button><b>'+(e.qty||1)+'</b><button class="mini-btn" onclick="invQty(\''+e.id+'\',1)">+</button></span>'
+      const extra=(isConsumableItem(it)?'<button class="btn ghost sm fx-cast" title="Употребить: применить эффекты и списать 1 шт." onclick="useConsumable(\''+e.id+'\')">⚗ Употребить</button>':'')
+       +'<span class="qty-box"><button class="mini-btn" onclick="invQty(\''+e.id+'\',-1)">−</button><b>'+(e.qty||1)+'</b><button class="mini-btn" onclick="invQty(\''+e.id+'\',1)">+</button></span>'
        +(canEq?'<button class="btn '+(eq?'':'ghost ')+'sm" onclick="invEquipToggle(\''+e.id+'\')">'+(eq?'Надето ✓':'Надеть')+'</button>':'')
        +'<button class="btn ghost sm" title="Править в базе предметов" onclick="jumpToItemEd(\''+it.id+'\')">✎</button>'
        +'<button class="del-x" onclick="invDel(\''+e.id+'\')">✕</button>';
@@ -3771,6 +3886,9 @@ function longRest(){
   c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null) a.cur=db.uses; });
   c.hp=c.hpMax; c.hpTemp=0; c.exhaustion=Math.max(0,c.exhaustion-1); c.deaths={s:0,f:0};
   c.hdUsed=Math.max(0,(+c.hdUsed||0)-Math.max(1,Math.ceil(c.level/2)));   /* возвращается половина костей хитов */
+  c.activeFx=[];                       /* наложенные заклинания и примененные способности сходят на нет */
+  if(typeof fxInvalidate==='function') fxInvalidate();
+  c.hp=Math.min(c.hp,(typeof eHpMax==='function')?eHpMax(c):c.hpMax);
   scheduleSave(); renderChars();
 }
 function stSpells(c){
