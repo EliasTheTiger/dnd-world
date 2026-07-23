@@ -479,6 +479,13 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 .fx-cast.on{background:#5e35b1;color:#fff8ea}
 .fx-cast:hover{color:var(--rubric);border-color:var(--rubric)}
 .fx-off{opacity:.5;border-left-color:var(--ink-faint)}
+/* ─── окно наложения заклинаний ─── */
+.cast-back{position:fixed;inset:0;background:rgba(30,20,8,.55);display:flex;align-items:center;justify-content:center;z-index:60}
+.cast-modal{background:var(--sheet,#f5ecd7);border:2px solid var(--frame);box-shadow:0 12px 40px rgba(0,0,0,.35);padding:18px 20px;max-width:460px;width:92%;font-family:var(--serif)}
+.cast-modal h3{font-family:var(--disp)}
+.cast-info{font-size:13.5px;font-style:italic;color:var(--ink-soft);margin:0 0 10px;border-bottom:1px dashed var(--frame);padding-bottom:8px}
+.cast-modal select{font-family:var(--serif);font-size:15px;padding:4px 6px}
+.inv-note{font-size:13px;font-style:italic;color:#5e35b1;margin:-6px 0 8px;padding:3px 10px;border-left:3px solid #5e35b1;background:var(--sheet)}
 
 </style>
 </head>
@@ -538,6 +545,24 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 </main>
 
 <footer class="colophon">Писано рукою мастера · все в сей книге правится вручную и хранится меж сессиями ❦</footer>
+</div>
+
+<!-- выбор цели наложения заклинания -->
+<div id="castBack" class="cast-back" style="display:none" onclick="if(event.target===this)closeCastModal()">
+  <div class="cast-modal">
+    <h3 id="castTitle" style="margin:0 0 6px">⚡ Наложить заклинание</h3>
+    <div id="castInfo" class="cast-info"></div>
+    <label class="lbl">На кого или на что наложить</label>
+    <select id="castTarget" onchange="castTargetChanged()" style="width:100%"></select>
+    <div id="castItemWrap" style="display:none;margin-top:8px">
+      <label class="lbl">Предмет инвентаря заклинателя</label>
+      <select id="castItem" style="width:100%"></select>
+    </div>
+    <div class="row-line" style="margin-top:14px">
+      <button class="btn rub" onclick="castConfirm()">⚡ Наложить</button>
+      <button class="btn ghost" onclick="closeCastModal()">Отмена</button>
+    </div>
+  </div>
 </div>
 <script>
 'use strict';
@@ -2090,9 +2115,11 @@ async function persist(key,val){
   const ok=await store.set(key, JSON.stringify(val));
   setStatus(ok?'Записано в летопись ✓':'Хранилище недоступно — не забудьте «Выгрузить летопись»', !ok);
 }
-function scheduleSave(){
-  clearTimeout(saveTimer); setStatus('Перо скрипит…');
-  saveTimer=setTimeout(async()=>{
+let savePendWorld=false, savePendJournal=false;
+async function runScheduledSave(){
+  const w=savePendWorld, j=savePendJournal;
+  savePendWorld=savePendJournal=false;
+  if(w){
     await persist('dndworld2:chars',chars);
     await persist('dndworld2:items',itemsDB);
     await persist('dndworld2:spells',spellsDB);
@@ -2100,12 +2127,19 @@ function scheduleSave(){
     await persist('dndworld2:races',racesDB);
     await persist('dndworld2:classes',classesDB);
     await persist('dndworld2:rules',rulesDB);
-    if(typeof syncTouch==='function') syncTouch();
-  },600);
+  }
+  if(j) await persist('dndworld2:journal',journal);
+  if(typeof syncTouch==='function') syncTouch();
+}
+function scheduleSave(){
+  savePendWorld=true;
+  clearTimeout(saveTimer); setStatus('Перо скрипит…');
+  saveTimer=setTimeout(runScheduledSave,600);
 }
 function scheduleJournalSave(){
+  savePendJournal=true;
   clearTimeout(saveTimer); setStatus('Перо скрипит…');
-  saveTimer=setTimeout(async()=>{ await persist('dndworld2:journal',journal); if(typeof syncTouch==='function') syncTouch(); },600);
+  saveTimer=setTimeout(runScheduledSave,600);
 }
 async function readJSON(key){
   try{ const raw=await store.get(key); return raw?JSON.parse(raw):null; }catch(e){ return null; }
@@ -2492,33 +2526,97 @@ function removeActiveFx(charId, uid){
   t.hp=Math.min(+t.hp||0, eHpMax(t));   /* максимум мог снизиться — подрезаем текущие */
   scheduleSave(); renderChars();
 }
-function pickTarget(actionLabel){
-  if(!chars.length) return null;
-  if(chars.length===1) return chars[0].id;
-  const lines=chars.map((x,i)=>(i+1)+' — '+x.name).join('\n');
-  const raw=window.prompt(actionLabel+'\nВыберите цель (номер):\n'+lines, '1');
-  if(raw==null) return null;
-  const i=parseInt(raw,10)-1;
-  if(isNaN(i)||i<0||i>=chars.length){ alert('Такого номера нет.'); return null; }
-  return chars[i].id;
-}
+
+/* ── наложение заклинаний: выпадающее меню целей ── */
+let castCtx=null;
 function castSpellFx(spellId, casterId){
   const sp=spellOf(spellId); if(!sp) return;
-  const caster=casterId?getCh(casterId):null;
-  const targetId=pickTarget('⚡ Наложить «'+sp.n+'»'+(caster?' (заклинатель: '+caster.name+')':''));
-  if(!targetId) return;
+  const caster=getCh(casterId);
+  if(!caster){ setStatus('Наложение доступно из книги заклинаний героя.'); return; }
+  castCtx={spellId, casterId};
+  const back=document.getElementById('castBack'); if(!back) return;
   const isConc=!!sp.conc||/концентрация/i.test(sp.d||'');
-  if(isConc&&caster){
-    /* правило концентрации: одно заклинание концентрации на заклинателя */
+  document.getElementById('castTitle').textContent='⚡ «'+sp.n+'» — заклинатель: '+caster.name;
+  const info=[sp.l===0?'заговор':sp.l+' круг'];
+  if(sp.t) info.push(sp.t);
+  if(sp.r) info.push('дистанция: '+sp.r);
+  if(sp.d) info.push('длительность: '+sp.d);
+  if(isConc) info.push('требует концентрации');
+  info.push('СЛ спасброска: '+spellDC(caster));
+  document.getElementById('castInfo').textContent=info.join(' · ');
+  document.getElementById('castTarget').innerHTML=
+    chars.map(x=>'<option value="ally:'+x.id+'">'+esc(x.name)+(x.id===caster.id?' — сам заклинатель':'')+'</option>').join('')
+    +'<option value="enemy">Враг</option>'
+    +'<option value="object">Неодушевленный объект</option>'
+    +'<option value="invitem">Предмет инвентаря</option>';
+  document.getElementById('castItem').innerHTML=
+    (caster.inventory||[]).map(e=>{ const it=itemOf(e.itemId);
+      return it?'<option value="'+e.id+'">'+esc(it.n)+((e.qty||1)>1?' × '+e.qty:'')+'</option>':''; }).join('')
+    ||'<option value="">— инвентарь пуст —</option>';
+  document.getElementById('castItemWrap').style.display='none';
+  back.style.display='flex';
+}
+function castTargetChanged(){
+  const v=document.getElementById('castTarget').value;
+  document.getElementById('castItemWrap').style.display=(v==='invitem')?'block':'none';
+}
+function closeCastModal(){ castCtx=null; const b=document.getElementById('castBack'); if(b) b.style.display='none'; }
+function castConfirm(){
+  if(!castCtx) return;
+  const target=document.getElementById('castTarget').value;
+  const inv=document.getElementById('castItem').value;
+  if(castSpellApply(castCtx.spellId, castCtx.casterId, target, inv)) closeCastModal();
+}
+function castLogLine(txt){
+  if(typeof journal==='undefined') return;
+  const date=new Date().toISOString().slice(0,10);
+  const hm=new Date().toTimeString().slice(0,5);
+  let page=journal.find(j=>j.title==='⚡ Хроника заклинаний'&&j.date===date);
+  if(!page){ page={id:uid(), date, title:'⚡ Хроника заклинаний', text:''}; journal.push(page); }
+  page.text=(page.text?page.text+'\n':'')+hm+' · '+txt;
+  if(typeof scheduleJournalSave==='function') scheduleJournalSave();
+  if(typeof renderJournal==='function') renderJournal();
+}
+function castSpellApply(spellId, casterId, target, invEntryId){
+  const sp=spellOf(spellId), caster=getCh(casterId);
+  if(!sp||!caster||!target) return false;
+  const isConc=!!sp.conc||/концентрация/i.test(sp.d||'');
+  if(isConc){
     const olds=[];
     chars.forEach(ch=>(ch.activeFx||[]).forEach(a=>{ if(a.conc&&a.casterId===caster.id) olds.push({ch,a}); }));
     if(olds.length){
-      if(!window.confirm(caster.name+' уже концентрируется: «'+olds.map(o=>o.a.label).join('», «')+'».\n\nОК — прервать прежнюю концентрацию и наложить «'+sp.n+'».\nОтмена — не накладывать.')) return;
+      if(!window.confirm(caster.name+' уже концентрируется: «'+olds.map(o=>o.a.label).join('», «')+'».\n\nОК — прервать прежнюю концентрацию и наложить «'+sp.n+'».\nОтмена — не накладывать.')) return false;
       olds.forEach(o=>removeActiveFx(o.ch.id,o.a.uid));
     }
   }
-  const why='наложено'+(caster?': '+caster.name:'')+(isConc?' · концентрация':'')+(sp.d&&!/мгновенн/i.test(sp.d)?' · '+sp.d:'');
-  applyFxTo(targetId, {k:'spell', id:sp.id, label:sp.n, from:caster?caster.name:'', casterId:caster?caster.id:'', conc:isConc, why});
+  const durWhy=(isConc?' · концентрация':'')+(sp.d&&!/мгновенн/i.test(sp.d)?' · '+sp.d:'');
+  if(target.indexOf('ally:')===0){
+    const tid=target.slice(5), t=getCh(tid);
+    if(!t) return false;
+    applyFxTo(tid,{k:'spell', id:sp.id, label:sp.n, from:caster.name, casterId:caster.id, conc:isConc, why:'наложено: '+caster.name+durWhy});
+    castLogLine(caster.name+' → '+t.name+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy);
+    return true;
+  }
+  let tl = target==='enemy'?'враг':(target==='object'?'неодушевленный объект':'');
+  if(target==='invitem'){
+    const e=(caster.inventory||[]).find(x=>x.id===invEntryId);
+    const it=e?itemOf(e.itemId):null;
+    if(!it){ alert('Выберите предмет инвентаря.'); return false; }
+    tl='предмет: '+it.n;
+    e.notes=(e.notes?e.notes+' · ':'')+'⚡ '+sp.n+' ('+caster.name+')';
+  }
+  if(!tl) return false;
+  /* при внешней цели концентрация все равно висит на заклинателе — якорь в его панели */
+  if(isConc){
+    caster.activeFx=caster.activeFx||[];
+    caster.activeFx.push({k:'spell', id:sp.id, uid:fxUid(), label:sp.n, from:caster.name, casterId:caster.id, conc:true,
+      why:'концентрация · цель: '+tl,
+      fx:[{stat:'note',mode:'text',value:'концентрируется на «'+sp.n+'» — цель: '+tl}]});
+  }
+  fxInvalidate(); scheduleSave(); renderChars();
+  setStatus('⚡ «'+sp.n+'» наложено на: '+tl+' (СЛ спасброска '+spellDC(caster)+').');
+  castLogLine(caster.name+' → '+tl+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy);
+  return true;
 }
 function toggleAbilityFx(abilityId){
   const c=cc(); if(!c) return;
@@ -3165,8 +3263,7 @@ function renderSpellsDB(){
   h+='<p class="note-ital" style="font-size:14px">Записей: '+arr.length+' из '+spellsDB.length+'</p>';
   arr.forEach(sp=>{
     h+=spellCardHTML(sp,
-      '<button class="btn ghost sm fx-cast" title="Наложить эффект на героя" onclick="castSpellFx(\''+sp.id+'\',null)">⚡ Наложить</button>'
-      +'<button class="btn ghost sm" onclick="openSpellEd(\''+sp.id+'\')">✎</button>'
+      '<button class="btn ghost sm" onclick="openSpellEd(\''+sp.id+'\')">✎</button>'
       +'<button class="del-x" title="Вычеркнуть из гримуара" onclick="delSpellDB(\''+sp.id+'\')">✕</button>');
   });
   box.innerHTML=h;
@@ -3679,6 +3776,9 @@ const quickForm={inv:false,sp:false,ab:false};
 function isEquipped(c,entryId){ return Object.values(c.equipment||{}).includes(entryId); }
 function invQty(entryId,d){ const c=cc(); const e=c.inventory.find(x=>x.id===entryId); if(!e) return;
   e.qty=Math.max(1,(e.qty||1)+d); scheduleSave(); renderChars(); }
+function invNoteClear(entryId){ const c=cc(); if(!c) return;
+  const e=c.inventory.find(x=>x.id===entryId); if(!e) return;
+  e.notes=''; scheduleSave(); renderChars(); }
 function invDel(entryId){ const c=cc(); const e=c.inventory.find(x=>x.id===entryId); if(!e) return;
   const it=itemOf(e.itemId);
   if(!confirm('Убрать «'+(it?it.n:'предмет')+'» из инвентаря?')) return;
@@ -3775,6 +3875,7 @@ function stInventory(c){
        +'<button class="btn ghost sm" title="Править в базе предметов" onclick="jumpToItemEd(\''+it.id+'\')">✎</button>'
        +'<button class="del-x" onclick="invDel(\''+e.id+'\')">✕</button>';
       h+=itemCardHTML(it, extra);
+      if(e.notes) h+='<div class="inv-note">✎ '+esc(e.notes)+' <button class="del-x" title="Стереть пометку" onclick="invNoteClear(\''+e.id+'\')">✕</button></div>';
     });
   });
   if(!c.inventory.length) h+='<div class="empty-scroll"><span class="big">❦</span>Инвентарь пуст — карманы героя ждут добычи.</div>';
