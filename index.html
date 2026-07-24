@@ -486,6 +486,7 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 .cast-info{font-size:13.5px;font-style:italic;color:var(--ink-soft);margin:0 0 10px;border-bottom:1px dashed var(--frame);padding-bottom:8px}
 .cast-modal select{font-family:var(--serif);font-size:15px;padding:4px 6px}
 .inv-note{font-size:13px;font-style:italic;color:#5e35b1;margin:-6px 0 8px;padding:3px 10px;border-left:3px solid #5e35b1;background:var(--sheet)}
+.cast-err{color:var(--rubric);font-weight:700;font-size:14px;margin-top:10px;border:1px dashed var(--rubric);padding:6px 10px;background:var(--sheet)}
 
 </style>
 </head>
@@ -552,16 +553,34 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
   <div class="cast-modal">
     <h3 id="castTitle" style="margin:0 0 6px">⚡ Наложить заклинание</h3>
     <div id="castInfo" class="cast-info"></div>
-    <label class="lbl">На кого или на что наложить</label>
-    <select id="castTarget" onchange="castTargetChanged()" style="width:100%"></select>
-    <div id="castItemWrap" style="display:none;margin-top:8px">
-      <label class="lbl">Предмет инвентаря заклинателя</label>
-      <select id="castItem" style="width:100%"></select>
+    <div id="castStep1">
+      <label class="lbl">На кого или на что наложить</label>
+      <select id="castTarget" onchange="castTargetChanged()" style="width:100%"></select>
+      <div id="castItemWrap" style="display:none;margin-top:8px">
+        <label class="lbl">Предмет инвентаря заклинателя</label>
+        <select id="castItem" style="width:100%"></select>
+      </div>
+      <div class="row-line" style="margin-top:14px">
+        <button class="btn rub" onclick="castConfirm()">⚡ Наложить</button>
+        <button class="btn ghost" onclick="closeCastModal()">Отмена</button>
+      </div>
     </div>
-    <div class="row-line" style="margin-top:14px">
-      <button class="btn rub" onclick="castConfirm()">⚡ Наложить</button>
-      <button class="btn ghost" onclick="closeCastModal()">Отмена</button>
+    <div id="castStep2" style="display:none">
+      <div id="castMatDesc" class="cast-info" style="border:none;padding:0"></div>
+      <label class="lbl">Материальный компонент — предмет из инвентаря</label>
+      <select id="castMat" style="width:100%"></select>
+      <div class="row-line" style="margin-top:8px;align-items:center">
+        <label class="lbl" style="margin:0">Списать, шт.:</label>
+        <input id="castMatQty" type="number" min="0" style="width:74px">
+        <span class="note-ital" id="castMatAuto" style="font-size:12.5px"></span>
+      </div>
+      <div class="row-line" style="margin-top:14px">
+        <button class="btn rub" onclick="castMatConfirm()">Использовать компонент и наложить</button>
+        <button class="btn ghost" onclick="castMatBack()">← Назад</button>
+        <button class="btn ghost" onclick="closeCastModal()">Отмена</button>
+      </div>
     </div>
+    <div id="castErr" class="cast-err" style="display:none"></div>
   </div>
 </div>
 <script>
@@ -2527,6 +2546,91 @@ function removeActiveFx(charId, uid){
   scheduleSave(); renderChars();
 }
 
+
+/* ── компоненты заклинаний: В (вербальный), С (соматический), М (материальный) ── */
+function parseComponents(sp){
+  const cm=String((sp&&sp.cm)||'').trim();
+  if(!cm||cm==='—') return {v:false,s:false,m:false,matDesc:'',flex:false};
+  if(cm.indexOf('/')>=0) return {v:false,s:false,m:false,matDesc:'',flex:true}; /* «В / С / М» — взаимозаменяемые */
+  const matDesc=(cm.match(/М\s*\(([^)]*)\)/)||[])[1]||'';
+  const top=cm.replace(/\([^)]*\)/g,'');
+  const parts=top.split(',').map(x=>x.trim());
+  return {v:parts.indexOf('В')>=0, s:parts.indexOf('С')>=0, m:parts.indexOf('М')>=0, matDesc, flex:false};
+}
+/* расход материального компонента, шт. — по правилам 5e тратится лишь то, что заклинание «расходует» */
+const MAT_CONSUME={ sp_web:0, sp_magic_sleep:0, sp_chromatic_orb:0 };
+function matConsumeFor(sp){
+  if(MAT_CONSUME[sp.id]!==undefined) return MAT_CONSUME[sp.id];
+  return /расходу/i.test(String(sp.cm||'')+' '+String(sp.x||''))?1:0;
+}
+const ACTION_BLOCK_CONDS=['Бессознательный','Парализованный','Окаменевший','Ошеломленный','Недееспособный'];
+const SPEECH_BLOCK_CONDS=['Бессознательный','Парализованный','Окаменевший','Ошеломленный'];
+function fxNotesOf(c){ return charFxAll(c).filter(f=>f.mode==='text').map(f=>String(f.value).toLowerCase()); }
+function handOccupants(c){
+  const eq=c.equipment||{}, names=[];
+  ['MAIN_HAND','OFF_HAND'].forEach(sl=>{ const e=invEntry(c,eq[sl]); const it=e&&itemOf(e.itemId); if(it&&names.indexOf(it.n)<0) names.push(it.n); });
+  return names;
+}
+function freeHandInfo(c){
+  const eq=c.equipment||{};
+  if(!eq.MAIN_HAND||!eq.OFF_HAND) return {free:true,focus:false};
+  const focus=[eq.MAIN_HAND,eq.OFF_HAND].some(id=>{
+    const e=invEntry(c,id); const it=e&&itemOf(e.itemId);
+    return !!it&&(((it.tags||[]).indexOf('focus')>=0)||/фокус/i.test(it.desc||''));
+  });
+  return {free:false, focus};
+}
+function canCastCheck(caster, sp){
+  const comp=parseComponents(sp);
+  const blockAct=ACTION_BLOCK_CONDS.filter(n=>(caster.cond||[]).indexOf(n)>=0)[0];
+  if(blockAct) return {ok:false, comp, reason:'Состояние «'+blockAct+'» не позволяет совершать действия — наложение невозможно.'};
+  if(comp.flex) return {ok:true, comp};
+  const notes=fxNotesOf(caster);
+  if(comp.v){
+    const sb=SPEECH_BLOCK_CONDS.filter(n=>(caster.cond||[]).indexOf(n)>=0)[0];
+    if(sb) return {ok:false, comp, reason:'Вербальный компонент (В): состояние «'+sb+'» не позволяет говорить.'};
+    if(notes.some(t=>/не может говорить|немота|онемел|кляп|заткнут/.test(t)))
+      return {ok:false, comp, reason:'Вербальный компонент (В): действующий эффект не позволяет говорить.'};
+  }
+  if(comp.s){
+    if(notes.some(t=>/руки связаны|скованы руки|связан по рукам/.test(t)))
+      return {ok:false, comp, reason:'Соматический компонент (С): руки скованы действующим эффектом.'};
+    const h=freeHandInfo(caster);
+    if(!h.free&&!h.focus){
+      return {ok:false, comp, reason:'Соматический компонент (С): обе руки заняты ('+handOccupants(caster).join(', ')+'), фокуса в руках нет — освободите руку.'};
+    }
+  }
+  return {ok:true, comp};
+}
+function matGuessEntry(caster, matDesc){
+  const inv=caster.inventory||[];
+  const STOP=/^(заклинан|расходу|стоимост|котор|кажд|любо|менее|более|недорог|немного|размер)/;
+  const words=(String(matDesc||'').toLowerCase().match(/[а-я]{4,}/g)||[]).filter(w=>!STOP.test(w));
+  let best=null;
+  inv.forEach(e=>{
+    const it=itemOf(e.itemId); if(!it) return;
+    const hay=(it.n+' '+(it.desc||'')).toLowerCase();
+    const score=words.reduce((a,w)=>a+(hay.indexOf(w.slice(0,5))>=0?1:0),0);
+    if(score>0&&(!best||score>best.score)) best={e,score};
+  });
+  return best?best.e:null;
+}
+function matSpend(caster, entryId, use){
+  const e=(caster.inventory||[]).find(x=>x.id===entryId);
+  const it=e?itemOf(e.itemId):null;
+  if(!it) return {ok:false, reason:'Предмет-компонент не найден в инвентаре.'};
+  use=Math.max(0, Math.floor(+use||0));
+  if(use>(e.qty||1)) return {ok:false, reason:'В инвентаре лишь '+(e.qty||1)+' шт. «'+it.n+'» — списать '+use+' нельзя.'};
+  if(use>0){
+    e.qty=(e.qty||1)-use;
+    if(e.qty<=0){
+      Object.keys(caster.equipment||{}).forEach(k=>{ if(caster.equipment[k]===e.id) delete caster.equipment[k]; });
+      caster.inventory=caster.inventory.filter(x=>x.id!==e.id);
+    }
+  }
+  return {ok:true, label:it.n, use};
+}
+
 /* ── наложение заклинаний: выпадающее меню целей ── */
 let castCtx=null;
 function castSpellFx(spellId, casterId){
@@ -2541,6 +2645,7 @@ function castSpellFx(spellId, casterId){
   if(sp.t) info.push(sp.t);
   if(sp.r) info.push('дистанция: '+sp.r);
   if(sp.d) info.push('длительность: '+sp.d);
+  if(sp.cm) info.push('компоненты: '+sp.cm);
   if(isConc) info.push('требует концентрации');
   info.push('СЛ спасброска: '+spellDC(caster));
   document.getElementById('castInfo').textContent=info.join(' · ');
@@ -2554,6 +2659,9 @@ function castSpellFx(spellId, casterId){
       return it?'<option value="'+e.id+'">'+esc(it.n)+((e.qty||1)>1?' × '+e.qty:'')+'</option>':''; }).join('')
     ||'<option value="">— инвентарь пуст —</option>';
   document.getElementById('castItemWrap').style.display='none';
+  document.getElementById('castStep1').style.display='block';
+  document.getElementById('castStep2').style.display='none';
+  const er=document.getElementById('castErr'); er.style.display='none'; er.textContent='';
   back.style.display='flex';
 }
 function castTargetChanged(){
@@ -2561,11 +2669,50 @@ function castTargetChanged(){
   document.getElementById('castItemWrap').style.display=(v==='invitem')?'block':'none';
 }
 function closeCastModal(){ castCtx=null; const b=document.getElementById('castBack'); if(b) b.style.display='none'; }
+function castShowErr(msg){
+  const er=document.getElementById('castErr');
+  if(er){ er.textContent='✕ '+msg; er.style.display='block'; }
+}
 function castConfirm(){
   if(!castCtx) return;
+  const sp=spellOf(castCtx.spellId), caster=getCh(castCtx.casterId);
+  if(!sp||!caster) return;
   const target=document.getElementById('castTarget').value;
   const inv=document.getElementById('castItem').value;
+  const chk=canCastCheck(caster, sp);
+  if(!chk.ok){ castShowErr(chk.reason); return; }
+  castCtx.target=target; castCtx.inv=inv;
+  if(chk.comp.m){
+    /* обязательный шаг: выбор материального компонента из инвентаря */
+    const invList=caster.inventory||[];
+    if(!invList.length){ castShowErr('Материальный компонент (М): инвентарь пуст — компонент взять неоткуда.'); return; }
+    const auto=matConsumeFor(sp);
+    const guess=matGuessEntry(caster, chk.comp.matDesc);
+    document.getElementById('castMatDesc').textContent='Требуется М: '+(chk.comp.matDesc||'материальный компонент')+'.';
+    document.getElementById('castMat').innerHTML=invList.map(e=>{
+      const it=itemOf(e.itemId); if(!it) return '';
+      return '<option value="'+e.id+'"'+(guess&&guess.id===e.id?' selected':'')+'>'+esc(it.n)+((e.qty||1)>1?' × '+e.qty:'')+'</option>';
+    }).join('');
+    document.getElementById('castMatQty').value=auto;
+    document.getElementById('castMatAuto').textContent='авто по правилам: '+auto+(auto===0?' (компонент не расходуется)':' шт.')+' — можно изменить вручную';
+    const er=document.getElementById('castErr'); er.style.display='none';
+    document.getElementById('castStep1').style.display='none';
+    document.getElementById('castStep2').style.display='block';
+    return;
+  }
   if(castSpellApply(castCtx.spellId, castCtx.casterId, target, inv)) closeCastModal();
+}
+function castMatBack(){
+  document.getElementById('castStep2').style.display='none';
+  document.getElementById('castStep1').style.display='block';
+  const er=document.getElementById('castErr'); er.style.display='none';
+}
+function castMatConfirm(){
+  if(!castCtx) return;
+  const entryId=document.getElementById('castMat').value;
+  const use=+document.getElementById('castMatQty').value||0;
+  if(!entryId){ castShowErr('Выберите предмет-компонент.'); return; }
+  if(castSpellApply(castCtx.spellId, castCtx.casterId, castCtx.target, castCtx.inv, {entryId, use})) closeCastModal();
 }
 function castLogLine(txt){
   if(typeof journal==='undefined') return;
@@ -2577,9 +2724,29 @@ function castLogLine(txt){
   if(typeof scheduleJournalSave==='function') scheduleJournalSave();
   if(typeof renderJournal==='function') renderJournal();
 }
-function castSpellApply(spellId, casterId, target, invEntryId){
+function castSpellApply(spellId, casterId, target, invEntryId, mat){
   const sp=spellOf(spellId), caster=getCh(casterId);
   if(!sp||!caster||!target) return false;
+  /* проверка компонентов В и С и способности действовать */
+  const chk=canCastCheck(caster, sp);
+  if(!chk.ok){ setStatus('✕ '+chk.reason, true); castShowErr&&castShowErr(chk.reason); return false; }
+  /* материальный компонент М */
+  let matInfo='';
+  if(chk.comp.m){
+    let entryId=mat&&mat.entryId, use=(mat&&mat.use!==undefined)?mat.use:matConsumeFor(sp);
+    if(!entryId){
+      const g=matGuessEntry(caster, chk.comp.matDesc);
+      if(g) entryId=g.id;
+      else if(use>0){ const r='Материальный компонент (М: '+(chk.comp.matDesc||'')+') не найден в инвентаре.'; setStatus('✕ '+r, true); castShowErr&&castShowErr(r); return false; }
+    }
+    if(entryId){
+      const spent=matSpend(caster, entryId, use);
+      if(!spent.ok){ setStatus('✕ '+spent.reason, true); castShowErr&&castShowErr(spent.reason); return false; }
+      matInfo=' · компонент: '+spent.label+(spent.use>0?' −'+spent.use+' шт.':' (не расходуется)');
+    } else {
+      matInfo=' · компонент при себе';
+    }
+  }
   const isConc=!!sp.conc||/концентрация/i.test(sp.d||'');
   if(isConc){
     const olds=[];
@@ -2594,7 +2761,7 @@ function castSpellApply(spellId, casterId, target, invEntryId){
     const tid=target.slice(5), t=getCh(tid);
     if(!t) return false;
     applyFxTo(tid,{k:'spell', id:sp.id, label:sp.n, from:caster.name, casterId:caster.id, conc:isConc, why:'наложено: '+caster.name+durWhy});
-    castLogLine(caster.name+' → '+t.name+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy);
+    castLogLine(caster.name+' → '+t.name+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matInfo);
     return true;
   }
   let tl = target==='enemy'?'враг':(target==='object'?'неодушевленный объект':'');
@@ -2614,8 +2781,8 @@ function castSpellApply(spellId, casterId, target, invEntryId){
       fx:[{stat:'note',mode:'text',value:'концентрируется на «'+sp.n+'» — цель: '+tl}]});
   }
   fxInvalidate(); scheduleSave(); renderChars();
-  setStatus('⚡ «'+sp.n+'» наложено на: '+tl+' (СЛ спасброска '+spellDC(caster)+').');
-  castLogLine(caster.name+' → '+tl+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy);
+  setStatus('⚡ «'+sp.n+'» наложено на: '+tl+' (СЛ спасброска '+spellDC(caster)+')'+matInfo+'.');
+  castLogLine(caster.name+' → '+tl+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matInfo);
   return true;
 }
 function toggleAbilityFx(abilityId){
