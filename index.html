@@ -487,6 +487,18 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 .cast-modal select{font-family:var(--serif);font-size:15px;padding:4px 6px}
 .inv-note{font-size:13px;font-style:italic;color:#5e35b1;margin:-6px 0 8px;padding:3px 10px;border-left:3px solid #5e35b1;background:var(--sheet)}
 .cast-err{color:var(--rubric);font-weight:700;font-size:14px;margin-top:10px;border:1px dashed var(--rubric);padding:6px 10px;background:var(--sheet)}
+/* ─── сводка кругов заклинаний ─── */
+.spell-dash{border:1px solid var(--frame);border-left:3px solid var(--rubric);background:var(--sheet);padding:8px 12px;margin:8px 0;font-size:14px}
+.sd-slots{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+.sd-circle{display:inline-flex;align-items:center;gap:5px;font-family:var(--serif)}
+.sd-circle b{font-family:var(--disp)}
+.sd-empty{color:var(--rubric)}
+.pip-slot{width:11px;height:11px;border:1.5px solid var(--ink-soft);border-radius:50%;display:inline-block}
+.pip-slot.on{background:var(--rubric);border-color:var(--rubric)}
+.sd-line{margin:3px 0;color:var(--ink-soft)}
+.sd-line b{color:var(--ink)}
+.sd-over{color:var(--rubric)}
+.sd-hot{color:var(--rubric);font-weight:600}
 
 </style>
 </head>
@@ -554,6 +566,11 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
     <h3 id="castTitle" style="margin:0 0 6px">⚡ Наложить заклинание</h3>
     <div id="castInfo" class="cast-info"></div>
     <div id="castStep1">
+      <div id="castSlotWrap" style="display:none;margin-bottom:8px">
+        <label class="lbl">Какой ячейкой наложить</label>
+        <select id="castSlot" style="width:100%" onchange="castSlotChanged()"></select>
+        <div id="castSlotHi" class="note-ital" style="font-size:12.5px;display:none;margin-top:3px"></div>
+      </div>
       <label class="lbl">На кого или на что наложить</label>
       <select id="castTarget" onchange="castTargetChanged()" style="width:100%"></select>
       <div id="castItemWrap" style="display:none;margin-top:8px">
@@ -2106,6 +2123,150 @@ async function ensureLegerem(){
   scheduleSave();
 }
 
+/* ═══════════════ АУДИТ ЗАКЛИНАНИЙ И КРУГИ ЗАКЛИНАТЕЛЕЙ ═══════════════ */
+/* Канонические «На больших уровнях» для записей, где поле пустовало (PHB) */
+const SPELL_HI_PATCHES = {
+ 'sp_лечение_ран':'При накладывании ячейкой 2 круга или выше лечение увеличивается на 1к8 за каждый круг ячейки выше первого.',
+ 'sp_лечащее_слово':'Лечение увеличивается на 1к4 за каждый круг ячейки выше первого.',
+ 'sp_благословение':'Вы можете сделать целью одно дополнительное существо за каждый круг ячейки выше первого.',
+ 'sp_порча':'Вы можете сделать целью одно дополнительное существо за каждый круг ячейки выше первого.',
+ 'sp_ведьмин_снаряд':'Первоначальный урон увеличивается на 1к12 за каждый круг ячейки выше первого.',
+ 'sp_адский_укор':'Урон увеличивается на 1к10 за каждый круг ячейки выше первого.',
+ 'sp_очарование_личности':'Вы можете сделать целью одно дополнительное существо за каждый круг ячейки выше первого; существа должны находиться в пределах 30 футов друг от друга.',
+ 'sp_туманное_облако':'Радиус тумана увеличивается на 20 футов за каждый круг ячейки выше первого.',
+ 'sp_громовая_волна':'Урон увеличивается на 1к8 за каждый круг ячейки выше первого.',
+ 'sp_героизм':'Вы можете сделать целью одно дополнительное существо за каждый круг ячейки выше первого.',
+ 'sp_приказ':'Вы можете отдать приказ одному дополнительному существу за каждый круг ячейки выше первого.',
+ 'sp_причинение_ран':'Урон увеличивается на 1к10 за каждый круг ячейки выше первого.',
+ 'sp_скороход':'Вы можете сделать целью одно дополнительное существо за каждый круг ячейки выше первого.',
+ 'sp_невидимость':'Вы можете сделать целью одно дополнительное существо за каждый круг ячейки выше второго.',
+ 'sp_палящий_луч':'Вы создаете один дополнительный луч за каждый круг ячейки выше второго.',
+ 'sp_улучшение_характеристики':'Вы можете сделать целью одно дополнительное существо за каждый круг ячейки выше второго.',
+ 'sp_удержание_личности':'Вы можете сделать целью одного дополнительного гуманоида за каждый круг ячейки выше второго.',
+ 'sp_волшебное_оружие':'При использовании ячейки 4 круга бонус увеличивается до +2, ячейки 6 круга — до +3.',
+ 'sp_пылающий_клинок':'Урон увеличивается на 1к6 за каждые два круга ячейки выше второго.',
+ 'sp_prayer_healing':'Лечение увеличивается на 1к8 за каждый круг ячейки выше второго.',
+ 'sp_aid_t':'Хиты целей увеличиваются еще на 5 за каждый круг ячейки выше второго.',
+ 'sp_guiding_bolt':'Урон увеличивается на 1к6 за каждый круг ячейки выше первого.',
+ 'sp_огненный_шар':'Урон увеличивается на 1к6 за каждый круг ячейки выше третьего.',
+ 'sp_молния':'Урон увеличивается на 1к6 за каждый круг ячейки выше третьего.',
+ 'sp_контрзаклинание':'Прерываемое заклинание круга не выше использованной ячейки прерывается автоматически; против более высоких кругов совершается проверка характеристики (СЛ 10 + круг заклинания).',
+ 'sp_рассеивание_магии':'Эффекты заклинаний круга не выше использованной ячейки прекращаются автоматически.',
+ 'sp_полет':'Вы можете сделать целью одно дополнительное существо за каждый круг ячейки выше третьего.',
+ 'sp_массовое_лечащее_слово':'Лечение увеличивается на 1к4 за каждый круг ячейки выше третьего.',
+ 'sp_призыв_молнии':'Урон увеличивается на 1к10 за каждый круг ячейки выше третьего.',
+ 'sp_возложение_проклятия':'Ячейка 4 круга — концентрация до 10 минут; 5 круга — 8 часов; 7 круга — 24 часа; 9 круга — до рассеивания (концентрация не требуется начиная с 5 круга).',
+ 'sp_изгнание':'Вы можете сделать целью одно дополнительное существо за каждый круг ячейки выше четвертого.',
+ 'sp_усыхание':'Урон увеличивается на 1к8 за каждый круг ячейки выше четвертого.',
+ 'sp_огненная_стена':'Урон увеличивается на 1к8 за каждый круг ячейки выше четвертого.',
+ 'sp_ледяная_буря':'Дробящий урон увеличивается на 1к8 за каждый круг ячейки выше четвертого.',
+ 'sp_смятение':'Радиус сферы увеличивается на 5 футов за каждый круг ячейки выше четвертого.',
+ 'sp_конус_холода':'Урон увеличивается на 1к8 за каждый круг ячейки выше пятого.',
+ 'sp_облако_смерти':'Урон увеличивается на 1к8 за каждый круг ячейки выше пятого.',
+ 'sp_удержание_чудовища':'Вы можете сделать целью одно дополнительное существо за каждый круг ячейки выше пятого.',
+ 'sp_массовое_лечение_ран':'Лечение увеличивается на 1к8 за каждый круг ячейки выше пятого.',
+ 'sp_цепная_молния':'Одна дополнительная молния перескакивает на еще одну цель за каждый круг ячейки выше шестого.',
+ 'sp_распад':'Урон увеличивается на 3к6 за каждый круг ячейки выше шестого.',
+ 'sp_исцеление':'Лечение увеличивается на 10 хитов за каждый круг ячейки выше шестого.'
+};
+/* Полные тексты взамен куцых (PHB) */
+const SPELL_X_PATCHES = {
+ 'sp_уход_за_умирающим':'Вы касаетесь живого существа, у которого 0 хитов. Существо стабилизируется. Это заклинание не действует на нежить и конструктов.',
+ 'sp_щит_веры':'Мерцающее защитное поле окружает выбранное вами существо в пределах дистанции, даруя ему +2 к КД на время действия заклинания.',
+ 'sp_прыжок':'Вы касаетесь существа. Дистанция прыжков этого существа утраивается до окончания действия заклинания.',
+ 'sp_скороход':'Вы касаетесь существа. Скорость цели увеличивается на 3 метра (10 футов) до окончания действия заклинания.',
+ 'sp_полет':'Вы касаетесь согласного существа. Цель получает скорость полета 18 метров (60 футов) на время действия заклинания. Когда заклинание оканчивается, цель падает, если она все еще находится в воздухе и ничто не удерживает ее от падения.',
+ 'sp_подводное_дыхание':'Это заклинание дает до десяти согласным существам, которых вы видите в пределах дистанции, способность дышать под водой до окончания действия заклинания. Затронутые существа при этом сохраняют и свой обычный способ дыхания.'
+};
+
+/* Классы-заклинатели: аббревиатура в поле «c» заклинаний и тип прогрессии */
+const CASTER_META = {
+ 'Волшебник':{abbr:'Влш', kind:'full'}, 'Жрец':{abbr:'Жрц', kind:'full'}, 'Друид':{abbr:'Дрд', kind:'full'},
+ 'Бард':{abbr:'Брд', kind:'full'}, 'Чародей':{abbr:'Чрд', kind:'full'}, 'Колдун':{abbr:'Клд', kind:'full'},
+ 'Паладин':{abbr:'Пал', kind:'half'}, 'Следопыт':{abbr:'Слд', kind:'half'}
+};
+/* Ячейки полукастеров (паладин, следопыт) по уровню, PHB */
+const HALF_SLOTS = {
+ 1:[], 2:[2], 3:[3], 4:[3], 5:[4,2], 6:[4,2], 7:[4,3], 8:[4,3], 9:[4,3,2], 10:[4,3,2],
+ 11:[4,3,3], 12:[4,3,3], 13:[4,3,3,1], 14:[4,3,3,1], 15:[4,3,3,2], 16:[4,3,3,2],
+ 17:[4,3,3,3,1], 18:[4,3,3,3,1], 19:[4,3,3,3,2], 20:[4,3,3,3,2]
+};
+
+function casterMeta(c){ return CASTER_META[c.cls]||null; }
+function maxCircleFor(c){
+  const m=casterMeta(c); if(!m) return 0;
+  if(m.kind==='half') return c.level>=2? Math.ceil(c.level/4) : 0;
+  return Math.min(9, Math.ceil(c.level/2));
+}
+function slotsRowFor(c){
+  const m=casterMeta(c); if(!m) return [];
+  return (m.kind==='half'? HALF_SLOTS[c.level] : FULL_SLOTS[c.level])||[];
+}
+/* лимит подготовленных: характеристика + уровень (полукастеры — половина уровня), минимум 1 */
+function prepMax(c){
+  const m=casterMeta(c); if(!m) return 0;
+  const lvlPart=m.kind==='half'? Math.max(1,Math.floor(c.level/2)) : c.level;
+  return Math.max(1, lvlPart + eMod(c, spellAbOf(c)));
+}
+function prepCount(c){
+  return (c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return e.prep && sp && sp.l>0; }).length;
+}
+
+/* Автокниги: при смене уровня заклинания открывшихся кругов входят в книгу, при откате — авто-добавленные уходят */
+function autoLevelSpells(c, oldLevel){
+  const m=casterMeta(c); if(!m) return {added:[], removed:[]};
+  const oldC=maxCircleFor(Object.assign({},c,{level:oldLevel}));
+  const newC=maxCircleFor(c);
+  const added=[], removed=[];
+  if(newC>oldC){
+    for(let k=Math.max(1,oldC+1); k<=newC; k++){
+      spellsDB.filter(sp=>sp.l===k && String(sp.c||'').indexOf(m.abbr)>=0).forEach(sp=>{
+        if(!c.spellbook.some(e=>e.spellId===sp.id)){
+          c.spellbook.push({spellId:sp.id, prep:false, auto:true});
+          added.push(sp.n);
+        }
+      });
+    }
+  }
+  if(newC<oldC){
+    c.spellbook=c.spellbook.filter(e=>{
+      const sp=spellOf(e.spellId);
+      if(e.auto && sp && sp.l>newC){ removed.push(sp.n); return false; }
+      return true;
+    });
+  }
+  return {added, removed};
+}
+/* Слоты по классу с сохранением потраченного */
+function applyClassSlots(c){
+  const row=slotsRowFor(c);
+  const old=c.slots||{};
+  const next={};
+  row.forEach((mx,i)=>{
+    if(mx<=0) return;
+    const lv=i+1, prev=old[lv]||{max:0,cur:0};
+    const spent=Math.max(0,(prev.max||0)-(prev.cur||0));
+    next[lv]={max:mx, cur:Math.max(0, mx-spent)};
+  });
+  c.slots=next;
+}
+
+/* Однократный аудит-посев полей заклинаний (работает и на уже живых устройствах) */
+async function ensureSpellAudit(){
+  const flag=await store.get('dndworld2:spellaudit');
+  if(flag==='1') return;
+  Object.keys(SPELL_HI_PATCHES).forEach(id=>{
+    const sp=spellsDB.find(s=>s.id===id);
+    if(sp && !sp.hi) sp.hi=SPELL_HI_PATCHES[id];
+  });
+  Object.keys(SPELL_X_PATCHES).forEach(id=>{
+    const sp=spellsDB.find(s=>s.id===id);
+    if(sp && (!sp.x || sp.x.length<40)) sp.x=SPELL_X_PATCHES[id];
+  });
+  await store.set('dndworld2:spellaudit','1');
+  scheduleSave();
+}
+
 /* ═══════════════ СОСТОЯНИЕ И ХРАНИЛИЩЕ ═══════════════ */
 let chars=[], journal=[], itemsDB=[], spellsDB=[], abilitiesDB=[];
 let racesDB=[], classesDB=[], rulesDB=[];   /* мировые своды: народы, призвания, записи мастера */
@@ -2229,6 +2390,7 @@ async function loadAll(){
   if(typeof ensureTorgar==='function') await ensureTorgar();
   if(typeof ensureSeptih==='function') await ensureSeptih();
   if(typeof ensureLegerem==='function') await ensureLegerem();
+  if(typeof ensureSpellAudit==='function') await ensureSpellAudit();
   journal=(await readJSON('dndworld2:journal')) || (await readJSON('dndworld:journal')) || [];
   setStatus('Летопись открыта');
 }
@@ -2658,11 +2820,39 @@ function castSpellFx(spellId, casterId){
     (caster.inventory||[]).map(e=>{ const it=itemOf(e.itemId);
       return it?'<option value="'+e.id+'">'+esc(it.n)+((e.qty||1)>1?' × '+e.qty:'')+'</option>':''; }).join('')
     ||'<option value="">— инвентарь пуст —</option>';
+  /* выбор ячейки: круги от круга заклинания и выше (апкаст), ритуал, решение мастера */
+  const sw=document.getElementById('castSlotWrap');
+  if(sp.l>0&&sw){
+    const opts=[];
+    Object.keys(caster.slots||{}).map(Number).sort((a,b)=>a-b).forEach(lv=>{
+      if(lv>=sp.l&&caster.slots[lv].max>0)
+        opts.push('<option value="'+lv+'"'+(caster.slots[lv].cur<=0?' disabled':'')+'>Круг '+lv+(lv>sp.l?' (усиление)':'')+' — осталось '+caster.slots[lv].cur+' из '+caster.slots[lv].max+(caster.slots[lv].cur<=0?' · исчерпан':'')+'</option>');
+    });
+    if(sp.ritual) opts.push('<option value="ritual">Ритуалом — без ячейки, время +10 минут</option>');
+    opts.push('<option value="free">Без траты ячейки — решение мастера</option>');
+    const sel=document.getElementById('castSlot');
+    sel.innerHTML=opts.join('');
+    /* по умолчанию — наименьший доступный круг */
+    const first=Object.keys(caster.slots||{}).map(Number).sort((a,b)=>a-b).find(lv=>lv>=sp.l&&caster.slots[lv].cur>0);
+    sel.value=first!==undefined?String(first):(sp.ritual?'ritual':'free');
+    sw.style.display='block';
+    castSlotChanged();
+  } else if(sw){ sw.style.display='none'; }
   document.getElementById('castItemWrap').style.display='none';
   document.getElementById('castStep1').style.display='block';
   document.getElementById('castStep2').style.display='none';
   const er=document.getElementById('castErr'); er.style.display='none'; er.textContent='';
   back.style.display='flex';
+}
+function castSlotChanged(){
+  if(!castCtx) return;
+  const sp=spellOf(castCtx.spellId); if(!sp) return;
+  const v=document.getElementById('castSlot').value;
+  const hiEl=document.getElementById('castSlotHi'); if(!hiEl) return;
+  const lv=parseInt(v,10);
+  if(!isNaN(lv)&&lv>sp.l&&sp.hi){ hiEl.textContent='Усиление ('+lv+' круг): '+sp.hi; hiEl.style.display='block'; }
+  else if(!isNaN(lv)&&lv>sp.l){ hiEl.textContent='У этого заклинания усиления при более высоком круге нет — ячейка тратится без выгоды.'; hiEl.style.display='block'; }
+  else { hiEl.style.display='none'; }
 }
 function castTargetChanged(){
   const v=document.getElementById('castTarget').value;
@@ -2682,6 +2872,7 @@ function castConfirm(){
   const chk=canCastCheck(caster, sp);
   if(!chk.ok){ castShowErr(chk.reason); return; }
   castCtx.target=target; castCtx.inv=inv;
+  castCtx.slotSel=(sp.l>0&&document.getElementById('castSlotWrap').style.display!=='none')?document.getElementById('castSlot').value:null;
   if(chk.comp.m){
     /* обязательный шаг: выбор материального компонента из инвентаря */
     const invList=caster.inventory||[];
@@ -2700,7 +2891,7 @@ function castConfirm(){
     document.getElementById('castStep2').style.display='block';
     return;
   }
-  if(castSpellApply(castCtx.spellId, castCtx.casterId, target, inv)) closeCastModal();
+  if(castSpellApply(castCtx.spellId, castCtx.casterId, target, inv, undefined, castCtx.slotSel)) closeCastModal();
 }
 function castMatBack(){
   document.getElementById('castStep2').style.display='none';
@@ -2712,7 +2903,7 @@ function castMatConfirm(){
   const entryId=document.getElementById('castMat').value;
   const use=+document.getElementById('castMatQty').value||0;
   if(!entryId){ castShowErr('Выберите предмет-компонент.'); return; }
-  if(castSpellApply(castCtx.spellId, castCtx.casterId, castCtx.target, castCtx.inv, {entryId, use})) closeCastModal();
+  if(castSpellApply(castCtx.spellId, castCtx.casterId, castCtx.target, castCtx.inv, {entryId, use}, castCtx.slotSel)) closeCastModal();
 }
 function castLogLine(txt){
   if(typeof journal==='undefined') return;
@@ -2724,7 +2915,7 @@ function castLogLine(txt){
   if(typeof scheduleJournalSave==='function') scheduleJournalSave();
   if(typeof renderJournal==='function') renderJournal();
 }
-function castSpellApply(spellId, casterId, target, invEntryId, mat){
+function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel){
   const sp=spellOf(spellId), caster=getCh(casterId);
   if(!sp||!caster||!target) return false;
   /* проверка компонентов В и С и способности действовать */
@@ -2747,6 +2938,28 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat){
       matInfo=' · компонент при себе';
     }
   }
+  /* трата ячейки заклинаний (заговоры и ритуалы — без ячейки) */
+  let slotInfo='';
+  if(sp.l>0){
+    if(slotSel===undefined||slotSel===null){
+      /* программный путь: наименьшая доступная ячейка, при отсутствии — без траты */
+      const lv=Object.keys(caster.slots||{}).map(Number).sort((a,b)=>a-b).find(k=>k>=sp.l&&caster.slots[k].cur>0);
+      if(lv!==undefined){ caster.slots[lv].cur--; caster.spentRest=(+caster.spentRest||0)+1; slotInfo=' · ячейка '+lv+' круга'; }
+      else slotInfo=' · без ячейки';
+    } else if(slotSel==='ritual'){
+      if(!sp.ritual){ castShowErr&&castShowErr('Это заклинание не является ритуалом.'); return false; }
+      slotInfo=' · ритуалом (без ячейки, +10 минут)';
+    } else if(slotSel==='free'){
+      slotInfo=' · без траты ячейки (решение мастера)';
+    } else {
+      const lv=parseInt(slotSel,10);
+      const s=caster.slots&&caster.slots[lv];
+      if(!s||lv<sp.l){ castShowErr&&castShowErr('Выбранная ячейка не подходит для этого круга.'); return false; }
+      if(s.cur<=0){ castShowErr&&castShowErr('Ячейки '+lv+' круга исчерпаны — восстановятся после долгого отдыха'+(caster.cls==='Волшебник'?' или арканного восстановления':'')+'.'); return false; }
+      s.cur--; caster.spentRest=(+caster.spentRest||0)+1;
+      slotInfo=' · ячейка '+lv+' круга'+(lv>sp.l?' (усиление)':'');
+    }
+  }
   const isConc=!!sp.conc||/концентрация/i.test(sp.d||'');
   if(isConc){
     const olds=[];
@@ -2761,7 +2974,7 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat){
     const tid=target.slice(5), t=getCh(tid);
     if(!t) return false;
     applyFxTo(tid,{k:'spell', id:sp.id, label:sp.n, from:caster.name, casterId:caster.id, conc:isConc, why:'наложено: '+caster.name+durWhy});
-    castLogLine(caster.name+' → '+t.name+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matInfo);
+    castLogLine(caster.name+' → '+t.name+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matInfo+slotInfo);
     return true;
   }
   let tl = target==='enemy'?'враг':(target==='object'?'неодушевленный объект':'');
@@ -2781,8 +2994,8 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat){
       fx:[{stat:'note',mode:'text',value:'концентрируется на «'+sp.n+'» — цель: '+tl}]});
   }
   fxInvalidate(); scheduleSave(); renderChars();
-  setStatus('⚡ «'+sp.n+'» наложено на: '+tl+' (СЛ спасброска '+spellDC(caster)+')'+matInfo+'.');
-  castLogLine(caster.name+' → '+tl+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matInfo);
+  setStatus('⚡ «'+sp.n+'» наложено на: '+tl+' (СЛ спасброска '+spellDC(caster)+')'+matInfo+slotInfo+'.');
+  castLogLine(caster.name+' → '+tl+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matInfo+slotInfo);
   return true;
 }
 function toggleAbilityFx(abilityId){
@@ -3393,6 +3606,7 @@ function spellCardHTML(sp, extra){
     +(sp.c?'<div><b>Классы:</b> '+esc(sp.c)+'</div>':'')+'</div>';
   h+=descBlock(sp.x);
   if(sp.hi) h+='<div class="props-block"><span class="pt">На больших уровнях:</span> '+esc(sp.hi)+'</div>';
+  else if(sp.l>0) h+='<div class="props-block note-ital" style="font-size:13px"><span class="pt">На больших уровнях:</span> усиления нет — ячейка более высокого круга выгоды не дает.</div>';
   return h+'</div>';
 }
 const ABILITY_TYPES={class:'Классовая',racial:'Расовая',feat:'Черта',other:'Прочее'};
@@ -3689,6 +3903,18 @@ function returnHitDie(){ const c=cc(); if(!c) return; c.hdUsed=Math.max(0,(+c.hd
 function shortRest(){
   const c=cc(); if(!c) return;
   c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null&&db.rest==='короткий отдых') a.cur=db.uses; });
+  /* Арканное восстановление волшебника: раз в день, суммарный круг ячеек до половины уровня */
+  if(c.cls==='Волшебник' && !c.arcUsed && casterMeta(c)){
+    let budget=Math.ceil(c.level/2);
+    const lvls=Object.keys(c.slots||{}).map(Number).sort((a,b)=>a-b).filter(lv=>lv<=5);
+    const miss=lvls.some(lv=>c.slots[lv].cur<c.slots[lv].max);
+    if(miss && confirm('⚕ Арканное восстановление (раз в день): вернуть потраченные ячейки суммарным кругом до '+budget+' (ячейки не выше 6 круга)?')){
+      const got=[];
+      lvls.forEach(lv=>{ while(budget>=lv && c.slots[lv].cur<c.slots[lv].max){ c.slots[lv].cur++; budget-=lv; got.push(lv); } });
+      c.arcUsed=true;
+      if(got.length) setStatus('⚕ Арканное восстановление: возвращены ячейки кругов '+got.join(', ')+'.');
+    }
+  }
   setStatus('☕ Короткий отдых: способности короткого отдыха восстановлены; кости хитов тратьте кнопкой ⚁ в ячейке «Кости хитов».');
   scheduleSave(); renderChars();
 }
@@ -3704,6 +3930,8 @@ function upgradeChar3(c){
   if(!c.persona) c.persona={tr:'',id:'',bd:'',fl:'',ap:''};
   if(!Array.isArray(c.activeFx)) c.activeFx=[];
   if(!Array.isArray(c.fxOff)) c.fxOff=[];
+  if(c.spentRest===undefined) c.spentRest=0;
+  if(c.arcUsed===undefined) c.arcUsed=false;
   if(c.inspiration===undefined) c.inspiration=false;
   c._v3=true; return c;
 }
@@ -3770,8 +3998,23 @@ function hpDelta(d){ const c=cc(); if(!c) return;
   if(d<0 && c.hpTemp>0){ const useTemp=Math.min(c.hpTemp,-d); c.hpTemp-=useTemp; d+=useTemp; }
   c.hp=Math.max(0,Math.min(c.hpMax,(+c.hp||0)+d)); scheduleSave(); renderChars(); }
 function toggleInspiration(){ const c=cc(); if(!c) return; c.inspiration=!c.inspiration; scheduleSave(); renderChars(); }
+function levelDown(){
+  const c=cc(); if(!c||c.level<=1) return;
+  if(!confirm('Откатить '+c.name+' на уровень назад ('+c.level+' → '+(c.level-1)+')? Авто-добавленные заклинания недоступных кругов уйдут из книги, ячейки пересчитаются.')) return;
+  const oldLvl=c.level;
+  c.level--;
+  c.xp=Math.min(c.xp, XP_TABLE[c.level+1]-1);
+  if(typeof autoLevelSpells==='function'){
+    const r=autoLevelSpells(c, oldLvl);
+    if(r.removed.length) setStatus('📖 Откат уровня: из книги ушли '+r.removed.slice(0,5).join(', ')+(r.removed.length>5?' и еще '+(r.removed.length-5):'')+'.');
+  }
+  if(typeof applyClassSlots==='function' && casterMeta(c)) applyClassSlots(c);
+  c.hpPend=false;
+  scheduleSave(); renderChars();
+}
 function levelUp(){
   const c=cc(); if(!c||c.level>=20) return;
+  const oldLvl=c.level;
   c.level++;
   classOf(c).lv.filter(x=>x[0]===c.level).forEach(x=>{
     const fn=x[1];
@@ -3780,6 +4023,11 @@ function levelUp(){
       x:'Черта класса «'+c.cls+'», получена на '+c.level+' уровне. Опишите ее в своде способностей.'}; abilitiesDB.push(db); }
     if(!c.abilities.some(a=>a.abilityId===db.id)) c.abilities.push({abilityId:db.id, cur:null, notes:''});
   });
+  if(typeof autoLevelSpells==='function'){
+    const r=autoLevelSpells(c, oldLvl);
+    if(r.added.length) setStatus('📖 Уровень '+c.level+': в книгу вошли заклинания '+Math.min(9,Math.ceil(c.level/2))+' круга — '+r.added.slice(0,5).join(', ')+(r.added.length>5?' и еще '+(r.added.length-5):'')+'.');
+  }
+  if(typeof applyClassSlots==='function' && casterMeta(c)) applyClassSlots(c);
   c.hpPend=true; scheduleSave(); renderChars();
 }
 function applyHp(){
@@ -3806,6 +4054,7 @@ function sheetHTML(c){
   let h='<div class="row-line" style="margin-bottom:8px"><button class="btn ghost sm" onclick="backToList()">← К списку героев</button>'
    +'<span class="grow"></span>'
    +(canLevelUp(c)?'<button class="btn rub" onclick="levelUp()">↑ Взять '+(c.level+1)+'-й уровень</button>':'')
+   +(c.level>1?'<button class="btn ghost sm" title="Откатить уровень: авто-заклинания недоступных кругов уйдут, ячейки пересчитаются" onclick="levelDown()">↓ откат</button>':'')
    +'<button class="del-x" title="Удалить героя" onclick="delChar(\''+c.id+'\')">✕</button></div>';
   /* шапка: имя и происхождение */
   h+='<div class="panel"><div class="sheet-head">'
@@ -4115,6 +4364,9 @@ function addSpellFromDB(spellId){
 function delBookSpell(spellId){ const c=cc(); if(!c) return;
   c.spellbook=c.spellbook.filter(x=>x.spellId!==spellId); scheduleSave(); renderChars(); }
 function togglePrep(spellId){ const c=cc(); const e=c.spellbook.find(x=>x.spellId===spellId); if(!e) return;
+  if(!e.prep && casterMeta(c) && prepCount(c)>=prepMax(c)){
+    if(!confirm('Лимит подготовки достигнут: '+prepCount(c)+' из '+prepMax(c)+' (уровень + модификатор заклинательной характеристики).\n\nОК — нарушить правило решением мастера.\nОтмена — сперва снять подготовку с другого заклинания.')) return;
+  }
   e.prep=!e.prep; scheduleSave(); renderChars(); }
 function quickAddSpell(){
   const g=id=>document.getElementById(id);
@@ -4144,8 +4396,9 @@ function setSlotMax(lv){
 }
 function suggestSlots(){
   const c=cc(); if(!c) return;
-  const row=FULL_SLOTS[c.level]||[];
-  c.slots={}; row.forEach((m,i)=>{ if(m>0) c.slots[i+1]={max:m,cur:m}; });
+  if(!casterMeta(c)){ setStatus('«'+c.cls+'» не владеет ячейками заклинаний по таблицам заклинателей.'); return; }
+  applyClassSlots(c);
+  setStatus('Ячейки выставлены по таблице: '+(casterMeta(c).kind==='half'?'полузаклинатель':'полный заклинатель')+', уровень '+c.level+' (потраченные сохранены).');
   scheduleSave(); renderChars();
 }
 function longRest(){
@@ -4155,9 +4408,45 @@ function longRest(){
   c.hp=c.hpMax; c.hpTemp=0; c.exhaustion=Math.max(0,c.exhaustion-1); c.deaths={s:0,f:0};
   c.hdUsed=Math.max(0,(+c.hdUsed||0)-Math.max(1,Math.ceil(c.level/2)));   /* возвращается половина костей хитов */
   c.activeFx=[];                       /* наложенные заклинания и примененные способности сходят на нет */
+  c.spentRest=0; c.arcUsed=false;      /* счетчик трат ячеек и арканное восстановление обнуляются */
   if(typeof fxInvalidate==='function') fxInvalidate();
   c.hp=Math.min(c.hp,(typeof eHpMax==='function')?eHpMax(c):c.hpMax);
   scheduleSave(); renderChars();
+}
+
+/* ── умная сводка кругов: что есть, что тратится, что вернется ── */
+function spellDashHTML(c){
+  const meta=casterMeta(c);
+  const lvls=Object.keys(c.slots||{}).map(Number).sort((a,b)=>a-b);
+  let h='<div class="spell-dash">';
+  /* пипсы ячеек по кругам */
+  if(lvls.length){
+    h+='<div class="sd-slots">';
+    lvls.forEach(lv=>{
+      const s=c.slots[lv];
+      let pips=''; for(let i=0;i<s.max;i++) pips+='<span class="pip-slot'+(i<s.cur?' on':'')+'"></span>';
+      h+='<span class="sd-circle'+(s.cur===0?' sd-empty':'')+'"><b>Круг '+lv+'</b> '+pips+' '+s.cur+' / '+s.max+(s.cur===0?' — исчерпан':'')+'</span>';
+    });
+    h+='</div>';
+  }
+  /* подготовка и доступность */
+  if(meta){
+    const pc=prepCount(c), pm=prepMax(c);
+    const cantrips=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&sp.l===0; }).length;
+    const prepped=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return e.prep&&sp&&sp.l>0; });
+    const castable=prepped.filter(e=>{ const sp=spellOf(e.spellId);
+      return lvls.some(lv=>lv>=sp.l && c.slots[lv].cur>0); }).length;
+    const ritual=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&sp.ritual; }).length;
+    const spent=+c.spentRest||0;
+    h+='<div class="sd-line'+(pc>pm?' sd-over':'')+'">Подготовлено: <b>'+pc+' из '+pm+'</b> (уровень + модификатор характеристики)'+(pc>pm?' — превышение решением мастера':'')+'; смена списка — на долгом отдыхе.</div>';
+    h+='<div class="sd-line">Сейчас можно наложить: <b>'+castable+'</b> из '+prepped.length+' подготовленных (по свободным ячейкам подходящих кругов) · заговоров без ячеек: '+cantrips+(ritual?' · ритуалов без ячеек: '+ritual:'')+'.</div>';
+    h+='<div class="sd-line'+(spent>=3?' sd-hot':'')+'">Потрачено ячеек с последнего долгого отдыха: <b>'+spent+'</b>'+(spent>=3?' — бой заметно истощает запас!':'')+'.</div>';
+    const total=lvls.reduce((a,lv)=>a+c.slots[lv].cur,0);
+    const totalMax=lvls.reduce((a,lv)=>a+c.slots[lv].max,0);
+    h+='<div class="sd-line">После долгого отдыха: восстановятся все ячейки ('+(totalMax-total)+' шт.) и способности, список подготовки можно сменить'
+      +(c.cls==='Волшебник'?(c.arcUsed?'; арканное восстановление уже использовано сегодня':'; на коротком отдыхе доступно ⚕ арканное восстановление (суммарно кругов: до '+Math.ceil(c.level/2)+')'):'')+'.</div>';
+  }
+  return h+'</div>';
 }
 function stSpells(c){
   let h='<div class="panel">';
@@ -4165,6 +4454,7 @@ function stSpells(c){
   h+='<div class="row-line"><h3 class="rubric" style="font-size:22px;margin:0">Ячейки заклинаний</h3><span class="grow"></span>'
    +'<button class="btn ghost sm" onclick="suggestSlots()">По таблице заклинателя</button>'
    +'<button class="btn ghost sm" onclick="longRest()">☾ Долгий отдых</button></div>';
+  h+=spellDashHTML(c);
   /* заклинательные показатели */
   const sab=spellAbOf(c);
   h+='<div class="spell-stats"><span>Заклинательная характеристика: <select onchange="setSpellAb(this.value)">'
