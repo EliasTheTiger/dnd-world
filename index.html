@@ -499,6 +499,8 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 .sd-line b{color:var(--ink)}
 .sd-over{color:var(--rubric)}
 .sd-hot{color:var(--rubric);font-weight:600}
+.conc-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--sheet);border:1px solid #5e35b1;border-left:4px solid #5e35b1;padding:7px 10px;margin:6px 0;font-size:14.5px}
+.conc-row b{color:#5e35b1}
 
 </style>
 </head>
@@ -2251,10 +2253,18 @@ function applyClassSlots(c){
   c.slots=next;
 }
 
+const ANTIMAGIC_SPELL = {
+  id:'sp_antimagic_field', n:'Антимагическое поле', l:8, s:'Ограждение', c:'Влш, Жрц',
+  t:'1 действие', r:'На себя (сфера радиусом 10 футов)', cm:'В, С, М (щепотка железных опилок)', d:'Концентрация, до 1 часа',
+  ritual:false, conc:true, custom:true, tags:['abjuration','antimagic','concentration'],
+  x:'Вас окружает невидимая сфера антимагии радиусом 10 футов. Внутри сферы заклинания не могут быть наложены, призванные существа исчезают, а магические предметы становятся обыкновенными. Действующие заклинания и магические эффекты внутри сферы подавлены — они не работают, пока находятся в ней, но возобновляются, когда покидают сферу или когда заклинание оканчивается. Сфера движется вместе с вами.',
+  hi:''
+};
+
 /* Однократный аудит-посев полей заклинаний (работает и на уже живых устройствах) */
 async function ensureSpellAudit(){
   const flag=await store.get('dndworld2:spellaudit');
-  if(flag==='1') return;
+  if(flag==='2') return;   /* версия 2: добавлено «Антимагическое поле» */
   Object.keys(SPELL_HI_PATCHES).forEach(id=>{
     const sp=spellsDB.find(s=>s.id===id);
     if(sp && !sp.hi) sp.hi=SPELL_HI_PATCHES[id];
@@ -2263,7 +2273,12 @@ async function ensureSpellAudit(){
     const sp=spellsDB.find(s=>s.id===id);
     if(sp && (!sp.x || sp.x.length<40)) sp.x=SPELL_X_PATCHES[id];
   });
-  await store.set('dndworld2:spellaudit','1');
+  if(!spellsDB.some(s=>s.n==='Антимагическое поле')){
+    const o=Object.assign({},ANTIMAGIC_SPELL);
+    o.tags=uniqTags((o.tags||[]).concat(spellEnrichTags(o)));
+    spellsDB.push(o);
+  }
+  await store.set('dndworld2:spellaudit','2');
   scheduleSave();
 }
 
@@ -2613,7 +2628,9 @@ function charFxSources(c){
       const fx=recFx(it,'item');
       if(fx.length){
         const s={k:'item', id:it.id, label:it.n, why:(wearable?'надето':'в инвентаре'), fx, canOff:true};
-        s.off=off.includes(fxSrcKey(s)); out.push(s);
+        s.off=off.includes(fxSrcKey(s));
+        if((c.activeFx||[]).some(a=>a.antimagic) && (it.tags||[]).indexOf('magical')>=0) s.suppressed=true;
+        out.push(s);
       }
     }
   });
@@ -2627,12 +2644,17 @@ function charFxSources(c){
       }
     }
   });
+  const hasAM=(c.activeFx||[]).some(a=>a.antimagic);
   (c.activeFx||[]).forEach(a=>{
     let rec=null, label=a.label||'';
     if(a.k==='spell'){ rec=spellOf(a.id); label=rec?rec.n:label; }
     if(a.k==='ability'){ rec=abilityOf(a.id); label=rec?rec.n:label; }
     const fx=a.fx&&a.fx.length? a.fx : recFx(rec, a.k);
-    if(fx.length||a.k==='spell'||a.k==='use') out.push({k:a.k, id:a.id, uid:a.uid, label, why:a.why||(a.from?'наложено: '+a.from:'применено'), fx, removable:true});
+    if(fx.length||a.k==='spell'||a.k==='use'){
+      const s={k:a.k, id:a.id, uid:a.uid, label, why:a.why||(a.from?'наложено: '+a.from:'применено'), fx, removable:true};
+      if(hasAM && !a.antimagic && (a.k==='spell'||a.k==='use')) s.suppressed=true;
+      out.push(s);
+    }
   });
   /* истощение — канонические последствия по уровням */
   const ex=+c.exhaustion||0;
@@ -2650,7 +2672,7 @@ function charFxSources(c){
 function charFxAll(c){
   if(c.__fxC && c.__fxC.t===fxCacheT) return c.__fxC.v;
   const list=[];
-  charFxSources(c).forEach(s=>{ if(s.off) return; s.fx.forEach(f=>{
+  charFxSources(c).forEach(s=>{ if(s.off||s.suppressed) return; s.fx.forEach(f=>{
     let v=f.value;
     if(v==='lvl') v=c.level;
     list.push({stat:f.stat, mode:f.mode, value:v, note:f.note||'', label:s.label, k:s.k});
@@ -2709,6 +2731,125 @@ function removeActiveFx(charId, uid){
 }
 
 
+
+/* ── концентрация: единый учет, разрыв, проверка при уроне ── */
+function concEntriesOf(casterId){
+  const out=[];
+  chars.forEach(ch=>(ch.activeFx||[]).forEach(a=>{ if(a.conc&&a.casterId===casterId) out.push({ch,a}); }));
+  return out;
+}
+function concLabelOf(c){
+  const e=concEntriesOf(c.id);
+  return e.length? e.map(o=>o.a.label).filter((v,i,arr)=>arr.indexOf(v)===i).join('», «') : null;
+}
+function breakConcentration(caster, reason){
+  const olds=concEntriesOf(caster.id);
+  if(!olds.length) return false;
+  const names=olds.map(o=>o.a.label).filter((v,i,a)=>a.indexOf(v)===i);
+  olds.forEach(o=>{ o.ch.activeFx=o.ch.activeFx.filter(x=>x.uid!==o.a.uid); o.ch.hp=Math.min(+o.ch.hp||0, eHpMax(o.ch)); });
+  fxInvalidate(); scheduleSave(); renderChars();
+  setStatus('🧠✕ Концентрация '+caster.name+' на «'+names.join('», «')+'» прервана: '+reason+'.');
+  if(typeof castLogLine==='function') castLogLine(caster.name+': концентрация на «'+names.join('», «')+'» прервана ('+reason+')');
+  return true;
+}
+function concAdvantage(c){
+  return fxNotesOf(c).some(t=>/преимуществ[а-я]*[^.]*концентрац/.test(t));
+}
+function concDamageCheck(c, dmg){
+  if(!concEntriesOf(c.id).length) return;
+  const dc=Math.max(10, Math.floor(dmg/2));
+  const conMod=eMod(c,'con')+(c.saves&&c.saves.con?PROF[c.level]:0)+fxSaveBonus(c,'con');
+  const d=()=>1+Math.floor(Math.random()*20);
+  const r1=d(), r2=d();
+  const adv=concAdvantage(c);
+  const r=adv?Math.max(r1,r2):r1;
+  const tot=r+conMod;
+  const ok=tot>=dc;
+  const out=document.getElementById('diceOut');
+  if(out){
+    out.textContent='Концентрация ('+c.name+'): урон '+dmg+' → спасбросок Телосложения СЛ '+dc+': к20 '+r+(adv?' ▲['+r1+'|'+r2+']':'')+(conMod?(conMod>0?' + '+conMod:' − '+Math.abs(conMod)):'')+' = '+tot+' — '+(ok?'удержана ✓':'ПРОВАЛ ✕');
+    out.style.color=ok?'var(--ok)':'var(--rubric)';
+  }
+  if(!ok) breakConcentration(c, 'провален спасбросок Телосложения от урона (СЛ '+dc+')');
+  else setStatus('🧠 '+c.name+' удерживает концентрацию (СЛ '+dc+' пройдена).');
+}
+
+/* ── спец-заклинания контрмагии: работают по имени записи — готово и для будущих ── */
+function castCounterspell(sp, caster, target, usedLvl){
+  const raw=window.prompt('⚡ Контрзаклинание: какого круга заклинание прерываем? (1-9)','1');
+  if(raw==null) return true;
+  const tLvl=Math.max(1,Math.min(9,parseInt(raw,10)||1));
+  const myLvl=usedLvl||3;
+  let ok, note;
+  if(myLvl>=tLvl){ ok=true; note='автоматически (ячейка '+myLvl+' круга ≥ круга цели)'; }
+  else {
+    const r=1+Math.floor(Math.random()*20), m=eMod(caster,spellAbOf(caster)), dc=10+tLvl;
+    ok=r+m>=dc; note='проверка к20 '+r+(m?(m>0?' + '+m:' − '+Math.abs(m)):'')+' = '+(r+m)+' против СЛ '+dc+(ok?' — успех':' — провал');
+    const out=document.getElementById('diceOut');
+    if(out){ out.textContent='Контрзаклинание: '+note; out.style.color=ok?'var(--ok)':'var(--rubric)'; }
+  }
+  if(target.indexOf('ally:')===0 && ok){
+    const t=getCh(target.slice(5));
+    if(t){
+      /* прерывание в момент каста: снимаем последнее наложение этого заклинателя */
+      let last=null;
+      chars.forEach(ch=>(ch.activeFx||[]).forEach(a=>{ if(a.casterId===t.id) last={ch,a}; }));
+      if(last){ removeActiveFx(last.ch.id, last.a.uid); }
+      breakConcentration(t, 'заклинание прервано Контрзаклинанием');
+    }
+  }
+  const tl=target.indexOf('ally:')===0?(getCh(target.slice(5))||{}).name:(target==='enemy'?'враг':'цель');
+  setStatus('⚡ Контрзаклинание от '+caster.name+' против '+tl+': '+(ok?'заклинание ('+tLvl+' круг) ПРЕРВАНО':'не удалось')+' — '+note+'.');
+  castLogLine(caster.name+' → '+tl+': «Контрзаклинание» против заклинания '+tLvl+' круга — '+(ok?'прервано':'провал')+' ('+note+')');
+  fxInvalidate(); scheduleSave(); renderChars();
+  return true;
+}
+function castDispel(sp, caster, target, usedLvl){
+  const myLvl=usedLvl||3;
+  if(target.indexOf('ally:')!==0){
+    const tl=target==='enemy'?'враг':'неодушевленный объект';
+    setStatus('⚡ Рассеивание магии: заклинания круга ≤ '+myLvl+' на цели («'+tl+'») оканчиваются; более высокие — проверка к20 + '+eMod(caster,spellAbOf(caster))+' против СЛ 10 + круг.');
+    castLogLine(caster.name+' → '+tl+': «Рассеивание магии» (ячейка '+myLvl+' круга)');
+    return true;
+  }
+  const t=getCh(target.slice(5)); if(!t) return false;
+  const dispelled=[], held=[];
+  (t.activeFx||[]).slice().forEach(a=>{
+    if(a.k!=='spell') return;
+    const rec=spellOf(a.id); const lv=rec?(+rec.l||0):0;
+    if(lv<=myLvl){ removeActiveFx(t.id, a.uid); dispelled.push(a.label+(lv?' ('+lv+' кр.)':'')); }
+    else {
+      const r=1+Math.floor(Math.random()*20), m=eMod(caster,spellAbOf(caster)), dc=10+lv;
+      if(r+m>=dc){ removeActiveFx(t.id, a.uid); dispelled.push(a.label+' ('+lv+' кр., проверка '+(r+m)+'≥'+dc+')'); }
+      else held.push(a.label+' ('+lv+' кр., проверка '+(r+m)+'<'+dc+')');
+    }
+  });
+  const msg='⚡ Рассеивание магии на '+t.name+': '+(dispelled.length?'рассеяно — '+dispelled.join('; '):'рассеивать нечего')+(held.length?' · устояло — '+held.join('; '):'');
+  setStatus(msg+'.');
+  castLogLine(caster.name+' → '+t.name+': «Рассеивание магии» (ячейка '+myLvl+' круга) — '+(dispelled.length?'рассеяно: '+dispelled.join(', '):'ничего')+(held.length?'; устояло: '+held.join(', '):''));
+  return true;
+}
+function castAntimagic(sp, caster, target, usedLvl){
+  const isAlly=target.indexOf('ally:')===0;
+  const durWhy='антимагическая сфера · концентрация'+(sp.d&&!/мгновенн/i.test(sp.d)?' · '+sp.d:'');
+  if(isAlly){
+    applyFxTo(target.slice(5), {k:'spell', id:sp.id, label:sp.n, from:caster.name, casterId:caster.id, conc:true, antimagic:true,
+      why:durWhy, fx:[{stat:'note',mode:'text',value:'антимагическое поле: заклинания внутри невозможны, магические эффекты подавлены'}]});
+  } else {
+    caster.activeFx=caster.activeFx||[];
+    caster.activeFx.push({k:'spell', id:sp.id, uid:fxUid(), label:sp.n, from:caster.name, casterId:caster.id, conc:true,
+      why:'концентрация · цель: '+(target==='enemy'?'враг':'неодушевленный объект'),
+      fx:[{stat:'note',mode:'text',value:'концентрируется на «'+sp.n+'»'}]});
+    fxInvalidate(); scheduleSave(); renderChars();
+  }
+  const tl=isAlly?(getCh(target.slice(5))||{}).name:(target==='enemy'?'враг':'объект');
+  castLogLine(caster.name+' → '+tl+': «'+sp.n+'» — магия в сфере подавлена');
+  return true;
+}
+const SPECIAL_CAST={ 'Контрзаклинание':castCounterspell, 'Рассеивание магии':castDispel, 'Антимагическое поле':castAntimagic };
+function breakConcById(charId){ const c=getCh(charId); if(!c) return;
+  if(confirm('Прервать концентрацию '+c.name+'?')) breakConcentration(c, 'решение мастера'); }
+
 /* ── компоненты заклинаний: В (вербальный), С (соматический), М (материальный) ── */
 function parseComponents(sp){
   const cm=String((sp&&sp.cm)||'').trim();
@@ -2746,9 +2887,13 @@ function canCastCheck(caster, sp){
   const comp=parseComponents(sp);
   const blockAct=ACTION_BLOCK_CONDS.filter(n=>(caster.cond||[]).indexOf(n)>=0)[0];
   if(blockAct) return {ok:false, comp, reason:'Состояние «'+blockAct+'» не позволяет совершать действия — наложение невозможно.'};
+  if((caster.activeFx||[]).some(a=>a.antimagic))
+    return {ok:false, comp, reason:'Антимагическое поле: внутри сферы накладывать заклинания невозможно.'};
   if(comp.flex) return {ok:true, comp};
   const notes=fxNotesOf(caster);
   if(comp.v){
+    if((caster.activeFx||[]).some(a=>/тишин/i.test(a.label||'')))
+      return {ok:false, comp, reason:'Вербальный компонент (В): в зоне «Тишины» звуки невозможны.'};
     const sb=SPEECH_BLOCK_CONDS.filter(n=>(caster.cond||[]).indexOf(n)>=0)[0];
     if(sb) return {ok:false, comp, reason:'Вербальный компонент (В): состояние «'+sb+'» не позволяет говорить.'};
     if(notes.some(t=>/не может говорить|немота|онемел|кляп|заткнут/.test(t)))
@@ -2809,6 +2954,10 @@ function castSpellFx(spellId, casterId){
   if(sp.d) info.push('длительность: '+sp.d);
   if(sp.cm) info.push('компоненты: '+sp.cm);
   if(isConc) info.push('требует концентрации');
+  const curConc=concLabelOf(caster);
+  if(isConc&&curConc) info.push('⚠ уже концентрируется на «'+curConc+'» — наложение ПРЕРВЕТ ее');
+  const be=(caster.spellbook||[]).find(e=>e.spellId===sp.id);
+  if(sp.l>0&&casterMeta(caster)&&be&&!be.prep) info.push('⚠ не подготовлено');
   info.push('СЛ спасброска: '+spellDC(caster));
   document.getElementById('castInfo').textContent=info.join(' · ');
   document.getElementById('castTarget').innerHTML=
@@ -2921,6 +3070,14 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel){
   /* проверка компонентов В и С и способности действовать */
   const chk=canCastCheck(caster, sp);
   if(!chk.ok){ setStatus('✕ '+chk.reason, true); castShowErr&&castShowErr(chk.reason); return false; }
+  const isConc=!!sp.conc||/концентрация/i.test(sp.d||'');
+  if(isConc){
+    const cur=concLabelOf(caster);
+    if(cur){
+      if(!window.confirm(caster.name+' уже концентрируется: «'+cur+'». Одновременно удерживать два заклинания концентрации НЕВОЗМОЖНО.\n\nОК — прервать прежнюю концентрацию и наложить «'+sp.n+'».\nОтмена — не накладывать.')) return false;
+      breakConcentration(caster, 'начато новое заклинание концентрации «'+sp.n+'»');
+    }
+  }
   /* материальный компонент М */
   let matInfo='';
   if(chk.comp.m){
@@ -2939,12 +3096,12 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel){
     }
   }
   /* трата ячейки заклинаний (заговоры и ритуалы — без ячейки) */
-  let slotInfo='';
+  let slotInfo='', usedSlotLvl=null;
   if(sp.l>0){
     if(slotSel===undefined||slotSel===null){
       /* программный путь: наименьшая доступная ячейка, при отсутствии — без траты */
       const lv=Object.keys(caster.slots||{}).map(Number).sort((a,b)=>a-b).find(k=>k>=sp.l&&caster.slots[k].cur>0);
-      if(lv!==undefined){ caster.slots[lv].cur--; caster.spentRest=(+caster.spentRest||0)+1; slotInfo=' · ячейка '+lv+' круга'; }
+      if(lv!==undefined){ caster.slots[lv].cur--; caster.spentRest=(+caster.spentRest||0)+1; slotInfo=' · ячейка '+lv+' круга'; usedSlotLvl=lv; }
       else slotInfo=' · без ячейки';
     } else if(slotSel==='ritual'){
       if(!sp.ritual){ castShowErr&&castShowErr('Это заклинание не является ритуалом.'); return false; }
@@ -2957,18 +3114,11 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel){
       if(!s||lv<sp.l){ castShowErr&&castShowErr('Выбранная ячейка не подходит для этого круга.'); return false; }
       if(s.cur<=0){ castShowErr&&castShowErr('Ячейки '+lv+' круга исчерпаны — восстановятся после долгого отдыха'+(caster.cls==='Волшебник'?' или арканного восстановления':'')+'.'); return false; }
       s.cur--; caster.spentRest=(+caster.spentRest||0)+1;
-      slotInfo=' · ячейка '+lv+' круга'+(lv>sp.l?' (усиление)':'');
+      slotInfo=' · ячейка '+lv+' круга'+(lv>sp.l?' (усиление)':''); usedSlotLvl=lv;
     }
   }
-  const isConc=!!sp.conc||/концентрация/i.test(sp.d||'');
-  if(isConc){
-    const olds=[];
-    chars.forEach(ch=>(ch.activeFx||[]).forEach(a=>{ if(a.conc&&a.casterId===caster.id) olds.push({ch,a}); }));
-    if(olds.length){
-      if(!window.confirm(caster.name+' уже концентрируется: «'+olds.map(o=>o.a.label).join('», «')+'».\n\nОК — прервать прежнюю концентрацию и наложить «'+sp.n+'».\nОтмена — не накладывать.')) return false;
-      olds.forEach(o=>removeActiveFx(o.ch.id,o.a.uid));
-    }
-  }
+  /* контрмагия и подобные — особый ход исполнения (структура готова к будущим записям) */
+  if(SPECIAL_CAST[sp.n]) return SPECIAL_CAST[sp.n](sp, caster, target, usedSlotLvl);
   const durWhy=(isConc?' · концентрация':'')+(sp.d&&!/мгновенн/i.test(sp.d)?' · '+sp.d:'');
   if(target.indexOf('ally:')===0){
     const tid=target.slice(5), t=getCh(tid);
@@ -3062,6 +3212,13 @@ function useConsumable(entryId){
 function fxPanelHTML(c){
   const src=charFxSources(c);
   let h='<h3 class="rubric" style="font-size:20px;margin-top:14px">✦ Действующие эффекты</h3>';
+  const cl=concLabelOf(c);
+  if(cl){
+    const tgt=concEntriesOf(c.id).map(o=>o.ch.id===c.id&&/цель: ([^·]+)/.test(o.a.why||'')?(o.a.why.match(/цель: ([^·]+)/)||[])[1]:o.ch.name).filter((v,i,a)=>v&&a.indexOf(v)===i);
+    h+='<div class="conc-row">🧠 Концентрация: <b>«'+esc(cl)+'»</b>'+(tgt.length?' · цель: '+esc(tgt.join(', ')):'')
+     +' <span class="note-ital" style="font-size:12px">(урон вызовет спасбросок Телосложения СЛ = макс(10, половина урона))</span>'
+     +'<button class="del-x" title="Прервать концентрацию" onclick="breakConcById(\''+c.id+'\')">✕ прервать</button></div>';
+  }
   if(!src.length) return h+'<p class="note-ital" style="font-size:14px">Сейчас на героя ничто не влияет: наденьте снаряжение, примените способность или наложите заклинание.</p>';
   h+='<div class="fx-panel">';
   src.forEach(s=>{
@@ -3072,7 +3229,7 @@ function fxPanelHTML(c){
       const cls=v>=0?'fx-plus':'fx-minus';
       return '<span class="'+cls+'">'+(FX_STAT_RU[f.stat]||f.stat.replace('skill.','навык: '))+' '+(v>0?'+':'')+v+(f.note?' <i>('+esc(f.note)+')</i>':'')+'</span>';
     }).join('<span class="fx-sep">·</span>');
-    h+='<div class="fx-row'+(s.off?' fx-off':'')+'"><b class="fx-src">'+esc(s.label)+'</b><span class="fx-why">'+esc(s.why)+(s.off?' · отключено мастером':'')+'</span>'
+    h+='<div class="fx-row'+((s.off||s.suppressed)?' fx-off':'')+'"><b class="fx-src">'+esc(s.label)+'</b><span class="fx-why">'+esc(s.why)+(s.off?' · отключено мастером':'')+(s.suppressed?' · подавлено антимагическим полем':'')+'</span>'
       +'<span class="fx-items">'+(items||'<span class="fx-note">эффект описан в тексте записи</span>')+'</span>'
       +(s.canOff?'<button class="mini" title="'+(s.off?'Включить эффект':'Отключить эффект (например, не выполнено условие)')+'" onclick="toggleFxSource(\''+c.id+'\',\''+fxSrcKey(s)+'\')">'+(s.off?'⏻ вкл':'⏻ выкл')+'</button>':'')
       +(s.removable?'<button class="del-x" title="Снять эффект" onclick="removeActiveFx(\''+c.id+'\',\''+s.uid+'\')">✕</button>':'')
@@ -3995,8 +4152,14 @@ function setRace(v){ const c=cc(); if(!c) return; c.race=v; c.subrace='';
 function setLevel(v){ const c=cc(); if(!c) return; c.level=Math.max(1,Math.min(20,+v||1)); scheduleSave(); renderChars(); }
 function setXp(v){ const c=cc(); if(!c) return; c.xp=Math.max(0,+v||0); scheduleSave(); renderChars(); }
 function hpDelta(d){ const c=cc(); if(!c) return;
+  const rawDmg=d<0?-d:0;
   if(d<0 && c.hpTemp>0){ const useTemp=Math.min(c.hpTemp,-d); c.hpTemp-=useTemp; d+=useTemp; }
-  c.hp=Math.max(0,Math.min(c.hpMax,(+c.hp||0)+d)); scheduleSave(); renderChars(); }
+  c.hp=Math.max(0,Math.min((typeof eHpMax==='function')?eHpMax(c):c.hpMax,(+c.hp||0)+d));
+  if(rawDmg>0 && typeof concDamageCheck==='function'){
+    if(c.hp<=0){ if(typeof breakConcentration==='function') breakConcentration(c,'герой упал до 0 хитов'); }
+    else concDamageCheck(c, rawDmg);
+  }
+  scheduleSave(); renderChars(); }
 function toggleInspiration(){ const c=cc(); if(!c) return; c.inspiration=!c.inspiration; scheduleSave(); renderChars(); }
 function levelDown(){
   const c=cc(); if(!c||c.level<=1) return;
@@ -4129,6 +4292,8 @@ function skillBonus(c,i){
 function setExhaustion(v){ const c=cc(); if(!c) return; c.exhaustion=Math.max(0,Math.min(6,+v||0)); scheduleSave(); renderChars(); }
 function toggleCond(n){ const c=cc(); if(!c) return;
   const i=c.cond.indexOf(n); if(i>=0) c.cond.splice(i,1); else c.cond.push(n);
+  if(i<0 && typeof ACTION_BLOCK_CONDS!=='undefined' && ACTION_BLOCK_CONDS.indexOf(n)>=0 && typeof breakConcentration==='function')
+    breakConcentration(c, 'состояние «'+n+'» делает героя недееспособным');
   scheduleSave(); renderChars(); }
 function setDeath(k,i,on){ const c=cc(); if(!c) return; c.deaths[k]=on?i:i-1; scheduleSave(); renderChars(); }
 
