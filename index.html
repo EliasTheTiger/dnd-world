@@ -2983,6 +2983,42 @@ function useAbilityApply(abilityId, casterId, target){
   const heal=deriveAbilityHeal(ab, caster);
   const tIsAlly=target.indexOf('ally:')===0;
   const rolls=arguments.length>3?arguments[3]:null;
+  /* итоги, введенные мастером на шаге «Формула» */
+  if(rolls&&(rolls.healTotal!=null||rolls.dmgTotal!=null||(rolls.notes&&rolls.notes.length))){
+    let info='';
+    if(tIsAlly){
+      const t=getCh(target.slice(5));
+      if(t&&rolls.healTotal!=null){
+        t.hp=Math.min(eHpMax(t),(+t.hp||0)+rolls.healTotal);
+        info+=' · лечение +'+rolls.healTotal+' хитов';
+        diceOutSet('✦ '+ab.n+' → '+t.name+': +'+rolls.healTotal+' хитов','var(--ok)');
+      }
+      if(t&&rolls.dmgTotal!=null){
+        let d=rolls.dmgTotal;
+        if(t.hpTemp>0){ const used=Math.min(t.hpTemp,d); t.hpTemp-=used; d-=used; }
+        t.hp=Math.max(0,(+t.hp||0)-d);
+        info+=' · урон '+rolls.dmgTotal;
+        diceOutSet('✦ '+ab.n+' → '+t.name+': '+rolls.dmgTotal+' урона','var(--rubric)');
+        if(t.hp<=0) breakConcentration(t,'цель упала до 0 хитов');
+        else if(rolls.dmgTotal>0) concDamageCheck(t, rolls.dmgTotal);
+      }
+    } else if(rolls.dmgTotal!=null){
+      info+=' · урон '+rolls.dmgTotal+' по цели';
+      diceOutSet('✦ '+ab.n+': '+rolls.dmgTotal+' урона по цели','var(--rubric)');
+    }
+    if(rolls.notes&&rolls.notes.length) info+=' · '+rolls.notes.join(' · ');
+    const lasting0=recFx(ab,'ability').filter(f=>!(f.stat==='hp'&&f.mode==='add'));
+    if(lasting0.length&&tIsAlly){
+      applyFxTo(target.slice(5), {k:'ability', id:ab.id, label:ab.n, from:caster.name,
+        why:'применено: '+caster.name+(ab.rest?' · восст.: '+ab.rest:''), fx:lasting0});
+      info+=' · эффект наложен';
+    }
+    const tl0=tIsAlly?(getCh(target.slice(5))||{}).name:(target==='enemy'?'враг':'неодушевленный объект');
+    fxInvalidate(); scheduleSave(); renderChars();
+    setStatus('✦ «'+ab.n+'» — применено (цель: '+tl0+')'+chargeInfo+info+'.');
+    castLogLine('✦ '+caster.name+' → '+tl0+': способность «'+ab.n+'»'+chargeInfo+info);
+    return true;
+  }
   if(heal && tIsAlly && !(rolls&&rolls.healDice!=null)){
     /* вернуть заряд, взятый выше, и спросить кости — затем повторить с результатом */
     if(ab.uses!=null){ const e=(caster.abilities||[]).find(x=>x.abilityId===ab.id); if(e&&chargeInfo.indexOf('−1')>=0) e.cur=(e.cur||0)+1; }
@@ -3289,76 +3325,235 @@ function matSpend(caster, entryId, use){
 
 
 /* ── формула заклинания: кости лечения/урона с учетом круга ячейки ── */
-function deriveSpellDice(sp, slotLvl, caster){
-  const x=String(sp.x||'').replace(/\u0451/g,'е').toLowerCase();
-  const hi=String(sp.hi||'').replace(/\u0451/g,'е').toLowerCase();
-  const extraLv=(typeof slotLvl==='number'&&slotLvl>sp.l)?(slotLvl-sp.l):0;
-  function upcast(base){
-    if(!extraLv||!base) return base;
-    const um=hi.match(/(?:увеличивается на|прибавляйте)\s*(\d+)\s*к\s*(\d+)/);
-    if(um&&+um[2]===base.sides) base.cnt+=extraLv*(+um[1]);
-    return base;
+/* ══════ УНИВЕРСАЛЬНЫЙ РАЗБОР ТРЕБУЕМЫХ БРОСКОВ ══════
+   Работает и для заклинаний, и для способностей, и для будущих записей.
+   Понимает обе записи костей: «2к8» и «2d8»; масштабирование заговоров по
+   уровню из поля усиления; апкаст ячейкой; броски атаки; спасброски цели. */
+function normRollTxt(s){
+  return String(s||'').replace(/\u0451/g,'е').toLowerCase()
+    .replace(/(\d+)\s*[dд]\s*(\d+)/g,'$1к$2');
+}
+function scanDiceGroups(txt){
+  const out=[]; const re=/(\d+)\s*к\s*(\d+)(?:\s*\+\s*(\d+))?/g; let m;
+  while((m=re.exec(txt))){
+    const start=Math.max(0,m.index-90), after=m.index+m[0].length;
+    out.push({cnt:+m[1], sides:+m[2], plus:+(m[3]||0), idx:m.index,
+      ctx:txt.slice(start, after+110), ctxPos:m.index-start,
+      after:txt.slice(after, after+60), before:txt.slice(Math.max(0,m.index-34), m.index)});
   }
-  let heal=null, dmg=null;
-  const hm=x.match(/восстанавлива[а-я]*[^.]{0,90}?(\d+)\s*к\s*(\d+)/);
-  if(hm){
-    heal={cnt:+hm[1], sides:+hm[2], mod:0, modLabel:''};
-    const seg=x.slice(hm.index, hm.index+160);
-    if(/\+\s*(?:ваш\s+)?модификатор/.test(seg)){ heal.mod=eMod(caster,spellAbOf(caster)); heal.modLabel='модификатор характеристики'; }
-    else { const pm=seg.match(/(\d+)\s*к\s*\d+\s*\+\s*(\d+)/); if(pm) heal.mod=+pm[2]; }
-    heal=upcast(heal);
+  return out;
+}
+/* классификация по БЛИЖАЙШЕМУ ключевому слову, отрицания («не может восстанавливать») не считаются */
+const HEAL_KW_SRC='лечен|восстанавлива|исцел|вылечи|количество хитов|уровень здоровья|временных хитов';
+const DMG_KW_SRC='урон|поврежд';
+function kwDist(ctx, pos, srcRe, skipNegated){
+  const re=new RegExp(srcRe,'g'); let m, best=Infinity;
+  while((m=re.exec(ctx))){
+    if(skipNegated){
+      const pre=ctx.slice(Math.max(0,m.index-16), m.index);
+      if(/\bне\s+\S*\s*$|\bне\s*$|\bбез\s+\S*\s*$/.test(pre)) continue;
+    }
+    best=Math.min(best, Math.abs(m.index-pos));
   }
-  const dm=x.match(/(\d+)\s*к\s*(\d+)[^.]{0,60}?урон/) || x.match(/урон[^.]{0,60}?(\d+)\s*к\s*(\d+)/);
-  if(dm){
-    dmg={cnt:+dm[1], sides:+dm[2], mod:0};
-    const tm=x.slice(dm.index, dm.index+120).match(/урона?\s+([а-я]+)/);
-    dmg.type=tm?tm[1]:'';
-    dmg=upcast(dmg);
+  return best;
+}
+function classifyDice(g){
+  const h=kwDist(g.ctx, g.ctxPos, HEAL_KW_SRC, true);
+  const d=kwDist(g.ctx, g.ctxPos, DMG_KW_SRC, false);
+  if(h===Infinity&&d===Infinity) return 'other';
+  return (h<=d)?'heal':'dmg';
+}
+/* кости заговора по уровню персонажа: «1–4 уровни: 1к8 · 5–10 уровни: 2к8 …» */
+function cantripTierDice(hiTxt, level){
+  const t=normRollTxt(hiTxt); if(!t) return null;
+  const re=/(\d+)\s*(?:[–—-]\s*\d+\s*)?уровн[а-я]*\s*[:—–-]?\s*(\d+)\s*к\s*(\d+)/g;
+  let m, best=null;
+  while((m=re.exec(t))){
+    const thr=+m[1];
+    if(thr<=level && (!best||thr>=best.thr)) best={thr, cnt:+m[2], sides:+m[3]};
   }
-  return {heal, dmg};
+  return best;
+}
+/* прибавка за круг ячейки выше: «увеличивается на 1к6 за каждый круг» */
+function upcastAdd(hiTxt, sides, extraTxt){
+  const t=normRollTxt(hiTxt)+' '+normRollTxt(extraTxt||''); if(!t.trim()) return 0;
+  const re=/(?:увеличивается на|прибавляйте|\+)\s*(\d+)\s*к\s*(\d+)/g;
+  let m;
+  while((m=re.exec(t))){ if(+m[2]===sides && /за каждый круг|за круг/.test(t.slice(m.index, m.index+80))) return +m[1]; }
+  return 0;
+}
+const SAVE_AB_KEY={'силы':'str','ловкости':'dex','телосложения':'con','интеллекта':'int','мудрости':'wis','харизмы':'cha'};
+/* Главная функция: какие броски нужны для записи */
+function rollSpecOf(rec, opts){
+  opts=opts||{};
+  const caster=opts.caster, kind=opts.kind||'spell';
+  const isSpell=(kind==='spell');
+  const lvl=isSpell?(+rec.l||0):0;
+  const slotLvl=(typeof opts.slotLvl==='number')?opts.slotLvl:lvl;
+  const extraLv=(isSpell&&slotLvl>lvl)?(slotLvl-lvl):0;
+  const x=normRollTxt(rec.x), hi=normRollTxt(rec.hi), all=x+' '+hi;
+  const rows=[], meta={half:false, dc:0, saveAb:''};
+  /* 1. бросок атаки */
+  const autoHit=/автоматически\s+попада/.test(all);
+  if(!autoHit && /атак[а-я]*\s+заклинанием|дальнобойн[а-я]*\s+атак|рукопашн[а-я]*\s+атак|бросок[а-я]*\s+атаки|при попадании|попада[а-я]*\s+по цел/.test(all)){
+    const mod=(isSpell&&caster)?spellAtk(caster):((caster?PROF[caster.level]:0)+(caster?Math.max(eMod(caster,'str'),eMod(caster,'dex')):0));
+    rows.push({key:'atk', type:'atk', label:'Бросок атаки: к20', mod, hint:'+ '+mod+(isSpell?' (мастерство + характеристика заклинателя)':' (мастерство + характеристика)')});
+  }
+  /* 2. спасбросок цели */
+  const noSave=/спасброск[а-я]*[^.]{0,60}не\s+(?:производятся|требуются|делаются|бросаются)/.test(all);
+  const sm=noSave?null:all.match(/спасброс[а-я]*\s+([а-я]+)/);
+  if(sm&&SAVE_AB_KEY[sm[1]]){
+    meta.saveAb=sm[1];
+    meta.dc=(isSpell&&caster)?spellDC(caster):(caster?8+PROF[caster.level]+Math.max(eMod(caster,'wis'),eMod(caster,'cha'),eMod(caster,'int')):10);
+    meta.half=/при успехе[^.]{0,60}половин|половин[а-я]*\s+урона|успешном спасброске[^.]{0,60}половин/.test(all);
+    rows.push({key:'save', type:'save', label:'Спасбросок цели ('+sm[1]+'): к20 + модификатор цели', dc:meta.dc,
+      hint:'СЛ '+meta.dc+(meta.half?' · при успехе урон вдвое меньше (посчитаю сам)':'')});
+  }
+  /* 3. кости из текста */
+  let groups=scanDiceGroups(x).filter(g=>!/^\s*(?:хитов\s*)?за (?:каждый\s+)?круг|^\s*за каждые|^\s*за круг/.test(g.after));
+  /* прогрессии вида «1к6 … на 5 уровне 2к6 … на 11 уровне 3к6» и «увеличивается с 1к6 до 2к6» */
+  const hasTiers=/\d+\s*(?:[–—-]\s*\d+\s*)?уровен[ья]|на\s+\d+\s*уровне/.test(x);
+  const buckets={};
+  groups.forEach(g=>{ const k=(hasTiers?'lvl':classifyDice(g))+'_'+g.sides; (buckets[k]=buckets[k]||[]).push(g); });
+  groups=Object.keys(buckets).map(k=>{
+    const arr=buckets[k].sort((a,b)=>a.idx-b.idx);
+    if(arr.length===1) return arr[0];
+    const lvl=(caster&&caster.level)||1;
+    const tiers=arr.map(g=>{ const m=g.before.match(/(\d+)\s*(?:[–—-]\s*\d+\s*)?уровен[ья]?[^\d]{0,16}$|на\s+(\d+)\s*уровне[^\d]{0,16}$/);
+      return {g, thr:m?(+(m[1]||m[2])):1}; });
+    if(tiers.some(t=>t.thr>1)){
+      const fit=tiers.filter(t=>t.thr<=lvl).sort((a,b)=>b.thr-a.thr)[0];
+      const base=Object.assign({}, (fit||tiers.sort((a,b)=>a.thr-b.thr)[0]).g);
+      base.cls=classifyDice(arr[0]);             /* вид берем у базовой формулировки */
+      return base;
+    }
+    const upTo=arr.filter(g=>/\sдо\s*$/.test(g.before));
+    if(upTo.length){ const b=Object.assign({}, upTo[upTo.length-1]); b.cls=classifyDice(arr[0]); return b; }
+    const b=Object.assign({}, arr.sort((a,b)=>b.cnt-a.cnt)[0]); b.cls=classifyDice(arr[0]); return b;
+  }).sort((a,b)=>a.idx-b.idx);
+  const seen={};
+  groups.forEach(g=>{
+    const cls=g.cls||classifyDice(g);
+    const key=cls+'_'+g.sides;
+    if(seen[key]) return; seen[key]=1;
+    let cnt=g.cnt;
+    if(isSpell&&lvl===0&&caster){
+      const tier=cantripTierDice(rec.hi, caster.level);
+      if(tier&&tier.sides===g.sides) cnt=tier.cnt;
+    }
+    if(extraLv){ const add=upcastAdd(rec.hi, g.sides, rec.x); if(add) cnt+=extraLv*add; }
+    let mod=g.plus, modLabel=g.plus?'из описания':'';
+    if(/^\s*\+\s*(?:ваш\s+)?модификатор/.test(g.after)&&caster){ mod=isSpell?eMod(caster,spellAbOf(caster)):Math.max(eMod(caster,'str'),eMod(caster,'dex'),eMod(caster,'con')); modLabel='модификатор характеристики'; }
+    else if(/^\s*\+\s*(?:ваш\s+)?уровень/.test(g.after)&&caster){ mod=caster.level; modLabel='ваш уровень'; }
+    const tm=g.ctx.match(/урона?\s+([а-я]+)/);
+    rows.push({key:cls+rows.length, type:cls, cnt, sides:g.sides, mod, modLabel,
+      label:(cls==='heal'?'Лечение':cls==='dmg'?('Урон'+(tm?' ('+tm[1]+')':'')):'Прочий бросок')+': сумма '+cnt+'к'+g.sides,
+      hint:(cnt!==g.cnt?'усилено: было '+g.cnt+'к'+g.sides+' · ':'')+'обычно '+cnt+'–'+(cnt*g.sides)+' (крит и цели могут дать больше)'+(mod?' · + '+mod+(modLabel?' ('+modLabel+')':''):'')});
+  });
+  /* 4. кости заговора, если в тексте их нет вовсе */
+  if(isSpell&&lvl===0&&caster&&!rows.some(r=>r.type==='dmg'||r.type==='heal')){
+    const tier=cantripTierDice(rec.hi, caster.level);
+    if(tier) rows.push({key:'dmg0', type:'dmg', cnt:tier.cnt, sides:tier.sides, mod:0, modLabel:'',
+      label:'Урон: сумма '+tier.cnt+'к'+tier.sides, hint:'шкала заговора для '+caster.level+' уровня · от '+tier.cnt+' до '+(tier.cnt*tier.sides)});
+  }
+  /* 5. свободная строка мастера — если хоть что-то бросается */
+  const needAny=rows.length>0 || /бросок|бросаете|к20|кубик/.test(all);
+  if(needAny) rows.push({key:'extra', type:'extra', label:'Прочий бросок (по решению мастера)', hint:'необязательно — уйдет в летопись'});
+  return {rows, meta};
+}
+
+/* ══════ ШАГ «ФОРМУЛА» В ОКНЕ (заклинания и способности) ══════ */
+function castRollRec(){
+  if(!castCtx) return null;
+  return castCtx.kind==='ability'? abilityOf(castCtx.abilityId) : spellOf(castCtx.spellId);
 }
 function castFormulaShow(){
   if(!castCtx) return false;
-  const sp=spellOf(castCtx.spellId), caster=getCh(castCtx.casterId);
-  const lv=(castCtx.slotSel&&!isNaN(parseInt(castCtx.slotSel,10)))?parseInt(castCtx.slotSel,10):sp.l;
-  const dice=deriveSpellDice(sp, lv, caster);
+  const rec=castRollRec(), caster=getCh(castCtx.casterId);
+  if(!rec||!caster) return false;
+  const isSpell=castCtx.kind!=='ability';
+  const lv=(isSpell&&castCtx.slotSel&&!isNaN(parseInt(castCtx.slotSel,10)))?parseInt(castCtx.slotSel,10):(+rec.l||0);
+  const spec=rollSpecOf(rec, {caster, kind:isSpell?'spell':'ability', slotLvl:lv});
+  if(!spec.rows.length) return false;
+  castCtx.spec=spec; castCtx.formulaLvl=lv;
   const isAlly=castCtx.target&&castCtx.target.indexOf('ally:')===0;
-  if(!dice.heal&&!dice.dmg) return false;
-  castCtx.formula=dice; castCtx.formulaLvl=lv;
-  let h='<div class="cast-info" style="border:none;padding:0">Формула'+(lv>sp.l?' (усилено ячейкой '+lv+' круга)':'')+' — впишите сумму реальных костей:</div>';
-  if(dice.heal){
-    h+='<div class="formula-row">Лечение: <input type="number" id="cfHeal" min="'+dice.heal.cnt+'" max="'+(dice.heal.cnt*dice.heal.sides)+'" oninput="castFormulaLive()">'
-      +'<span class="formula-part">сумма '+dice.heal.cnt+'к'+dice.heal.sides+'</span>'
-      +(dice.heal.mod?'<span class="formula-part">+ '+dice.heal.mod+(dice.heal.modLabel?' ('+esc(dice.heal.modLabel)+')':'')+'</span>':'')
-      +'<b id="cfHealTot"></b></div>';
-  }
-  if(dice.dmg){
-    h+='<div class="formula-row">Урон: <input type="number" id="cfDmg" min="'+dice.dmg.cnt+'" max="'+(dice.dmg.cnt*dice.dmg.sides)+'" oninput="castFormulaLive()">'
-      +'<span class="formula-part">сумма '+dice.dmg.cnt+'к'+dice.dmg.sides+(dice.dmg.type?' ('+esc(dice.dmg.type)+')':'')+'</span>'
-      +'<b id="cfDmgTot"></b></div>'
-      +(isAlly?'<div class="note-ital" style="font-size:12.5px">Урон будет снят с хитов цели (с проверкой ее концентрации).</div>':'<div class="note-ital" style="font-size:12.5px">Итог урона по внешней цели уйдет в летопись.</div>');
-  }
-  h+='<div class="note-ital" style="font-size:12.5px;margin-top:4px">Поле можно оставить пустым — тогда эта часть формулы не применится.</div>';
+  let h='<div class="cast-info" style="border:none;padding:0">Формула'+(isSpell&&lv>(+rec.l||0)?' (усилено ячейкой '+lv+' круга)':'')
+    +' — впишите результаты реальных бросков:</div>';
+  spec.rows.forEach(r=>{
+    h+='<div class="formula-row"><label>'+esc(r.label)+'</label>'
+      +'<input type="number" id="cf_'+r.key+'" oninput="castFormulaLive()" min="0">'
+      +'<span class="formula-part">'+esc(r.hint||'')+'</span><b id="cft_'+r.key+'"></b></div>';
+  });
+  h+='<div class="note-ital" style="font-size:12.5px;margin-top:4px">Любое поле можно оставить пустым — эта часть просто не применится.'
+    +(isAlly?' Урон снимется с хитов цели (с проверкой ее концентрации).':' Итоги по внешней цели уйдут в летопись.')+'</div>';
   document.getElementById('castFormula').innerHTML=h;
   document.getElementById('castStep1').style.display='none';
   document.getElementById('castStep2').style.display='none';
   document.getElementById('castStep3').style.display='block';
+  castFormulaLive();
   return true;
 }
+function castFormulaVals(){
+  const out={}; if(!castCtx||!castCtx.spec) return out;
+  castCtx.spec.rows.forEach(r=>{
+    const el=document.getElementById('cf_'+r.key);
+    out[r.key]=(el&&el.value!=='')?(+el.value):null;
+  });
+  return out;
+}
 function castFormulaLive(){
-  if(!castCtx||!castCtx.formula) return;
-  const f=castCtx.formula;
-  if(f.heal){ const el=document.getElementById('cfHeal'); const t=document.getElementById('cfHealTot');
-    t.textContent=(el.value!=='')?('= +'+((+el.value)+f.heal.mod)+' хитов'):''; }
-  if(f.dmg){ const el=document.getElementById('cfDmg'); const t=document.getElementById('cfDmgTot');
-    t.textContent=(el.value!=='')?('= '+(+el.value)+' урона'):''; }
+  if(!castCtx||!castCtx.spec) return;
+  const v=castFormulaVals(), spec=castCtx.spec;
+  let saveOk=null;
+  const sr=spec.rows.find(r=>r.type==='save');
+  if(sr&&v[sr.key]!=null) saveOk=(v[sr.key]>=sr.dc);
+  spec.rows.forEach(r=>{
+    const t=document.getElementById('cft_'+r.key); if(!t) return;
+    const val=v[r.key];
+    if(val==null){ t.textContent=''; return; }
+    if(r.type==='atk'){ t.textContent='= '+(val+r.mod)+' против КД цели'; }
+    else if(r.type==='save'){ t.textContent='= '+val+' против СЛ '+r.dc+' — '+(val>=r.dc?'успех':'провал'); }
+    else if(r.type==='heal'){ t.textContent='= +'+(val+r.mod)+' хитов'; }
+    else if(r.type==='dmg'){
+      let d=val+r.mod;
+      const half=(saveOk===true&&spec.meta.half);
+      t.textContent='= '+(half?Math.floor(d/2)+' урона (половина за успешный спасбросок)':d+' урона');
+    }
+    else if(r.type==='other'){ t.textContent='= '+(val+r.mod); }
+    else { t.textContent='= '+val; }
+  });
 }
 function castFormulaConfirm(){
-  if(!castCtx||!castCtx.formula) return;
-  const f=castCtx.formula, rolls={};
-  if(f.heal){ const el=document.getElementById('cfHeal'); if(el.value!=='') rolls.healTotal=(+el.value)+f.heal.mod; }
-  if(f.dmg){ const el=document.getElementById('cfDmg'); if(el.value!=='') rolls.dmgTotal=(+el.value); }
+  if(!castCtx||!castCtx.spec) return;
+  const v=castFormulaVals(), spec=castCtx.spec, rolls={notes:[]};
+  let saveOk=null;
+  const sr=spec.rows.find(r=>r.type==='save');
+  if(sr&&v[sr.key]!=null){ saveOk=(v[sr.key]>=sr.dc); rolls.saveOk=saveOk;
+    rolls.notes.push('спасбросок цели '+v[sr.key]+' против СЛ '+sr.dc+' — '+(saveOk?'успех':'провал')); }
+  spec.rows.forEach(r=>{
+    const val=v[r.key]; if(val==null) return;
+    if(r.type==='atk') rolls.notes.push('атака '+(val+r.mod)+' против КД цели');
+    else if(r.type==='heal') rolls.healTotal=(rolls.healTotal||0)+val+r.mod;
+    else if(r.type==='dmg'){
+      let d=val+r.mod;
+      if(saveOk===true&&spec.meta.half) d=Math.floor(d/2);
+      rolls.dmgTotal=(rolls.dmgTotal||0)+d;
+    }
+    else if(r.type==='other') rolls.notes.push(r.label.replace(/:.*$/,'')+': '+(val+r.mod));
+    else if(r.type==='extra') rolls.notes.push('прочий бросок: '+val);
+  });
+  if(castCtx.kind==='ability'){
+    if(useAbilityApply(castCtx.abilityId, castCtx.casterId, castCtx.target, rolls)) closeCastModal();
+    return;
+  }
   if(castSpellApply(castCtx.spellId, castCtx.casterId, castCtx.target, castCtx.inv, castCtx.mat, castCtx.slotSel, rolls)) closeCastModal();
+}
+/* совместимость со старым именем */
+function deriveSpellDice(sp, slotLvl, caster){
+  const spec=rollSpecOf(sp,{caster, kind:'spell', slotLvl});
+  const h=spec.rows.find(r=>r.type==='heal'), d=spec.rows.find(r=>r.type==='dmg');
+  return {heal:h?{cnt:h.cnt, sides:h.sides, mod:h.mod, modLabel:h.modLabel}:null,
+          dmg:d?{cnt:d.cnt, sides:d.sides, mod:d.mod}:null};
 }
 /* ── наложение заклинаний: выпадающее меню целей ── */
 let castCtx=null;
@@ -3437,8 +3632,9 @@ function castShowErr(msg){
 function castConfirm(){
   if(!castCtx) return;
   if(castCtx.kind==='ability'){
-    const target=document.getElementById('castTarget').value;
-    if(useAbilityApply(castCtx.abilityId, castCtx.casterId, target)) closeCastModal();
+    castCtx.target=document.getElementById('castTarget').value;
+    if(castFormulaShow()) return;                       /* сперва спросим броски */
+    if(useAbilityApply(castCtx.abilityId, castCtx.casterId, castCtx.target)) closeCastModal();
     return;
   }
   const sp=spellOf(castCtx.spellId), caster=getCh(castCtx.casterId);
@@ -3574,6 +3770,8 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rol
   } else if(rolls&&rolls.dmgTotal!=null){
     rollInfo=' · урон '+rolls.dmgTotal;
     diceOutSet('«'+sp.n+'»: '+rolls.dmgTotal+' урона по цели','var(--rubric)');
+  }
+  if(rolls&&rolls.notes&&rolls.notes.length){ rollInfo+=' · '+rolls.notes.join(' · ');
   }
   if(target.indexOf('ally:')===0){
     const tid=target.slice(5), t=getCh(tid);
