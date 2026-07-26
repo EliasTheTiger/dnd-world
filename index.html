@@ -501,6 +501,15 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 .sd-hot{color:var(--rubric);font-weight:600}
 .conc-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--sheet);border:1px solid #5e35b1;border-left:4px solid #5e35b1;padding:7px 10px;margin:6px 0;font-size:14.5px}
 .conc-row b{color:#5e35b1}
+/* ─── ввод бросков ─── */
+.roll-row{display:flex;align-items:center;gap:10px;margin:7px 0;flex-wrap:wrap}
+.roll-row label{font-family:var(--disp);font-size:15px;min-width:150px}
+.roll-row input{width:84px;font-size:16px;padding:4px 6px;text-align:center}
+.roll-row .sub{font-size:12.5px;color:var(--ink-faint);font-style:italic}
+.roll-live{margin-top:10px;padding:7px 10px;border:1px dashed var(--frame);background:var(--sheet);font-size:15px;font-weight:600}
+.formula-row{display:flex;align-items:center;gap:8px;margin:8px 0;flex-wrap:wrap;font-size:15px}
+.formula-row input{width:84px;font-size:16px;padding:4px 6px;text-align:center}
+.formula-part{font-family:var(--disp)}
 
 </style>
 </head>
@@ -584,6 +593,13 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
         <button class="btn ghost" onclick="closeCastModal()">Отмена</button>
       </div>
     </div>
+    <div id="castStep3" style="display:none">
+      <div id="castFormula"></div>
+      <div class="row-line" style="margin-top:14px">
+        <button class="btn rub" onclick="castFormulaConfirm()">Применить итог</button>
+        <button class="btn ghost" onclick="closeCastModal()">Отмена</button>
+      </div>
+    </div>
     <div id="castStep2" style="display:none">
       <div id="castMatDesc" class="cast-info" style="border:none;padding:0"></div>
       <label class="lbl">Материальный компонент — предмет из инвентаря</label>
@@ -600,6 +616,20 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
       </div>
     </div>
     <div id="castErr" class="cast-err" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ввод результатов реальных бросков -->
+<div id="rollBack" class="cast-back" style="display:none;z-index:70" onclick="if(event.target===this)rollCancel()">
+  <div class="cast-modal">
+    <h3 id="rollTitle" style="margin:0 0 6px">⚂ Результаты бросков</h3>
+    <div id="rollNote" class="cast-info"></div>
+    <div id="rollRows"></div>
+    <div id="rollLive" class="roll-live"></div>
+    <div class="row-line" style="margin-top:14px">
+      <button class="btn rub" onclick="rollDone()">Рассчитать и применить</button>
+      <button class="btn ghost" onclick="rollCancel()">Отмена</button>
+    </div>
   </div>
 </div>
 <script>
@@ -2462,34 +2492,91 @@ function cycleAdv(){
   const b=document.getElementById('advBtn');
   if(b){ b.textContent=['⚖ обычный','▲ преимущество','▼ помеха'][advMode]; b.className='btn ghost sm adv-'+advMode; }
 }
+/* ═══ Реальные кости бросают игроки: сайт спрашивает результаты и считает ═══ */
+let rollSpec=null;
+function askRolls(spec){
+  /* скриптовый канал: window.__autoRolls=[...] подставляет значения без окна */
+  if(Array.isArray(window.__autoRolls)&&window.__autoRolls.length>=spec.rows.length){
+    const vals={};
+    spec.rows.forEach(r=>{ vals[r.key]=+window.__autoRolls.shift(); });
+    spec.apply(vals);
+    return;
+  }
+  rollSpec=spec;
+  const back=document.getElementById('rollBack'); if(!back){ rollSpec=null; return; }
+  document.getElementById('rollTitle').textContent=spec.title||'⚂ Результаты бросков';
+  document.getElementById('rollNote').textContent=spec.note||'';
+  document.getElementById('rollRows').innerHTML=spec.rows.map((r,i)=>
+    '<div class="roll-row"><label>'+esc(r.label)+'</label>'
+    +'<input type="number" id="rollV'+i+'" min="'+(r.min!=null?r.min:1)+'"'+(r.max!=null?' max="'+r.max+'"':'')+' oninput="rollLiveUpd()">'
+    +(r.sub?'<span class="sub">'+esc(r.sub)+'</span>':'')+'</div>').join('');
+  document.getElementById('rollLive').textContent='…';
+  back.style.display='flex';
+  const f=document.getElementById('rollV0'); if(f) setTimeout(()=>f.focus(),50);
+  rollLiveUpd();
+}
+function rollVals(){
+  const vals={}; let full=true;
+  (rollSpec.rows||[]).forEach((r,i)=>{
+    const el=document.getElementById('rollV'+i);
+    const v=el&&el.value!==''?+el.value:null;
+    if(v==null||isNaN(v)) full=false; else vals[r.key]=v;
+  });
+  return {vals, full};
+}
+function rollLiveUpd(){
+  if(!rollSpec) return;
+  const r=rollVals();
+  const el=document.getElementById('rollLive');
+  el.textContent=r.full&&rollSpec.compute? rollSpec.compute(r.vals) : 'Впишите результаты костей — итог посчитается сам.';
+}
+function rollDone(){
+  if(!rollSpec) return;
+  const r=rollVals();
+  if(!r.full){ document.getElementById('rollLive').textContent='Заполните все поля бросков.'; return; }
+  const spec=rollSpec; rollSpec=null;
+  document.getElementById('rollBack').style.display='none';
+  spec.apply(r.vals);
+}
+function rollCancel(){
+  rollSpec=null;
+  const b=document.getElementById('rollBack'); if(b) b.style.display='none';
+}
+function diceOutSet(text,color){
+  const out=document.getElementById('diceOut'); if(!out) return;
+  out.textContent=text; out.style.color=color||'var(--ink)';
+}
 function rollCheck(label,m){
   m=+m||0;
-  const d=()=>1+Math.floor(Math.random()*20);
-  const r1=d(), r2=d();
-  let r=r1, note='';
-  if(advMode===1){ r=Math.max(r1,r2); note=' ▲['+r1+'|'+r2+']'; }
-  if(advMode===2){ r=Math.min(r1,r2); note=' ▼['+r1+'|'+r2+']'; }
-  const out=document.getElementById('diceOut'); if(!out) return;
-  out.textContent=label+': к20 '+r+(m?(m>0?' + '+m:' − '+Math.abs(m)):'')+' = '+(r+m)+note;
-  out.style.color=(r===20)?'var(--ok)':(r===1?'var(--rubric)':'var(--ink)');
+  const adv=advMode;
+  const rows=adv? [{key:'a',label:'к20 — первый',sub:adv===1?'преимущество: берется больший':'помеха: берется меньший',min:1,max:20},
+                   {key:'b',label:'к20 — второй',min:1,max:20}]
+                : [{key:'a',label:'к20',min:1,max:20}];
+  askRolls({title:'⚂ '+label, note:'Модификатор: '+(m>0?'+':'')+m+(adv===1?' · ▲ преимущество':(adv===2?' · ▼ помеха':'')),
+    rows,
+    compute:v=>{ const r=adv===1?Math.max(v.a,v.b):(adv===2?Math.min(v.a,v.b):v.a); return label+': к20 '+r+(m?(m>0?' + '+m:' − '+Math.abs(m)):'')+' = '+(r+m); },
+    apply:v=>{
+      const r=adv===1?Math.max(v.a,v.b):(adv===2?Math.min(v.a,v.b):v.a);
+      const note=adv===1?' ▲['+v.a+'|'+v.b+']':(adv===2?' ▼['+v.a+'|'+v.b+']':'');
+      diceOutSet(label+': к20 '+r+(m?(m>0?' + '+m:' − '+Math.abs(m)):'')+' = '+(r+m)+note, r===20?'var(--ok)':(r===1?'var(--rubric)':'var(--ink)'));
+    }});
 }
 function rollDmgStr(label,dmgStr,extra){
   extra=+extra||0;
-  const out=document.getElementById('diceOut'); if(!out) return;
   const m=String(dmgStr||'').toLowerCase().replace(/к/g,'d').match(/(\d*)d(\d+)\s*([+-]\s*\d+)?/);
-  if(!m){ out.textContent=label+': урон '+Math.max(1,1+extra); out.style.color='var(--ink)'; return; }
+  if(!m){ diceOutSet(label+': урон '+Math.max(1,1+extra)); return; }
   const cnt=Math.min(40,+m[1]||1), sides=+m[2]; extra+=parseInt(String(m[3]||'0').replace(/\s/g,''),10)||0;
-  const rolls=[]; for(let i=0;i<cnt;i++) rolls.push(1+Math.floor(Math.random()*sides));
-  const tot=Math.max(1,rolls.reduce((a,b)=>a+b,0)+extra);
-  out.textContent=label+': урон '+tot+' ('+rolls.join(', ')+(extra?(extra>0?' +'+extra:' −'+Math.abs(extra)):'')+')';
-  out.style.color='var(--ink)';
+  askRolls({title:'⚂ '+label+' — урон', note:'Кости: '+cnt+'к'+sides+(extra?(extra>0?' + '+extra:' − '+Math.abs(extra)):''),
+    rows:[{key:'s',label:'Сумма '+cnt+'к'+sides,sub:'от '+cnt+' до '+(cnt*sides),min:cnt,max:cnt*sides}],
+    compute:v=>label+': урон '+Math.max(1,v.s+extra),
+    apply:v=>diceOutSet(label+': урон '+Math.max(1,v.s+extra)+' ('+cnt+'к'+sides+' = '+v.s+(extra?(extra>0?' +'+extra:' −'+Math.abs(extra)):'')+')')});
 }
 
 function roll(n){
-  const v=1+Math.floor(Math.random()*n);
-  const out=document.getElementById('diceOut');
-  out.textContent='к'+n+' → '+v;
-  out.style.color = (v===n)?'var(--ok)' : (v===1?'var(--rubric)':'var(--ink)');
+  askRolls({title:'⚂ Кость к'+n, note:'Впишите выпавшее значение — оно отобразится в лотке.',
+    rows:[{key:'v',label:'к'+n,min:1,max:n}],
+    compute:v=>'к'+n+' → '+v.v,
+    apply:v=>diceOutSet('к'+n+' → '+v.v, v.v===n?'var(--ok)':(v.v===1?'var(--rubric)':'var(--ink)'))});
 }
 function rollNotation(){
   const inp=document.getElementById('diceNote');
@@ -2497,10 +2584,10 @@ function rollNotation(){
   const out=document.getElementById('diceOut');
   if(!m){ out.textContent='формула: 2к6+3'; out.style.color='var(--rubric)'; return; }
   const cnt=Math.min(40,+m[1]||1), sides=+m[2], mod2=+(m[3]||0);
-  const rolls=[]; for(let i=0;i<cnt;i++) rolls.push(1+Math.floor(Math.random()*sides));
-  const total=rolls.reduce((a,b)=>a+b,0)+mod2;
-  out.textContent=inp.value.trim()+' → '+total+' ('+rolls.join(', ')+(mod2? (mod2>0?' +':' ')+mod2 :'')+')';
-  out.style.color='var(--ink)';
+  askRolls({title:'⚂ '+inp.value.trim(), note:'Сумма выпавших костей плюс модификатор.',
+    rows:[{key:'s',label:'Сумма '+cnt+'к'+sides,sub:'от '+cnt+' до '+(cnt*sides),min:cnt,max:cnt*sides}],
+    compute:v=>inp.value.trim()+' → '+(v.s+mod2),
+    apply:v=>diceOutSet(inp.value.trim()+' → '+(v.s+mod2)+' (кости '+v.s+(mod2?(mod2>0?' +':' ')+mod2:'')+')')});
 }
 function doExport(){
   const blob=new Blob([JSON.stringify({app:'dndworld2', exported:new Date().toISOString(),
@@ -2891,18 +2978,27 @@ function useAbilityApply(abilityId, casterId, target){
       } else { e.cur=cur-1; chargeInfo=' · заряд −1 (осталось '+e.cur+' из '+ab.uses+')'; }
     }
   }
-  /* мгновенное лечение из описания */
+  /* мгновенное лечение из описания — кости вводит мастер */
   let healInfo='';
   const heal=deriveAbilityHeal(ab, caster);
   const tIsAlly=target.indexOf('ally:')===0;
+  const rolls=arguments.length>3?arguments[3]:null;
+  if(heal && tIsAlly && !(rolls&&rolls.healDice!=null)){
+    /* вернуть заряд, взятый выше, и спросить кости — затем повторить с результатом */
+    if(ab.uses!=null){ const e=(caster.abilities||[]).find(x=>x.abilityId===ab.id); if(e&&chargeInfo.indexOf('−1')>=0) e.cur=(e.cur||0)+1; }
+    askRolls({title:'✦ '+ab.n+' — '+caster.name,
+      note:'Формула лечения: '+heal.cnt+'к'+heal.sides+(heal.plus?' + '+heal.plus+(String(ab.x||'').toLowerCase().indexOf('уровень')>=0?' (уровень)':''):'')+'.',
+      rows:[{key:'s',label:'Сумма '+heal.cnt+'к'+heal.sides,sub:'от '+heal.cnt+' до '+(heal.cnt*heal.sides),min:heal.cnt,max:heal.cnt*heal.sides}],
+      compute:v=>'Лечение: '+v.s+(heal.plus?' + '+heal.plus:'')+' = +'+(v.s+heal.plus)+' хитов',
+      apply:v=>useAbilityApply(abilityId, casterId, target, {healDice:v.s})});
+    return true;
+  }
   if(heal && tIsAlly){
     const t=getCh(target.slice(5));
     if(t){
-      const rolls=[]; for(let i=0;i<heal.cnt;i++) rolls.push(1+Math.floor(Math.random()*heal.sides));
-      const tot=rolls.reduce((a,b)=>a+b,0)+heal.plus;
+      const tot=rolls.healDice+heal.plus;
       t.hp=Math.min(eHpMax(t),(+t.hp||0)+tot);
-      const out=document.getElementById('diceOut');
-      if(out){ out.textContent=ab.n+': '+heal.cnt+'к'+heal.sides+(heal.plus?' + '+heal.plus:'')+' → +'+tot+' хитов ('+rolls.join(', ')+')'; out.style.color='var(--ok)'; }
+      diceOutSet(ab.n+': '+heal.cnt+'к'+heal.sides+(heal.plus?' + '+heal.plus:'')+' → +'+tot+' хитов (кости '+rolls.healDice+')','var(--ok)');
       healInfo=' · +'+tot+' хитов';
     }
   }
@@ -2984,19 +3080,20 @@ function concDamageCheck(c, dmg){
   if(!concEntriesOf(c.id).length) return;
   const dc=Math.max(10, Math.floor(dmg/2));
   const conMod=eMod(c,'con')+(c.saves&&c.saves.con?PROF[c.level]:0)+fxSaveBonus(c,'con');
-  const d=()=>1+Math.floor(Math.random()*20);
-  const r1=d(), r2=d();
   const adv=concAdvantage(c);
-  const r=adv?Math.max(r1,r2):r1;
-  const tot=r+conMod;
-  const ok=tot>=dc;
-  const out=document.getElementById('diceOut');
-  if(out){
-    out.textContent='Концентрация ('+c.name+'): урон '+dmg+' → спасбросок Телосложения СЛ '+dc+': к20 '+r+(adv?' ▲['+r1+'|'+r2+']':'')+(conMod?(conMod>0?' + '+conMod:' − '+Math.abs(conMod)):'')+' = '+tot+' — '+(ok?'удержана ✓':'ПРОВАЛ ✕');
-    out.style.color=ok?'var(--ok)':'var(--rubric)';
-  }
-  if(!ok) breakConcentration(c, 'провален спасбросок Телосложения от урона (СЛ '+dc+')');
-  else setStatus('🧠 '+c.name+' удерживает концентрацию (СЛ '+dc+' пройдена).');
+  const rows=adv? [{key:'a',label:'к20 — первый',sub:'преимущество на концентрацию: берется больший',min:1,max:20},{key:'b',label:'к20 — второй',min:1,max:20}]
+                : [{key:'a',label:'к20',min:1,max:20}];
+  askRolls({title:'⚂ Концентрация — '+c.name,
+    note:'Урон '+dmg+' → спасбросок Телосложения, СЛ '+dc+'. Модификатор: '+(conMod>0?'+':'')+conMod+'.',
+    rows,
+    compute:v=>{ const r=adv?Math.max(v.a,v.b):v.a; const t=r+conMod; return 'к20 '+r+(conMod?(conMod>0?' + '+conMod:' − '+Math.abs(conMod)):'')+' = '+t+' против СЛ '+dc+' — '+(t>=dc?'удержана ✓':'ПРОВАЛ ✕'); },
+    apply:v=>{
+      const r=adv?Math.max(v.a,v.b):v.a;
+      const tot=r+conMod, ok=tot>=dc;
+      diceOutSet('Концентрация ('+c.name+'): урон '+dmg+' → спасбросок Тел СЛ '+dc+': к20 '+r+(adv?' ▲['+v.a+'|'+v.b+']':'')+(conMod?(conMod>0?' + '+conMod:' − '+Math.abs(conMod)):'')+' = '+tot+' — '+(ok?'удержана ✓':'ПРОВАЛ ✕'), ok?'var(--ok)':'var(--rubric)');
+      if(!ok) breakConcentration(c, 'провален спасбросок Телосложения от урона (СЛ '+dc+')');
+      else setStatus('🧠 '+c.name+' удерживает концентрацию (СЛ '+dc+' пройдена).');
+    }});
 }
 
 /* ── спец-заклинания контрмагии: работают по имени записи — готово и для будущих ── */
@@ -3008,15 +3105,25 @@ function castCounterspell(sp, caster, target, usedLvl){
   let ok, note;
   if(myLvl>=tLvl){ ok=true; note='автоматически (ячейка '+myLvl+' круга ≥ круга цели)'; }
   else {
-    const r=1+Math.floor(Math.random()*20), m=eMod(caster,spellAbOf(caster)), dc=10+tLvl;
-    ok=r+m>=dc; note='проверка к20 '+r+(m?(m>0?' + '+m:' − '+Math.abs(m)):'')+' = '+(r+m)+' против СЛ '+dc+(ok?' — успех':' — провал');
-    const out=document.getElementById('diceOut');
-    if(out){ out.textContent='Контрзаклинание: '+note; out.style.color=ok?'var(--ok)':'var(--rubric)'; }
+    const m=eMod(caster,spellAbOf(caster)), dc=10+tLvl;
+    askRolls({title:'⚂ Контрзаклинание — проверка', note:'Круг цели '+tLvl+' выше ячейки '+myLvl+': проверка характеристики, СЛ '+dc+'. Модификатор: '+(m>0?'+':'')+m+'.',
+      rows:[{key:'a',label:'к20',min:1,max:20}],
+      compute:v=>'к20 '+v.a+(m?(m>0?' + '+m:' − '+Math.abs(m)):'')+' = '+(v.a+m)+' против СЛ '+dc+' — '+((v.a+m>=dc)?'успех':'провал'),
+      apply:v=>{
+        const okk=v.a+m>=dc;
+        const nt='проверка к20 '+v.a+(m?(m>0?' + '+m:' − '+Math.abs(m)):'')+' = '+(v.a+m)+' против СЛ '+dc+(okk?' — успех':' — провал');
+        diceOutSet('Контрзаклинание: '+nt, okk?'var(--ok)':'var(--rubric)');
+        counterspellResolve(caster, target, tLvl, okk, nt);
+      }});
+    return true;
   }
+  counterspellResolve(caster, target, tLvl, ok, note);
+  return true;
+}
+function counterspellResolve(caster, target, tLvl, ok, note){
   if(target.indexOf('ally:')===0 && ok){
     const t=getCh(target.slice(5));
     if(t){
-      /* прерывание в момент каста: снимаем последнее наложение этого заклинателя */
       let last=null;
       chars.forEach(ch=>(ch.activeFx||[]).forEach(a=>{ if(a.casterId===t.id) last={ch,a}; }));
       if(last){ removeActiveFx(last.ch.id, last.a.uid); }
@@ -3027,7 +3134,6 @@ function castCounterspell(sp, caster, target, usedLvl){
   setStatus('⚡ Контрзаклинание от '+caster.name+' против '+tl+': '+(ok?'заклинание ('+tLvl+' круг) ПРЕРВАНО':'не удалось')+' — '+note+'.');
   castLogLine(caster.name+' → '+tl+': «Контрзаклинание» против заклинания '+tLvl+' круга — '+(ok?'прервано':'провал')+' ('+note+')');
   fxInvalidate(); scheduleSave(); renderChars();
-  return true;
 }
 function castDispel(sp, caster, target, usedLvl){
   const myLvl=usedLvl||3;
@@ -3039,20 +3145,35 @@ function castDispel(sp, caster, target, usedLvl){
   }
   const t=getCh(target.slice(5)); if(!t) return false;
   const dispelled=[], held=[];
+  const above=[];
   (t.activeFx||[]).slice().forEach(a=>{
     if(a.k!=='spell') return;
     const rec=spellOf(a.id); const lv=rec?(+rec.l||0):0;
     if(lv<=myLvl){ removeActiveFx(t.id, a.uid); dispelled.push(a.label+(lv?' ('+lv+' кр.)':'')); }
-    else {
-      const r=1+Math.floor(Math.random()*20), m=eMod(caster,spellAbOf(caster)), dc=10+lv;
-      if(r+m>=dc){ removeActiveFx(t.id, a.uid); dispelled.push(a.label+' ('+lv+' кр., проверка '+(r+m)+'≥'+dc+')'); }
-      else held.push(a.label+' ('+lv+' кр., проверка '+(r+m)+'<'+dc+')');
-    }
+    else above.push({a, lv});
   });
+  if(above.length){
+    const m=eMod(caster,spellAbOf(caster));
+    askRolls({title:'⚂ Рассеивание магии — проверки', note:'Эффекты выше '+myLvl+' круга: на каждый — к20 '+(m>0?'+ '+m:(m<0?'− '+Math.abs(m):''))+' против СЛ 10 + круг.',
+      rows:above.map((x,i)=>({key:'r'+i, label:'к20 против «'+x.a.label+'»', sub:'СЛ '+(10+x.lv), min:1, max:20})),
+      compute:v=>above.map((x,i)=>x.a.label+': '+(v['r'+i]+m)+(v['r'+i]+m>=10+x.lv?' ✓':' ✕')).join(' · '),
+      apply:v=>{
+        above.forEach((x,i)=>{
+          const tot=v['r'+i]+m;
+          if(tot>=10+x.lv){ removeActiveFx(t.id, x.a.uid); dispelled.push(x.a.label+' ('+x.lv+' кр., проверка '+tot+'≥'+(10+x.lv)+')'); }
+          else held.push(x.a.label+' ('+x.lv+' кр., проверка '+tot+'<'+(10+x.lv)+')');
+        });
+        dispelFinish(caster, t, myLvl, dispelled, held);
+      }});
+    return true;
+  }
+  dispelFinish(caster, t, myLvl, dispelled, held);
+  return true;
+}
+function dispelFinish(caster, t, myLvl, dispelled, held){
   const msg='⚡ Рассеивание магии на '+t.name+': '+(dispelled.length?'рассеяно — '+dispelled.join('; '):'рассеивать нечего')+(held.length?' · устояло — '+held.join('; '):'');
   setStatus(msg+'.');
   castLogLine(caster.name+' → '+t.name+': «Рассеивание магии» (ячейка '+myLvl+' круга) — '+(dispelled.length?'рассеяно: '+dispelled.join(', '):'ничего')+(held.length?'; устояло: '+held.join(', '):''));
-  return true;
 }
 function castAntimagic(sp, caster, target, usedLvl){
   const isAlly=target.indexOf('ally:')===0;
@@ -3166,6 +3287,79 @@ function matSpend(caster, entryId, use){
   return {ok:true, label:it.n, use};
 }
 
+
+/* ── формула заклинания: кости лечения/урона с учетом круга ячейки ── */
+function deriveSpellDice(sp, slotLvl, caster){
+  const x=String(sp.x||'').replace(/\u0451/g,'е').toLowerCase();
+  const hi=String(sp.hi||'').replace(/\u0451/g,'е').toLowerCase();
+  const extraLv=(typeof slotLvl==='number'&&slotLvl>sp.l)?(slotLvl-sp.l):0;
+  function upcast(base){
+    if(!extraLv||!base) return base;
+    const um=hi.match(/(?:увеличивается на|прибавляйте)\s*(\d+)\s*к\s*(\d+)/);
+    if(um&&+um[2]===base.sides) base.cnt+=extraLv*(+um[1]);
+    return base;
+  }
+  let heal=null, dmg=null;
+  const hm=x.match(/восстанавлива[а-я]*[^.]{0,90}?(\d+)\s*к\s*(\d+)/);
+  if(hm){
+    heal={cnt:+hm[1], sides:+hm[2], mod:0, modLabel:''};
+    const seg=x.slice(hm.index, hm.index+160);
+    if(/\+\s*(?:ваш\s+)?модификатор/.test(seg)){ heal.mod=eMod(caster,spellAbOf(caster)); heal.modLabel='модификатор характеристики'; }
+    else { const pm=seg.match(/(\d+)\s*к\s*\d+\s*\+\s*(\d+)/); if(pm) heal.mod=+pm[2]; }
+    heal=upcast(heal);
+  }
+  const dm=x.match(/(\d+)\s*к\s*(\d+)[^.]{0,60}?урон/) || x.match(/урон[^.]{0,60}?(\d+)\s*к\s*(\d+)/);
+  if(dm){
+    dmg={cnt:+dm[1], sides:+dm[2], mod:0};
+    const tm=x.slice(dm.index, dm.index+120).match(/урона?\s+([а-я]+)/);
+    dmg.type=tm?tm[1]:'';
+    dmg=upcast(dmg);
+  }
+  return {heal, dmg};
+}
+function castFormulaShow(){
+  if(!castCtx) return false;
+  const sp=spellOf(castCtx.spellId), caster=getCh(castCtx.casterId);
+  const lv=(castCtx.slotSel&&!isNaN(parseInt(castCtx.slotSel,10)))?parseInt(castCtx.slotSel,10):sp.l;
+  const dice=deriveSpellDice(sp, lv, caster);
+  const isAlly=castCtx.target&&castCtx.target.indexOf('ally:')===0;
+  if(!dice.heal&&!dice.dmg) return false;
+  castCtx.formula=dice; castCtx.formulaLvl=lv;
+  let h='<div class="cast-info" style="border:none;padding:0">Формула'+(lv>sp.l?' (усилено ячейкой '+lv+' круга)':'')+' — впишите сумму реальных костей:</div>';
+  if(dice.heal){
+    h+='<div class="formula-row">Лечение: <input type="number" id="cfHeal" min="'+dice.heal.cnt+'" max="'+(dice.heal.cnt*dice.heal.sides)+'" oninput="castFormulaLive()">'
+      +'<span class="formula-part">сумма '+dice.heal.cnt+'к'+dice.heal.sides+'</span>'
+      +(dice.heal.mod?'<span class="formula-part">+ '+dice.heal.mod+(dice.heal.modLabel?' ('+esc(dice.heal.modLabel)+')':'')+'</span>':'')
+      +'<b id="cfHealTot"></b></div>';
+  }
+  if(dice.dmg){
+    h+='<div class="formula-row">Урон: <input type="number" id="cfDmg" min="'+dice.dmg.cnt+'" max="'+(dice.dmg.cnt*dice.dmg.sides)+'" oninput="castFormulaLive()">'
+      +'<span class="formula-part">сумма '+dice.dmg.cnt+'к'+dice.dmg.sides+(dice.dmg.type?' ('+esc(dice.dmg.type)+')':'')+'</span>'
+      +'<b id="cfDmgTot"></b></div>'
+      +(isAlly?'<div class="note-ital" style="font-size:12.5px">Урон будет снят с хитов цели (с проверкой ее концентрации).</div>':'<div class="note-ital" style="font-size:12.5px">Итог урона по внешней цели уйдет в летопись.</div>');
+  }
+  h+='<div class="note-ital" style="font-size:12.5px;margin-top:4px">Поле можно оставить пустым — тогда эта часть формулы не применится.</div>';
+  document.getElementById('castFormula').innerHTML=h;
+  document.getElementById('castStep1').style.display='none';
+  document.getElementById('castStep2').style.display='none';
+  document.getElementById('castStep3').style.display='block';
+  return true;
+}
+function castFormulaLive(){
+  if(!castCtx||!castCtx.formula) return;
+  const f=castCtx.formula;
+  if(f.heal){ const el=document.getElementById('cfHeal'); const t=document.getElementById('cfHealTot');
+    t.textContent=(el.value!=='')?('= +'+((+el.value)+f.heal.mod)+' хитов'):''; }
+  if(f.dmg){ const el=document.getElementById('cfDmg'); const t=document.getElementById('cfDmgTot');
+    t.textContent=(el.value!=='')?('= '+(+el.value)+' урона'):''; }
+}
+function castFormulaConfirm(){
+  if(!castCtx||!castCtx.formula) return;
+  const f=castCtx.formula, rolls={};
+  if(f.heal){ const el=document.getElementById('cfHeal'); if(el.value!=='') rolls.healTotal=(+el.value)+f.heal.mod; }
+  if(f.dmg){ const el=document.getElementById('cfDmg'); if(el.value!=='') rolls.dmgTotal=(+el.value); }
+  if(castSpellApply(castCtx.spellId, castCtx.casterId, castCtx.target, castCtx.inv, castCtx.mat, castCtx.slotSel, rolls)) closeCastModal();
+}
 /* ── наложение заклинаний: выпадающее меню целей ── */
 let castCtx=null;
 function castSpellFx(spellId, casterId){
@@ -3273,6 +3467,8 @@ function castConfirm(){
     document.getElementById('castStep2').style.display='block';
     return;
   }
+  castCtx.mat=undefined;
+  if(castFormulaShow()) return;
   if(castSpellApply(castCtx.spellId, castCtx.casterId, target, inv, undefined, castCtx.slotSel)) closeCastModal();
 }
 function castMatBack(){
@@ -3285,7 +3481,9 @@ function castMatConfirm(){
   const entryId=document.getElementById('castMat').value;
   const use=+document.getElementById('castMatQty').value||0;
   if(!entryId){ castShowErr('Выберите предмет-компонент.'); return; }
-  if(castSpellApply(castCtx.spellId, castCtx.casterId, castCtx.target, castCtx.inv, {entryId, use}, castCtx.slotSel)) closeCastModal();
+  castCtx.mat={entryId, use};
+  if(castFormulaShow()) return;
+  if(castSpellApply(castCtx.spellId, castCtx.casterId, castCtx.target, castCtx.inv, castCtx.mat, castCtx.slotSel)) closeCastModal();
 }
 function castLogLine(txt){
   if(typeof journal==='undefined') return;
@@ -3297,7 +3495,7 @@ function castLogLine(txt){
   if(typeof scheduleJournalSave==='function') scheduleJournalSave();
   if(typeof renderJournal==='function') renderJournal();
 }
-function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel){
+function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rolls){
   const sp=spellOf(spellId), caster=getCh(casterId);
   if(!sp||!caster||!target) return false;
   /* проверка компонентов В и С и способности действовать */
@@ -3353,11 +3551,35 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel){
   /* контрмагия и подобные — особый ход исполнения (структура готова к будущим записям) */
   if(SPECIAL_CAST[sp.n]) return SPECIAL_CAST[sp.n](sp, caster, target, usedSlotLvl);
   const durWhy=(isConc?' · концентрация':'')+(sp.d&&!/мгновенн/i.test(sp.d)?' · '+sp.d:'');
+  /* итоги формулы: лечение и урон в полном соответствии с введенными костями */
+  let rollInfo='';
+  if(rolls&&target.indexOf('ally:')===0){
+    const t0=getCh(target.slice(5));
+    if(t0){
+      if(rolls.healTotal!=null){
+        t0.hp=Math.min(eHpMax(t0),(+t0.hp||0)+rolls.healTotal);
+        rollInfo+=' · лечение +'+rolls.healTotal+' хитов';
+        diceOutSet('«'+sp.n+'» → '+t0.name+': +'+rolls.healTotal+' хитов','var(--ok)');
+      }
+      if(rolls.dmgTotal!=null){
+        const rawDmg=rolls.dmgTotal; let d=rawDmg;
+        if(t0.hpTemp>0){ const u=Math.min(t0.hpTemp,d); t0.hpTemp-=u; d-=u; }
+        t0.hp=Math.max(0,(+t0.hp||0)-d);
+        rollInfo+=' · урон '+rawDmg;
+        diceOutSet('«'+sp.n+'» → '+t0.name+': '+rawDmg+' урона','var(--rubric)');
+        if(t0.hp<=0) breakConcentration(t0,'герой упал до 0 хитов');
+        else concDamageCheck(t0, rawDmg);
+      }
+    }
+  } else if(rolls&&rolls.dmgTotal!=null){
+    rollInfo=' · урон '+rolls.dmgTotal;
+    diceOutSet('«'+sp.n+'»: '+rolls.dmgTotal+' урона по цели','var(--rubric)');
+  }
   if(target.indexOf('ally:')===0){
     const tid=target.slice(5), t=getCh(tid);
     if(!t) return false;
     applyFxTo(tid,{k:'spell', id:sp.id, label:sp.n, from:caster.name, casterId:caster.id, conc:isConc, why:'наложено: '+caster.name+durWhy});
-    castLogLine(caster.name+' → '+t.name+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matInfo+slotInfo);
+    castLogLine(caster.name+' → '+t.name+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matInfo+slotInfo+rollInfo);
     return true;
   }
   let tl = target==='enemy'?'враг':(target==='object'?'неодушевленный объект':'');
@@ -3377,8 +3599,8 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel){
       fx:[{stat:'note',mode:'text',value:'концентрируется на «'+sp.n+'» — цель: '+tl}]});
   }
   fxInvalidate(); scheduleSave(); renderChars();
-  setStatus('⚡ «'+sp.n+'» наложено на: '+tl+' (СЛ спасброска '+spellDC(caster)+')'+matInfo+slotInfo+'.');
-  castLogLine(caster.name+' → '+tl+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matInfo+slotInfo);
+  setStatus('⚡ «'+sp.n+'» наложено на: '+tl+' (СЛ спасброска '+spellDC(caster)+')'+matInfo+slotInfo+rollInfo+'.');
+  castLogLine(caster.name+' → '+tl+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matInfo+slotInfo+rollInfo);
   return true;
 }
 function toggleAbilityFx(abilityId){
@@ -3414,15 +3636,20 @@ function useConsumable(entryId){
   const c=cc(); if(!c) return;
   const e=(c.inventory||[]).find(x=>x.id===entryId); if(!e) return;
   const it=itemOf(e.itemId); if(!it) return;
-  /* мгновенное исцеление из описания */
-  let msg='⚗ «'+it.n+'» употреблено';
+  /* мгновенное исцеление из описания — сумма реальных костей от мастера */
   const heal=deriveHeal(it);
+  if(heal && !(arguments.length>1&&arguments[1]&&arguments[1].healDice!=null)){
+    askRolls({title:'⚗ '+it.n, note:'Формула: '+heal.cnt+'к'+heal.sides+(heal.plus?' + '+heal.plus:'')+'. Впишите сумму выпавших костей.',
+      rows:[{key:'s',label:'Сумма '+heal.cnt+'к'+heal.sides,sub:'от '+heal.cnt+' до '+(heal.cnt*heal.sides),min:heal.cnt,max:heal.cnt*heal.sides}],
+      compute:v=>'Лечение: '+v.s+(heal.plus?' + '+heal.plus:'')+' = +'+(v.s+heal.plus)+' хитов',
+      apply:v=>useConsumable(entryId,{healDice:v.s})});
+    return;
+  }
+  let msg='⚗ «'+it.n+'» употреблено';
   if(heal){
-    const rolls=[]; for(let i=0;i<heal.cnt;i++) rolls.push(1+Math.floor(Math.random()*heal.sides));
-    const tot=rolls.reduce((a,b)=>a+b,0)+heal.plus;
+    const tot=(arguments[1].healDice)+heal.plus;
     c.hp=Math.min(eHpMax(c),(+c.hp||0)+tot);
-    const out=document.getElementById('diceOut');
-    if(out){ out.textContent=it.n+': '+heal.cnt+'к'+heal.sides+(heal.plus?' + '+heal.plus:'')+' → +'+tot+' хитов ('+rolls.join(', ')+')'; out.style.color='var(--ok)'; }
+    diceOutSet(it.n+': '+heal.cnt+'к'+heal.sides+(heal.plus?' + '+heal.plus:'')+' → +'+tot+' хитов (кости '+arguments[1].healDice+')','var(--ok)');
     msg+=' · +'+tot+' хитов';
   }
   /* длящиеся и качественные эффекты — вешаем на героя с пометкой */
@@ -4284,11 +4511,16 @@ function spendHitDie(){
   const c=cc(); if(!c) return;
   const hd=classOf(c).hd||8;
   if(c.hdUsed>=c.level){ setStatus('Кости хитов исчерпаны — нужен долгий отдых.'); return; }
-  const r=1+Math.floor(Math.random()*hd), heal=Math.max(1,r+eMod(c,'con'));
-  c.hdUsed=(+c.hdUsed||0)+1; c.hp=Math.min(c.hpMax,(+c.hp||0)+heal);
-  const out=document.getElementById('diceOut');
-  if(out){ out.textContent='Кость хитов: к'+hd+' → '+r+fmtMod(mod(c.ab.con)).replace(/^([+-])/,' $1 ')+' = +'+heal+' хитов'; out.style.color='var(--ok)'; }
-  scheduleSave(); renderChars();
+  const con=eMod(c,'con');
+  askRolls({title:'⚂ Кость хитов — '+c.name, note:'Игрок бросает к'+hd+'; лечение = бросок '+(con>=0?'+ '+con:'− '+Math.abs(con))+' (Телосложение), минимум 1.',
+    rows:[{key:'r',label:'к'+hd,min:1,max:hd}],
+    compute:v=>'Лечение: '+v.r+(con?(con>0?' + '+con:' − '+Math.abs(con)):'')+' = +'+Math.max(1,v.r+con)+' хитов',
+    apply:v=>{
+      const heal=Math.max(1,v.r+con);
+      c.hdUsed=(+c.hdUsed||0)+1; c.hp=Math.min((typeof eHpMax==='function')?eHpMax(c):c.hpMax,(+c.hp||0)+heal);
+      diceOutSet('Кость хитов: к'+hd+' → '+v.r+(con?(con>0?' + '+con:' − '+Math.abs(con)):'')+' = +'+heal+' хитов','var(--ok)');
+      scheduleSave(); renderChars();
+    }});
 }
 function returnHitDie(){ const c=cc(); if(!c) return; c.hdUsed=Math.max(0,(+c.hdUsed||0)-1); scheduleSave(); renderChars(); }
 function shortRest(){
