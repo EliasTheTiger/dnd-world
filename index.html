@@ -1679,7 +1679,7 @@ const TORGAR_ABILITIES = [
   x:'Расовая особенность, пассивная. Ваш максимум хитов увеличивается на 1, и он будет увеличиваться на 1 каждый раз, когда вы получаете новый уровень.'},
  {id:'ab_life_armor', n:'Владение доспехами: Жрец (Домен Жизни)', type:'class', source:'Жрец (Домен Жизни)', custom:true,
   tags:['classfeature','passive','defense','armorprof'], uses:null, rest:'',
-  x:'В отличие от многих других жрецов, ваш домен позволяет вам эффективно использовать самую тяжелую защиту. Вы владеете тяжелыми доспехами, не получая штрафов к накладыванию заклинаний.'},
+  x:'В отличие от многих других жрецов, ваш домен позволяет вам эффективно использовать самую тяжелую защиту. Вы владеете тяжелыми доспехами, не получая штрафов к накладыванию заклинаний. Вы также владеете легкими и средними доспехами и щитами.'},
  {id:'ab_life_weapons', n:'Владение оружием: Жрец (Домен Жизни)', type:'class', source:'Жрец (Домен Жизни)', custom:true,
   tags:['classfeature','passive','wis','weaponprof'], uses:null, rest:'',
   x:'Вы прошли специальную подготовку, чтобы нести слово своего божества не только молитвой, но и сталью. Если в ваших руках дробящее оружие, значение вашей Мудрости или Телосложения (на выбор) увеличивается на 1, при этом значение не может превысить 20.'},
@@ -2300,7 +2300,10 @@ const ABILITY_USES_PATCHES_BY_NAME={
 };
 async function ensureAbilityAudit(){
   const flag=await store.get('dndworld2:abaudit');
-  if(flag==='1') return;
+  if(flag==='2') return;   /* версия 2: канон владений жреца дополнен */
+  const clericArmor=abilitiesDB.find(a=>a.n==='Владение доспехами: Жрец (Домен Жизни)');
+  if(clericArmor && clericArmor.x && clericArmor.x.indexOf('легкими и средними')<0)
+    clericArmor.x+=' Вы также владеете легкими и средними доспехами и щитами.';
   abilitiesDB.forEach(ab=>{
     if(ABILITY_X_PATCHES_BY_NAME[ab.n] && (!ab.x||ab.x.length<30)) ab.x=ABILITY_X_PATCHES_BY_NAME[ab.n];
     const up=ABILITY_USES_PATCHES_BY_NAME[ab.n];
@@ -2311,7 +2314,7 @@ async function ensureAbilityAudit(){
     const db=abilitiesDB.find(a=>a.id===e.abilityId);
     if(db&&db.uses!=null&&e.cur==null) e.cur=db.uses;
   }));
-  await store.set('dndworld2:abaudit','1');
+  await store.set('dndworld2:abaudit','2');
   scheduleSave();
 }
 
@@ -2690,6 +2693,13 @@ function charFxSources(c){
       out.push(s);
     }
   });
+  /* ношение без владения — канонические последствия 5e */
+  armorViolations(c).forEach(v=>{
+    const s={k:'prof', id:v.it.id, label:'⛔ '+v.it.n, why:v.why, canOff:true,
+      fx:[{stat:'note',mode:'text',value:'помеха на проверки характеристик, спасброски и броски атаки, использующие Силу или Ловкость'},
+          {stat:'note',mode:'text',value:'наложение заклинаний невозможно'}]};
+    s.off=off.includes(fxSrcKey(s)); out.push(s);
+  });
   /* истощение — канонические последствия по уровням */
   const ex=+c.exhaustion||0;
   if(ex>0){
@@ -2766,6 +2776,84 @@ function removeActiveFx(charId, uid){
 
 
 
+
+
+/* ── владения из пассивных способностей: преимущества И ограничения (5e) ── */
+function profTextsOf(c){
+  return (c.abilities||[]).map(e=>abilityOf(e.abilityId)).filter(ab=>ab&&isPassiveAbility(ab))
+    .map(ab=>String((ab.n||'')+' '+(ab.x||'')).toLowerCase().replace(/\u0451/g,'е'));
+}
+function armorProfsOf(c){
+  const txts=profTextsOf(c).filter(t=>/(доспех|брон|защит)/.test(t)&&/(владе|обучены)/.test(t));
+  if(!txts.length) return null;
+  const p={};
+  txts.forEach(t=>{
+    if(/(любые|любыми|всеми видами)[^.]{0,30}(средства защиты|доспех)/.test(t)){ p.light=p.medium=p.heavy=p.shield=true; }
+    if(/легк[а-я]*\s+(доспех|брон)/.test(t)) p.light=true;
+    if(/средн[а-я]*\s+(доспех|брон)/.test(t)) p.medium=true;
+    if(/тяжел[а-я]*\s+(доспех|брон|защит)/.test(t)) p.heavy=true;
+    if(/щит/.test(t)) p.shield=true;
+  });
+  return Object.keys(p).length? p : null;
+}
+function armorMaterialBanOf(c){
+  return profTextsOf(c).some(t=>/не (носит|носят|надева[а-я]*|может носить)[^.]{0,40}метал/.test(t));
+}
+function weaponProfsOf(c){
+  const txts=profTextsOf(c).filter(t=>/оружи/.test(t)&&/(владе|обучены)/.test(t));
+  if(!txts.length) return null;
+  const r={simple:false, martial:false, names:[]};
+  txts.forEach(t=>{
+    if(/(любым инвентарем|любым оружием|с любым видом оружия|простым и воинским)/.test(t)){ r.simple=true; r.martial=true; }
+    if(/простым оружием/.test(t)) r.simple=true;
+    if(/воинским оружием/.test(t)) r.martial=true;
+    const list=(t.match(/(?:а также|включая)\s+([^.]+)/)||[,''])[1];
+    list.split(/,|\sи\s/).map(s=>s.trim()).filter(s=>s.length>3).forEach(s=>{
+      r.names.push(s.split(/\s+/).map(w=>w.length>=6?w.slice(0,w.length-3):w).join(' '));
+    });
+  });
+  if(!r.simple&&!r.martial&&!r.names.length) return null;
+  return r;
+}
+const MARTIAL_WEAPON_RE=/длинный меч|короткий меч|двуручный меч|полуторн|боевой топор|секир|боевой молот|молот|рапир|скимитар|сабл|кнут|глеф|алебард|пик[аи ]|цеп|моргенштерн|трезубец|длинный лук|тяжелый арбалет|ручной арбалет/;
+const ARMOR_KIND_RU={light:'легкий доспех', medium:'средний доспех', heavy:'тяжелый доспех', shield:'щит'};
+function itemArmorKind(it){
+  const tags=it.tags||[], hay=String((it.n||'')+' '+(it.props||'')).toLowerCase();
+  if(tags.indexOf('shield')>=0||/\bщит/.test(String(it.n||'').toLowerCase())) return 'shield';
+  if(it.type!=='armor') return null;
+  if(tags.indexOf('heavyarmor')>=0||/тяжел/.test(hay)) return 'heavy';
+  if(tags.indexOf('mediumarmor')>=0||/средн/.test(hay)) return 'medium';
+  return 'light';
+}
+function itemIsMetal(it){ return /кольчуг|лат[ыа]|сталь|железн|метал|панцир|чешуйчат/.test(String((it.n||'')+' '+(it.desc||'')).toLowerCase()); }
+function profExempt(it){ return /не требует владени/.test(String(it.desc||'').toLowerCase()); }
+function weaponProfHas(c, it){
+  const wp=weaponProfsOf(c);
+  if(wp===null||profExempt(it)) return true;
+  const n=String(it.n||'').toLowerCase();
+  if(wp.names.some(nm=>nm.split(' ').every(root=>root&&n.indexOf(root)>=0))) return true;
+  const martial=MARTIAL_WEAPON_RE.test(n);
+  if(martial) return !!wp.martial;
+  return !!wp.simple;
+}
+function armorViolations(c){
+  const out=[], profs=armorProfsOf(c), ban=armorMaterialBanOf(c);
+  if(profs===null&&!ban) return out;
+  const seen={};
+  Object.keys(c.equipment||{}).forEach(sl=>{
+    const id=c.equipment[sl]; if(!id||seen[id]) return; seen[id]=1;
+    const e=invEntry(c,id), it=e&&itemOf(e.itemId); if(!it) return;
+    const kind=itemArmorKind(it); if(!kind) return;
+    if(profExempt(it)) return;
+    if(profs!==null&&!profs[kind]) out.push({it, key:'prof:'+it.id, why:'нет владения: '+ARMOR_KIND_RU[kind]});
+    else if(ban&&itemIsMetal(it)) out.push({it, key:'prof:'+it.id, why:'обет запрещает металлические доспехи'});
+  });
+  return out;
+}
+function activeArmorViolations(c){
+  const off=c.fxOff||[];
+  return armorViolations(c).filter(v=>off.indexOf(v.key)<0);
+}
 
 /* ── единый движок применения способностей (общий канвас с заклинаниями) ── */
 function canUseAbilityCheck(caster, ab){
@@ -3026,6 +3114,9 @@ function canCastCheck(caster, sp){
   if(blockAct) return {ok:false, comp, reason:'Состояние «'+blockAct+'» не позволяет совершать действия — наложение невозможно.'};
   if((caster.activeFx||[]).some(a=>a.antimagic))
     return {ok:false, comp, reason:'Антимагическое поле: внутри сферы накладывать заклинания невозможно.'};
+  const av=activeArmorViolations(caster);
+  if(av.length)
+    return {ok:false, comp, reason:'Доспех без владения («'+av[0].it.n+'») не позволяет накладывать заклинания. Снимите его или отключите ограничение (⏻) решением мастера.'};
   if(comp.flex) return {ok:true, comp};
   const notes=fxNotesOf(caster);
   if(comp.v){
@@ -4167,7 +4258,8 @@ function weaponRows(c){
     const tags=it.tags||[];
     const useDex=tags.includes('ranged')||(tags.includes('finesse')&&eMod(c,'dex')>=eMod(c,'str'));
     const m=useDex?eMod(c,'dex'):eMod(c,'str');
-    rows.push({n:it.n, atk:m+PROF[c.level]+fxSum(c,'atk'), dmg:it.dmg||'', dt:it.dmgType||'', m:m+fxSum(c,'dmg'), abn:useDex?'Лов':'Сил'});
+    const hasProf=(typeof weaponProfHas==='function')?weaponProfHas(c,it):true;
+    rows.push({n:it.n+(hasProf?'':' (без владения)'), atk:m+(hasProf?PROF[c.level]:0)+fxSum(c,'atk'), dmg:it.dmg||'', dt:it.dmgType||'', m:m+fxSum(c,'dmg'), abn:useDex?'Лов':'Сил'});
   });
   rows.push({n:'Безоружный удар', atk:eMod(c,'str')+PROF[c.level]+fxSum(c,'atk'), dmg:'', dt:'дробящий', m:eMod(c,'str')+fxSum(c,'dmg'), abn:'Сил', flat:true});
   return rows;
@@ -4514,6 +4606,18 @@ function invEquipToggle(entryId){
     Object.keys(c.equipment).forEach(s=>{ if(c.equipment[s]===entryId) delete c.equipment[s]; });
   } else {
     if(!it.slot){ alert('У этого предмета нет слота экипировки. Назначьте слот в базе предметов (✎).'); return; }
+    /* предупреждение о ношении без владения — последствия по правилам 5e */
+    if(typeof itemArmorKind==='function'){
+      const kind=itemArmorKind(it), profs=armorProfsOf(c);
+      if(kind&&profs!==null&&!profs[kind]&&!profExempt(it)){
+        if(!confirm(c.name+' не владеет этим видом защиты ('+ARMOR_KIND_RU[kind]+').\n\nНадеть с последствиями по правилам? Появятся: помеха на проверки/спасброски/атаки Силы и Ловкости, запрет заклинаний (видно в «Действующих эффектах», отключается ⏻ решением мастера).')) return;
+      } else if(kind&&armorMaterialBanOf(c)&&itemIsMetal(it)&&!profExempt(it)){
+        if(!confirm(c.name+' связан обетом не носить металлические доспехи («'+it.n+'» — металл).\n\nНадеть вопреки обету?')) return;
+      }
+      if(it.type==='weapon'&&typeof weaponProfHas==='function'&&!weaponProfHas(c,it)){
+        if(!confirm(c.name+' не владеет этим оружием («'+it.n+'»).\n\nВзять в руки? Атаки будут совершаться БЕЗ бонуса мастерства (пометка появится в панели атак).')) return;
+      }
+    }
     const clear=id=>Object.keys(c.equipment).forEach(s=>{ if(c.equipment[s]===id) delete c.equipment[s]; });
     if(it.slot==='TWO_HAND'){ clear(c.equipment.MAIN_HAND); clear(c.equipment.OFF_HAND);
       c.equipment.MAIN_HAND=entryId; c.equipment.OFF_HAND=entryId; }
