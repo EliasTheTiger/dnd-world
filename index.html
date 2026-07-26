@@ -2553,60 +2553,194 @@ const FX_AB_WORDS={'сила':'str','силы':'str','ловкость':'dex','�
  'интеллект':'int','интеллекта':'int','мудрость':'wis','мудрости':'wis','харизма':'cha','харизмы':'cha'};
 
 /* ── авторазбор эффектов из описания записи ── */
+function fxTextOf(rec){
+  return [rec&&rec.x,rec&&rec.desc,rec&&rec.props].filter(Boolean).join('\n')
+    .replace(/\u0451/g,'е').replace(/\u0401/g,'Е').replace(/\u00ad/g,'').replace(/[−–—]/g,'-');
+}
+function fxPush(out, fx){
+  const sig=[fx.stat,fx.mode,String(fx.value),fx.unit||'',fx.note||''].join('|');
+  if(!out.some(x=>[x.stat,x.mode,String(x.value),x.unit||'',x.note||''].join('|')===sig)) out.push(fx);
+}
+function fxSigned(v){ return +(String(v||'').replace(/\s/g,'').replace(/[−–—]/g,'-'))||0; }
+const FX_CONDITIONS=[
+ ['Бессознательный',/бессознательн(?:ый|ая|ое|ые|ым|ой|а|о|ы)?(?=[^а-я]|$)/],
+ ['Парализованный',/парализован(?:ный|ная|ное|ные|а|о|ы)?(?=[^а-я]|$)/],
+ ['Окаменевший',/окаменевш(?:ий|ая|ее|ие|им|ей)(?=[^а-я]|$)/],
+ ['Ошеломленный',/ошеломлен(?:ный|ная|ное|ные|а|о|ы)?(?=[^а-я]|$)/],
+ ['Недееспособный',/недееспособ(?:ный|ная|ное|ные|ен|на|но|ны)(?=[^а-я]|$)/],
+ ['Опутанный',/опутан(?:ный|ная|ное|ные|а|о|ы)?(?=[^а-я]|$)/],
+ ['Ослепленный',/ослеплен(?:ный|ная|ное|ные|а|о|ы)?(?=[^а-я]|$)/],
+ ['Отравленный',/отравлен(?:ный|ная|ное|ные|а|о|ы)?(?=[^а-я]|$)/],
+ ['Очарованный',/очарован(?:ный|ная|ное|ные|а|о|ы)?(?=[^а-я]|$)/],
+ ['Испуганный',/испуган(?:ный|ная|ное|ные|а|о|ы)?(?=[^а-я]|$)/],
+ ['Сбитый с ног',/сбит[аоы]?\s+с\s+ног|падает\s+ничком/],
+ ['Невидимый',/невидим(?:ый|ая|ое|ые|ым|ой|а|о|ы)?(?=[^а-я]|$)/]
+];
 function deriveFx(rec, kind){
-  const t=[]; const x=String(rec.x||rec.desc||'').replace(/\u0451/g,'е');
+  const t=[]; const x=fxTextOf(rec);
   const low=x.toLowerCase();
   let m;
   /* +N к КД (у брони базовый КД считает acAuto — ловим только явные бонусы) */
   const armorBase=(kind==='item'&&rec.type==='armor'&&rec.ac);   /* базу и бонусы такой брони считает acAuto */
   if(!armorBase){
-    const acRe=/\+(\d+)\s*к\s*кд/gi;
-    while((m=acRe.exec(low))) t.push({stat:'ac',mode:'add',value:+m[1]});
+    const acRe=/([+-]\s*\d+)\s*(?:к\s*)?(?:класс[ау]?\s+доспеха\s*(?:\(кд\))?|кд)/gi;
+    while((m=acRe.exec(low))) fxPush(t,{stat:'ac',mode:'add',value:fxSigned(m[1])});
   }
-  /* +N к броскам атаки */
-  const atkRe=/\+(\d+)\s*к\s*броск[а-я]*\s*атак/gi;
-  while((m=atkRe.exec(low))) t.push({stat:'atk',mode:'add',value:+m[1]});
-  /* +N к (броскам) урона / +N к урону */
-  const dmgRe=/\+(\d+)\s*к\s*(?:броскам\s*)?урон/gi;
-  while((m=dmgRe.exec(low))) t.push({stat:'dmg',mode:'add',value:+m[1]});
+  if((m=low.match(/кд\s+не\s+может\s+быть\s+ниже\s+(\d+)/)))
+    fxPush(t,{stat:'ac',mode:'min',value:+m[1]});
+  if(/(?:базов|класс)\w*\s+кд[^.]{0,50}(?:становится|равен)\s+13\s*\+\s*модификатор\s+ловкост/.test(low))
+    fxPush(t,{stat:'note',mode:'text',value:'базовый КД 13 + модификатор Ловкости (если цель без доспехов)'});
+  /* +N к броскам атаки и/или урону */
+  const bothRe=/([+-]\s*\d+)\s*к\s*(?:броскам?\s*)?атак[а-я]*\s+и\s+(?:броскам?\s*)?урон/gi;
+  while((m=bothRe.exec(low))){
+    fxPush(t,{stat:'atk',mode:'add',value:fxSigned(m[1])});
+    fxPush(t,{stat:'dmg',mode:'add',value:fxSigned(m[1])});
+  }
+  const atkRe=/([+-]\s*\d+)\s*к\s*(?:броскам?\s*)?атак[а-я]*/gi;
+  while((m=atkRe.exec(low))) fxPush(t,{stat:'atk',mode:'add',value:fxSigned(m[1])});
+  const dmgRe=/([+-]\s*\d+)\s*к\s*(?:броскам?\s*)?урон/gi;
+  while((m=dmgRe.exec(low))) fxPush(t,{stat:'dmg',mode:'add',value:fxSigned(m[1])});
   /* максимум хитов и текущие хиты увеличиваются на N */
-  if((m=low.match(/максимум хитов и текущие хиты[^.]*увеличиваются на (\d+)/))){
-    t.push({stat:'hpmax',mode:'add',value:+m[1]}); t.push({stat:'hp',mode:'add',value:+m[1]});
+  if((m=low.match(/([+-]\s*\d+)\s*к\s+максимуму\s+и\s+текущим\s+хитам/))){
+    const v=fxSigned(m[1]); fxPush(t,{stat:'hpmax',mode:'add',value:v}); fxPush(t,{stat:'hp',mode:'add',value:v});
+  } else if((m=low.match(/(?:максимум[ау]? хитов и текущи[ем] хиты|к максимуму и текущим хитам)[^.]{0,70}?(?:увеличиваются на|получают|[+:])?\s*([+-]?\s*\d+)/))){
+    const v=Math.abs(fxSigned(m[1])); fxPush(t,{stat:'hpmax',mode:'add',value:v}); fxPush(t,{stat:'hp',mode:'add',value:v});
   } else if((m=low.match(/максимум хитов[^.]*увеличивается на (\d+)/))){
-    if(/каждый раз[^.]*уровен/.test(low)) t.push({stat:'hpmax',mode:'add',value:'lvl',note:'за уровень'});
-    else t.push({stat:'hpmax',mode:'add',value:+m[1]});
+    if(/каждый раз[^.]*уровен/.test(low)) fxPush(t,{stat:'hpmax',mode:'add',value:'lvl',note:'за уровень'});
+    else fxPush(t,{stat:'hpmax',mode:'add',value:+m[1]});
   }
-  /* инициатива +N */
-  if((m=low.match(/инициатив[а-я]*\s*\+(\d+)/)||low.match(/\+(\d+)\s*к?\s*инициатив/))) t.push({stat:'init',mode:'add',value:+m[1]});
-  /* скорость увеличивается на N */
-  if((m=low.match(/скорость[^.]*увеличивается на (\d+(?:,\d+)?)\s*(м|фут)/))) t.push({stat:'speed',mode:'text',value:'+'+m[1]+' '+m[2]});
+  /* инициатива и скорость */
+  if((m=low.match(/инициатив[а-я]*\s*([+-]\s*\d+)/)||low.match(/([+-]\s*\d+)\s*к\s*инициатив/)))
+    fxPush(t,{stat:'init',mode:'add',value:fxSigned(m[1])});
+  const speedRe=/скорост[ьи][^.]{0,45}?(увеличива|повыша|снижа|уменьша)[а-я]*\s+на\s+(\d+(?:[.,]\d+)?)\s*(м(?:етр[а-я]*)?|фут[а-я]*)/gi;
+  while((m=speedRe.exec(low))) fxPush(t,{stat:'speed',mode:'add',
+    value:(/снижа|уменьша/.test(m[1])?-1:1)*parseFloat(m[2].replace(',','.')),unit:/^фут/.test(m[3])?'фут':'м'});
+  if(/скорость[^.]{0,25}(?:уменьшена|снижается)\s+вдвое/.test(low))
+    fxPush(t,{stat:'note',mode:'text',value:'скорость уменьшена вдвое'});
+  if(/скорость[^.]{0,20}(?:равна|становится)\s+0/.test(low))
+    fxPush(t,{stat:'note',mode:'text',value:'скорость равна 0'});
+  if(/(?:удвоенн[а-я]*\s+скорость|скорость[^.]{0,20}удваива)/.test(low))
+    fxPush(t,{stat:'speed',mode:'mul',value:2});
   /* +N к проверкам Характеристики (Навык) — возможно перечисление через «и» */
-  const skRe=/\+(\d+)\s*к\s*проверк[а-я]*\s*([а-я]+)\s*\(([^)]+)\)(?:\s*и\s*([а-я]+)\s*\(([^)]+)\))?/gi;
+  const skRe=/([+-]\s*\d+)\s*к\s*проверк[а-я]*\s*([а-я]+)\s*\(([^)]+)\)(?:\s*и\s*([а-я]+)\s*\(([^)]+)\))?/gi;
   while((m=skRe.exec(x))){
-    t.push({stat:'skill.'+m[3].trim(),mode:'add',value:+m[1]});
-    if(m[5]) t.push({stat:'skill.'+m[5].trim(),mode:'add',value:+m[1]});
+    fxPush(t,{stat:'skill.'+m[3].trim(),mode:'add',value:fxSigned(m[1])});
+    if(m[5]) fxPush(t,{stat:'skill.'+m[5].trim(),mode:'add',value:fxSigned(m[1])});
+  }
+  const skillNames=typeof SKILLS!=='undefined'?SKILLS.map(s=>s[0]):[];
+  skillNames.forEach(name=>{
+    const re=new RegExp('([+\\\\-]\\\\s*\\\\d+)\\\\s*к\\\\s*проверк[а-я]*\\\\s+'+name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i');
+    const mm=x.match(re); if(mm) fxPush(t,{stat:'skill.'+name,mode:'add',value:fxSigned(mm[1])});
+  });
+  /* +N к спасброскам: ко всем или к одной/нескольким характеристикам */
+  const saveRe=/([+-]\s*\d+)\s*к\s*(?:броскам\s*)?спасброск[а-я]*(?:\s+([а-я]+)(?:\s+и\s+([а-я]+))?)?/gi;
+  while((m=saveRe.exec(low))){
+    const a=FX_AB_WORDS[m[2]], b=FX_AB_WORDS[m[3]], v=fxSigned(m[1]);
+    if(a){ fxPush(t,{stat:'save.'+a,mode:'add',value:v}); if(b) fxPush(t,{stat:'save.'+b,mode:'add',value:v}); }
+    else fxPush(t,{stat:'save.all',mode:'add',value:v});
   }
   /* +N к характеристике: «значение вашей Мудрости … увеличивается на 1» */
   if((m=low.match(/значение ваше[йго]+\s+([а-я]+)(?:\s+или\s+([а-я]+))?[^.]*увеличивается на (\d+)/))){
-    const k=FX_AB_WORDS[m[1]]; if(k) t.push({stat:'ab.'+k,mode:'add',value:+m[3],note:m[2]?'или '+m[2]+' (на выбор)':''});
+    const k=FX_AB_WORDS[m[1]], choice=!!m[2]||/на выбор/.test(m[0]), conditional=/если[^.]{0,120}значение/.test(low);
+    if(k&&!choice&&!conditional) fxPush(t,{stat:'ab.'+k,mode:'add',value:+m[3]});
+    else if(k) fxPush(t,{stat:'note',mode:'text',value:'характеристика: +'+m[3]+' к '+m[1]+(m[2]?' или '+m[2]:'')+(choice?' (на выбор)':'')+(conditional?' при выполнении условия':'')});
   }
   /* качественные: преимущество/помеха/сопротивление/иммунитет */
   const qual=[
-   [/преимуществ[а-я]*\s+(при|на)\s+спасброск[а-я]*\s+от\s+([а-я]+)/g, (mm)=>'преимущество на спасброски от '+mm[2].trim()],
-   [/сопротивля?емост[а-я]*\s+к\s+урону\s+([а-я]+)/g, (mm)=>'сопротивление урону: '+mm[1]],
+   [/преимуществ[а-я]*\s+(?:при|на|к)\s+(спасброск[а-я]*(?:\s+от|\s+против)?\s+[а-я ,и]+?)(?=,\s*(?:иммунитет|сопротив)|\s+и\s+сопротив|[.;)]|$)/g, (mm)=>'преимущество: '+mm[1].trim()],
+   [/помех[а-я]*\s+(?:при|на)\s+(спасброск[а-я]*|броск[а-я]* атак[а-я]*|проверк[а-я]*)[^.;)]*/g, (mm)=>'помеха: '+mm[1].trim()],
+   [/сопротив(?:ление|ляемост[а-я]*)\s+(?:к\s+)?урону\s+([а-я]+)/g, (mm)=>'сопротивление урону: '+mm[1]],
    [/иммунитет[а-я]*\s+к\s+([а-я ]+?)(?=[,.;)]|$)/g, (mm)=>'иммунитет: '+mm[1].trim()],
    [/не можете получить критическ[а-я]+ удар/g, ()=>'иммунитет к критическим ударам (в обычных условиях)'],
+   [/не может быть испуган[а-я]*/g, ()=>'иммунитет к состоянию «Испуганный»'],
+   [/не может восстанавлива[а-я]* (?:здоровье|хиты)/g, ()=>'не может восстанавливать хиты'],
+   [/атак[а-я]* по (?:нему|ней|цели|существу)[^.]{0,35}с преимуществом/g, ()=>'атаки по цели совершаются с преимуществом'],
    [/помех[а-я]*\s+на\s+скрытност/g, ()=>'помеха на проверки Скрытности'],
    [/скрытност[а-я]*:\s*помеха/g, ()=>'помеха на проверки Скрытности']
   ];
-  qual.forEach(([re,fn])=>{ let mm; while((mm=re.exec(low))) t.push({stat:'note',mode:'text',value:fn(mm)}); });
-  /* Наставление и подобные кубиковые добавки */
-  if((m=low.match(/добавить\s+1к4\s+к\s+одной\s+проверке/))) t.push({stat:'note',mode:'text',value:'+1к4 к одной проверке характеристики (по выбору)'});
+  qual.forEach(([re,fn])=>{ let mm; while((mm=re.exec(low))) fxPush(t,{stat:'note',mode:'text',value:fn(mm)}); });
+  /* Состояния: только формулировки, которые действительно накладывают состояние. */
+  low.split(/[.!?;\n]+/).map(s=>s.trim()).filter(Boolean).forEach(sentence=>{
+    if(/(?:снимает|излечивает|иммунитет|не может быть|невидимость не)/.test(sentence)) return;
+    const candidates=FX_CONDITIONS.map(([name,re])=>({name,hit:sentence.match(re)})).filter(x=>x.hit);
+    const direct=candidates.filter(({hit})=>{
+      const before=sentence.slice(0,hit.index).trim();
+      return /(?:становится|оказывается|при провале|эффект сна)[^,:;]{0,100}$/.test(before)
+        ||/(?:^|\s)(?:цель|гуманоид|существо|оно|любое существо|усыпленное существо)(?:\s+[а-я0-9-]+){0,4}\s*[:,]?\s*$/.test(before)
+        ||/существо\s+со\s+\d+\s+хитами\s+или\s+меньше\s*$/.test(before);
+    });
+    if(direct.length) candidates.forEach(({name})=>fxPush(t,{stat:'condition',mode:'text',value:name}));
+  });
+  /* Наставление, Благословение и подобные кубиковые добавки/вычеты. */
+  const dieRe=/(добавля[а-я]*|вычита[а-я]*)\s+((?:\d+)?[кd]\d+)\s+(?:к|из)\s+([^.;]+)/gi;
+  while((m=dieRe.exec(low))){
+    const sign=/вычита/.test(m[1])?'-':'+';
+    fxPush(t,{stat:'note',mode:'text',value:sign+m[2].replace(/^к/,'1к')+' '+(/вычита/.test(m[1])?'из ':'к ')+m[3].trim()});
+  }
   return t;
 }
+const fxAutoCache=new WeakMap();
 function recFx(rec, kind){
   if(rec && Array.isArray(rec.fx) && rec.fx.length) return rec.fx;
-  return rec? deriveFx(rec, kind) : [];
+  if(!rec) return [];
+  const sig=String(kind||'')+'\0'+fxTextOf(rec);
+  const hit=fxAutoCache.get(rec);
+  if(hit&&hit.sig===sig) return hit.fx;
+  const fx=deriveFx(rec,kind);
+  fxAutoCache.set(rec,{sig,fx});
+  return fx;
+}
+
+/* ── мгновенное лечение из свободного текста заклинаний, способностей и предметов ── */
+function healingPassiveBonus(caster, spell, usedSlotLvl, text){
+  if(!caster||!spell||(+spell.l||0)<=0) return 0;
+  const level=usedSlotLvl||(+spell.l||1);
+  /* В старых персональных записях бонус Ученика Жизни уже мог быть вписан числом. */
+  const expected=2+level;
+  if(new RegExp('модификатор[^.!?]{0,60}\\+\\s*'+expected+'(?:\\D|$)','i').test(text)) return 0;
+  const hasLife=(caster.abilities||[]).some(e=>{
+    const ab=typeof abilityOf==='function'?abilityOf(e.abilityId):null;
+    const s=fxTextOf(ab||{}).toLowerCase();
+    return !!ab&&(/ученик\s+жизни/.test(String(ab.n||'').toLowerCase())||/дополнительн[а-я]*\s+хит[^.]{0,80}2\s*\+\s*круг\s+заклинания/.test(s));
+  });
+  return hasLife?expected:0;
+}
+function deriveInstantHeal(rec, kind, caster, usedSlotLvl){
+  const text=fxTextOf(rec), low=text.toLowerCase();
+  if(!/(?:восстанавлива[а-я]*[^.!?\n]{0,140}(?:хит|здоров)|(?:хит|здоров)[^.!?\n]{0,100}восстанавлива[а-я]*|(?:исцеля|исцелен|лечени)[а-я]*[^.!?\n]{0,100}(?:хит|здоров)|увеличить[^.]{0,80}(?:здоров|текущ)[^.]{0,60}хит)/.test(low)) return null;
+  let cnt=0, sides=0, plus=0, m;
+  const dice=low.match(/(?:восстанавлива[а-я]*|(?:исцеля|исцелен|лечени)[а-я]*|количество\s+хитов[^.]{0,25}равн[оые]*|хитов[^.]{0,25}равн[оые]*)[^.!?\n]{0,100}?(\d*)\s*[кd]\s*(\d+)([^.!?\n]*)/);
+  if(dice){
+    cnt=+(dice[1]||1); sides=+dice[2];
+    const tail=dice[3]||'';
+    const nums=[...tail.matchAll(/\+\s*(\d+)(?!\s*[кd])\b/g)].map(x=>+x[1]);
+    plus+=nums.reduce((a,b)=>a+b,0);
+    let key=null;
+    const km=tail.match(/модификатор\s+(сил[ыа]|ловкост[ьи]|телосложени[яе]|интеллект[а]?|мудрост[ьи]|харизм[ыа])/);
+    if(km) key=FX_AB_WORDS[km[1]];
+    else if(/модификатор[^.!?\n]{0,45}(?:базов|характеристик|заклинател)/.test(tail))
+      key=typeof spellAbOf==='function'&&caster?spellAbOf(caster):null;
+    if(key&&caster) plus+=eMod(caster,key);
+    if(/ваш\s+уровень(?:\s+[а-я]+)?/.test(tail)&&caster) plus+=(+caster.level||0);
+  } else if((m=low.match(/восстанавлива[а-я]*\s+(\d+)\s+хит/))){
+    plus=+m[1];
+  } else return null;
+  if(kind==='spell'){
+    const base=+rec.l||0, used=usedSlotLvl||base, delta=Math.max(0,used-base);
+    const hi=(String(rec.hi||'')+' '+text).toLowerCase();
+    const dieUp=hi.match(/(?:увеличива[а-я]*|добавля[а-я]*)\s+на\s+(\d*)\s*[кd]\s*(\d+)\s+за\s+кажд[а-я]*\s+круг/);
+    if(delta&&dieUp&&(!sides||+dieUp[2]===sides)) cnt+=delta*+(dieUp[1]||1);
+    const flatUp=hi.match(/(?:увеличива[а-я]*|добавля[а-я]*)\s+на\s+(\d+)\s+хит[а-я]*\s+за\s+кажд[а-я]*\s+круг/);
+    if(delta&&flatUp) plus+=delta*(+flatUp[1]);
+    plus+=healingPassiveBonus(caster,rec,used,text);
+  }
+  if(!cnt&&!plus) return null;
+  return {cnt,sides,plus};
+}
+function rollHealFormula(heal){
+  const rolls=[];
+  for(let i=0;i<(heal.cnt||0);i++) rolls.push(1+Math.floor(Math.random()*heal.sides));
+  return {rolls,total:rolls.reduce((a,b)=>a+b,0)+(+heal.plus||0)};
 }
 
 /* ── мини-язык поля «Влияние на показатели» в редакторах ──
@@ -2621,11 +2755,19 @@ function parseFxLines(txt){
   String(txt||'').split('\n').map(s=>s.trim()).filter(Boolean).forEach(line=>{
     let m;
     if((m=line.match(/^текст:\s*(.+)$/i))){ out.push({stat:'note',mode:'text',value:m[1]}); return; }
+    if((m=line.match(/^состояние:\s*(.+)$/i))){ out.push({stat:'condition',mode:'text',value:m[1].trim()}); return; }
+    if((m=line.match(/^кд-мин\s+(\d+)$/i))){ out.push({stat:'ac',mode:'min',value:+m[1]}); return; }
     if((m=line.match(/^навык\.(.+?)\s+([+-]?\d+)$/i))){ out.push({stat:'skill.'+m[1].trim(),mode:'add',value:+m[2]}); return; }
+    if((m=line.match(/^скорость\s+([+-]?\d+(?:[.,]\d+)?)\s*(м|фут(?:ов|а)?)$/i))){
+      out.push({stat:'speed',mode:'add',value:parseFloat(m[1].replace(',','.')),unit:/^фут/i.test(m[2])?'фут':'м'}); return;
+    }
+    if((m=line.match(/^скорость\s+[x×*]\s*(\d+(?:[.,]\d+)?)$/i))){
+      out.push({stat:'speed',mode:'mul',value:parseFloat(m[1].replace(',','.'))}); return;
+    }
     if((m=line.match(/^скорость\s+(.+)$/i))){ out.push({stat:'speed',mode:'text',value:m[1]}); return; }
     if((m=line.match(/^([а-я.\-]+)\s+([+-]?\d+|lvl)$/i))){
       const k=FX_KEYS[m[1].toLowerCase()];
-      if(k){ out.push({stat:k,mode:'add',value:(m[2]==='lvl'?'lvl':+m[2])}); return; }
+      if(k){ out.push({stat:k,mode:'add',value:(m[2].toLowerCase()==='lvl'?'lvl':+m[2])}); return; }
     }
     out.push({stat:'note',mode:'text',value:line});
   });
@@ -2635,15 +2777,22 @@ function fxToLines(fx){
   const back={}; Object.keys(FX_KEYS).forEach(k=>back[FX_KEYS[k]]=k);
   return (fx||[]).map(f=>{
     if(f.stat==='note') return 'текст: '+f.value;
+    if(f.stat==='condition') return 'состояние: '+f.value;
+    if(f.stat==='ac'&&f.mode==='min') return 'кд-мин '+f.value;
     if(f.stat.startsWith('skill.')) return 'навык.'+f.stat.slice(6)+' '+(f.value>0?'+':'')+f.value;
-    if(f.stat==='speed') return 'скорость '+f.value;
+    if(f.stat==='speed') return f.mode==='mul'?'скорость ×'+f.value:'скорость '+(f.mode==='add'&&f.value>0?'+':'')+f.value+(f.unit?' '+f.unit:'');
     const k=back[f.stat]||f.stat;
     return k+' '+(f.value==='lvl'?'lvl':(f.value>0?'+':'')+f.value);
   }).join('\n');
 }
 
 /* ── активные источники эффектов героя ── */
-function isPassiveAbility(ab){ return ab && ab.uses==null && !ab.rest; }
+function isPassiveAbility(ab){
+  if(!ab||ab.uses!=null||ab.rest) return false;
+  const tags=ab.tags||[], text=fxTextOf(ab).toLowerCase();
+  /* Без явной пометы движок не вправе постоянно применять способность лишь потому, что у нее нет зарядов. */
+  return tags.indexOf('passive')>=0||/пассивн[а-я]*/.test(text);
+}
 const EXHAUST_FX=['помеха на проверки характеристик','скорость уменьшена вдвое','помеха на броски атаки и спасброски','максимум хитов уменьшен вдвое','скорость равна 0','смерть'];
 function fxSrcKey(s){ return s.k+':'+s.id; }
 function toggleFxSource(charId,key){
@@ -2719,7 +2868,7 @@ function charFxAll(c){
   charFxSources(c).forEach(s=>{ if(s.off||s.suppressed) return; s.fx.forEach(f=>{
     let v=f.value;
     if(v==='lvl') v=c.level;
-    list.push({stat:f.stat, mode:f.mode, value:v, note:f.note||'', label:s.label, k:s.k});
+    list.push({stat:f.stat, mode:f.mode, value:v, unit:f.unit||'', note:f.note||'', label:s.label, k:s.k});
   });});
   c.__fxC={t:fxCacheT, v:list};
   return list;
@@ -2729,6 +2878,35 @@ function fxSum(c,stat){
 }
 function fxParts(c,stat){
   return charFxAll(c).filter(f=>f.stat===stat&&f.mode==='add').map(f=>({v:+f.value||0,label:f.label,note:f.note}));
+}
+function fxMin(c,stat){
+  const vals=charFxAll(c).filter(f=>f.stat===stat&&f.mode==='min').map(f=>+f.value||0);
+  return vals.length?Math.max(...vals):null;
+}
+function effectiveConditions(c){
+  const out=(c.cond||[]).slice();
+  charFxAll(c).filter(f=>f.stat==='condition').forEach(f=>{ if(out.indexOf(String(f.value))<0) out.push(String(f.value)); });
+  return out;
+}
+function effectiveSpeed(c){
+  const raw=String(c.speed||''), m=raw.match(/(\d+(?:[.,]\d+)?)\s*(м|фут)/i);
+  if(!m) return raw;
+  const unit=/^фут/i.test(m[2])?'фут':'м', base=parseFloat(m[1].replace(',','.'));
+  const all=charFxAll(c).filter(f=>f.stat==='speed');
+  const parts=all.filter(f=>f.mode==='add');
+  const delta=parts.reduce((a,f)=>{
+    const from=f.unit||unit, v=+f.value||0;
+    if(from===unit) return a+v;
+    return a+(unit==='м'?v*.3:v/.3); /* 5 футов = 1,5 м в сетке 5e */
+  },0);
+  const mult=all.filter(f=>f.mode==='mul').reduce((a,f)=>a*(+f.value||1),1);
+  const value=Math.max(0,Math.round((base+delta)*mult*10)/10);
+  return raw.replace(m[1],String(value).replace('.',','));
+}
+function speedFxClass(c){
+  const base=(String(c.speed||'').match(/\d+(?:[.,]\d+)?/)||[])[0];
+  const effective=(effectiveSpeed(c).match(/\d+(?:[.,]\d+)?/)||[])[0];
+  return base&&effective&&parseFloat(effective.replace(',','.'))<parseFloat(base.replace(',','.'))?'fx-minus':'fx-plus';
 }
 function fxLine(c,stat){
   const parts=fxParts(c,stat);
@@ -2761,6 +2939,10 @@ function applyFxTo(targetId, entry){
   entry.uid=fxUid();
   t.activeFx.push(entry);
   fxInvalidate();
+  const appliedConditions=entry.fx.filter(f=>f.stat==='condition').map(f=>String(f.value));
+  const incapacitating=appliedConditions.find(n=>typeof ACTION_BLOCK_CONDS!=='undefined'&&ACTION_BLOCK_CONDS.indexOf(n)>=0);
+  if(incapacitating&&typeof breakConcentration==='function')
+    breakConcentration(t,'наложено состояние «'+incapacitating+'»');
   let healed=0; inst.forEach(f=>healed+=f.value);
   if(healed){ t.hp=Math.min(eHpMax(t),(+t.hp||0)+healed); }
   scheduleSave(); renderChars();
@@ -2859,19 +3041,14 @@ function activeArmorViolations(c){
 function canUseAbilityCheck(caster, ab){
   const active=(ab.uses!=null)||!!ab.rest;
   if(active){
-    const blockAct=ACTION_BLOCK_CONDS.filter(n=>(caster.cond||[]).indexOf(n)>=0)[0];
+    const cond=effectiveConditions(caster);
+    const blockAct=ACTION_BLOCK_CONDS.filter(n=>cond.indexOf(n)>=0)[0];
     if(blockAct) return {ok:false, reason:'Состояние «'+blockAct+'» не позволяет совершать действия — способность неприменима.'};
   }
   return {ok:true};
 }
 function deriveAbilityHeal(ab, caster){
-  const x=String(ab.x||'').replace(/\u0451/g,'е').toLowerCase();
-  if(!/(хит|здоров)/.test(x)) return null;
-  const m=x.match(/(\d+)\s*[кd]\s*(\d+)\s*(?:\+\s*(\d+|ваш уровень[а-я ]*))?/);
-  if(!m) return null;
-  let plus=0;
-  if(m[3]){ plus=/уровень/.test(m[3])? (+caster.level||0) : (+m[3]||0); }
-  return {cnt:+m[1], sides:+m[2], plus};
+  return deriveInstantHeal(ab,'ability',caster,null);
 }
 function useAbilityApply(abilityId, casterId, target){
   const ab=abilityOf(abilityId), caster=getCh(casterId);
@@ -2898,8 +3075,7 @@ function useAbilityApply(abilityId, casterId, target){
   if(heal && tIsAlly){
     const t=getCh(target.slice(5));
     if(t){
-      const rolls=[]; for(let i=0;i<heal.cnt;i++) rolls.push(1+Math.floor(Math.random()*heal.sides));
-      const tot=rolls.reduce((a,b)=>a+b,0)+heal.plus;
+      const rolled=rollHealFormula(heal), rolls=rolled.rolls, tot=rolled.total;
       t.hp=Math.min(eHpMax(t),(+t.hp||0)+tot);
       const out=document.getElementById('diceOut');
       if(out){ out.textContent=ab.n+': '+heal.cnt+'к'+heal.sides+(heal.plus?' + '+heal.plus:'')+' → +'+tot+' хитов ('+rolls.join(', ')+')'; out.style.color='var(--ok)'; }
@@ -3077,19 +3253,27 @@ function breakConcById(charId){ const c=getCh(charId); if(!c) return;
 
 /* ── компоненты заклинаний: В (вербальный), С (соматический), М (материальный) ── */
 function parseComponents(sp){
-  const cm=String((sp&&sp.cm)||'').trim();
+  const cm=String((sp&&sp.cm)||'').trim().replace(/\u0451/g,'е');
   if(!cm||cm==='—') return {v:false,s:false,m:false,matDesc:'',flex:false};
-  if(cm.indexOf('/')>=0) return {v:false,s:false,m:false,matDesc:'',flex:true}; /* «В / С / М» — взаимозаменяемые */
-  const matDesc=(cm.match(/М\s*\(([^)]*)\)/)||[])[1]||'';
-  const top=cm.replace(/\([^)]*\)/g,'');
-  const parts=top.split(',').map(x=>x.trim());
-  return {v:parts.indexOf('В')>=0, s:parts.indexOf('С')>=0, m:parts.indexOf('М')>=0, matDesc, flex:false};
+  /*
+     Запятые и косые черты в нотации 5e — разделители обязательных
+     компонентов, а косая черта внутри «М (песок/лепестки)» относится
+     только к описанию материала. Она никогда не означает «любой из».
+  */
+  const mat=(cm.match(/(?:М|M)\s*\(([^)]*)\)/i)||[]);
+  const matDesc=mat[1]||'';
+  const top=cm.replace(/\([^)]*\)/g,' ').toUpperCase();
+  const tokens=top.split(/[\s,;/+]+/).filter(Boolean);
+  const has=(...variants)=>tokens.some(x=>variants.indexOf(x)>=0);
+  return {v:has('В','V'), s:has('С','C','S'), m:has('М','M'), matDesc, flex:false};
 }
 /* расход материального компонента, шт. — по правилам 5e тратится лишь то, что заклинание «расходует» */
 const MAT_CONSUME={ sp_web:0, sp_magic_sleep:0, sp_chromatic_orb:0 };
 function matConsumeFor(sp){
   if(MAT_CONSUME[sp.id]!==undefined) return MAT_CONSUME[sp.id];
-  return /расходу/i.test(String(sp.cm||'')+' '+String(sp.x||''))?1:0;
+  const text=(String(sp.cm||'')+' '+String(sp.x||'')).toLowerCase().replace(/\u0451/g,'е');
+  if(/не\s+(?:требуется\s+и\s+не\s+)?расходу/.test(text)) return 0;
+  return /(?:расходуется|расходуем[а-я]*|при этом расходу)/.test(text)?1:0;
 }
 const ACTION_BLOCK_CONDS=['Бессознательный','Парализованный','Окаменевший','Ошеломленный','Недееспособный'];
 const SPEECH_BLOCK_CONDS=['Бессознательный','Парализованный','Окаменевший','Ошеломленный'];
@@ -3110,19 +3294,19 @@ function freeHandInfo(c){
 }
 function canCastCheck(caster, sp){
   const comp=parseComponents(sp);
-  const blockAct=ACTION_BLOCK_CONDS.filter(n=>(caster.cond||[]).indexOf(n)>=0)[0];
+  const cond=effectiveConditions(caster);
+  const blockAct=ACTION_BLOCK_CONDS.filter(n=>cond.indexOf(n)>=0)[0];
   if(blockAct) return {ok:false, comp, reason:'Состояние «'+blockAct+'» не позволяет совершать действия — наложение невозможно.'};
   if((caster.activeFx||[]).some(a=>a.antimagic))
     return {ok:false, comp, reason:'Антимагическое поле: внутри сферы накладывать заклинания невозможно.'};
   const av=activeArmorViolations(caster);
   if(av.length)
     return {ok:false, comp, reason:'Доспех без владения («'+av[0].it.n+'») не позволяет накладывать заклинания. Снимите его или отключите ограничение (⏻) решением мастера.'};
-  if(comp.flex) return {ok:true, comp};
   const notes=fxNotesOf(caster);
   if(comp.v){
     if((caster.activeFx||[]).some(a=>/тишин/i.test(a.label||'')))
       return {ok:false, comp, reason:'Вербальный компонент (В): в зоне «Тишины» звуки невозможны.'};
-    const sb=SPEECH_BLOCK_CONDS.filter(n=>(caster.cond||[]).indexOf(n)>=0)[0];
+    const sb=SPEECH_BLOCK_CONDS.filter(n=>cond.indexOf(n)>=0)[0];
     if(sb) return {ok:false, comp, reason:'Вербальный компонент (В): состояние «'+sb+'» не позволяет говорить.'};
     if(notes.some(t=>/не может говорить|немота|онемел|кляп|заткнут/.test(t)))
       return {ok:false, comp, reason:'Вербальный компонент (В): действующий эффект не позволяет говорить.'};
@@ -3356,8 +3540,31 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel){
   if(target.indexOf('ally:')===0){
     const tid=target.slice(5), t=getCh(tid);
     if(!t) return false;
-    applyFxTo(tid,{k:'spell', id:sp.id, label:sp.n, from:caster.name, casterId:caster.id, conc:isConc, why:'наложено: '+caster.name+durWhy});
-    castLogLine(caster.name+' → '+t.name+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matInfo+slotInfo);
+    /* Лечение — мгновенное изменение хитов; длительные последствия хранятся отдельно. */
+    const heal=deriveInstantHeal(sp,'spell',caster,usedSlotLvl||(+sp.l||0));
+    let healInfo='';
+    if(heal){
+      const rolled=rollHealFormula(heal), tot=rolled.total;
+      t.hp=Math.min(eHpMax(t),(+t.hp||0)+tot);
+      healInfo=' · лечение +'+tot+' хитов';
+      const out=document.getElementById('diceOut');
+      if(out){
+        const formula=(heal.cnt?heal.cnt+'к'+heal.sides:'')+(heal.plus?(heal.cnt?' + ':'')+heal.plus:'');
+        out.textContent=sp.n+': '+formula+' → +'+tot+' хитов'+(rolled.rolls.length?' ('+rolled.rolls.join(', ')+')':'');
+        out.style.color='var(--ok)';
+      }
+    }
+    const fx=recFx(sp,'spell');
+    const instant=/мгновенн/i.test(sp.d||'');
+    /* Мгновенное заклинание без извлеченного последствия не должно навечно висеть в панели эффектов. */
+    if(isConc||!instant||fx.length){
+      applyFxTo(tid,{k:'spell', id:sp.id, label:sp.n, from:caster.name, casterId:caster.id, conc:isConc,
+        why:'наложено: '+caster.name+durWhy, fx});
+    } else {
+      fxInvalidate(); scheduleSave(); renderChars();
+    }
+    setStatus('⚡ «'+sp.n+'» наложено на '+t.name+healInfo+matInfo+slotInfo+'.');
+    castLogLine(caster.name+' → '+t.name+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+healInfo+matInfo+slotInfo);
     return true;
   }
   let tl = target==='enemy'?'враг':(target==='object'?'неодушевленный объект':'');
@@ -3405,10 +3612,7 @@ function isConsumableItem(it){
   return !!it && (it.type==='potion'||it.type==='scroll'||(it.tags||[]).includes('consumable'));
 }
 function deriveHeal(it){
-  const m=String(it.desc||'').replace(/\u0451/g,'е').toLowerCase()
-    .match(/восстанавлива[а-я]*\s+(\d+)\s*к\s*(\d+)(?:\s*\+\s*(\d+))?\s*хит/);
-  if(!m) return null;
-  return {cnt:+m[1], sides:+m[2], plus:+(m[3]||0)};
+  return deriveInstantHeal(it,'item',null,null);
 }
 function useConsumable(entryId){
   const c=cc(); if(!c) return;
@@ -3418,8 +3622,7 @@ function useConsumable(entryId){
   let msg='⚗ «'+it.n+'» употреблено';
   const heal=deriveHeal(it);
   if(heal){
-    const rolls=[]; for(let i=0;i<heal.cnt;i++) rolls.push(1+Math.floor(Math.random()*heal.sides));
-    const tot=rolls.reduce((a,b)=>a+b,0)+heal.plus;
+    const rolled=rollHealFormula(heal), rolls=rolled.rolls, tot=rolled.total;
     c.hp=Math.min(eHpMax(c),(+c.hp||0)+tot);
     const out=document.getElementById('diceOut');
     if(out){ out.textContent=it.n+': '+heal.cnt+'к'+heal.sides+(heal.plus?' + '+heal.plus:'')+' → +'+tot+' хитов ('+rolls.join(', ')+')'; out.style.color='var(--ok)'; }
@@ -3456,8 +3659,10 @@ function fxPanelHTML(c){
   h+='<div class="fx-panel">';
   src.forEach(s=>{
     const items=s.fx.map(f=>{
+      if(f.stat==='condition') return '<span class="fx-note">состояние: '+esc(String(f.value))+'</span>';
       if(f.mode==='text'||f.stat==='note') return '<span class="fx-note">'+esc(String(f.value))+'</span>';
-      if(f.stat==='speed') return '<span class="fx-note">скорость '+esc(String(f.value))+'</span>';
+      if(f.stat==='speed') return '<span class="fx-note">скорость '+(f.mode==='mul'?'×'+esc(String(f.value)):(f.value>0?'+':'')+esc(String(f.value))+(f.unit?' '+esc(f.unit):''))+'</span>';
+      if(f.mode==='min') return '<span class="fx-plus">'+(FX_STAT_RU[f.stat]||f.stat)+' не ниже '+esc(String(f.value))+'</span>';
       let v=f.value==='lvl'?c.level:f.value;
       const cls=v>=0?'fx-plus':'fx-minus';
       return '<span class="'+cls+'">'+(FX_STAT_RU[f.stat]||f.stat.replace('skill.','навык: '))+' '+(v>0?'+':'')+v+(f.note?' <i>('+esc(f.note)+')</i>':'')+'</span>';
@@ -4058,7 +4263,7 @@ function spellEditorHTML(){
    +'<label style="margin-top:8px">Описание</label><textarea id="edSpX">'+esc(sp.x)+'</textarea>'
    +'<label>На больших уровнях</label><textarea id="edSpHi" style="min-height:44px">'+esc(sp.hi)+'</textarea>'
    +'<label>Ярлыки</label>'+tagPicker(SPELL_TAGS, sp.tags||[], 'edSpTags')
-   +'<label>Влияние на показатели — по строке (кд +2 · хиты-макс +5 · иниц +1 · атака +1 · урон +2 · хар.мудр +1 · спас.все +1 · навык.Убеждение +1 · скорость +3 м · текст: сопротивление урону ядом). Пусто — вывести из описания автоматически.</label><textarea id="edSpFx" rows="2">'+esc(fxToLines(sp.fx))+'</textarea>'
+   +'<label>Влияние на показатели — по строке (кд +2 · кд-мин 16 · хиты-макс +5 · иниц +1 · атака +1 · урон +2 · хар.мудр +1 · спас.все +1 · навык.Убеждение +1 · скорость +3 м · скорость ×2 · состояние: Опутанный · текст: сопротивление урону ядом). Пусто — вывести из описания автоматически.</label><textarea id="edSpFx" rows="2">'+esc(fxToLines(sp.fx))+'</textarea>'
    +'<button class="btn rub" onclick="saveSpellEd()">Вписать в гримуар</button> '
    +'<button class="btn ghost" onclick="editing.sp=null;renderSpellsDB()">Отменить</button></div>';
 }
@@ -4071,14 +4276,14 @@ function saveSpellEd(){
     x:g('edSpX').value, hi:g('edSpHi').value.trim()};
   if(editing.sp){ Object.assign(spellsDB.find(x=>x.id===editing.sp), data); }
   else spellsDB.push(Object.assign({id:'sp_'+uid(), custom:true}, data));
-  editing.sp=null; scheduleSave(); renderSpellsDB(); if(activeCharId) renderChars();
+  editing.sp=null; fxInvalidate(); scheduleSave(); renderSpellsDB(); if(activeCharId) renderChars();
 }
 function delSpellDB(id){
   const sp=spellsDB.find(x=>x.id===id); if(!sp) return;
   if(!confirm('Вычеркнуть «'+sp.n+'» из гримуара мира? Оно исчезнет и из книг персонажей.')) return;
   spellsDB=spellsDB.filter(x=>x.id!==id);
   chars.forEach(c=>{ c.spellbook=(c.spellbook||[]).filter(e=>e.spellId!==id); });
-  scheduleSave(); renderSpellsDB(); if(activeCharId) renderChars();
+  fxInvalidate(); scheduleSave(); renderSpellsDB(); if(activeCharId) renderChars();
 }
 
 /* ═══════════════ БАЗА: ПРЕДМЕТЫ ═══════════════ */
@@ -4124,7 +4329,7 @@ function itemEditorHTML(){
    +'<label>Описание</label><textarea id="edItDesc">'+esc(it.desc)+'</textarea>'
    +'<label>Свойства</label><textarea id="edItProps" style="min-height:60px">'+esc(it.props)+'</textarea>'
    +'<label>Ярлыки</label>'+tagPicker(ITEM_TAGS, it.tags||[], 'edItTags')
-   +'<label>Влияние на показатели — по строке (кд +2 · хиты-макс +5 · иниц +1 · атака +1 · урон +2 · хар.мудр +1 · спас.все +1 · навык.Убеждение +1 · скорость +3 м · текст: сопротивление урону ядом). Пусто — вывести из описания автоматически.</label><textarea id="edItFx" rows="2">'+esc(fxToLines(it.fx))+'</textarea>'
+   +'<label>Влияние на показатели — по строке (кд +2 · кд-мин 16 · хиты-макс +5 · иниц +1 · атака +1 · урон +2 · хар.мудр +1 · спас.все +1 · навык.Убеждение +1 · скорость +3 м · скорость ×2 · состояние: Опутанный · текст: сопротивление урону ядом). Пусто — вывести из описания автоматически.</label><textarea id="edItFx" rows="2">'+esc(fxToLines(it.fx))+'</textarea>'
    +'<button class="btn rub" onclick="saveItemEd()">Вписать в арсенал</button> '
    +'<button class="btn ghost" onclick="editing.it=null;renderItemsDB()">Отменить</button></div>';
 }
@@ -4137,7 +4342,7 @@ function saveItemEd(){
     props:g('edItProps').value, tags:pickedTags('edItTags'), fx:parseFxLines(g('edItFx').value)};
   if(editing.it){ Object.assign(itemsDB.find(x=>x.id===editing.it), data); }
   else itemsDB.push(Object.assign({id:'it_'+uid(), custom:true}, data));
-  editing.it=null; scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
+  editing.it=null; fxInvalidate(); scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
 }
 function delItemDB(id){
   const it=itemsDB.find(x=>x.id===id); if(!it) return;
@@ -4150,7 +4355,7 @@ function delItemDB(id){
       if(!inv) delete c.equipment[s];
     });
   });
-  scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
+  fxInvalidate(); scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
 }
 
 /* ═══════════════ БАЗА: СПОСОБНОСТИ ═══════════════ */
@@ -4189,7 +4394,7 @@ function abilityEditorHTML(){
    +'</div>'
    +'<label>Описание</label><textarea id="edAbX">'+esc(ab.x)+'</textarea>'
    +'<label>Ярлыки</label>'+tagPicker(ABILITY_TAGS, ab.tags||[], 'edAbTags')
-   +'<label>Влияние на показатели — по строке (кд +2 · хиты-макс +5 · иниц +1 · атака +1 · урон +2 · хар.мудр +1 · спас.все +1 · навык.Убеждение +1 · скорость +3 м · текст: сопротивление урону ядом). Пусто — вывести из описания автоматически.</label><textarea id="edAbFx" rows="2">'+esc(fxToLines(ab.fx))+'</textarea>'
+   +'<label>Влияние на показатели — по строке (кд +2 · кд-мин 16 · хиты-макс +5 · иниц +1 · атака +1 · урон +2 · хар.мудр +1 · спас.все +1 · навык.Убеждение +1 · скорость +3 м · скорость ×2 · состояние: Опутанный · текст: сопротивление урону ядом). Пусто — вывести из описания автоматически.</label><textarea id="edAbFx" rows="2">'+esc(fxToLines(ab.fx))+'</textarea>'
    +'<button class="btn rub" onclick="saveAbilityEd()">Вписать в свод</button> '
    +'<button class="btn ghost" onclick="editing.ab=null;renderAbilitiesDB()">Отменить</button></div>';
 }
@@ -4201,14 +4406,14 @@ function saveAbilityEd(){
     uses: uv===''?null:Math.max(0,+uv||0), rest:g('edAbRest').value, x:g('edAbX').value, tags:pickedTags('edAbTags'), fx:parseFxLines(g('edAbFx').value)};
   if(editing.ab){ Object.assign(abilitiesDB.find(x=>x.id===editing.ab), data); }
   else abilitiesDB.push(Object.assign({id:'ab_'+uid(), custom:true}, data));
-  editing.ab=null; scheduleSave(); renderAbilitiesDB(); if(activeCharId) renderChars();
+  editing.ab=null; fxInvalidate(); scheduleSave(); renderAbilitiesDB(); if(activeCharId) renderChars();
 }
 function delAbilityDB(id){
   const ab=abilitiesDB.find(x=>x.id===id); if(!ab) return;
   if(!confirm('Убрать «'+ab.n+'» из свода мира? Она исчезнет и у персонажей.')) return;
   abilitiesDB=abilitiesDB.filter(x=>x.id!==id);
   chars.forEach(c=>{ c.abilities=(c.abilities||[]).filter(e=>e.abilityId!==id); });
-  scheduleSave(); renderAbilitiesDB(); if(activeCharId) renderChars();
+  fxInvalidate(); scheduleSave(); renderAbilitiesDB(); if(activeCharId) renderChars();
 }
 
 /* ═══════════════ ПЕРСОНАЖИ: СПИСОК И ШАПКА ЛИСТА ═══════════════ */
@@ -4243,7 +4448,11 @@ function acAuto(c){
   return base+shield;
 }
 function acBase(c){ return c.acOverride!=null? c.acOverride : acAuto(c); }
-function acTotal(c){ return acBase(c)+((typeof fxSum==='function')?fxSum(c,'ac'):0); }
+function acTotal(c){
+  const total=acBase(c)+((typeof fxSum==='function')?fxSum(c,'ac'):0);
+  const floor=typeof fxMin==='function'?fxMin(c,'ac'):null;
+  return floor==null?total:Math.max(total,floor);
+}
 function setAcOverride(v){ const c=cc(); if(!c) return; const s=String(v).trim(); c.acOverride=(s===''?null:Math.max(0,parseInt(s,10)||0)); scheduleSave(); renderChars(); }
 function initTotal(c){ return eMod(c,'dex')+(+c.initB||0)+fxSum(c,'init'); }
 function setInitB(v){ const c=cc(); if(!c) return; c.initB=parseInt(v,10)||0; scheduleSave(); renderChars(); }
@@ -4383,7 +4592,7 @@ function updNum(key,val){ const c=cc(); if(!c) return; c[key]=+val||0; scheduleS
 function setRace(v){ const c=cc(); if(!c) return; c.race=v; c.subrace='';
   const r=racesDB.find(x=>x.n===v); if(r&&r.sp) c.speed=r.sp;
   scheduleSave(); renderChars(); }
-function setLevel(v){ const c=cc(); if(!c) return; c.level=Math.max(1,Math.min(20,+v||1)); scheduleSave(); renderChars(); }
+function setLevel(v){ const c=cc(); if(!c) return; c.level=Math.max(1,Math.min(20,+v||1)); fxInvalidate(); scheduleSave(); renderChars(); }
 function setXp(v){ const c=cc(); if(!c) return; c.xp=Math.max(0,+v||0); scheduleSave(); renderChars(); }
 function hpDelta(d){ const c=cc(); if(!c) return;
   const rawDmg=d<0?-d:0;
@@ -4400,6 +4609,7 @@ function levelDown(){
   if(!confirm('Откатить '+c.name+' на уровень назад ('+c.level+' → '+(c.level-1)+')? Авто-добавленные заклинания недоступных кругов уйдут из книги, ячейки пересчитаются.')) return;
   const oldLvl=c.level;
   c.level--;
+  fxInvalidate();
   c.xp=Math.min(c.xp, XP_TABLE[c.level+1]-1);
   if(typeof autoLevelSpells==='function'){
     const r=autoLevelSpells(c, oldLvl);
@@ -4413,6 +4623,7 @@ function levelUp(){
   const c=cc(); if(!c||c.level>=20) return;
   const oldLvl=c.level;
   c.level++;
+  fxInvalidate();
   classOf(c).lv.filter(x=>x[0]===c.level).forEach(x=>{
     const fn=x[1];
     let db=abilitiesDB.find(a=>a.type==='class'&&a.source===c.cls&&a.n===fn);
@@ -4480,7 +4691,8 @@ function sheetHTML(c){
    +'<div class="cb-sub">авто '+acAuto(c)+' · <input class="ovr" type="text" placeholder="свой" value="'+(c.acOverride!=null?c.acOverride:'')+'" onchange="setAcOverride(this.value)"></div></div>'
    +'<div class="cbox"><div class="cl">⚡ Инициатива</div><button class="cv roll" title="Бросить инициативу" onclick="rollCheck(\'Инициатива\','+initTotal(c)+')">⚁ '+fmtMod(initTotal(c))+'</button>'
    +'<div class="cb-sub">Лов '+fmtMod(mod(c.ab.dex))+' · доп. <input class="ovr" type="number" value="'+(+c.initB||0)+'" onchange="setInitB(this.value)"></div></div>'
-   +'<div class="cbox"><div class="cl">Скорость</div><input type="text" value="'+esc(c.speed)+'" onchange="updC(\'speed\',this.value)"></div>'
+   +'<div class="cbox"><div class="cl">Скорость</div><input type="text" value="'+esc(c.speed)+'" onchange="updC(\'speed\',this.value)">'
+   +(effectiveSpeed(c)!==String(c.speed||'')?'<div class="fx-line '+speedFxClass(c)+'">✦ с эффектами: '+esc(effectiveSpeed(c))+'</div>':'')+'</div>'
    +'<div class="cbox"><div class="cl">✦ Бонус мастерства</div><div class="cv">'+fmtMod(prof)+'</div></div>'
    +'<div class="cbox"><div class="cl">Кости хитов · к'+(classOf(c).hd||8)+'</div><div class="cv">'+(c.level-(+c.hdUsed||0))+' / '+c.level+'</div>'
    +'<div class="cb-sub"><button class="mini-btn" title="Потратить кость: лечит бросок + Тел" onclick="spendHitDie()">⚁ потратить</button><button class="mini-btn" onclick="returnHitDie()">+</button></div></div>'
