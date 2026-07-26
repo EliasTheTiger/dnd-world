@@ -635,6 +635,14 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 </div>
 
 <!-- ввод результатов реальных бросков -->
+<div id="showBack" class="cast-back" style="display:none;z-index:72" onclick="if(event.target===this)this.style.display='none'">
+  <div class="cast-modal">
+    <h3 id="showTitle" style="margin:0 0 6px">Записи</h3>
+    <div id="showBody" style="white-space:pre-wrap;font-size:15px;max-height:56vh;overflow:auto;padding:6px 2px"></div>
+    <p class="note-ital" id="showNote" style="font-size:13px"></p>
+    <div class="cast-actions"><button class="btn rub" onclick="document.getElementById('showBack').style.display='none'">Закрыть</button></div>
+  </div>
+</div>
 <div id="rollBack" class="cast-back" style="display:none;z-index:70" onclick="if(event.target===this)rollCancel()">
   <div class="cast-modal">
     <h3 id="rollTitle" style="margin:0 0 6px">⚂ Результаты бросков</h3>
@@ -2541,6 +2549,13 @@ function cycleAdv(){
 }
 /* ═══ Реальные кости бросают игроки: сайт спрашивает результаты и считает ═══ */
 let rollSpec=null;
+function askShow(o){
+  const b=document.getElementById('showBack'); if(!b){ alert(o.body||''); return; }
+  document.getElementById('showTitle').textContent=o.title||'Записи';
+  document.getElementById('showBody').textContent=o.body||'';
+  document.getElementById('showNote').textContent=o.note||'';
+  b.style.display='flex';
+}
 function askRolls(spec){
   /* скриптовый канал: window.__autoRolls=[...] подставляет значения без окна */
   if(Array.isArray(window.__autoRolls)&&window.__autoRolls.length>=spec.rows.length){
@@ -4443,6 +4458,7 @@ function applyRollsToTarget(targetVal, rolls, srcLabel){
 /* ═══ Шаг «Формула» в окне применения ═══ */
 function castRollRec(){
   if(!castCtx) return null;
+  if(castCtx.kind==='weapon'){ const w=itemOf(castCtx.itemId); return w?{n:w.n, x:'', hi:'', l:0}:null; }
   if(castCtx.kind==='item'){
     const it=itemOf(castCtx.itemId);
     return it?{n:it.n, x:(it.desc||'')+'\n'+(it.props||''), hi:'', l:0}:null;
@@ -4473,12 +4489,14 @@ function castFormulaShow(){
   if(!castCtx) return false;
   const rec=castRollRec(), caster=getCh(castCtx.casterId);
   if(!rec||!caster) return false;
-  const isSpell=(castCtx.kind!=='ability'&&castCtx.kind!=='item');
+  const isSpell=(castCtx.kind!=='ability'&&castCtx.kind!=='item'&&castCtx.kind!=='weapon');
   const lv=(isSpell&&castCtx.slotSel&&!isNaN(parseInt(castCtx.slotSel,10)))?parseInt(castCtx.slotSel,10):(+rec.l||0);
   const ti=targetInfoOf(castCtx.target);
   const pool=(castCtx.kind==='ability')?abilityPoolOf(caster, rec):null;
   const weapon=(!isSpell&&castCtx.weapon)?castCtx.weapon:null;
-  const spec=rollSpecOf(rec,{caster, kind:castCtx.kind==='item'?'item':(isSpell?'spell':'ability'), slotLvl:lv, target:ti, weapon, pool});
+  const spec=castCtx.kind==='weapon'
+    ? weaponSpecOf(caster, itemOf(castCtx.itemId), ti, {two:castCtx.two})
+    : rollSpecOf(rec,{caster, kind:castCtx.kind==='item'?'item':(isSpell?'spell':'ability'), slotLvl:lv, target:ti, weapon, pool});
   if(!spec.rows.length) return false;
   castCtx.spec=spec; castCtx.formulaLvl=lv; castCtx.hitOverride='';
   let h='<div class="cast-info" style="border:none;padding:0">Формула'+(isSpell&&lv>(+rec.l||0)?' (усилено ячейкой '+lv+' круга)':'')
@@ -4550,6 +4568,10 @@ function castFormulaConfirm(){
     saveOk:res.saveOk, contestWin:res.contestWin};
   const resR=spec.rows.find(r=>r.type==='res');
   if(resR&&v.res!=null&&spec.meta.pool) rolls.poolSpend=spec.meta.pool.ab.id;
+  if(castCtx.kind==='weapon'){
+    if(weaponAttackApply(castCtx.entryId, castCtx.casterId, castCtx.target, rolls)) closeCastModal();
+    return;
+  }
   if(castCtx.kind==='item'){
     if(useItemApply(castCtx.entryId, castCtx.casterId, castCtx.target, rolls)) closeCastModal();
     return;
@@ -4650,6 +4672,12 @@ function castShowErr(msg){
 }
 function castConfirm(){
   if(!castCtx) return;
+  if(castCtx.kind==='weapon'){
+    castCtx.target=document.getElementById('castTarget').value;
+    const th=document.getElementById('castTwoHand'); castCtx.two=!!(th&&th.checked);
+    if(castFormulaShow()) return;
+    return;
+  }
   if(castCtx.kind==='item'){
     castCtx.target=document.getElementById('castTarget').value;
     const caster=getCh(castCtx.casterId);
@@ -5137,6 +5165,500 @@ function applyTempHp(targetVal, amount){
   const was=+ti.obj.hpTemp||0;
   ti.obj.hpTemp=Math.max(was, amount);
   return {name:ti.name, temp:ti.obj.hpTemp, replaced:amount>was, was};
+}
+/* ═══════════════ РАЗБОР ПРЕДМЕТА: чем он является и что с ним делать ═══════════════
+   Ярлыки в базе местами неточны (карта помечена едой, набор инструментов — боеприпасом),
+   поэтому вид предмета определяется по совокупности: тип, имя, описание, свойства, ярлыки. */
+const TOOL_KIT={
+  'воровск':      {sk:'Ловкость',   prof:'Воровские инструменты', what:'взлом замков и обезвреживание ловушек', dc:'обычный замок — СЛ 15'},
+  'ремесленник':  {sk:'Интеллект',  prof:'Инструменты ремесленника', what:'работа по ремеслу'},
+  'целител':      {sk:'Мудрость',   prof:'Набор целителя', what:'уход за ранеными', kit:10},
+  'маскировк':    {sk:'Харизма',    prof:'Набор для маскировки', what:'изменение облика'},
+  'подзорн':      {sk:'Мудрость',   prof:'', what:'разглядеть далекое', adv:true},
+  'зеркальц':     {sk:'Мудрость',   prof:'', what:'заглянуть за угол или подать знак'},
+  'весы':         {sk:'Интеллект',  prof:'', what:'оценка веса и подлинности'},
+  'ломик':        {sk:'Сила',       prof:'', what:'вскрыть, поддеть, отжать', adv:true},
+  'крюк':         {sk:'Сила',       prof:'', what:'зацепиться и подняться', adv:true},
+  'веревочная лестница':{sk:'Сила', prof:'', what:'подъем без проверки', auto:true},
+  'кандал':       {sk:'Ловкость',   prof:'', what:'вырваться из оков', dc:'СЛ 20 — вырваться, СЛ 15 — взломать'},
+  'игральные карт':{sk:'Харизма',   prof:'Игральный набор', what:'игра и отвлечение внимания'},
+  'лопат':        {sk:'Сила',       prof:'', what:'копать'},
+  'молоток':      {sk:'Сила',       prof:'', what:'вбить питон, сколотить'},
+  'питон':        {sk:'Сила',       prof:'', what:'закрепить веревку'},
+  'цепь':         {sk:'Сила',       prof:'', what:'сковать или закрепить'},
+  'песочные часы':{sk:'',           prof:'', what:'отмерить время'},
+  'кадильниц':    {sk:'Мудрость',   prof:'', what:'обряд'}
+};
+function itemToolKit(it){
+  const n=String(it.n||'').toLowerCase();
+  for(const k in TOOL_KIT) if(n.indexOf(k)>=0) return Object.assign({key:k}, TOOL_KIT[k]);
+  return null;
+}
+function itemProfile(it){
+  if(!it) return {kind:'misc'};
+  const n=String(it.n||'').toLowerCase();
+  const txt=fxTextOf(it).toLowerCase();
+  const tg=it.tags||[];
+  const has=t=>tg.indexOf(t)>=0;
+  const p={kind:'misc', flags:{}, weapon:null, armor:null, tool:null, light:null,
+           container:null, value:null, ammo:null, lore:null, food:null, camp:null, poison:null};
+
+  /* ── оружие ── */
+  if(it.type==='weapon'){
+    p.kind='weapon';
+    const props=String(it.props||'').toLowerCase();
+    const vm=normRollTxt(props+' '+txt).match(/универсальн[а-я]*\s*\((\d*)d(\d+)\)/);
+    p.weapon={
+      ranged:has('ranged')||/дальнобойн/.test(props),
+      thrown:has('thrown')||/метательн/.test(props),
+      ammo:has('ammunition')||/боеприпас/.test(props),
+      loading:has('loading')||/перезарядк/.test(props),
+      reach:has('reach')||/досягаемост/.test(props),
+      finesse:has('finesse')||/фехтовальн/.test(props),
+      light:has('light')||/\bлегкое\b/.test(props),
+      heavy:has('heavy')||/тяжелое/.test(props),
+      two:has('twohanded')||/двуручн/.test(props),
+      versatile:vm?{cnt:+vm[1]||1, sides:+vm[2]}:null,
+      magic:has('magical')||/магическ/.test(txt),
+      range:(props.match(/\(([\d,\s]+\/[\d,\s]+\s*(?:м|футов))\)/)||[])[1]||'',
+      special:/особое/.test(props)?((props.match(/особое\s*\(([^)]+)\)/)||[])[1]||'особое свойство'):''
+    };
+    return p;
+  }
+  /* ── доспехи и щиты ── */
+  if(it.type==='armor'){
+    p.kind=has('shield')?'shield':'armor';
+    const sm=txt.match(/сил[аы]\s*(\d+)/);
+    p.armor={ac:it.ac||'', stealthDis:has('stealthdis')||/помеха на скрытност/.test(txt),
+      strReq:sm?+sm[1]:(has('strreq')?13:0),
+      weight:has('heavyarmor')?'тяжелый':(has('mediumarmor')?'средний':(has('lightarmor')?'легкий':'')),
+      don:has('heavyarmor')?'10 минут':(has('mediumarmor')?'5 минут':(has('lightarmor')?'1 минута':'1 действие'))};
+    return p;
+  }
+  /* ── боеприпасы ── */
+  if((has('ammunition')&&/стрел|болт|пул[ия]|шарик|игл/.test(n))||/^стрелы|^арбалетные болты|^пули/.test(n)){
+    p.kind='ammo';
+    const qm=n.match(/\((\d+)\)/);
+    p.ammo={pack:qm?+qm[1]:20, forWeapon:/стрел/.test(n)?'лук':(/болт/.test(n)?'арбалет':(/пул/.test(n)?'праща':''))};
+    return p;
+  }
+  /* ── зелья и снадобья ── */
+  if(it.type==='potion'||/зель|противояд|эликсир|снадоб/.test(n)){ p.kind='potion'; return p; }
+  /* ── источники света ── */
+  if(has('lightsrc')&&/факел|фонарь|свеч|лампа/.test(n)){
+    p.kind='light';
+    const bright=(txt.match(/яркий свет[^\d]{0,12}(\d+)/)||[])[1];
+    const dim=(txt.match(/тускл[а-я]*\s*(?:свет)?[^\d]{0,14}(\d+)/)||[])[1];
+    const hrs=(txt.match(/(\d+)\s*час/)||[])[1];
+    p.light={bright:+bright||(/свеч/.test(n)?1.5:6), dim:+dim||(/свеч/.test(n)?1.5:6),
+      hours:+hrs||(/факел/.test(n)?1:(/свеч/.test(n)?1:6)),
+      fuel:/фонарь|лампа/.test(n)?'масло':'', consumed:/факел|свеч/.test(n)};
+    return p;
+  }
+  if(/трутниц|огнив/.test(n)){ p.kind='firestarter'; return p; }
+  /* ── особые случаи, которые ярлыки размечают неверно ── */
+  if(/масло/.test(n)){ p.kind='oil'; return p; }
+  if(/шарик|чеснок/.test(n)){ p.kind='trap'; return p; }
+  if(/игральная кость/.test(n)){ p.kind='gamble'; return p; }
+  if(/благовони/.test(n)){ p.kind='ritual'; return p; }
+  if(/чернил|перо\s|перо$|бумага|пергамент/.test(n)){ p.kind='writing'; return p; }
+  /* ── яды ── */
+  if(has('poison')&&!has('tool')){ p.kind='poison'; return p; }
+  /* ── инструменты и наборы ── */
+  const kit=itemToolKit(it);
+  if(kit&&(has('tool')||/набор|инструмент/.test(n))){ p.kind='tool'; p.tool=kit; return p; }
+  if(has('instrument')){ p.kind='instrument'; return p; }
+  /* ── записи: книги, карты, письма, свитки ── */
+  if(has('book')||has('map')||has('scroll')||/книга|карт[аы]\s|письмо|свиток|записк|родословн|дневник/.test(n)){
+    p.kind='lore';
+    p.lore={map:has('map')||/карт/.test(n), quest:has('quest')};
+    return p;
+  }
+  /* ── ценности ── */
+  if((has('jewelry')||has('gem')||has('valuable'))&&!has('focus')&&!has('shield')){
+    p.kind='valuable';
+    p.value={gp:itemGoldValue(it)};
+    return p;
+  }
+  /* ── еда и питье ── */
+  if(has('food')||/рацион|провиз|паек/.test(n)){ p.kind='food'; p.food={days:1}; return p; }
+  if(/бурдюк|фляг(?!а\s+масл)/.test(n)){ p.kind='water'; return p; }
+  /* ── лагерь ── */
+  if(/спальник|постельн|палатк/.test(n)){ p.kind='camp'; p.camp={rest:true}; return p; }
+  if(/веревка|канат/.test(n)){ p.kind='rope'; return p; }
+  /* ── контейнеры ── */
+  if(has('container')){
+    p.kind='container';
+    const cm=txt.match(/вмеща[а-я]*[^\d]{0,20}(\d+)\s*(кг|фунт|литр|пинт)/);
+    p.container={cap:cm?cm[1]+' '+cm[2]:''};
+    return p;
+  }
+  /* ── фокусировки ── */
+  if(has('focus')||has('holy')||/священн[а-я]*\s+символ|фокусировк/.test(n)){ p.kind='focus'; return p; }
+  /* ── магическое с зарядами или настройкой ── */
+  const isp=itemSpec(it);
+  if(isp.charges||isp.attune||has('magical')||has('wondrous')||it.type==='ring'||it.type==='wondrous'){ p.kind='magic'; return p; }
+  if(has('consumable')) { p.kind='potion'; return p; }
+  return p;
+}
+const ITEM_KIND_RU={weapon:'оружие', armor:'доспех', shield:'щит', ammo:'боеприпасы', potion:'снадобье',
+  light:'источник света', firestarter:'средство добыть огонь', poison:'яд', tool:'инструмент',
+  instrument:'музыкальный инструмент', lore:'записи', valuable:'ценность', food:'припасы', water:'сосуд для питья',
+  camp:'лагерное снаряжение', rope:'веревка', container:'вместилище', focus:'магическая фокусировка',
+  magic:'магический предмет', oil:'горючее масло', trap:'рассыпная помеха', gamble:'игральный набор',
+  ritual:'обрядовый расходник', writing:'письменные принадлежности', misc:'снаряжение'};
+/* ═══════════════ ДЕЙСТВИЯ ПРЕДМЕТА: у каждого вида свои ═══════════════ */
+function invEntryOf(c,id){ return (c.inventory||[]).find(x=>x.id===id)||null; }
+function itemLog(c,txt){ setStatus(txt+'.'); castLogLine(txt); }
+function itemSpendOne(c,e,it){
+  e.qty=(e.qty||1)-1;
+  if(e.qty<=0){
+    Object.keys(c.equipment||{}).forEach(k=>{ if(c.equipment[k]===e.id) delete c.equipment[k]; });
+    c.inventory=c.inventory.filter(x=>x.id!==e.id);
+    return ' · запас исчерпан';
+  }
+  return ' · осталось '+e.qty+' шт.';
+}
+/* ── оружие: атака через общее окно ── */
+function weaponAttackFx(entryId, casterId, mode){
+  const caster=getCh(casterId||activeCharId); if(!caster) return;
+  const e=invEntryOf(caster,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const back=document.getElementById('castBack'); if(!back) return;
+  const pr=itemProfile(it);
+  castCtx={kind:'weapon', entryId, itemId:it.id, casterId:caster.id, target:'enemy', mode:mode||'melee', two:false};
+  document.getElementById('castTitle').textContent=(mode==='throw'?'🎯 Метнуть: ':'⚔ Атака: ')+it.n;
+  const w=pr.weapon||{};
+  const bits=[normRollTxt(it.dmg||'—')+(it.dmgType?' '+it.dmgType:'')];
+  if(w.range) bits.push('дистанция '+w.range);
+  if(w.versatile) bits.push('универсальное: двумя руками '+w.versatile.cnt+'d'+w.versatile.sides);
+  if(w.ammo) bits.push('требует боеприпасов');
+  if(w.loading) bits.push('перезарядка: одна атака за действие');
+  if(w.reach) bits.push('досягаемость');
+  if(w.special) bits.push('особое: '+w.special);
+  document.getElementById('castInfo').innerHTML=esc(bits.join(' · '))
+    +(w.versatile?'<div style="margin-top:6px"><label style="font-size:13.5px"><input type="checkbox" id="castTwoHand" onchange="castCtx.two=this.checked"> держать двумя руками ('+w.versatile.cnt+'d'+w.versatile.sides+')</label></div>':'');
+  document.getElementById('castTarget').innerHTML=targetOptionsHTML(caster,'enemy');
+  ['castSlotWrap','castWeaponWrap','castMultiWrap','castItemWrap'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  document.getElementById('castStep1').style.display='block';
+  document.getElementById('castStep2').style.display='none';
+  document.getElementById('castStep3').style.display='none';
+  const er=document.getElementById('castErr'); er.style.display='none'; er.textContent='';
+  back.style.display='flex';
+}
+function weaponSpecOf(caster, it, ti, opts){
+  opts=opts||{};
+  const pr=itemProfile(it), w=pr.weapon||{};
+  const tags=it.tags||[];
+  const useDex=w.ranged||(w.finesse&&eMod(caster,'dex')>=eMod(caster,'str'));
+  const abm=useDex?eMod(caster,'dex'):eMod(caster,'str');
+  const hasProf=(typeof weaponProfHas==='function')?weaponProfHas(caster,it):true;
+  const atk=abm+(hasProf?PROF[caster.level]:0)+fxSum(caster,'atk');
+  const dm=normRollTxt(it.dmg||'').match(/(\d*)d(\d+)(?:\s*\+\s*(\d+))?/);
+  let cnt=dm?(+dm[1]||1):0, sides=dm?+dm[2]:0, flat=dm?(+dm[3]||0):0;
+  if(opts.two&&w.versatile){ cnt=w.versatile.cnt; sides=w.versatile.sides; }
+  const rows=[], meta={target:ti, kind:'weapon', dmgType:dmgTypeCanon(it.dmgType), half:false, dc:0, weapon:it.n};
+  const atkFx=rollFxEntries(caster,'attack');
+  const aA=atkFx.some(f=>f.mode==='adv'), aD=atkFx.some(f=>f.mode==='dis');
+  rows.push({key:'atk', type:'atk', side:'caster', natural:true, mod:atk, adv:(aA===aD)?0:(aA?1:2),
+    label:'Бросок атаки: d20', hint:'+ '+atk+' ('+(hasProf?'мастерство + ':'без владения, только ')+(useDex?'Ловкость':'Сила')+')'
+      +(ti.known&&ti.ac!=null?' · КД цели '+ti.ac:' · КД цели определяет мастер')});
+  atkFx.filter(f=>f.mode==='die').forEach((f,i)=>{
+    const d=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!d) return;
+    rows.push({key:'wfx'+i, type:'other', side:'caster', cnt:Math.max(1,+d[2]||1), sides:+d[3], mod:0,
+      label:f.label+': '+(d[1]?'-':'')+Math.max(1,+d[2]||1)+'d'+d[3], hint:'кость действующего эффекта — прибавьте к атаке'});
+  });
+  if(sides) rows.push({key:'dmg', type:'dmg', side:'caster', cnt, sides, mod:abm+flat+fxSum(caster,'dmg'),
+    modLabel:'характеристика'+(flat?' и свойство оружия':''), dmgType:dmgTypeCanon(it.dmgType),
+    label:'Урон: сумма '+cnt+'d'+sides, hint:'от '+cnt+' до '+(cnt*sides)+' · + '+(abm+flat+fxSum(caster,'dmg'))+' · при критическом ударе кости бросаются дважды'});
+  else rows.push({key:'dmg', type:'dmg', side:'caster', cnt:0, sides:0, mod:abm,
+    label:'Урон: впишите итог', hint:'у оружия не указана кость урона'});
+  rows.push({key:'extra', type:'extra', side:'caster', mod:0, label:'Прочий бросок (по решению мастера)', hint:'необязательно'});
+  return {rows, meta};
+}
+/* поиск подходящего боеприпаса */
+function ammoEntryFor(c, it){
+  const pr=itemProfile(it); if(!pr.weapon||!pr.weapon.ammo) return null;
+  const n=String(it.n||'').toLowerCase();
+  const want=/арбалет/.test(n)?'болт':(/лук/.test(n)?'стрел':(/праща/.test(n)?'пул':(/трубк/.test(n)?'игл':'')));
+  return (c.inventory||[]).map(e=>({e, it:itemOf(e.itemId)}))
+    .filter(o=>o.it&&itemProfile(o.it).kind==='ammo'&&(!want||String(o.it.n).toLowerCase().indexOf(want)>=0))
+    .map(o=>o.e)[0]||null;
+}
+function weaponAttackApply(entryId, casterId, target, rolls){
+  const caster=getCh(casterId); if(!caster) return false;
+  const e=invEntryOf(caster,entryId); if(!e) return false;
+  const it=itemOf(e.itemId); if(!it) return false;
+  const pr=itemProfile(it);
+  let cost='';
+  if(pr.weapon&&pr.weapon.ammo){
+    const a=ammoEntryFor(caster,it);
+    if(!a){ const r='Нет подходящих боеприпасов для «'+it.n+'» — выстрел невозможен.'; setStatus('✕ '+r,true); castShowErr&&castShowErr(r); return false; }
+    const ai=itemOf(a.itemId);
+    a.qty=(a.qty||1)-1;
+    caster.ammoSpent=(+caster.ammoSpent||0)+1;
+    cost=' · '+ai.n+' −1 (осталось '+Math.max(0,a.qty)+')';
+    if(a.qty<=0) caster.inventory=caster.inventory.filter(x=>x.id!==a.id);
+  }
+  if(pr.weapon&&pr.weapon.thrown&&castCtx&&castCtx.mode==='throw'){
+    cost+=itemSpendOne(caster,e,it).replace('запас исчерпан','оружие брошено и лежит у цели');
+  }
+  const info=applyRollsToTarget(target, rolls, '⚔ '+it.n);
+  const tl=targetInfoOf(target).name||'цель';
+  fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
+  itemLog(caster,'⚔ '+caster.name+' → '+tl+': '+it.n+cost+info);
+  if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
+  return true;
+}
+function ammoRecover(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const spent=+c.ammoSpent||0;
+  if(spent<=0){ setStatus('Собирать нечего — после боя не истрачено ни одного боеприпаса.'); return; }
+  const back=Math.floor(spent/2);
+  e.qty=(e.qty||0)+back; c.ammoSpent=0;
+  scheduleSave(); renderChars();
+  itemLog(c,'↺ '+c.name+': после боя собрано '+back+' из '+spent+' боеприпасов («'+it.n+'» → '+e.qty+')');
+}
+/* ── источники света ── */
+function writingUse(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const bag=(c.inventory||[]).map(x=>({x,t:itemOf(x.itemId)})).filter(o=>o.t);
+  const hasInk=bag.some(o=>/чернил/.test(o.t.n.toLowerCase()));
+  const hasPen=bag.some(o=>/перо/.test(o.t.n.toLowerCase()));
+  const sheet=bag.filter(o=>/бумага|пергамент/.test(o.t.n.toLowerCase()))[0];
+  const book=bag.filter(o=>/книга заклинаний/.test(o.t.n.toLowerCase()))[0];
+  const miss=[]; if(!hasInk) miss.push('чернила'); if(!hasPen) miss.push('перо');
+  if(miss.length){ setStatus('✕ Не хватает: '+miss.join(', ')+' — писать нечем.', true); return; }
+  if(book&&window.confirm('Переписать заклинание в книгу заклинаний?\n\nПо правилам это 2 часа и 50 зм за круг заклинания.\nОК — переписываем, Отмена — просто сделать запись.')){
+    itemLog(c,'✒ '+c.name+' переписывает заклинание в «'+book.t.n+'» (2 часа и 50 зм за круг по правилам)');
+    return;
+  }
+  let rest='';
+  if(sheet) rest=itemSpendOne(c,sheet.x,sheet.t).replace('запас исчерпан','лист израсходован');
+  scheduleSave(); renderChars();
+  itemLog(c,'✒ '+c.name+' делает запись пером и чернилами'+rest);
+}
+function fireStart(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  /* если есть чему гореть — зажигаем это, иначе разводим костер */
+  const target=(c.inventory||[]).map(x=>({x, t:itemOf(x.itemId)}))
+    .filter(o=>o.t&&itemProfile(o.t).kind==='light'&&!(c.activeFx||[]).some(a=>a.k==='light'&&a.id===o.t.id))[0];
+  if(target){ lightToggle(target.x.id); return; }
+  const camp=(c.activeFx||[]).find(a=>a.k==='light'&&a.id==='campfire');
+  if(camp){ removeActiveFx(c.id, camp.uid); itemLog(c,'💨 '+c.name+' тушит костер'); return; }
+  c.activeFx=c.activeFx||[];
+  c.activeFx.push({k:'light', id:'campfire', uid:fxUid(), label:'Костер', from:c.name, casterId:c.id,
+    appliedRound:fxRound, stackKey:'light:campfire', power:6,
+    durationKind:'rounds', expiresAtRound:fxRound+600, durationLabel:'1 час',
+    why:'разведен трутницей · яркий свет 6 м, тусклый еще 6 м',
+    fx:[{stat:'note', mode:'text', value:'костер: яркий свет 6 м, тусклый еще 6 м; тепло и горячая пища'}]});
+  fxInvalidate(); scheduleSave(); renderChars();
+  itemLog(c,'🔥 '+c.name+' высекает огонь («'+it.n+'») и разводит костер');
+}
+function lightToggle(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const pr=itemProfile(it), L=pr.light||{bright:6,dim:6,hours:1,consumed:true};
+  const lit=(c.activeFx||[]).find(a=>a.k==='light'&&a.id===it.id);
+  if(lit){ removeActiveFx(c.id, lit.uid); itemLog(c,'💨 '+c.name+' гасит: '+it.n); return; }
+  const fire=(c.inventory||[]).some(x=>{ const t=itemOf(x.itemId); return t&&itemProfile(t).kind==='firestarter'; })
+    ||(c.activeFx||[]).some(a=>a.k==='light');
+  if(!fire&&!window.confirm('Ни трутницы, ни огнива в инвентаре нет, и рядом нет открытого огня.\n\nОК — мастер разрешает зажечь.')) return;
+  const entry={k:'light', id:it.id, label:it.n+' (горит)', from:c.name, casterId:c.id, appliedRound:fxRound,
+    stackKey:'light:'+it.id, power:L.bright,
+    why:'горит · яркий свет '+L.bright+' м, тусклый еще '+L.dim+' м',
+    fx:[{stat:'note', mode:'text', value:'источник света: яркий '+L.bright+' м, тусклый еще '+L.dim+' м'}]};
+  entry.durationKind='rounds';
+  entry.expiresAtRound=fxRound+Math.max(1,Math.round(L.hours*600));
+  entry.durationLabel=L.hours+(L.hours===1?' час':' часов');
+  c.activeFx=c.activeFx||[]; c.activeFx.push(Object.assign({uid:fxUid()},entry));
+  if(L.consumed) itemSpendOne(c,e,it);
+  fxInvalidate(); scheduleSave(); renderChars();
+  itemLog(c,'🔥 '+c.name+' зажигает: '+it.n+' (яркий свет '+L.bright+' м, хватит на '+entry.durationLabel+')');
+}
+/* ── инструменты ── */
+function toolCheck(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const t=itemProfile(it).tool||{sk:'Ловкость', what:'работа инструментом', prof:''};
+  const abKey={'Сила':'str','Ловкость':'dex','Телосложение':'con','Интеллект':'int','Мудрость':'wis','Харизма':'cha'}[t.sk]||'dex';
+  const profTexts=(typeof profTextsOf==='function')?profTextsOf(c).join(' ').toLowerCase():'';
+  const owns=t.prof?profTexts.indexOf(String(t.prof).toLowerCase().slice(0,10))>=0:false;
+  const m=eMod(c,abKey)+(owns?PROF[c.level]:0);
+  const adv=t.adv?1:0;
+  const rows=adv?[{key:'a',label:'d20 — первый',sub:'преимущество от инструмента',min:1,max:20},{key:'b',label:'d20 — второй',min:1,max:20}]
+                :[{key:'a',label:'d20',min:1,max:20}];
+  askRolls({title:'🛠 '+it.n+' — '+(t.what||'проверка'),
+    note:t.sk+' '+fmtMod(eMod(c,abKey))+(owns?' + мастерство '+PROF[c.level]+' (владение: '+t.prof+')':(t.prof?' · владения инструментом нет':''))
+      +(t.dc?' · '+t.dc:'')+(adv?' · преимущество: инструмент облегчает дело':''),
+    rows,
+    compute:v=>{ const r=adv?Math.max(v.a,v.b):v.a; return 'Итог: d20 '+r+' '+fmtMod(m)+' = '+(r+m); },
+    apply:v=>{ const r=adv?Math.max(v.a,v.b):v.a;
+      diceOutSet(it.n+': d20 '+r+' '+fmtMod(m)+' = '+(r+m), r===20?'var(--ok)':(r===1?'var(--rubric)':'var(--ink)'));
+      itemLog(c,'🛠 '+c.name+': '+it.n+' — '+(t.what||'проверка')+', итог '+(r+m)); }});
+}
+function healerKitStabilize(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const ch=e.kit==null?(e.kit=10):e.kit;
+  if(ch<=0){ setStatus('✕ Набор целителя израсходован.',true); return; }
+  const names=chars.filter(x=>(+x.hp||0)<=0).map(x=>x.name);
+  e.kit=ch-1;
+  scheduleSave(); renderChars();
+  itemLog(c,'✚ '+c.name+' использует набор целителя: умирающий стабилизирован без проверки (осталось применений: '+e.kit+')'
+    +(names.length?' · без сознания сейчас: '+names.join(', '):''));
+}
+/* ── записи: прочитать ── */
+function loreRead(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  e.read=true;
+  const body=String(it.desc||'')+(it.props?'\n\n'+it.props:'');
+  askShow({title:'📖 '+it.n, body:body||'Записи ничего не сообщают.',
+    note:'Прочитано героем '+c.name+' — отмечено в летописи.'});
+  scheduleSave(); renderChars();
+  itemLog(c,'📖 '+c.name+' изучает: '+it.n);
+}
+/* ── ценности: продать ── */
+function valuableSell(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const guess=itemGoldValue(it)||0;
+  const raw=window.prompt('💰 За сколько золотых продан «'+it.n+'»?\n(в инвентаре '+(e.qty||1)+' шт. — продается одна)', String(guess||10));
+  if(raw==null) return;
+  const gp=Math.max(0,parseInt(raw,10)||0);
+  c.coins=c.coins||{mm:0,sm:0,em:0,zm:0,pm:0};
+  c.coins.zm=(+c.coins.zm||0)+gp;
+  const rest=itemSpendOne(c,e,it);
+  fxInvalidate(); scheduleSave(); renderChars();
+  itemLog(c,'💰 '+c.name+' продает «'+it.n+'» за '+gp+' зм'+rest);
+}
+/* ── припасы ── */
+function foodEat(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  c.fedUntil=(+c.fedUntil||0);
+  c.fedDays=(+c.fedDays||0)+1;
+  const rest=itemSpendOne(c,e,it);
+  scheduleSave(); renderChars();
+  itemLog(c,'🍖 '+c.name+' съедает: '+it.n+' — дневная норма закрыта'+rest);
+}
+/* ── лагерь и веревка ── */
+function campSet(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  if(!window.confirm('⛺ Разбить лагерь и провести долгий отдых?\n\nХиты и ячейки восстановятся, заряды предметов тоже.')) return;
+  itemLog(c,'⛺ '+c.name+' разбивает лагерь: '+it.n);
+  longRest();
+}
+function ropeUse(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const cur=(c.activeFx||[]).find(a=>a.k==='gear'&&a.id===it.id);
+  if(cur){ removeActiveFx(c.id, cur.uid); itemLog(c,'🧗 '+c.name+' сматывает: '+it.n); return; }
+  applyFxTo(c.id, {k:'gear', id:it.id, label:it.n+' (закреплена)', from:c.name, casterId:c.id,
+    stackKey:'gear:'+it.id, power:0, why:'закреплена для подъема',
+    fx:[{stat:'note', mode:'text', value:'подъем по закрепленной веревке — преимущество на проверки Атлетики при лазании'},
+        {stat:'skill.Атлетика', mode:'adv', value:1}]});
+  itemLog(c,'🧗 '+c.name+' закрепляет: '+it.n+' — подъем становится легче');
+}
+/* ── масло, рассыпные помехи, яд, обряд, игра ── */
+function oilUse(entryId, how){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  if(how==='fuel'){
+    const lamp=(c.inventory||[]).map(x=>({x, t:itemOf(x.itemId)})).filter(o=>o.t&&/фонарь|лампа/.test(o.t.n.toLowerCase()))[0];
+    if(!lamp){ setStatus('✕ В инвентаре нет фонаря, который можно заправить.',true); return; }
+    const rest=itemSpendOne(c,e,it);
+    scheduleSave(); renderChars();
+    itemLog(c,'🛢 '+c.name+' заправляет «'+lamp.t.n+'»: хватит на 6 часов'+rest);
+    return;
+  }
+  askRolls({title:'🔥 Метнуть флягу с маслом',
+    note:'Импровизированное оружие: дальняя атака (Ловкость). При попадании цель облита; поднесенный огонь дает 5 урона огнем. Промах по площади 1,5 м — жидкость растекается.',
+    rows:[{key:'a', label:'d20 атаки', min:1, max:20}],
+    compute:v=>'Атака: d20 '+v.a+' '+fmtMod(eMod(c,'dex')+PROF[c.level])+' = '+(v.a+eMod(c,'dex')+PROF[c.level]),
+    apply:v=>{ const tot=v.a+eMod(c,'dex')+PROF[c.level];
+      const rest=itemSpendOne(c,e,it); scheduleSave(); renderChars();
+      diceOutSet('Фляга с маслом: атака '+tot,'var(--rubric)');
+      itemLog(c,'🔥 '+c.name+' метает флягу с маслом: атака '+tot+' — при попадании цель облита (огонь даст 5 урона)'+rest); }});
+}
+function trapScatter(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const rest=itemSpendOne(c,e,it);
+  scheduleSave(); renderChars();
+  itemLog(c,'⚠ '+c.name+' рассыпает «'+it.n+'» на площади 3 × 3 м: существо, вошедшее в область, проходит спасбросок Ловкости СЛ 10, иначе падает ничком'+rest);
+}
+function poisonApply(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  applyFxTo(c.id, {k:'use', id:it.id, label:it.n+' (на оружии)', from:c.name, casterId:c.id,
+    stackKey:'poison:'+it.id, power:0, why:'нанесено на оружие',
+    fx:[{stat:'note', mode:'text', value:'оружие отравлено: первое попадание добавляет урон ядом и требует спасброска Телосложения'}]});
+  const rest=itemSpendOne(c,e,it);
+  scheduleSave(); renderChars();
+  itemLog(c,'☠ '+c.name+' наносит «'+it.n+'» на оружие — действует до первого попадания или 1 минуту'+rest);
+}
+function ritualBurn(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const rest=itemSpendOne(c,e,it);
+  scheduleSave(); renderChars();
+  itemLog(c,'🕯 '+c.name+' возжигает «'+it.n+'» — обряд начат'+rest);
+}
+function gamblePlay(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const i=SKILLS.findIndex(s=>s[0]==='Обман');
+  const m=i>=0?skillBonus(c,i).v:eMod(c,'cha');
+  askRolls({title:'🎲 '+it.n,
+    note:'Скрытно подменить бросок. Обман '+fmtMod(m)+' против Восприятия наблюдателей — при провале обман раскрыт. Преимущество: кость с секретом.',
+    rows:[{key:'a',label:'d20 — первый',min:1,max:20},{key:'b',label:'d20 — второй',min:1,max:20}],
+    compute:v=>'Обман: d20 '+Math.max(v.a,v.b)+' '+fmtMod(m)+' = '+(Math.max(v.a,v.b)+m),
+    apply:v=>{ const r=Math.max(v.a,v.b);
+      diceOutSet(it.n+': Обман '+(r+m), r===1?'var(--rubric)':'var(--ok)');
+      itemLog(c,'🎲 '+c.name+' пускает в ход «'+it.n+'»: Обман '+(r+m)); }});
+}
+function instrumentPlay(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const i=SKILLS.findIndex(s=>s[0]==='Выступление');
+  const m=i>=0?skillBonus(c,i).v:eMod(c,'cha');
+  askRolls({title:'🎵 '+it.n,
+    note:'Проверка Выступления '+fmtMod(m)+'. Звук слышен на 18 м; в тишине разносится дальше.',
+    rows:[{key:'a',label:'d20',min:1,max:20}],
+    compute:v=>'Выступление: d20 '+v.a+' '+fmtMod(m)+' = '+(v.a+m),
+    apply:v=>{ diceOutSet(it.n+': Выступление '+(v.a+m),'var(--ink)');
+      itemLog(c,'🎵 '+c.name+' играет на «'+it.n+'»: Выступление '+(v.a+m)); }});
+}
+function waterDrink(entryId){
+  const c=cc(); if(!c) return;
+  const e=invEntryOf(c,entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  e.full=!(e.full!==false);
+  scheduleSave(); renderChars();
+  itemLog(c, (e.full?'💧 ':'🥤 ')+c.name+(e.full?' наполняет ':' опустошает ')+'«'+it.n+'»'+(e.full?'':' — дневная норма воды закрыта'));
 }
 function useConsumable(entryId){
   /* прежняя кнопка «употребить» ведет в общее окно применения */
@@ -5848,6 +6370,82 @@ function descBlock(text){
   return '<div><div class="entry-desc'+(long?' clamp':'')+'">'+esc(text)+'</div>'
     +(long?'<button class="toggle-link" onclick="clampToggle(this)">развернуть ▾</button>':'')+'</div>';
 }
+/* какие кнопки показать у предмета в инвентаре */
+function itemActions(c, e, it){
+  const pr=itemProfile(it), sp=itemSpec(it), ch=invCharges(e,it), a=[];
+  const B=(icon,label,fn,title)=>a.push({icon,label,fn,title:title||label});
+  switch(pr.kind){
+    case 'weapon':
+      B('⚔','Атаковать',"weaponAttackFx('"+e.id+"','"+c.id+"','melee')",'Атака этим оружием: цель, формула, разбор итога');
+      if(pr.weapon.thrown) B('🎯','Метнуть',"weaponAttackFx('"+e.id+"','"+c.id+"','throw')",'Метнуть оружие в цель');
+      break;
+    case 'ammo':
+      B('↺','Собрать после боя',"ammoRecover('"+e.id+"')",'Вернуть половину истраченных боеприпасов');
+      break;
+    case 'light':
+      const lit=(c.activeFx||[]).some(x=>x.k==='light'&&x.id===it.id);
+      B(lit?'💨':'🔥', lit?'Погасить':'Зажечь', "lightToggle('"+e.id+"')",
+        lit?'Погасить источник света':'Зажечь: даст яркий и тусклый свет на время');
+      break;
+    case 'oil':
+      B('🛢','Заправить фонарь',"oilUse('"+e.id+"','fuel')",'Залить масло в фонарь — 6 часов света');
+      B('🔥','Метнуть флягу',"oilUse('"+e.id+"','throw')",'Импровизированная дальняя атака');
+      break;
+    case 'firestarter':{
+      const hasCamp=(c.activeFx||[]).some(x=>x.k==='light'&&x.id==='campfire');
+      B('🔥', hasCamp?'Потушить костер':'Высечь огонь', "fireStart('"+e.id+"')",
+        'Зажечь факел или свечу из сумки, а если их нет — развести костер');
+      break;
+    }
+    case 'trap':  B('⚠','Рассыпать',"trapScatter('"+e.id+"')",'Создать помеху на площади'); break;
+    case 'poison':B('☠','Нанести на оружие',"poisonApply('"+e.id+"')",'Отравить оружие до первого попадания'); break;
+    case 'tool':
+      B('🛠','Проверка',"toolCheck('"+e.id+"')",(pr.tool&&pr.tool.what)||'Проверка с инструментом');
+      if(pr.tool&&pr.tool.kit) B('✚','Стабилизировать',"healerKitStabilize('"+e.id+"')",'Стабилизировать умирающего без проверки');
+      break;
+    case 'instrument': B('🎵','Сыграть',"instrumentPlay('"+e.id+"')",'Проверка Выступления'); break;
+    case 'gamble':     B('🎲','Пустить в ход',"gamblePlay('"+e.id+"')",'Скрытно подменить бросок — проверка Обмана'); break;
+    case 'lore':       B('📖','Прочитать',"loreRead('"+e.id+"')",'Изучить записи'); break;
+    case 'valuable':   B('💰','Продать',"valuableSell('"+e.id+"')",'Обменять на золото'); break;
+    case 'food':       B('🍖','Съесть',"foodEat('"+e.id+"')",'Закрыть дневную норму пищи'); break;
+    case 'water':      B(e.full===false?'💧':'🥤', e.full===false?'Наполнить':'Испить', "waterDrink('"+e.id+"')",'Вода на день пути'); break;
+    case 'camp':       B('⛺','Разбить лагерь',"campSet('"+e.id+"')",'Долгий отдых'); break;
+    case 'rope':
+      const tied=(c.activeFx||[]).some(x=>x.k==='gear'&&x.id===it.id);
+      B('🧗', tied?'Смотать':'Закрепить', "ropeUse('"+e.id+"')",'Преимущество на Атлетику при лазании');
+      break;
+    case 'writing':    B('✒','Записать',"writingUse('"+e.id+"')",'Сделать запись или переписать заклинание в книгу'); break;
+    case 'ritual':     B('🕯','Возжечь',"ritualBurn('"+e.id+"')",'Начать обряд'); break;
+  }
+  /* заряды, снадобья и все, у чего есть настоящий эффект — общее окно применения */
+  const hasFx=recFx(it,'item').some(f=>f.mode!=='text');
+  if((ch||sp.consumable||pr.kind==='potion'||(pr.kind==='magic'&&hasFx))&&pr.kind!=='writing')
+    B('⚗','Применить',"itemCastFx('"+e.id+"','"+c.id+"')",'Применить: цель, формула бросков, разбор итога');
+  return a;
+}
+function itemHintHTML(c, e, it){
+  const pr=itemProfile(it), bits=[ITEM_KIND_RU[pr.kind]||''];
+  if(pr.kind==='weapon'){
+    const w=pr.weapon;
+    if(w.range) bits.push('дистанция '+w.range);
+    if(w.versatile) bits.push('двумя руками '+w.versatile.cnt+'d'+w.versatile.sides);
+    if(w.ammo){ const am=ammoEntryFor(c,it); bits.push(am?('боеприпасы: '+(am.qty||0)):'боеприпасов нет'); }
+    if(w.loading) bits.push('перезарядка');
+    if(w.reach) bits.push('досягаемость 3 м');
+  }
+  if(pr.kind==='armor'||pr.kind==='shield'){
+    if(pr.armor.strReq) bits.push('нужна Сила '+pr.armor.strReq+(((+c.ab.str||10)<pr.armor.strReq)?' — не хватает, скорость −3 м':''));
+    if(pr.armor.stealthDis) bits.push('помеха на Скрытность');
+    if(pr.armor.don) bits.push('надевание: '+pr.armor.don);
+  }
+  if(pr.kind==='tool'&&pr.tool){ bits.push(pr.tool.what); if(pr.tool.kit) bits.push('применений: '+(e.kit==null?pr.tool.kit:e.kit)); }
+  if(pr.kind==='light'){ bits.push('яркий '+pr.light.bright+' м · хватает на '+pr.light.hours+' ч'+(pr.light.fuel?' на '+pr.light.fuel:'')); }
+  if(pr.kind==='ammo'){ bits.push('в пачке '+pr.ammo.pack); }
+  if(pr.kind==='lore'&&e.read) bits.push('прочитано');
+  if(pr.kind==='valuable'&&pr.value&&pr.value.gp) bits.push('оценка '+pr.value.gp+' зм');
+  if(pr.kind==='container'&&pr.container.cap) bits.push('вмещает '+pr.container.cap);
+  return bits.filter(Boolean).join(' · ');
+}
 function itemCardHTML(it, extra){
   extra=extra||'';
   let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(it.n)+'</h4>'
@@ -6504,9 +7102,11 @@ function stStats(c){
   h+='<h3 class="rubric" style="font-size:22px">Атаки</h3><div class="atk-list">';
   weaponRows(c).forEach(w=>{
     const safeName=esc(w.n).replace(/'/g,'');
+     const wEnt=(c.inventory||[]).find(x=>{ const t=itemOf(x.itemId); return t&&t.n===w.n; });
     h+='<div class="atk-row"><b class="atk-n">'+esc(w.n)+'</b>'
      +'<span class="atk-ab">'+w.abn+'</span>'
-     +'<button class="roll-sm" title="Бросок атаки (учитывает преимущество/помеху)" onclick="rollCheck(\'Атака: '+safeName+'\','+w.atk+',\'attack\')">⚁ атака '+fmtMod(w.atk)+'</button>'
+     +(wEnt?'<button class="roll-sm" style="border-color:var(--rubric)" title="Полный удар: цель, атака, урон и разбор итога в одном окне" onclick="weaponAttackFx(\''+wEnt.id+'\',\''+c.id+'\',\'melee\')">⚔ удар</button>':'')
+     +'<button class="roll-sm" title="Только бросок атаки" onclick="rollCheck(\'Атака: '+safeName+'\','+w.atk+',\'attack\')">⚁ атака '+fmtMod(w.atk)+'</button>'
      +'<button class="roll-sm" title="Бросок урона" onclick="rollDmgStr(\''+safeName+'\',\''+esc(w.dmg)+'\','+w.m+')">⚁ урон '+(w.dmg?esc(w.dmg)+' ':'')+fmtMod(w.m)+'</button>'
      +(w.dt?'<span class="atk-dt">'+esc(w.dt)+'</span>':'')+'</div>';
   });
@@ -6677,20 +7277,22 @@ function stInventory(c){
       const eq=isEquipped(c,e.id);
       const canEq=!!it.slot;
       const isp=itemSpec(it), ich=invCharges(e,it);
-      const usable=isp.consumable||!!ich||recFx(it,'item').some(f=>f.mode!=='text');
+      const acts=itemActions(c,e,it);
+      const hint=itemHintHTML(c,e,it);
       const attBox=isp.attune
         ? '<button class="btn '+(e.att?'':'ghost ')+'sm" title="'+(e.att?'Разорвать настройку':'Настроиться (не больше '+ATTUNE_LIMIT+' предметов)')+'" onclick="toggleAttune(\''+e.id+'\')">'+(e.att?'✵ Настроен':'✵ Настроить')+'</button>'
         : '';
       const chBox=ich
         ? '<span class="uses-box" title="Заряды предмета'+(isp.when?' · восстановление '+esc(isp.when):'')+'"><button class="mini-btn" onclick="invChargeDelta(\''+e.id+'\',-1)">−</button>заряды '+ich.cur+' / '+ich.max+'<button class="mini-btn" onclick="invChargeDelta(\''+e.id+'\',1)">+</button></span>'
         : '';
-      const extra=(usable?'<button class="btn ghost sm fx-cast" title="Применить предмет: цель, формула бросков, разбор итога по правилам" onclick="itemCastFx(\''+e.id+'\',\''+c.id+'\')">⚗ Применить</button>':'')
+      const extra=acts.map(x=>'<button class="btn ghost sm fx-cast" title="'+esc(x.title)+'" onclick="'+x.fn+'">'+x.icon+' '+esc(x.label)+'</button>').join('')
        +chBox+attBox
        +'<span class="qty-box"><button class="mini-btn" onclick="invQty(\''+e.id+'\',-1)">−</button><b>'+(e.qty||1)+'</b><button class="mini-btn" onclick="invQty(\''+e.id+'\',1)">+</button></span>'
        +(canEq?'<button class="btn '+(eq?'':'ghost ')+'sm" onclick="invEquipToggle(\''+e.id+'\')">'+(eq?'Надето ✓':'Надеть')+'</button>':'')
        +'<button class="btn ghost sm" title="Править в базе предметов" onclick="jumpToItemEd(\''+it.id+'\')">✎</button>'
        +'<button class="del-x" onclick="invDel(\''+e.id+'\')">✕</button>';
       h+=itemCardHTML(it, extra);
+      if(hint) h+='<div class="inv-note" style="font-style:normal;color:var(--ink-soft)">◆ '+esc(hint)+'</div>';
       if(e.notes) h+='<div class="inv-note">✎ '+esc(e.notes)+' <button class="del-x" title="Стереть пометку" onclick="invNoteClear(\''+e.id+'\')">✕</button></div>';
     });
   });
