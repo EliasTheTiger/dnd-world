@@ -2282,6 +2282,39 @@ async function ensureSpellAudit(){
   scheduleSave();
 }
 
+/* ═══════════════ АУДИТ СПОСОБНОСТЕЙ ═══════════════ */
+const ABILITY_X_DARKVISION='Вы видите в тусклом свете в пределах 18 метров (60 футов) от себя, как при ярком свете, а в темноте — как при тусклом. В темноте вы не различаете цвета, только оттенки серого.';
+const ABILITY_X_PATCHES_BY_NAME={
+ 'Темное зрение 18 м (Эльф)':ABILITY_X_DARKVISION,
+ 'Темное зрение 18 м (Дварф)':ABILITY_X_DARKVISION,
+ 'Темное зрение 18 м (Гном)':ABILITY_X_DARKVISION,
+ 'Темное зрение 18 м (Полуэльф)':ABILITY_X_DARKVISION,
+ 'Темное зрение 18 м (Полуорк)':ABILITY_X_DARKVISION,
+ 'Темное зрение 18 м (Тифлинг)':ABILITY_X_DARKVISION,
+ 'Дополнительный язык на выбор (Человек)':'Вы знаете один дополнительный язык на ваш выбор. Люди легко перенимают чужие наречия в странствиях и торговле.',
+ 'Дополнительный язык (Полуэльф)':'Вы знаете один дополнительный язык на ваш выбор.'
+};
+const ABILITY_USES_PATCHES_BY_NAME={
+ 'Непоколебимая стойкость (Полуорк)':{uses:1, rest:'длинный отдых'},
+ 'Дьявольское наследие (Тифлинг)':{uses:1, rest:'длинный отдых'}
+};
+async function ensureAbilityAudit(){
+  const flag=await store.get('dndworld2:abaudit');
+  if(flag==='1') return;
+  abilitiesDB.forEach(ab=>{
+    if(ABILITY_X_PATCHES_BY_NAME[ab.n] && (!ab.x||ab.x.length<30)) ab.x=ABILITY_X_PATCHES_BY_NAME[ab.n];
+    const up=ABILITY_USES_PATCHES_BY_NAME[ab.n];
+    if(up && ab.uses==null){ ab.uses=up.uses; ab.rest=up.rest; }
+  });
+  /* героям с этими способностями — счетчики зарядов */
+  chars.forEach(c=>(c.abilities||[]).forEach(e=>{
+    const db=abilitiesDB.find(a=>a.id===e.abilityId);
+    if(db&&db.uses!=null&&e.cur==null) e.cur=db.uses;
+  }));
+  await store.set('dndworld2:abaudit','1');
+  scheduleSave();
+}
+
 /* ═══════════════ СОСТОЯНИЕ И ХРАНИЛИЩЕ ═══════════════ */
 let chars=[], journal=[], itemsDB=[], spellsDB=[], abilitiesDB=[];
 let racesDB=[], classesDB=[], rulesDB=[];   /* мировые своды: народы, призвания, записи мастера */
@@ -2406,6 +2439,7 @@ async function loadAll(){
   if(typeof ensureSeptih==='function') await ensureSeptih();
   if(typeof ensureLegerem==='function') await ensureLegerem();
   if(typeof ensureSpellAudit==='function') await ensureSpellAudit();
+  if(typeof ensureAbilityAudit==='function') await ensureAbilityAudit();
   journal=(await readJSON('dndworld2:journal')) || (await readJSON('dndworld:journal')) || [];
   setStatus('Летопись открыта');
 }
@@ -2732,6 +2766,109 @@ function removeActiveFx(charId, uid){
 
 
 
+
+/* ── единый движок применения способностей (общий канвас с заклинаниями) ── */
+function canUseAbilityCheck(caster, ab){
+  const active=(ab.uses!=null)||!!ab.rest;
+  if(active){
+    const blockAct=ACTION_BLOCK_CONDS.filter(n=>(caster.cond||[]).indexOf(n)>=0)[0];
+    if(blockAct) return {ok:false, reason:'Состояние «'+blockAct+'» не позволяет совершать действия — способность неприменима.'};
+  }
+  return {ok:true};
+}
+function deriveAbilityHeal(ab, caster){
+  const x=String(ab.x||'').replace(/\u0451/g,'е').toLowerCase();
+  if(!/(хит|здоров)/.test(x)) return null;
+  const m=x.match(/(\d+)\s*[кd]\s*(\d+)\s*(?:\+\s*(\d+|ваш уровень[а-я ]*))?/);
+  if(!m) return null;
+  let plus=0;
+  if(m[3]){ plus=/уровень/.test(m[3])? (+caster.level||0) : (+m[3]||0); }
+  return {cnt:+m[1], sides:+m[2], plus};
+}
+function useAbilityApply(abilityId, casterId, target){
+  const ab=abilityOf(abilityId), caster=getCh(casterId);
+  if(!ab||!caster||!target) return false;
+  const chk=canUseAbilityCheck(caster, ab);
+  if(!chk.ok){ setStatus('✕ '+chk.reason, true); castShowErr&&castShowErr(chk.reason); return false; }
+  /* заряд */
+  let chargeInfo='';
+  if(ab.uses!=null){
+    const e=(caster.abilities||[]).find(x=>x.abilityId===ab.id);
+    if(e){
+      const cur=e.cur==null?ab.uses:e.cur;
+      if(cur<=0){
+        const back=ab.rest?('восстановится: '+ab.rest):'восстановится после боя или решением мастера';
+        if(!window.confirm('Заряды «'+ab.n+'» исчерпаны ('+back+').\n\nОК — применить все равно решением мастера.')) return false;
+        chargeInfo=' · сверх зарядов (решение мастера)';
+      } else { e.cur=cur-1; chargeInfo=' · заряд −1 (осталось '+e.cur+' из '+ab.uses+')'; }
+    }
+  }
+  /* мгновенное лечение из описания */
+  let healInfo='';
+  const heal=deriveAbilityHeal(ab, caster);
+  const tIsAlly=target.indexOf('ally:')===0;
+  if(heal && tIsAlly){
+    const t=getCh(target.slice(5));
+    if(t){
+      const rolls=[]; for(let i=0;i<heal.cnt;i++) rolls.push(1+Math.floor(Math.random()*heal.sides));
+      const tot=rolls.reduce((a,b)=>a+b,0)+heal.plus;
+      t.hp=Math.min(eHpMax(t),(+t.hp||0)+tot);
+      const out=document.getElementById('diceOut');
+      if(out){ out.textContent=ab.n+': '+heal.cnt+'к'+heal.sides+(heal.plus?' + '+heal.plus:'')+' → +'+tot+' хитов ('+rolls.join(', ')+')'; out.style.color='var(--ok)'; }
+      healInfo=' · +'+tot+' хитов';
+    }
+  }
+  /* длящиеся эффекты — на цель, по общему механизму */
+  const lasting=recFx(ab,'ability').filter(f=>!(f.stat==='hp'&&f.mode==='add'));
+  let fxInfo='';
+  if(lasting.length && tIsAlly){
+    applyFxTo(target.slice(5), {k:'ability', id:ab.id, label:ab.n, from:caster.name,
+      why:'применено: '+caster.name+(ab.rest?' · восст.: '+ab.rest:''), fx:lasting});
+    fxInfo=' · эффект наложен';
+  }
+  const tl=tIsAlly?(getCh(target.slice(5))||{}).name:(target==='enemy'?'враг':'неодушевленный объект');
+  fxInvalidate(); scheduleSave(); renderChars();
+  setStatus('✦ «'+ab.n+'» — применено'+(tl?' (цель: '+tl+')':'')+chargeInfo+healInfo+fxInfo+'.');
+  castLogLine('✦ '+caster.name+' → '+(tl||'—')+': способность «'+ab.n+'»'+chargeInfo+healInfo);
+  return true;
+}
+function abilityCastFx(abilityId, casterId){
+  const ab=abilityOf(abilityId); if(!ab) return;
+  const caster=getCh(casterId||((cc()||{}).id)); if(!caster) return;
+  castCtx={kind:'ability', abilityId:ab.id, casterId:caster.id};
+  const back=document.getElementById('castBack'); if(!back) return;
+  document.getElementById('castTitle').textContent='✦ «'+ab.n+'» — применяет: '+caster.name;
+  const e=(caster.abilities||[]).find(x=>x.abilityId===ab.id);
+  const info=[ABILITY_TYPES&&ABILITY_TYPES[ab.type]||ab.type];
+  if(ab.source) info.push('источник: '+ab.source);
+  if(ab.uses!=null) info.push('заряды: '+((e&&e.cur!=null)?e.cur:ab.uses)+' из '+ab.uses);
+  if(ab.rest) info.push('восстановление: '+ab.rest);
+  const chk=canUseAbilityCheck(caster, ab);
+  if(!chk.ok) info.push('⚠ '+chk.reason);
+  document.getElementById('castInfo').textContent=info.join(' · ');
+  document.getElementById('castTarget').innerHTML=
+    chars.map(x=>'<option value="ally:'+x.id+'"'+(x.id===caster.id?' selected':'')+'>'+esc(x.name)+(x.id===caster.id?' — сам герой':'')+'</option>').join('')
+    +'<option value="enemy">Враг</option>'
+    +'<option value="object">Неодушевленный объект</option>';
+  const sw=document.getElementById('castSlotWrap'); if(sw) sw.style.display='none';
+  document.getElementById('castItemWrap').style.display='none';
+  document.getElementById('castStep1').style.display='block';
+  document.getElementById('castStep2').style.display='none';
+  const er=document.getElementById('castErr'); er.style.display='none'; er.textContent='';
+  back.style.display='flex';
+}
+/* «Бой окончен»: способности с зарядами без типа отдыха возвращаются (раз за бой) */
+function encounterEnd(){
+  let n=0;
+  chars.forEach(c=>(c.abilities||[]).forEach(e=>{
+    const db=abilityOf(e.abilityId);
+    if(db&&db.uses!=null&&!db.rest&&(e.cur==null||e.cur<db.uses)){ e.cur=db.uses; n++; }
+  }));
+  fxInvalidate(); scheduleSave(); renderChars();
+  setStatus('⚔ Бой окончен: восстановлены способности «раз за бой» ('+n+' шт.) у всех героев.');
+  if(typeof castLogLine==='function') castLogLine('— бой окончен: способности «раз за бой» восстановлены ('+n+') —');
+}
+
 /* ── концентрация: единый учет, разрыв, проверка при уроне ── */
 function concEntriesOf(casterId){
   const out=[];
@@ -2944,7 +3081,7 @@ function castSpellFx(spellId, casterId){
   const sp=spellOf(spellId); if(!sp) return;
   const caster=getCh(casterId);
   if(!caster){ setStatus('Наложение доступно из книги заклинаний героя.'); return; }
-  castCtx={spellId, casterId};
+  castCtx={kind:'spell', spellId, casterId};
   const back=document.getElementById('castBack'); if(!back) return;
   const isConc=!!sp.conc||/концентрация/i.test(sp.d||'');
   document.getElementById('castTitle').textContent='⚡ «'+sp.n+'» — заклинатель: '+caster.name;
@@ -3014,6 +3151,11 @@ function castShowErr(msg){
 }
 function castConfirm(){
   if(!castCtx) return;
+  if(castCtx.kind==='ability'){
+    const target=document.getElementById('castTarget').value;
+    if(useAbilityApply(castCtx.abilityId, castCtx.casterId, target)) closeCastModal();
+    return;
+  }
   const sp=spellOf(castCtx.spellId), caster=getCh(castCtx.casterId);
   if(!sp||!caster) return;
   const target=document.getElementById('castTarget').value;
@@ -3058,8 +3200,8 @@ function castLogLine(txt){
   if(typeof journal==='undefined') return;
   const date=new Date().toISOString().slice(0,10);
   const hm=new Date().toTimeString().slice(0,5);
-  let page=journal.find(j=>j.title==='⚡ Хроника заклинаний'&&j.date===date);
-  if(!page){ page={id:uid(), date, title:'⚡ Хроника заклинаний', text:''}; journal.push(page); }
+  let page=journal.find(j=>j.title==='⚡ Хроника магии и способностей'&&j.date===date);
+  if(!page){ page={id:uid(), date, title:'⚡ Хроника магии и способностей', text:''}; journal.push(page); }
   page.text=(page.text?page.text+'\n':'')+hm+' · '+txt;
   if(typeof scheduleJournalSave==='function') scheduleJournalSave();
   if(typeof renderJournal==='function') renderJournal();
@@ -4717,10 +4859,32 @@ function quickAddAbility(){
   cc().abilities.push({abilityId:ab.id, cur:ab.uses, notes:''});
   quickForm.ab=false; scheduleSave(); renderChars();
 }
+function abilityDashHTML(c){
+  const list=(c.abilities||[]).map(e=>({e, db:abilityOf(e.abilityId)})).filter(x=>x.db);
+  const act=list.filter(x=>x.db.uses!=null);
+  if(!act.length) return '';
+  let ready=0, backShort=0, backLong=0, backBattle=0;
+  act.forEach(x=>{
+    const cur=x.e.cur==null?x.db.uses:x.e.cur;
+    if(cur>0) ready++;
+    const miss=x.db.uses-cur;
+    if(miss>0){
+      if(x.db.rest==='короткий отдых') backShort+=miss;
+      else if(x.db.rest==='длинный отдых'||x.db.rest==='раз в день') backLong+=miss;
+      else backBattle+=miss;
+    }
+  });
+  return '<div class="spell-dash"><div class="sd-line">Способностей с зарядами: <b>'+act.length+'</b> · готовы к применению: <b>'+ready+'</b>'
+    +(backBattle?' · вернется после боя: <b>'+backBattle+'</b>':'')
+    +(backShort?' · после короткого отдыха: <b>'+backShort+'</b>':'')
+    +(backLong?' · после длинного отдыха: <b>'+backLong+'</b>':'')+'.</div>'
+    +'<div class="sd-line">Пассивные действуют постоянно и видны в «Действующих эффектах»; активные применяются кнопкой «✦ Применить» — с целью, тратой заряда и записью в летопись.</div></div>';
+}
 function stAbilities(c){
   let h='<div class="panel">';
   const cats=[['all','Все способности'],['class','Классовые'],['racial','Расовые'],['feat','Черты'],['other','Прочие']];
   h+='<div class="subtabs" style="margin-top:0">'+cats.map(x=>'<button class="subtab'+(abFlt.cat===x[0]?' active':'')+'" onclick="abFlt.cat=\''+x[0]+'\';renderChars()">'+x[1]+'</button>').join('')+'</div>';
+  h+='<div class="row-line" style="margin:4px 0"><span class="grow"></span><button class="btn ghost sm" title="Восстановить способности с ограничением «раз за бой» у всех героев" onclick="encounterEnd()">⚔ Бой окончен</button></div>'+abilityDashHTML(c);
   h+='<div class="db-bar"><input type="text" placeholder="Найти способность в своде мира и вписать герою…" value="'+esc(sheetSearch.ab)+'" oninput="sheetSearch.ab=this.value;renderChars();const f=document.querySelector(\'#tab-chars .db-bar input\');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}">'
    +'<button class="btn ghost sm" onclick="quickForm.ab=!quickForm.ab;renderChars()">✚ Свое</button>'
    +'<button class="btn ghost sm" onclick="addRaceTraitsToChar()">Вписать черты народа</button></div>';
@@ -4758,9 +4922,12 @@ function stAbilities(c){
           +cur+' / '+x.ab.uses+'<button class="mini-btn" onclick="abilityUse(\''+x.ab.id+'\',1)">+</button>'
           +(x.ab.rest?'<span style="font-style:italic">'+esc(x.ab.rest)+'</span>':'')+'</span>';
       }
-      const hasFx=recFx(x.ab,'ability').length>0;
-      const fxBtn=(!isPassiveAbility(x.ab)&&hasFx)
-        ?'<button class="btn ghost sm fx-cast'+(abilityFxActive(c,x.ab.id)?' on':'')+'" title="Применить эффект к герою / снять" onclick="toggleAbilityFx(\''+x.ab.id+'\')">'+(abilityFxActive(c,x.ab.id)?'✦ Действует':'✦ Применить')+'</button>':'';
+      const isActive=!isPassiveAbility(x.ab);
+      const fxBtn=isActive
+        ?(abilityFxActive(c,x.ab.id)
+          ?'<button class="btn ghost sm fx-cast on" title="Эффект действует — нажмите, чтобы снять" onclick="toggleAbilityFx(\''+x.ab.id+'\')">✦ Действует</button>'
+          :'<button class="btn ghost sm fx-cast" title="Применить: цель, заряд, лечение и эффекты — единым окном" onclick="abilityCastFx(\''+x.ab.id+'\',\''+c.id+'\')">✦ Применить</button>')
+        :'';
       const extra=fxBtn+uses
        +'<button class="btn ghost sm" title="Править в своде мира" onclick="switchTab(\'abilitiesdb\');openAbilityEd(\''+x.ab.id+'\')">✎</button>'
        +'<button class="del-x" onclick="delCharAbility(\''+x.ab.id+'\')">✕</button>';
