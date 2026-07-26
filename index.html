@@ -1860,7 +1860,7 @@ const SEPTIH_ABILITIES = [
   tags:['classfeature','advantage','limited','extradamage'], uses:1, rest:'',
   x:'Вы точно знаете, как нанести удар и как извлечь выгоду из того, что ваш враг отвлекся. Один раз за бой вы можете нанести 1d6 дополнительного урона по существу, по которому вы попали броском атаки с Преимуществом и с использованием Дальнобойного или Фехтовального оружия. Урон увеличивается: 4-7 уровень — 2d6, 8-11 уровень — 3d6, 12-15 уровень — 4d6, 16 уровень и выше — 5d6.'},
  {id:'ab_sx_uncanny', n:'Ловкая увертка', type:'class', source:'Плут (Вор)', custom:true,
-  tags:['classfeature','defense','immunity','passive'], uses:null, rest:'',
+  tags:['classfeature','defense','immunity','passive'], uses:null, rest:'', mode:'passive',
   x:'Вы не можете получить критический удар в отсутствие действия эффектов, повышающих вероятность нанесения врагом критического удара.'},
  {id:'ab_sx_deadeye', n:'Точное прицеливание', type:'class', source:'Плут (Вор)', custom:true,
   tags:['classfeature','attack','atwill','passive'], uses:null, rest:'',
@@ -2131,7 +2131,7 @@ function buildLegerem(){
       {id:'inv_l8', itemId:'it_playing_cards', qty:1, notes:''},
       {id:'inv_l9', itemId:'it_zhent_cloak', qty:1, notes:''}
     ],
-    equipment:{},   /* как на манекене Нексуса: ничего не надето */
+    equipment:{TWO_HAND:'inv_l6', CHEST:'inv_l5', CLOAK:'inv_l9'},   /* фамильный топор в руках, рубаха и плащ надеты */
     spellbook:[], slots:{},
     abilities: LEGEREM_ABILITIES.map(a=>({abilityId:a.id, cur:(a.uses!=null?a.uses:null), notes:''})),
     feats:[], langs:'Общий, Дварфийский', notes:'', hpPend:false,
@@ -2307,6 +2307,26 @@ const ANTIMAGIC_SPELL = {
 };
 
 /* Однократный аудит-посев полей заклинаний (работает и на уже живых устройствах) */
+/* Разовая правка живых листов: то, что нельзя починить одной лишь правкой посева */
+async function ensureCharAudit(){
+  const flag=await store.get('dndworld2:charaudit');
+  if(flag==='1') return;
+  let touched=false;
+  chars.forEach(c=>{
+    if(c.name&&c.name.indexOf('Легерем')===0){
+      c.equipment=c.equipment||{};
+      const pick=n=>{ const e=(c.inventory||[]).find(x=>{ const it=itemOf(x.itemId); return it&&it.n.indexOf(n)>=0; }); return e?e.id:null; };
+      const axe=pick('Фамильный боевой топор'), shirt=pick('Простая кольчужная рубаха'), cloak=pick('Плащ Жентарима');
+      if(axe&&!c.equipment.TWO_HAND&&!c.equipment.MAIN_HAND){ c.equipment.TWO_HAND=axe; touched=true; }
+      if(shirt&&!c.equipment.CHEST){ c.equipment.CHEST=shirt; touched=true; }
+      if(cloak&&!c.equipment.CLOAK){ c.equipment.CLOAK=cloak; touched=true; }
+    }
+  });
+  const unc=abilitiesDB.find(a=>a.n==='Ловкая увертка');
+  if(unc&&!unc.mode){ unc.mode='passive'; touched=true; }
+  await store.set('dndworld2:charaudit','1');
+  if(touched){ fxInvalidate(); scheduleSave(); }
+}
 async function ensureSpellAudit(){
   const flag=await store.get('dndworld2:spellaudit');
   if(flag==='3') return;   /* версия 3: исправлены концентрация и длительность перенесенных записей */
@@ -2498,6 +2518,7 @@ async function loadAll(){
   if(typeof ensureSeptih==='function') await ensureSeptih();
   if(typeof ensureLegerem==='function') await ensureLegerem();
   if(typeof ensureSpellAudit==='function') await ensureSpellAudit();
+  if(typeof ensureCharAudit==='function') await ensureCharAudit();
   if(typeof ensureAbilityAudit==='function') await ensureAbilityAudit();
   journal=(await readJSON('dndworld2:journal')) || (await readJSON('dndworld:journal')) || [];
   setStatus('Летопись открыта');
@@ -3102,8 +3123,10 @@ function charFxSources(c){
     if((wearable&&worn)||(!wearable)){
       const fx=recFx(it,'item');
       if(fx.length){
-        const s={k:'item', id:it.id, label:it.n, why:(wearable?'надето':'в инвентаре'), fx, canOff:true};
+        const needAtt=itemNeedsAttune(it);
+        const s={k:'item', id:it.id, label:it.n, why:(wearable?'надето':'в инвентаре')+(needAtt?(e.att?' · настроен':' · НЕ настроен'):''), fx, canOff:true};
         s.off=off.includes(fxSrcKey(s));
+        if(needAtt&&!e.att) s.suppressed=true;
         if((c.activeFx||[]).some(a=>a.antimagic) && (it.tags||[]).indexOf('magical')>=0) s.suppressed=true;
         out.push(s);
       }
@@ -3197,6 +3220,7 @@ function fxRollMode(c,stat){
 }
 function speedTotal(c){
   const raw=String(c.speed||'');
+  const over=(typeof carryWeight==='function')?(carryWeight(c)>Math.round((+c.ab.str||10)*7.5)):false;
   const m=raw.replace(',','.').match(/-?\d+(?:\.\d+)?/);
   if(!m) return raw;
   let v=+m[0], add=0, mul=1, setVal=null, unit=/фут/i.test(raw)?' футов':' м';
@@ -3215,6 +3239,7 @@ function speedTotal(c){
     }
   });
   v=setVal==null?(v+add)*mul:setVal;
+  if(over) v-=3;   /* перегруз: −10 футов по варианту правил 5e */
   v=Math.max(0,Math.round(v*10)/10);
   return String(v).replace('.',',')+unit;
 }
@@ -4220,10 +4245,13 @@ function rollSpecOf(rec, opts){
     let mod=g.plus, modLabel=g.plus?'из описания':'';
     if(/^\s*\+\s*(?:ваш\s+)?модификатор/.test(g.after)&&caster){ mod=isSpell?eMod(caster,spellAbOf(caster)):Math.max(eMod(caster,'str'),eMod(caster,'dex'),eMod(caster,'con')); modLabel='модификатор характеристики'; }
     else if(/^\s*\+\s*(?:ваш\s+)?уровень/.test(g.after)&&caster){ mod=caster.level; modLabel='ваш уровень'; }
-    const dt=detectDmgType(g.ctx);
+    let dt=detectDmgType(g.ctx);
+    const isTemp=/временн[а-я]*\s+хит/.test(g.ctx||'');
+    if(isTemp){ dt=''; }
     if(cls==='dmg'&&dt&&!meta.dmgType) meta.dmgType=dt;
-    rows.push({key:cls+rows.length, type:cls, side:'caster', cnt, sides:g.sides, mod, modLabel, dmgType:dt,
-      label:(cls==='heal'?'Лечение':cls==='dmg'?('Урон'+(dt?' ('+dt+')':'')):'Прочий бросок')+': сумма '+cnt+'d'+g.sides,
+    const kind2=isTemp?'temp':cls;
+    rows.push({key:kind2+rows.length, type:kind2, side:'caster', cnt, sides:g.sides, mod, modLabel, dmgType:dt,
+      label:(kind2==='temp'?'Временные хиты':cls==='heal'?'Лечение':cls==='dmg'?('Урон'+(dt?' ('+dt+')':'')):'Прочий бросок')+': сумма '+cnt+'d'+g.sides,
       hint:(cnt!==g.cnt?'усилено: было '+g.cnt+'d'+g.sides+' · ':'')+'обычно '+cnt+'–'+(cnt*g.sides)+' (крит и несколько целей дают больше)'+(mod?' · + '+mod+(modLabel?' ('+modLabel+')':''):'')});
   });
   /* 7. шкала заговора, если костей в тексте нет */
@@ -4242,7 +4270,7 @@ function rollSpecOf(rec, opts){
 function resolveOutcome(spec, v, ctx){
   const meta=spec.meta, ti=meta.target||{kind:'none',known:false,name:''};
   const out={verdict:[], notes:[], hit:null, crit:false, fumble:false, saveOk:null, contestWin:null,
-    healTotal:null, dmgRaw:null, dmgTotal:null, dmgType:meta.dmgType||'', targetName:ti.name||'', blocked:false};
+    healTotal:null, tempTotal:null, dmgRaw:null, dmgTotal:null, dmgType:meta.dmgType||'', targetName:ti.name||'', blocked:false};
   const row=t=>spec.rows.find(r=>r.type===t);
   const resR=row('res'); const resVal=(resR&&v.res!=null)?v.res:0;
   /* атака */
@@ -4252,7 +4280,11 @@ function resolveOutcome(spec, v, ctx){
     if(nat!=null){
       const bonus=(resR&&resR.addTo==='atk')?resVal:0;
       const total=nat+ar.mod+bonus;
-      out.crit=(nat===20); out.fumble=(nat===1);
+      const critImmune=ti.known&&ti.obj&&(typeof fxNotesOf==='function')&&ti.kind==='ally'
+        ? fxNotesOf(ti.obj).some(t=>/иммунитет к критическ/i.test(t))
+        : (ti.obj&&/иммунитет к критическ/i.test(String(ti.obj.traits||'')));
+      out.crit=(nat===20)&&!critImmune; out.fumble=(nat===1);
+      if(nat===20&&critImmune) out.verdict.push('У цели иммунитет к критическим ударам — двадцатка засчитана как обычное попадание.');
       if(nat===20) out.hit=true;
       else if(nat===1) out.hit=false;
       else if(ti.known&&ti.ac!=null) out.hit=(total>=ti.ac);
@@ -4289,6 +4321,14 @@ function resolveOutcome(spec, v, ctx){
       out.verdict.push('Состязание: ваш итог '+at+' против '+bt+' у цели — '+(out.contestWin?'вы победили':(at===bt?'ничья (по правилам ничья — ничего не происходит)':'победила цель')));
       out.notes.push('состязание '+at+' против '+bt);
     }
+  }
+  /* временные хиты */
+  let temp=0, tempSeen=false;
+  spec.rows.forEach(r=>{ if(r.type==='temp'&&v[r.key]!=null){ temp+=v[r.key]+(r.mod||0); tempSeen=true; } });
+  if(tempSeen){
+    out.tempTotal=Math.max(0,temp);
+    const had=(ti.obj&&+ti.obj.hpTemp)||0;
+    out.verdict.push('Временные хиты: '+out.tempTotal+(had?(out.tempTotal>had?' — заменят прежние '+had+' (по правилам берется большее)':' — прежние '+had+' сильнее, останутся они'):''));
   }
   /* лечение */
   let heal=0, healSeen=false;
@@ -4384,6 +4424,10 @@ function applyRollsToTarget(targetVal, rolls, srcLabel){
       diceOutSet(srcLabel+' → '+r.name+': +'+rolls.healTotal+' хитов','var(--ok)'); }
     else info+=' · лечение +'+rolls.healTotal+' хитов (цель вне листов — записано в летопись)';
   }
+  if(rolls.tempTotal!=null&&rolls.tempTotal>0){
+    const r=applyTempHp(targetVal, rolls.tempTotal);
+    if(r) info+=' · временные хиты '+r.temp+(r.replaced?'':' (прежние были выше)');
+  }
   if(rolls.dmgTotal!=null&&rolls.dmgTotal>0){
     const r=applyDamageTo(targetVal, rolls.dmgTotal, rolls.dmgType, srcLabel);
     if(r){ info+=' · урон '+rolls.dmgTotal+(rolls.dmgType?' ('+rolls.dmgType+')':'')+' → '+r.name+': '+r.hp+'/'+r.hpMax
@@ -4399,6 +4443,10 @@ function applyRollsToTarget(targetVal, rolls, srcLabel){
 /* ═══ Шаг «Формула» в окне применения ═══ */
 function castRollRec(){
   if(!castCtx) return null;
+  if(castCtx.kind==='item'){
+    const it=itemOf(castCtx.itemId);
+    return it?{n:it.n, x:(it.desc||'')+'\n'+(it.props||''), hi:'', l:0}:null;
+  }
   return castCtx.kind==='ability'? abilityOf(castCtx.abilityId) : spellOf(castCtx.spellId);
 }
 function castAdvSet(key,val){
@@ -4425,12 +4473,12 @@ function castFormulaShow(){
   if(!castCtx) return false;
   const rec=castRollRec(), caster=getCh(castCtx.casterId);
   if(!rec||!caster) return false;
-  const isSpell=castCtx.kind!=='ability';
+  const isSpell=(castCtx.kind!=='ability'&&castCtx.kind!=='item');
   const lv=(isSpell&&castCtx.slotSel&&!isNaN(parseInt(castCtx.slotSel,10)))?parseInt(castCtx.slotSel,10):(+rec.l||0);
   const ti=targetInfoOf(castCtx.target);
-  const pool=isSpell?null:abilityPoolOf(caster, rec);
+  const pool=(castCtx.kind==='ability')?abilityPoolOf(caster, rec):null;
   const weapon=(!isSpell&&castCtx.weapon)?castCtx.weapon:null;
-  const spec=rollSpecOf(rec,{caster, kind:isSpell?'spell':'ability', slotLvl:lv, target:ti, weapon, pool});
+  const spec=rollSpecOf(rec,{caster, kind:castCtx.kind==='item'?'item':(isSpell?'spell':'ability'), slotLvl:lv, target:ti, weapon, pool});
   if(!spec.rows.length) return false;
   castCtx.spec=spec; castCtx.formulaLvl=lv; castCtx.hitOverride='';
   let h='<div class="cast-info" style="border:none;padding:0">Формула'+(isSpell&&lv>(+rec.l||0)?' (усилено ячейкой '+lv+' круга)':'')
@@ -4486,6 +4534,7 @@ function castFormulaLive(){
       t.textContent='= '+(nat+(r.mod||0))+(r.adv&&v[r.key+'_2']!=null?' (взят '+nat+')':'');
     }
     else if(r.type==='heal') t.textContent='= +'+(val+(r.mod||0))+' хитов';
+    else if(r.type==='temp') t.textContent='= '+(val+(r.mod||0))+' временных хитов';
     else if(r.type==='dmg') t.textContent='= '+(val+(r.mod||0))+' до разбора';
     else t.textContent='= '+(val+(r.mod||0));
   });
@@ -4496,11 +4545,15 @@ function castFormulaConfirm(){
   if(!castCtx||!castCtx.spec) return;
   const v=castFormulaVals(), spec=castCtx.spec;
   const res=resolveOutcome(spec, v, {hitOverride:castCtx.hitOverride});
-  const rolls={notes:res.notes.slice(), verdict:res.verdict.slice(), healTotal:res.healTotal,
+  const rolls={notes:res.notes.slice(), verdict:res.verdict.slice(), healTotal:res.healTotal, tempTotal:res.tempTotal,
     dmgTotal:res.dmgTotal, dmgRaw:res.dmgRaw, dmgType:res.dmgType, hit:res.hit, crit:res.crit,
     saveOk:res.saveOk, contestWin:res.contestWin};
   const resR=spec.rows.find(r=>r.type==='res');
   if(resR&&v.res!=null&&spec.meta.pool) rolls.poolSpend=spec.meta.pool.ab.id;
+  if(castCtx.kind==='item'){
+    if(useItemApply(castCtx.entryId, castCtx.casterId, castCtx.target, rolls)) closeCastModal();
+    return;
+  }
   if(castCtx.kind==='ability'){
     if(useAbilityApply(castCtx.abilityId, castCtx.casterId, castCtx.target, rolls)) closeCastModal();
     return;
@@ -4597,6 +4650,17 @@ function castShowErr(msg){
 }
 function castConfirm(){
   if(!castCtx) return;
+  if(castCtx.kind==='item'){
+    castCtx.target=document.getElementById('castTarget').value;
+    const caster=getCh(castCtx.casterId);
+    const e=(caster.inventory||[]).find(x=>x.id===castCtx.entryId), it=e?itemOf(e.itemId):null;
+    if(!e||!it) return;
+    const chk=canUseItemCheck(caster,e,it);
+    if(!chk.ok){ castShowErr(chk.reason); return; }
+    if(castFormulaShow()) return;
+    if(useItemApply(castCtx.entryId, castCtx.casterId, castCtx.target)) closeCastModal();
+    return;
+  }
   if(castCtx.kind==='ability'){
     castCtx.target=document.getElementById('castTarget').value;
     const ww=document.getElementById('castWeaponWrap'), wsel=document.getElementById('castWeapon');
@@ -4913,40 +4977,171 @@ function isConsumableItem(it){
 function deriveHeal(it){
   return deriveInstantHeal(it,'item',null,null);
 }
-function useConsumable(entryId){
+/* ═══════════════ ПРЕДМЕТЫ В ЕДИНОМ ДВИЖКЕ ═══════════════
+   Предмет применяется тем же окном, что заклинание и способность:
+   цель → формула бросков → разбор по правилам 5e → применение.
+   Заряды, настройка, расход и вес влияют на показатели напрямую. */
+const ATTUNE_LIMIT=3;
+function itemSpec(it){
+  const low=fxTextOf(it).toLowerCase();
+  const spec={charges:0, recharge:null, when:'', attune:false, attuneNote:'', consumable:isConsumableItem(it)};
+  let m=low.match(/(\d+)\s*заряд/);
+  if(m) spec.charges=+m[1];
+  m=low.match(/восстанавлива[а-я]*\s+(\d*)\s*d\s*(\d+)(?:\s*\+\s*(\d+))?\s*(?:потраченн[а-я]*\s+)?заряд/);
+  if(m) spec.recharge={cnt:+(m[1]||1), sides:+m[2], plus:+(m[3]||0)};
+  else if(/восстанавлива[а-я]*\s+(?:все|всех)\s+заряд/.test(low)) spec.recharge={cnt:0, sides:0, plus:spec.charges};
+  if(spec.charges) spec.when=/на закате/.test(low)?'на закате':(/длинн[а-я]*\s+отдых/.test(low)?'после длинного отдыха':'на рассвете');
+  if(/требует настройки/.test(low)){
+    spec.attune=true;
+    const am=low.match(/требует настройки([^.)]{0,60})/);
+    spec.attuneNote=((am&&am[1])||'').trim();
+  }
+  return spec;
+}
+function invCharges(e,it){
+  const sp=itemSpec(it);
+  if(!sp.charges) return null;
+  if(!e.ch||e.ch.max!==sp.charges) e.ch={cur:(e.ch&&e.ch.cur!=null)?Math.min(e.ch.cur,sp.charges):sp.charges, max:sp.charges};
+  return e.ch;
+}
+function itemNeedsAttune(it){ return itemSpec(it).attune; }
+function attunedEntries(c){
+  return (c.inventory||[]).filter(e=>{ const it=itemOf(e.itemId); return it&&itemNeedsAttune(it)&&e.att; });
+}
+function toggleAttune(entryId){
   const c=cc(); if(!c) return;
   const e=(c.inventory||[]).find(x=>x.id===entryId); if(!e) return;
   const it=itemOf(e.itemId); if(!it) return;
-  /* мгновенное исцеление из описания — сумма реальных костей от мастера */
-  const heal=deriveHeal(it);
-  if(heal && !(arguments.length>1&&arguments[1]&&arguments[1].healDice!=null)){
-    askRolls({title:'⚗ '+it.n, note:'Формула: '+heal.cnt+'d'+heal.sides+(heal.plus?' + '+heal.plus:'')+'. Впишите сумму выпавших костей.',
-      rows:[{key:'s',label:'Сумма '+heal.cnt+'d'+heal.sides,sub:'от '+heal.cnt+' до '+(heal.cnt*heal.sides),min:heal.cnt,max:heal.cnt*heal.sides}],
-      compute:v=>'Лечение: '+v.s+(heal.plus?' + '+heal.plus:'')+' = +'+(v.s+heal.plus)+' хитов',
-      apply:v=>useConsumable(entryId,{healDice:v.s})});
-    return;
-  }
-  let msg='⚗ «'+it.n+'» употреблено';
-  if(heal){
-    const tot=(arguments[1].healDice)+heal.plus;
-    c.hp=Math.min(eHpMax(c),(+c.hp||0)+tot);
-    diceOutSet(it.n+': '+heal.cnt+'d'+heal.sides+(heal.plus?' + '+heal.plus:'')+' → +'+tot+' хитов (кости '+arguments[1].healDice+')','var(--ok)');
-    msg+=' · +'+tot+' хитов';
-  }
-  /* длящиеся и качественные эффекты — вешаем на героя с пометкой */
-  const lasting=recFx(it,'item').filter(f=>!(f.stat==='hp'&&f.mode==='add'));
-  if(lasting.length){
-    applyFxTo(c.id, {k:'use', id:it.id, label:it.n+' (употреблено)', fx:lasting, why:'употреблено из инвентаря'});
-  }
-  /* списываем одну штуку */
-  e.qty=(e.qty||1)-1;
-  if(e.qty<=0){
-    Object.keys(c.equipment||{}).forEach(k=>{ if(c.equipment[k]===e.id) delete c.equipment[k]; });
-    c.inventory=c.inventory.filter(x=>x.id!==e.id);
-    msg+=' · запас исчерпан';
+  if(e.att){ e.att=false; setStatus('✵ Настройка на «'+it.n+'» разорвана.'); }
+  else{
+    if(attunedEntries(c).length>=ATTUNE_LIMIT){
+      setStatus('✕ Больше '+ATTUNE_LIMIT+' настроенных предметов держать нельзя — разорвите настройку с другим.', true); return;
+    }
+    e.att=true; setStatus('✵ «'+it.n+'» настроен — свойства предмета вступили в силу.');
   }
   fxInvalidate(); scheduleSave(); renderChars();
-  setStatus(msg+'.');
+}
+/* восстановление зарядов: кости бросает мастер */
+function rechargeItems(c, when){
+  const list=[];
+  (c.inventory||[]).forEach(e=>{
+    const it=itemOf(e.itemId); if(!it) return;
+    const sp=itemSpec(it), ch=invCharges(e,it);
+    if(!ch||!sp.recharge||ch.cur>=ch.max) return;
+    if(when==='long'&&sp.when==='на закате') return;
+    list.push({e,it,sp,ch});
+  });
+  if(!list.length) return;
+  const dice=list.filter(x=>x.sp.recharge.sides);
+  list.filter(x=>!x.sp.recharge.sides).forEach(x=>{
+    x.ch.cur=Math.min(x.ch.max, x.ch.cur+(x.sp.recharge.plus||x.ch.max));
+  });
+  if(!dice.length){ scheduleSave(); return; }
+  askRolls({title:'✦ Восстановление зарядов', note:'Предметы восстанавливают заряды — впишите выпавшее.',
+    rows:dice.map((x,i)=>({key:'r'+i, label:x.it.n+': '+x.sp.recharge.cnt+'d'+x.sp.recharge.sides+(x.sp.recharge.plus?' + '+x.sp.recharge.plus:''),
+      sub:'сейчас '+x.ch.cur+' из '+x.ch.max, min:x.sp.recharge.cnt, max:x.sp.recharge.cnt*x.sp.recharge.sides})),
+    compute:v=>dice.map((x,i)=>x.it.n+': +'+((+v['r'+i]||0)+x.sp.recharge.plus)).join(' · '),
+    apply:v=>{
+      const done=[];
+      dice.forEach((x,i)=>{ const add=(+v['r'+i]||0)+x.sp.recharge.plus;
+        x.ch.cur=Math.min(x.ch.max, x.ch.cur+add); done.push(x.it.n+' → '+x.ch.cur+'/'+x.ch.max); });
+      scheduleSave(); renderChars();
+      setStatus('✦ Заряды восстановлены: '+done.join(', ')+'.');
+      castLogLine('✦ '+c.name+': восстановление зарядов — '+done.join(', '));
+    }});
+}
+/* ── применение предмета тем же окном, что заклинания и способности ── */
+function itemCastFx(entryId, casterId){
+  const caster=getCh(casterId||activeCharId); if(!caster) return;
+  const e=(caster.inventory||[]).find(x=>x.id===entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const back=document.getElementById('castBack'); if(!back) return;
+  const sp=itemSpec(it), ch=invCharges(e,it);
+  castCtx={kind:'item', entryId, itemId:it.id, casterId:caster.id, target:'ally:'+caster.id, weapon:null, extraTargets:[]};
+  document.getElementById('castTitle').textContent='⚗ Применить: '+it.n;
+  const info=[ITEM_TYPES[it.type]||it.type];
+  if(ch) info.push('заряды: '+ch.cur+' из '+ch.max+(sp.when?' · восстановление '+sp.when:''));
+  if(sp.attune) info.push(e.att?'настроен':'НЕ настроен — свойства не действуют');
+  if(e.qty>1) info.push('в запасе: '+e.qty+' шт.');
+  if(sp.consumable) info.push('расходуется при применении');
+  document.getElementById('castInfo').innerHTML=esc(info.join(' · '))
+    +'<div class="note-ital" style="font-size:13px;margin-top:4px">'+esc(String(it.desc||'').split('\n')[0]).slice(0,300)+'</div>';
+  document.getElementById('castTarget').innerHTML=targetOptionsHTML(caster,null);
+  const sw=document.getElementById('castSlotWrap'); if(sw) sw.style.display='none';
+  const ww=document.getElementById('castWeaponWrap'); if(ww) ww.style.display='none';
+  const mw=document.getElementById('castMultiWrap'); if(mw) mw.style.display='none';
+  document.getElementById('castItemWrap').style.display='none';
+  document.getElementById('castStep1').style.display='block';
+  document.getElementById('castStep2').style.display='none';
+  document.getElementById('castStep3').style.display='none';
+  const er=document.getElementById('castErr'); er.style.display='none'; er.textContent='';
+  back.style.display='flex';
+}
+function canUseItemCheck(caster, e, it){
+  const sp=itemSpec(it), ch=e.ch;
+  const cond=effectiveConditions(caster);
+  const block=ACTION_BLOCK_CONDS.filter(n=>cond.indexOf(n)>=0)[0];
+  if(block) return {ok:false, reason:'Состояние «'+block+'» не позволяет совершать действия — предмет неприменим.'};
+  if(sp.attune&&!e.att) return {ok:false, reason:'«'+it.n+'» требует настройки. Настройте предмет (✵), иначе его свойства не действуют.'};
+  if(ch&&ch.cur<=0) return {ok:false, reason:'Заряды «'+it.n+'» исчерпаны — восстановление '+(sp.when||'по решению мастера')+'.'};
+  if(!ch&&sp.consumable&&(e.qty||0)<=0) return {ok:false, reason:'«'+it.n+'» закончился.'};
+  return {ok:true};
+}
+function useItemApply(entryId, casterId, target, rolls){
+  const caster=getCh(casterId); if(!caster) return false;
+  const e=(caster.inventory||[]).find(x=>x.id===entryId); if(!e) return false;
+  const it=itemOf(e.itemId); if(!it||!target) return false;
+  const chk=canUseItemCheck(caster,e,it);
+  if(!chk.ok){ setStatus('✕ '+chk.reason,true); castShowErr&&castShowErr(chk.reason); return false; }
+  const sp=itemSpec(it), ch=invCharges(e,it);
+  let cost='';
+  if(ch){ ch.cur--; cost=' · заряд −1 (осталось '+ch.cur+' из '+ch.max+')'; }
+  else if(sp.consumable){
+    e.qty=(e.qty||1)-1; cost=' · списано 1 шт.';
+    if(e.qty<=0){
+      Object.keys(caster.equipment||{}).forEach(k=>{ if(caster.equipment[k]===e.id) delete caster.equipment[k]; });
+      caster.inventory=caster.inventory.filter(x=>x.id!==e.id);
+      cost+=' · запас исчерпан';
+    }
+  }
+  let info='';
+  if(rolls) info+=applyRollsToTarget(target, rolls, '⚗ '+it.n);
+  else{
+    const ih=deriveInstantHeal(it,'item',caster,null);
+    if(ih&&ih.plus&&!ih.cnt){ applyHealTo(target, ih.plus, '⚗ '+it.n); info+=' · лечение +'+ih.plus+' хитов'; }
+  }
+  /* длящиеся свойства расходуемого — записью на цель, с длительностью из описания */
+  const tinfo=targetInfoOf(target);
+  const missed=!!(rolls&&(rolls.hit===false||(rolls.saveOk===true&&!rolls.dmgTotal)));
+  const lasting=recFx(it,'item').filter(f=>!(f.stat==='hp'&&(f.mode==='add'||f.mode==='grant')));
+  if(lasting.length&&sp.consumable&&tinfo.kind==='ally'&&!missed){
+    const entry={k:'use', id:it.id, label:it.n+' (применено)', fx:lasting, from:caster.name, casterId:caster.id,
+      castId:castUid(), stackKey:'use:'+it.id, power:0, why:'применено: '+caster.name};
+    attachDuration(entry, {n:it.n, d:'', x:it.desc||''}, 0);
+    applyFxTo(tinfo.id, entry);
+    info+=' · свойство наложено';
+  } else if(lasting.length&&tinfo.kind==='foe'&&tinfo.obj&&!missed){
+    tinfo.obj.notes=(tinfo.obj.notes?tinfo.obj.notes+'\n':'')+'⚗ '+it.n+' ('+caster.name+')';
+  }
+  const tl=tinfo.name||'—';
+  fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
+  setStatus('⚗ «'+it.n+'» применено (цель: '+tl+')'+cost+info+'.');
+  castLogLine('⚗ '+caster.name+' → '+tl+': предмет «'+it.n+'»'+cost+info);
+  if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
+  return true;
+}
+/* временные хиты по правилам 5e: не складываются, остается большее */
+function applyTempHp(targetVal, amount){
+  const ti=targetInfoOf(targetVal);
+  if(!ti.obj||!(amount>0)) return null;
+  const was=+ti.obj.hpTemp||0;
+  ti.obj.hpTemp=Math.max(was, amount);
+  return {name:ti.name, temp:ti.obj.hpTemp, replaced:amount>was, was};
+}
+function useConsumable(entryId){
+  /* прежняя кнопка «употребить» ведет в общее окно применения */
+  const c=cc(); if(!c) return;
+  itemCastFx(entryId, c.id);
 }
 
 /* ── панель «Действующие эффекты» ── */
@@ -5956,7 +6151,7 @@ function perceptionIdx(){ return SKILLS.findIndex(s=>s[0]==='Вниматель�
 function passivePerc(c){ const i=perceptionIdx(); return 10+(i>=0?skillBonus(c,i).v:eMod(c,'wis'))+fxSum(c,'passperc'); }
 function weaponRows(c){
   const eq=c.equipment||{}, seen={}, rows=[];
-  ['MAIN_HAND','OFF_HAND'].forEach(sl=>{
+  ['MAIN_HAND','TWO_HAND','OFF_HAND'].forEach(sl=>{
     const eid=eq[sl]; if(!eid||seen[eid]) return; seen[eid]=1;
     const e=invEntry(c,eid), it=e?itemOf(e.itemId):null;
     if(!it||it.type!=='weapon') return;
@@ -6362,6 +6557,14 @@ function stStats(c){
 const sheetSearch={inv:'',sp:'',ab:''};
 const quickForm={inv:false,sp:false,ab:false};
 function isEquipped(c,entryId){ return Object.values(c.equipment||{}).includes(entryId); }
+function invChargeDelta(entryId,d){
+  const c=cc(); if(!c) return;
+  const e=(c.inventory||[]).find(x=>x.id===entryId); if(!e) return;
+  const it=itemOf(e.itemId); if(!it) return;
+  const ch=invCharges(e,it); if(!ch) return;
+  ch.cur=Math.max(0,Math.min(ch.max,ch.cur+d));
+  scheduleSave(); renderChars();
+}
 function invQty(entryId,d){ const c=cc(); const e=c.inventory.find(x=>x.id===entryId); if(!e) return;
   e.qty=Math.max(1,(e.qty||1)+d); scheduleSave(); renderChars(); }
 function invNoteClear(entryId){ const c=cc(); if(!c) return;
@@ -6433,7 +6636,11 @@ function stInventory(c){
    +COINS.map(x=>'<div class="coin"><b>'+x[1]+'</b><input type="number" min="0" value="'+c.coins[x[0]]+'" onchange="updCoin(\''+x[0]+'\',this.value)"></div>').join('')+'</div>';
   /* нагрузка */
   (function(){ const w=carryWeight(c), cap=Math.round((+c.ab.str||10)*7.5), over=w>cap;
-    h+='<div class="load-row'+(over?' over':'')+'">⚖ Груз: <b>'+w+' кг</b> из '+cap+' кг'+(over?' — перегруз! Скорость падает.':'')+'</div>'; })();
+    const att=attunedEntries(c);
+    h+='<div class="load-row'+(over?' over':'')+'">⚖ Груз: <b>'+w+' кг</b> из '+cap+' кг'
+      +(over?' — перегруз: скорость снижена на 3 м (вариант правил 5e)':'')
+      +' &nbsp;·&nbsp; ✵ Настройка: <b>'+att.length+' из '+ATTUNE_LIMIT+'</b>'
+      +(att.length?' — '+att.map(x=>esc((itemOf(x.itemId)||{}).n||'')).join(', '):'')+'</div>'; })();
   /* добавление */
   h+='<div class="db-bar"><input type="text" placeholder="Найти предмет в арсенале мира и выдать герою…" value="'+esc(sheetSearch.inv)+'" oninput="sheetSearch.inv=this.value;renderChars();const f=document.querySelector(\'#tab-chars .db-bar input\');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}">'
    +'<button class="btn ghost sm" onclick="quickForm.inv=!quickForm.inv;renderChars()">✚ Свое</button></div>';
@@ -6469,7 +6676,16 @@ function stInventory(c){
       const it=itemOf(e.itemId);
       const eq=isEquipped(c,e.id);
       const canEq=!!it.slot;
-      const extra=(isConsumableItem(it)?'<button class="btn ghost sm fx-cast" title="Употребить: применить эффекты и списать 1 шт." onclick="useConsumable(\''+e.id+'\')">⚗ Употребить</button>':'')
+      const isp=itemSpec(it), ich=invCharges(e,it);
+      const usable=isp.consumable||!!ich||recFx(it,'item').some(f=>f.mode!=='text');
+      const attBox=isp.attune
+        ? '<button class="btn '+(e.att?'':'ghost ')+'sm" title="'+(e.att?'Разорвать настройку':'Настроиться (не больше '+ATTUNE_LIMIT+' предметов)')+'" onclick="toggleAttune(\''+e.id+'\')">'+(e.att?'✵ Настроен':'✵ Настроить')+'</button>'
+        : '';
+      const chBox=ich
+        ? '<span class="uses-box" title="Заряды предмета'+(isp.when?' · восстановление '+esc(isp.when):'')+'"><button class="mini-btn" onclick="invChargeDelta(\''+e.id+'\',-1)">−</button>заряды '+ich.cur+' / '+ich.max+'<button class="mini-btn" onclick="invChargeDelta(\''+e.id+'\',1)">+</button></span>'
+        : '';
+      const extra=(usable?'<button class="btn ghost sm fx-cast" title="Применить предмет: цель, формула бросков, разбор итога по правилам" onclick="itemCastFx(\''+e.id+'\',\''+c.id+'\')">⚗ Применить</button>':'')
+       +chBox+attBox
        +'<span class="qty-box"><button class="mini-btn" onclick="invQty(\''+e.id+'\',-1)">−</button><b>'+(e.qty||1)+'</b><button class="mini-btn" onclick="invQty(\''+e.id+'\',1)">+</button></span>'
        +(canEq?'<button class="btn '+(eq?'':'ghost ')+'sm" onclick="invEquipToggle(\''+e.id+'\')">'+(eq?'Надето ✓':'Надеть')+'</button>':'')
        +'<button class="btn ghost sm" title="Править в базе предметов" onclick="jumpToItemEd(\''+it.id+'\')">✎</button>'
@@ -6601,6 +6817,7 @@ function longRest(){
   });
   c.activeFx=keep;
   c.spentRest=0; c.arcUsed=false;      /* счетчик трат ячеек и арканное восстановление обнуляются */
+  if(typeof rechargeItems==='function') rechargeItems(c,'long');
   if(typeof fxInvalidate==='function') fxInvalidate();
   syncStackedGrants(c);
   c.hp=(typeof eHpMax==='function')?eHpMax(c):c.hpMax;
