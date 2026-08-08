@@ -27,11 +27,14 @@ function loadEngine(random = () => 0) {
       seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, seedFoesDB, gameDataAudit,
       buildRoku, buildTorgar, buildSeptih, buildLegerem,
       foeActionOf, foeActionFormula, foeActionSpecOf, foeActionApply,
-      abilityIsActive, isPassiveAbility, itemProfile, weaponBonusOf, ammoRemaining, ammoRecover, invQty,
+      abilityIsActive, isPassiveAbility, abilityPoolOf, itemProfile, weaponBonusOf, ammoRemaining, ammoRecover, invQty,
       validateFormulaValues, saveConditionMode,
       combatStart, combatNextTurn, combatEnd, combatSpend, combatCanSpend, combatBasicAction, combatFocus,
       combatCastSpell, combatUseAbility, combatWeapon, combatFoeAction, combatSyncChanges, combatVictoryText,
-      combatDeathSave, combatContestAction, combatTriggerReady, combatOpportunityBlocked, combatSetGroup, combatSpellTurnAllowed, closeCastModal,
+      combatDeathSave, combatContestAction, combatTriggerReady, combatOpportunityBlocked, combatSetGroup, combatSpellTurnAllowed,
+      combatAbilityCost, combatAbilityUsable, combatSpellCost, combatCunningAction,
+      castConfirm, castFormulaShow, castFormulaConfirm, closeCastModal,
+      castState() { return {ctx:castCtx, spec:castCtx&&castCtx.spec}; },
       makeBlank() { return buildBlank(); },
       renderWorld() {
         renderRaces(); renderClasses(); renderRules(); renderChars(); renderCombat();
@@ -476,7 +479,8 @@ test('пассивные черты не становятся действиям
   assert.equal(e.abilityIsActive(lucky), false);
   assert.equal(e.isPassiveAbility(lucky), true);
   assert.deepEqual([breath.mode, breath.uses, breath.rest], ['active', 1, 'короткий отдых']);
-  assert.deepEqual([relentless.mode, relentless.uses, relentless.rest], ['active', 1, 'длинный отдых']);
+  assert.deepEqual([relentless.mode, relentless.uses, relentless.rest], ['triggered', 1, 'длинный отдых']);
+  assert.equal(e.abilityIsActive(relentless), false);
 });
 
 test('преимущество цели и одноразовая кость спасброска проходят через общую формулу', () => {
@@ -884,6 +888,124 @@ test('Дополнительная атака дает всю серию вну�
   assert.equal(e.combatCanSpend('action', `ally:${fighter.id}`, true), false);
 });
 
+test('маневр воина переходит к итогу бросков и атомарно тратит атаку и кость', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const fighter = e.buildLegerem(), ally = hero('ally', {name: 'Союзник'});
+  const orc = e.seedFoesDB().find(f => f.id === 'foe_orc_raider');
+  e.setState({chars: [fighter, ally], items, abilities, classes, foes: [orc]});
+  e.combatStart([
+    {kind: 'ally', id: fighter.id, nat: 20},
+    {kind: 'foe', id: orc.id, nat: 15},
+    {kind: 'ally', id: ally.id, nat: 10},
+  ], 'Провокация');
+
+  const maneuver = abilities.find(x => x.id === 'ab_lg_goading');
+  const poolEntry = fighter.abilities.find(x => x.abilityId === 'ab_lg_dice');
+  e.combatSetGroup('abilities');
+  const menu = e.renderWorld().combat;
+  assert.ok(menu.includes('Провоцирующая атака'));
+  assert.equal(menu.includes("combatUseAbility('ab_lg_dice')"), false);
+  assert.equal(menu.includes("combatUseAbility('ab_lg_parry')"), false);
+  assert.equal(menu.includes("combatUseAbility('ab_lg_dwarfdiplomacy')"), false);
+  assert.equal(e.combatAbilityCost(maneuver), 'attack');
+  assert.equal(e.combatUseAbility(maneuver.id), true);
+  assert.equal(e.state().combat.turn.actionsUsed, 0, 'окно броска еще не коммитит атаку');
+
+  e.setElementValue('castTarget', `foe:${orc.id}`);
+  e.setElementValue('castWeapon', '0');
+  e.castConfirm();
+  const shown = e.castState();
+  assert.equal(shown.ctx.combatCost, 'attack');
+  assert.deepEqual(plain(shown.spec.rows.filter(r => r.type !== 'extra').map(r => r.type)), ['atk', 'res', 'dmg', 'save']);
+
+  e.setElementValue('cf_atk', '10');
+  e.setElementValue('cf_res', '4');
+  e.setElementValue('cf_wdmg', '5');
+  e.setElementValue('cf_save', '1');
+  e.castFormulaConfirm();
+
+  assert.equal(e.castState().ctx, null);
+  assert.equal(e.state().combat.turn.actionsUsed, 1);
+  assert.equal(e.state().combat.turn.attacksUsed, 1);
+  assert.equal(e.state().combat.turn.actionUsed, true);
+  assert.equal(poolEntry.cur, 3);
+  assert.equal(orc.hp, 3);
+  assert.ok(orc.activeFx.some(x => x.id === maneuver.id));
+
+  e.combatNextTurn();
+  const axe = e.foeActionOf(orc, 'greataxe');
+  const againstFighter = e.foeActionSpecOf(orc, axe, e.targetInfoOf(`ally:${fighter.id}`));
+  const againstAlly = e.foeActionSpecOf(orc, axe, e.targetInfoOf(`ally:${ally.id}`));
+  assert.equal(againstFighter.rows.find(r => r.type === 'atk').adv, 0);
+  assert.equal(againstAlly.rows.find(r => r.type === 'atk').adv, 2, 'провокация мешает атаковать других');
+  e.combatNextTurn();
+  e.combatNextTurn();
+  assert.ok(orc.activeFx.some(x => x.id === maneuver.id), 'эффект живет до конца следующего хода воина');
+  e.combatNextTurn();
+  assert.equal(orc.activeFx.some(x => x.id === maneuver.id), false);
+});
+
+test('эффект до конца хода источника снимается и с цели вне очереди инициативы', () => {
+  const e = loadEngine();
+  const fighter = hero('fighter', {name: 'Воин'});
+  const [orc, goblin] = e.seedFoesDB();
+  goblin.activeFx = [{id: 'outside-turn-effect', label: 'Провокация', combatUntilEndTurn: `ally:${fighter.id}`, fx: []}];
+  e.setState({chars: [fighter], foes: [orc, goblin]});
+  e.combatStart([{kind: 'ally', id: fighter.id, nat: 20}, {kind: 'foe', id: orc.id, nat: 10}], 'Внешняя цель');
+
+  assert.equal(e.combatNextTurn(), true);
+  assert.equal(goblin.activeFx.some(x => x.id === 'outside-turn-effect'), false);
+});
+
+test('промах манева тратит атаку, но не кость превосходства и не эффект', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const fighter = e.buildLegerem(), orc = e.seedFoesDB().find(f => f.id === 'foe_orc_raider');
+  e.setState({chars: [fighter], items, abilities, classes, foes: [orc]});
+  e.combatStart([{kind: 'ally', id: fighter.id, nat: 20}, {kind: 'foe', id: orc.id, nat: 10}], 'Промах');
+  e.combatUseAbility('ab_lg_disarm');
+  e.setElementValue('castTarget', `foe:${orc.id}`); e.setElementValue('castWeapon', '0'); e.castConfirm();
+  e.setElementValue('cf_atk', '1'); e.setElementValue('cf_wdmg', '5'); e.setElementValue('cf_save', '1');
+  e.castFormulaConfirm();
+
+  assert.equal(fighter.abilities.find(x => x.abilityId === 'ab_lg_dice').cur, 4);
+  assert.equal(orc.hp, 15);
+  assert.equal(orc.activeFx.some(x => x.id === 'ab_lg_disarm'), false);
+  assert.equal(e.state().combat.turn.attacksUsed, 1);
+
+  e.combatNextTurn(); e.combatNextTurn();
+  assert.equal(e.combatUseAbility('ab_lg_disarm'), true);
+  e.setElementValue('castTarget', `foe:${orc.id}`); e.setElementValue('castWeapon', '0'); e.castConfirm();
+  e.setElementValue('cf_atk', '10'); e.setElementValue('cf_res', '4'); e.setElementValue('cf_wdmg', '5'); e.setElementValue('cf_save', '1');
+  e.castFormulaConfirm();
+  const disarmed = orc.activeFx.find(x => x.id === 'ab_lg_disarm');
+  assert.ok(disarmed);
+  assert.ok(disarmed.fx.some(x => /\u0420\u0430\u0437\u043e\u0440\u0443\u0436\u0435\u043d/.test(x.value)));
+  assert.equal(fighter.abilities.find(x => x.abilityId === 'ab_lg_dice').cur, 3);
+});
+
+test('контракт отделяет боевые действия воина от ресурсов, триггеров и фоновых черт', () => {
+  const e = loadEngine();
+  const abilities = e.seedAbilitiesDB(), fighter = e.buildLegerem();
+  e.setState({chars: [fighter], abilities});
+  const byId = id => abilities.find(x => x.id === id);
+
+  assert.deepEqual(['ab_lg_surge', 'ab_lg_secondwind', 'ab_lg_precise', 'ab_lg_goading', 'ab_lg_halfblow', 'ab_lg_disarm']
+    .map(id => e.combatAbilityCost(byId(id))), ['turnfree', 'bonus', 'attack', 'attack', 'attack', 'attack']);
+  assert.equal(e.combatAbilityUsable(byId('ab_lg_dice')), false);
+  assert.equal(e.combatAbilityUsable(byId('ab_lg_parry')), false);
+  assert.equal(e.combatAbilityUsable(byId('ab_lg_dwarfdiplomacy')), false);
+  assert.equal(e.abilityPoolOf(fighter, byId('ab_lg_halfblow')), null, '«не тратя» не считается расходом');
+  assert.equal(e.combatAbilityCost({tags: ['attack'], x: 'Если вы попадаете, примените эффект.'}), 'action');
+  const precise = byId('ab_lg_precise'), pool = e.abilityPoolOf(fighter, precise);
+  const spec = e.rollSpecOf(precise, {caster: fighter, kind: 'ability', target: {kind: 'none', known: false, name: 'цель'},
+    weapon: {n: 'Топор', atk: 5, dmg: '1d8', dt: 'рубящий', m: 3, mode: 'melee', within5: true}, pool, forceAttack: true});
+  const values = {atk: 10, wdmg: 5, res: null};
+  assert.equal(e.validateFormulaValues(spec, values, e.resolveOutcome(spec, values, {hitOverride: 'hit'})).ok, false,
+    'выбранный прием нельзя подтвердить без броска кости');
+});
+
 test('атака второй рукой открывается после действия Атака и не добавляет положительную Ловкость к урону', () => {
   const e = loadEngine();
   const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
@@ -978,8 +1100,114 @@ test('способность с дополнительным действием 
   assert.equal(e.useAbilityApply('ab_lg_surge', fighter.id, `ally:${fighter.id}`, {notes: [], verdict: []}), true);
   e.closeCastModal();
   assert.equal(e.state().combat.turn.actionUsed, false);
+  assert.deepEqual([e.state().combat.turn.actionsUsed, e.state().combat.turn.actionMax], [1, 2]);
   assert.equal(e.combatCanSpend('action', `ally:${fighter.id}`, true), true);
   assert.equal(fighter.abilities.find(x => x.abilityId === 'ab_lg_surge').cur, 0);
+});
+
+test('Неистовый порыв до первого действия дает два слота и не ломает атаку второй рукой', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const fighter = e.buildLegerem(), foe = e.seedFoesDB()[0];
+  e.setState({chars: [fighter], items, abilities, classes, foes: [foe]});
+  e.combatStart([{kind: 'ally', id: fighter.id, nat: 20}, {kind: 'foe', id: foe.id, nat: 10}], 'Порыв заранее');
+
+  assert.equal(e.combatUseAbility('ab_lg_surge'), true);
+  assert.equal(e.useAbilityApply('ab_lg_surge', fighter.id, `ally:${fighter.id}`, {notes: [], verdict: []}), true);
+  e.closeCastModal();
+  assert.deepEqual([e.state().combat.turn.actionsUsed, e.state().combat.turn.actionMax], [0, 2]);
+  assert.equal(e.combatSpend('attack', 'Атака', `ally:${fighter.id}`), true);
+  assert.equal(e.combatSpend('action', 'Рывок', `ally:${fighter.id}`), true);
+  assert.equal(e.combatCanSpend('action', `ally:${fighter.id}`, true), false);
+  assert.equal(e.combatCanSpend('offhand', `ally:${fighter.id}`, true), true,
+    'факт совершенного действия Атака не теряется после второго действия');
+});
+
+test('Парирование встроено в итог входящей ближней атаки и атомарно тратит реакцию с костью', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const fighter = e.buildLegerem(), orc = e.seedFoesDB().find(f => f.id === 'foe_orc_raider');
+  e.setState({chars: [fighter], items, abilities, classes, foes: [orc]});
+  e.combatStart([{kind: 'foe', id: orc.id, nat: 20}, {kind: 'ally', id: fighter.id, nat: 10}], 'Парирование');
+
+  assert.equal(e.combatFoeAction('greataxe'), true);
+  e.setElementValue('castTarget', `ally:${fighter.id}`); e.castConfirm();
+  const mitigation = e.castState().spec.rows.find(r => r.type === 'mitigation');
+  assert.ok(mitigation);
+  assert.equal(mitigation.key, 'reaction_parry');
+  e.setElementValue('cf_atk', '11'); e.setElementValue('cf_dmg0', '10'); e.setElementValue('cf_reaction_parry', '6');
+  e.castFormulaConfirm();
+
+  assert.equal(fighter.hp, 43, 'секира 10+3 минус Парирование 6+2 наносит 5');
+  assert.equal(fighter.abilities.find(x => x.abilityId === 'ab_lg_dice').cur, 3);
+  assert.equal(e.state().combat.order.find(x => x.id === fighter.id).reactionUsed, true);
+});
+
+test('Парирование не тратится при промахе', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const fighter = e.buildLegerem(), orc = e.seedFoesDB().find(f => f.id === 'foe_orc_raider');
+  e.setState({chars: [fighter], items, abilities, classes, foes: [orc]});
+  e.combatStart([{kind: 'foe', id: orc.id, nat: 20}, {kind: 'ally', id: fighter.id, nat: 10}], 'Промах по парирующему');
+  e.combatFoeAction('greataxe'); e.setElementValue('castTarget', `ally:${fighter.id}`); e.castConfirm();
+  e.setElementValue('cf_atk', '1'); e.setElementValue('cf_dmg0', '10'); e.setElementValue('cf_reaction_parry', '6');
+  e.castFormulaConfirm();
+
+  assert.equal(fighter.hp, 48);
+  assert.equal(fighter.abilities.find(x => x.abilityId === 'ab_lg_dice').cur, 4);
+  assert.equal(e.state().combat.order.find(x => x.id === fighter.id).reactionUsed, false);
+});
+
+test('Парирование доступно в свой ход против внеочередной ближней атаки', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const fighter = e.buildLegerem(), orc = e.seedFoesDB().find(f => f.id === 'foe_orc_raider');
+  e.setState({chars: [fighter], items, abilities, classes, foes: [orc]});
+  e.combatStart([{kind: 'ally', id: fighter.id, nat: 20}, {kind: 'foe', id: orc.id, nat: 10}], 'Внеочередная атака');
+
+  e.combatFocus(`foe:${orc.id}`);
+  assert.equal(e.combatFoeAction('greataxe', 'reaction'), true);
+  e.setElementValue('castTarget', `ally:${fighter.id}`);
+  e.castConfirm();
+  assert.ok(e.castState().spec.rows.some(r => r.type === 'mitigation' && r.key === 'reaction_parry'));
+  e.closeCastModal();
+});
+
+test('устаревшее Парирование отклоняет весь коммит атаки без частичных последствий', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const fighter = e.buildLegerem(), orc = e.seedFoesDB().find(f => f.id === 'foe_orc_raider');
+  e.setState({chars: [fighter], items, abilities, classes, foes: [orc]});
+  e.combatStart([{kind: 'foe', id: orc.id, nat: 20}, {kind: 'ally', id: fighter.id, nat: 10}], 'Устаревшая реакция');
+  e.combatFoeAction('greataxe'); e.setElementValue('castTarget', `ally:${fighter.id}`); e.castConfirm();
+  e.setElementValue('cf_atk', '11'); e.setElementValue('cf_dmg0', '10'); e.setElementValue('cf_reaction_parry', '6');
+  assert.equal(e.combatSpend('reaction', 'Другая реакция', `ally:${fighter.id}`), true);
+  e.castFormulaConfirm();
+
+  assert.ok(e.castState().ctx, 'итог остается открытым для пересчета');
+  assert.equal(fighter.hp, 48);
+  assert.equal(fighter.abilities.find(x => x.abilityId === 'ab_lg_dice').cur, 4);
+  assert.equal(e.state().combat.turn.actionsUsed, 0);
+  e.closeCastModal();
+});
+
+test('ритуальная метка не блокирует обычный каст, а долгие заклинания остаются вне хода', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB();
+  assert.equal(e.combatSpellCost(spells.find(x => x.n === 'Обнаружение магии')), 'action');
+  assert.equal(e.combatSpellCost(spells.find(x => x.n === 'Тишина')), 'action');
+  assert.equal(e.combatSpellCost(spells.find(x => x.n === 'Молебен лечения')), 'long');
+});
+
+test('оружие дыхания масштабирует одну, а не все четыре ступени урона', () => {
+  const e = loadEngine();
+  const abilities = e.seedAbilitiesDB(), breath = abilities.find(x => /^\u041e\u0440\u0443\u0436\u0438\u0435 \u0434\u044b\u0445\u0430\u043d\u0438\u044f/.test(x.n));
+  const target = {kind: 'none', known: false, name: 'цель'};
+  const dice = [3, 6, 11, 16].map(level => {
+    const caster = hero(`dragon-${level}`, {level, ab: {str: 10, dex: 10, con: 16, int: 10, wis: 10, cha: 10}});
+    return e.rollSpecOf(breath, {caster, kind: 'ability', target}).rows.find(r => r.type === 'dmg').cnt;
+  });
+  assert.deepEqual(dice, [2, 3, 4, 5]);
 });
 
 test('герой с 0 хитов не пропускает ход и делает ручной спасбросок от смерти', () => {
@@ -1204,6 +1432,130 @@ test('пачка стрел расходуется по одной и возвр
   assert.equal(e.ammoRemaining(arrows,items.find(x=>x.id===arrows.itemId)),38,'новая пачка добавляет ровно 20 стрел к остатку');
   e.invQty(arrows.id,-1);
   assert.equal(e.ammoRemaining(arrows,items.find(x=>x.id===arrows.itemId)),18,'удаление пачки не сбрасывает частичный остаток');
+});
+
+test('атака оружием внутри способности расходует тот же боеприпас', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const rogue = e.buildSeptih(), foe = e.seedFoesDB().find(f => f.id === 'foe_orc_raider');
+  rogue.equipment = {TWO_HAND: 'inv_s8', CHEST: 'inv_s9'};
+  const arrows = rogue.inventory.find(x => x.id === 'inv_s10');
+  e.setState({chars: [rogue], items, abilities, classes, foes: [foe]});
+  e.combatStart([{kind: 'ally', id: rogue.id, nat: 20}, {kind: 'foe', id: foe.id, nat: 10}], 'Скрытая атака из лука');
+
+  assert.equal(e.combatUseAbility('ab_sx_sneak'), true);
+  e.setElementValue('castTarget', `foe:${foe.id}`);
+  e.setElementValue('castWeapon', '0');
+  e.castConfirm();
+  const spec = e.castState().spec;
+  const values = {};
+  spec.rows.forEach(row => {
+    if(row.type === 'atk'){
+      values[row.key] = 10;
+      if(row.adv) values[row.key + '_2'] = 10;
+    } else if(row.type === 'dmg') values[row.key] = row.cnt;
+    else values[row.key] = null;
+  });
+  const rolls = e.resolveOutcome(spec, values, {});
+  assert.equal(rolls.hit, true);
+  assert.equal(e.useAbilityApply('ab_sx_sneak', rogue.id, `foe:${foe.id}`, rolls), true);
+  e.closeCastModal();
+
+  assert.equal(e.ammoRemaining(arrows, items.find(x => x.id === arrows.itemId)), 19);
+});
+
+test('Перезарядка ограничивает арбалет одним выстрелом на действие, но не на весь ход', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const fighter = e.buildLegerem(); fighter.level = 5;
+  const crossbow = items.find(x => x.n === 'Легкий арбалет');
+  const bolts = items.find(x => x.n === 'Арбалетные болты (20)');
+  fighter.inventory.push({id: 'crossbow', itemId: crossbow.id, qty: 1}, {id: 'bolts', itemId: bolts.id, qty: 1});
+  fighter.equipment = {TWO_HAND: 'crossbow'};
+  const foe = e.seedFoesDB().find(f => f.id === 'foe_orc_raider');
+  e.setState({chars: [fighter], items, abilities, classes, foes: [foe]});
+  e.combatStart([{kind: 'ally', id: fighter.id, nat: 20}, {kind: 'foe', id: foe.id, nat: 10}], 'Арбалет');
+
+  const shot = () => {
+    assert.equal(e.combatWeapon('crossbow', 'ranged'), true);
+    const spec = e.weaponSpecOf(fighter, crossbow, e.targetInfoOf(`foe:${foe.id}`), {entryId: 'crossbow', mode: 'ranged', within5: false});
+    const rolls = e.resolveOutcome(spec, {atk: 10, dmg: 4}, {});
+    return e.weaponAttackApply('crossbow', fighter.id, `foe:${foe.id}`, rolls);
+  };
+  assert.equal(shot(), true);
+  e.closeCastModal();
+  assert.equal(e.ammoRemaining(fighter.inventory.find(x => x.id === 'bolts'), bolts), 19);
+  assert.equal(shot(), false, 'второй выстрел той же серии блокируется');
+  e.closeCastModal();
+  assert.equal(e.ammoRemaining(fighter.inventory.find(x => x.id === 'bolts'), bolts), 19);
+
+  assert.equal(e.combatSpend('attack', 'Вторая атака другим оружием', `ally:${fighter.id}`), true);
+  assert.equal(e.combatUseAbility('ab_lg_surge'), true);
+  assert.equal(e.useAbilityApply('ab_lg_surge', fighter.id, `ally:${fighter.id}`, {notes: [], verdict: []}), true);
+  e.closeCastModal();
+  assert.equal(shot(), true, 'Неистовый порыв создает новое действие и новый лимит перезарядки');
+  e.closeCastModal();
+  assert.equal(e.ammoRemaining(fighter.inventory.find(x => x.id === 'bolts'), bolts), 18);
+});
+
+test('Проворство чейнджлинга тратит бонусное, а не обычное действие', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const rogue = e.buildSeptih(), foe = e.seedFoesDB()[0];
+  e.setState({chars: [rogue], items, abilities, classes, foes: [foe]});
+  e.combatStart([{kind: 'ally', id: rogue.id, nat: 20}, {kind: 'foe', id: foe.id, nat: 10}], 'Проворство');
+  assert.equal(e.combatCunningAction('dash'), true);
+  assert.equal(e.state().combat.turn.bonusUsed, true);
+  assert.equal(e.state().combat.turn.actionsUsed, 0);
+  assert.equal(e.state().combat.turn.dash, true);
+});
+
+test('Скрытая атака отмечается один раз за ход только после попадания', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const rogue = e.buildSeptih(), foe = e.seedFoesDB()[0];
+  e.setState({chars: [rogue], items, abilities, classes, foes: [foe]});
+  e.combatStart([{kind: 'ally', id: rogue.id, nat: 20}, {kind: 'foe', id: foe.id, nat: 10}], 'Скрытая атака');
+  assert.equal(e.combatUseAbility('ab_sx_sneak'), true);
+  assert.equal(e.useAbilityApply('ab_sx_sneak', rogue.id, `foe:${foe.id}`,
+    {hit: true, effectAllowed: true, dmgRaw: 0, dmgTotal: 0, notes: [], verdict: []}), true);
+  e.closeCastModal();
+  assert.equal(e.combatUseAbility('ab_sx_sneak'), false);
+  e.combatNextTurn(); e.combatNextTurn();
+  assert.equal(e.combatUseAbility('ab_sx_sneak'), true);
+  e.closeCastModal();
+});
+
+test('Шокирующая атака требует 2d8, при равенстве требует спасбросок и истекает в конце хода цели', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const rogue = e.buildSeptih(), foe = e.seedFoesDB().find(f => f.id === 'foe_orc_raider');
+  e.setState({chars: [rogue], items, abilities, classes, foes: [foe]});
+  e.combatStart([{kind: 'ally', id: rogue.id, nat: 20}, {kind: 'foe', id: foe.id, nat: 10}], 'Шок');
+  const shock = abilities.find(x => x.id === 'ab_sx_shock');
+  const weapon = {n: 'Короткий меч', atk: 5, dmg: '1d6', dt: 'колющий', m: 3, mode: 'melee', within5: true};
+  const spec = e.rollSpecOf(shock, {caster: rogue, kind: 'ability', target: e.targetInfoOf(`foe:${foe.id}`), weapon, forceAttack: true});
+  const threshold = spec.rows.find(r => r.type === 'threshold');
+  assert.ok(threshold);
+
+  let values = {atk: 10, atk_2: 10, wdmg: 4, save: null, [threshold.key]: null};
+  let out = e.resolveOutcome(spec, values, {});
+  assert.equal(e.validateFormulaValues(spec, values, out).ok, false);
+  values = {atk: 10, atk_2: 10, wdmg: 4, save: null, [threshold.key]: foe.ac};
+  out = e.resolveOutcome(spec, values, {});
+  assert.equal(e.validateFormulaValues(spec, values, out).ok, false, 'при равенстве нельзя пропустить спасбросок');
+  values = {atk: 10, atk_2: 10, wdmg: 4, save: null, [threshold.key]: foe.ac + 1};
+  out = e.resolveOutcome(spec, values, {});
+  const valid = e.validateFormulaValues(spec, values, out);
+  assert.equal(valid.ok, true, valid.errors.join(' | '));
+  assert.equal(out.effectAllowed, true);
+  assert.equal(e.useAbilityApply(shock.id, rogue.id, `foe:${foe.id}`, out), true);
+  assert.ok(e.effectiveFoeConditions(foe).includes('Ошеломленный'));
+  assert.equal(rogue.abilities.find(x => x.abilityId === shock.id).cur, 0);
+  e.combatNextTurn();
+  assert.ok(e.effectiveFoeConditions(foe).includes('Ошеломленный'));
+  e.combatNextTurn();
+  assert.equal(e.effectiveFoeConditions(foe).includes('Ошеломленный'), false);
 });
 
 test('активная боевая вкладка раскрывает все группы действий и журнал без перехода на лист', () => {
