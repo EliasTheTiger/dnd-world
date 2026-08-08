@@ -12,13 +12,18 @@ function loadEngine(random = () => 0) {
       setState(s) {
         chars=s.chars||[]; journal=[]; itemsDB=s.items||[]; spellsDB=s.spells||[];
         abilitiesDB=s.abilities||[]; racesDB=[]; classesDB=s.classes||[];
-        rulesDB=[]; activeCharId=s.activeCharId||null; fxRound=s.fxRound||1;
+        rulesDB=[]; foesDB=s.foes||[]; activeCharId=s.activeCharId||null; fxRound=s.fxRound||1;
       },
-      state() { return {chars,itemsDB,spellsDB,activeCharId,fxRound,lastCastEvent}; },
+      state() { return {chars,itemsDB,spellsDB,foesDB,activeCharId,fxRound,lastCastEvent}; },
       applyFxTo, removeActiveFx, advanceFxRound, attachDuration, spellFxForCast,
       castSpellApply, canCastCheck, parseComponents, materialPlanFor,
       charFxAll, fxSum, eHpMax, acTotal, speedTotal, concEntriesOf,
-      breakConcentration, longRest, activeStackWinners, durationSpecOf, spellNeedsConcentration,
+      breakConcentration, longRest, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
+      applyDamageTo, applyRollsToTarget, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
+      rollSpecOf, resolveOutcome, targetInfoOf,
+      setConfirmResults(v){ globalThis.__confirmQueue=v.slice(); },
+      setPromptResults(v){ globalThis.__promptQueue=v.slice(); globalThis.__promptCount=0; },
+      promptCount(){ return globalThis.__promptCount||0; },
       /* Правило проекта: сайт не бросает кости — их бросают живые игроки,
          поэтому вместо Math.random тест подставляет выпавшие значения. */
       setAutoRolls(v){ globalThis.window.__autoRolls=v; }
@@ -46,8 +51,11 @@ function loadEngine(random = () => 0) {
     URL,
     setTimeout: () => 0,
     clearTimeout() {},
-    confirm: () => true,
-    prompt: () => '1',
+    __confirmQueue: [],
+    __promptQueue: [],
+    __promptCount: 0,
+    confirm: () => context.__confirmQueue.length ? context.__confirmQueue.shift() : true,
+    prompt: () => { context.__promptCount++; return context.__promptQueue.length ? context.__promptQueue.shift() : '1'; },
     alert() {},
     fetch: async () => ({ok: true, json: async () => ({})}),
     EventSource: class {},
@@ -258,4 +266,140 @@ test('долгий отдых заклинателя разрывает эффе
 
   e.longRest();
   assert.equal(target.activeFx.length, 0);
+});
+
+test('успешный спасбросок блокирует длящееся состояние заклинания', () => {
+  const e = loadEngine();
+  const caster = hero('caster');
+  const target = hero('target');
+  const hold = {
+    id: 'hold', n: 'Удержание личности', l: 2, cm: '—', d: 'Концентрация, 1 мин.', conc: true,
+    x: 'Гуманоид парализован (спасбросок Мудрости в конце каждого хода).'
+  };
+  e.setState({chars: [caster, target], spells: [hold]});
+
+  const rolls = {saveOk: true, hit: null, contestWin: null, effectAllowed: false, dmgRaw: null, dmgTotal: null, verdict: []};
+  assert.equal(e.castSpellApply(hold.id, caster.id, `ally:${target.id}`, '', undefined, 'free', rolls), true);
+  assert.equal(target.activeFx.length, 0);
+  assert.equal(e.effectiveConditions(target).includes('Парализованный'), false);
+});
+
+test('многоцелевое лечение одним броском применяется ко всем выбранным целям', () => {
+  const e = loadEngine();
+  const caster = hero('caster');
+  const a = hero('a', {hp: 1, hpMax: 30});
+  const b = hero('b', {hp: 2, hpMax: 30});
+  const c = hero('c', {hp: 3, hpMax: 30});
+  const mass = {id: 'mass', n: 'Массовое лечение ран', l: 5, cm: 'В, С', d: 'Мгновенная', x: 'До шести существ восстанавливают 3d8 + модификатор Мудрости хитов.'};
+  const rolls = {healTotal: 17, tempTotal: null, dmgRaw: null, dmgTotal: null, hit: null, saveOk: null, contestWin: null, effectAllowed: true, verdict: []};
+  e.setState({chars: [caster, a, b, c], spells: [mass]});
+
+  assert.equal(e.castSpellApply(mass.id, caster.id, `ally:${a.id}`, '', undefined, 'free', rolls,
+    [`ally:${b.id}`, `ally:${c.id}`]), true);
+  assert.deepEqual([a.hp, b.hp, c.hp], [18, 19, 20]);
+});
+
+test('отдельные спасброски многоцелевого заклинания дают отдельные последствия', () => {
+  const e = loadEngine();
+  const caster = hero('caster', {slots: {3: {max: 1, cur: 1}}});
+  const a = hero('a'), b = hero('b');
+  const hold = {
+    id: 'hold', n: 'Удержание личности', l: 2, cm: '—', d: 'Концентрация, 1 мин.', conc: true,
+    x: 'Гуманоид парализован (спасбросок Мудрости в конце каждого хода).'
+  };
+  const ok = {saveOk: true, effectAllowed: false, dmgRaw: null, dmgTotal: null, verdict: []};
+  const fail = {saveOk: false, effectAllowed: true, dmgRaw: null, dmgTotal: null, verdict: []};
+  const byTarget = {[`ally:${a.id}`]: ok, [`ally:${b.id}`]: fail};
+  e.setState({chars: [caster, a, b], spells: [hold]});
+
+  assert.equal(e.castSpellApply(hold.id, caster.id, `ally:${a.id}`, '', undefined, '3', ok, [`ally:${b.id}`], byTarget), true);
+  assert.equal(a.activeFx.length, 0);
+  assert.equal(b.activeFx.length, 1);
+  assert.equal(e.effectiveConditions(b).includes('Парализованный'), true);
+  assert.equal(caster.slots[3].cur, 0);
+});
+
+test('урон по герою с 0 хитов ставит каноническое состояние и провалы смерти', () => {
+  const e = loadEngine();
+  const target = hero('target', {hp: 0, cond: ['Без сознания']});
+  const spell = {id: 'spark', n: 'Искра', l: 0, cm: 'В', d: 'Мгновенная', x: ''};
+  e.setState({chars: [target], spells: [spell]});
+
+  e.applyRollsToTarget(`ally:${target.id}`, {dmgTotal: 2, dmgRaw: 2, dmgType: 'огонь', crit: true}, 'Искра');
+  assert.equal(target.deaths.f, 2);
+  assert.deepEqual(Array.from(target.cond), ['Бессознательный']);
+  assert.equal(e.canCastCheck(target, spell).ok, false);
+});
+
+test('отмена расхода общего запаса не тратит собственный заряд способности', () => {
+  const e = loadEngine();
+  const pool = {id: 'pool', n: 'Кости превосходства d8', uses: 1, rest: 'короткий отдых', x: 'Запас костей превосходства.'};
+  const maneuver = {id: 'maneuver', n: 'Прием', uses: 1, rest: 'короткий отдых', x: 'Вы можете потратить кость превосходства и нанести дополнительный урон.'};
+  const caster = hero('caster', {abilities: [{abilityId: maneuver.id, cur: 1}, {abilityId: pool.id, cur: 0}]});
+  const target = hero('target');
+  e.setState({chars: [caster, target], abilities: [maneuver, pool]});
+  e.setConfirmResults([false]);
+
+  assert.equal(e.useAbilityApply(maneuver.id, caster.id, `ally:${target.id}`, {poolSpend: pool.id}), false);
+  assert.equal(caster.abilities[0].cur, 1);
+  assert.equal(caster.abilities[1].cur, 0);
+});
+
+test('Контрзаклинание спрашивает круг цели один раз до списания ячейки', () => {
+  const e = loadEngine();
+  const caster = hero('caster', {slots: {3: {max: 1, cur: 1}}});
+  const counter = {id: 'counter', n: 'Контрзаклинание', l: 3, cm: 'В', d: 'Мгновенная', x: ''};
+  e.setState({chars: [caster], spells: [counter]});
+  e.setPromptResults(['2']);
+
+  assert.equal(e.castSpellApply(counter.id, caster.id, 'enemy', '', undefined, '3'), true);
+  assert.equal(e.promptCount(), 1);
+  assert.equal(caster.slots[3].cur, 0);
+});
+
+test('длительный эффект на противнике хранится, учитывается концентрацией и истекает', () => {
+  const e = loadEngine();
+  const caster = hero('caster');
+  const foe = {id: 'foe', n: 'Враг', kind: 'monster', ac: 12, hp: 20, hpMax: 20, hpTemp: 0,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
+    resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: []};
+  const hold = {id: 'hold', n: 'Удержание личности', l: 2, cm: '—', d: 'Концентрация, 1 мин.', conc: true,
+    x: 'Гуманоид парализован (спасбросок Мудрости в конце каждого хода).'};
+  e.setState({chars: [caster], foes: [foe], spells: [hold]});
+
+  assert.equal(e.castSpellApply(hold.id, caster.id, `foe:${foe.id}`, '', undefined, 'free',
+    {saveOk: false, effectAllowed: true, dmgRaw: null, dmgTotal: null, verdict: []}), true);
+  assert.equal(foe.activeFx.length, 1);
+  assert.equal(e.concEntriesOf(caster.id).length, 1);
+  e.advanceFxRound(10);
+  assert.equal(foe.activeFx.length, 0);
+  assert.equal(e.concEntriesOf(caster.id).length, 0);
+});
+
+test('Героизм начинает с одной цели, а не с трех', () => {
+  const e = loadEngine();
+  const heroism = {n: 'Героизм', l: 1};
+  assert.equal(e.spellTargetLimit(heroism, 1), 1);
+  assert.equal(e.spellTargetLimit(heroism, 3), 3);
+});
+
+test('кости Благословения входят в итог атаки и спасброска', () => {
+  const e = loadEngine();
+  const blessFx = {uid: 'bless', k: 'spell', id: 'bless', label: 'Благословение', fx: [
+    {stat: 'attack', mode: 'die', value: '1d4'}, {stat: 'save', mode: 'die', value: '1d4'}
+  ]};
+  const caster = hero('caster', {activeFx: [blessFx]});
+  const target = hero('target', {activeFx: [JSON.parse(JSON.stringify(blessFx))]});
+  const foe = {id: 'foe', n: 'Враг', kind: 'monster', ac: 17, hp: 20, hpMax: 20, hpTemp: 0,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
+    resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: []};
+  e.setState({chars: [caster, target], foes: [foe]});
+
+  const attack = {n: 'Луч', l: 0, x: 'Дальнобойная атака заклинанием наносит 1d8 урона огнем.'};
+  const attackSpec = e.rollSpecOf(attack, {caster, kind: 'spell', slotLvl: 0, target: e.targetInfoOf(`foe:${foe.id}`)});
+  assert.equal(e.resolveOutcome(attackSpec, {atk: 10, atkfx0: 2, dmg2: 4}, {}).hit, true);
+
+  const saveSpell = {n: 'Испытание', l: 1, x: 'Цель совершает спасбросок Мудрости.'};
+  const saveSpec = e.rollSpecOf(saveSpell, {caster, kind: 'spell', slotLvl: 1, target: e.targetInfoOf(`ally:${target.id}`)});
+  assert.equal(e.resolveOutcome(saveSpec, {save: 7, savefx0: 2}, {}).saveOk, true);
 });

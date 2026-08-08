@@ -698,6 +698,25 @@ const CONDITIONS = [
  {n:'Парализованный', d:'Недееспособен, не может двигаться и говорить; проваливает спасброски Силы и Ловкости; атаки с 1,5 м — критические.'},
  {n:'Сбитый с ног', d:'Передвижение только ползком; помеха на атаки; атаки по нему с 1,5 м — с преимуществом, издали — с помехой.'}
 ];
+/* Старые версии записывали бессознательность как «Без сознания», тогда как
+   движок ограничений использует каноническое название состояния из списка
+   выше. Нормализация нужна на каждом входе: импортированные летописи и
+   облачные данные могут быть созданы любой версией сайта. */
+const CONDITION_ALIASES={'Без сознания':'Бессознательный'};
+function canonicalCondition(v){
+  const n=String(v||'').trim();
+  const aliased=CONDITION_ALIASES[n]||(n.toLowerCase()==='без сознания'?'Бессознательный':n);
+  const known=CONDITIONS.find(x=>x.n.toLowerCase()===aliased.toLowerCase());
+  return known?known.n:aliased;
+}
+function normalizeConditions(list){
+  const out=[];
+  (Array.isArray(list)?list:[]).forEach(v=>{
+    const n=canonicalCondition(v);
+    if(n&&out.indexOf(n)<0) out.push(n);
+  });
+  return out;
+}
 
 /* ═══════════════ РАСЫ ═══════════════ */
 const RACES_SEED = [
@@ -2678,6 +2697,7 @@ async function loadAll(){
   classesDB = (await readJSON('dndworld2:classes'))   || seedClassesDB();
   rulesDB   = (await readJSON('dndworld2:rules'))     || [];
   foesDB    = (await readJSON('dndworld2:foes'))      || [];
+  foesDB.forEach(f=>{ f.cond=normalizeConditions(f.cond); if(!Array.isArray(f.activeFx)) f.activeFx=[]; });
   fxRound   = Math.max(1,+(await readJSON('dndworld2:fxround'))||1);
   /* миграция разметки: дополняем уже сохраненные записи новыми тегами (однократно) */
   const tagver = await store.get('dndworld2:tagver');
@@ -3436,8 +3456,11 @@ function fxMin(c,stat){
   return vals.length?Math.max(...vals):null;
 }
 function effectiveConditions(c){
-  const out=(c.cond||[]).slice();
-  charFxAll(c).filter(f=>f.stat==='condition').forEach(f=>{ if(out.indexOf(String(f.value))<0) out.push(String(f.value)); });
+  const out=normalizeConditions(c.cond);
+  charFxAll(c).filter(f=>f.stat==='condition').forEach(f=>{
+    const n=canonicalCondition(f.value);
+    if(n&&out.indexOf(n)<0) out.push(n);
+  });
   return out;
 }
 function effectiveSpeed(c){
@@ -3541,10 +3564,15 @@ function removeCastGroup(castId, reason){
     gone.forEach(a=>{ detachActiveFx(t,a); count++; });
     if(gone.length) t.activeFx=t.activeFx.filter(a=>a.castId!==castId);
   });
+  foesDB.forEach(f=>{
+    const gone=(f.activeFx||[]).filter(a=>a.castId===castId);
+    count+=gone.length;
+    if(gone.length) f.activeFx=f.activeFx.filter(a=>a.castId!==castId);
+  });
   if(count){
     fxInvalidate();
     chars.forEach(t=>{ syncStackedGrants(t); t.hp=Math.min(+t.hp||0,eHpMax(t)); });
-    scheduleSave(); renderChars();
+    scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
     if(reason) setStatus(reason);
   }
   return count;
@@ -3563,9 +3591,17 @@ function advanceFxRound(steps){
     });
     t.activeFx=keep;
   });
+  foesDB.forEach(f=>{
+    const keep=[];
+    (f.activeFx||[]).forEach(a=>{
+      if(a.expiresAtRound!=null&&+a.expiresAtRound<=fxRound) expired.push((a.label||'Эффект')+' → '+f.n);
+      else keep.push(a);
+    });
+    f.activeFx=keep;
+  });
   fxInvalidate();
   chars.forEach(t=>{ syncStackedGrants(t); t.hp=Math.min(+t.hp||0,eHpMax(t)); });
-  scheduleSave(); renderChars();
+  scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
   const msg='⏱ Раунд '+fxRound+(expired.length?' · завершены: '+expired.join('; '):' · длительности обновлены');
   setStatus(msg+'.');
   if(expired.length) castLogLine(msg);
@@ -3683,7 +3719,7 @@ function activeArmorViolations(c){
 
 /* ── единый движок применения способностей (общий канвас с заклинаниями) ── */
 function canUseAbilityCheck(caster, ab){
-  const active=(ab.uses!=null)||!!ab.rest;
+  const active=abilityIsActive(ab);
   if(active){
     const cond=effectiveConditions(caster);
     const blockAct=ACTION_BLOCK_CONDS.filter(n=>cond.indexOf(n)>=0)[0];
@@ -3700,30 +3736,32 @@ function useAbilityApply(abilityId, casterId, target, rolls){
   const chk=canUseAbilityCheck(caster, ab);
   if(!chk.ok){ setStatus('✕ '+chk.reason, true); castShowErr&&castShowErr(chk.reason); return false; }
   rolls=rolls||(arguments.length>3?arguments[3]:null);
-  /* 1. собственный заряд способности */
+  /* 1. Префлайт всех ресурсов. Ни один счетчик не меняется, пока мастер не
+     подтвердил каждое превышение запаса. */
   let chargeInfo='';
-  if(ab.uses!=null){
-    const e=(caster.abilities||[]).find(x=>x.abilityId===ab.id);
-    if(e){
-      const cur=e.cur==null?ab.uses:e.cur;
-      if(cur<=0){
-        const back=ab.rest?('восстановится: '+ab.rest):'восстановится после боя или решением мастера';
-        if(!window.confirm('Заряды «'+ab.n+'» исчерпаны ('+back+').\n\nОК — применить все равно решением мастера.')) return false;
-        chargeInfo=' · сверх зарядов (решение мастера)';
-      } else { e.cur=cur-1; chargeInfo=' · заряд −1 (осталось '+e.cur+' из '+ab.uses+')'; }
+  const ownEntry=ab.uses!=null?(caster.abilities||[]).find(x=>x.abilityId===ab.id):null;
+  const ownCur=ownEntry?(ownEntry.cur==null?ab.uses:ownEntry.cur):null;
+  if(ownEntry&&ownCur<=0){
+    const back=ab.rest?('восстановится: '+ab.rest):'восстановится после боя или решением мастера';
+    if(!window.confirm('Заряды «'+ab.n+'» исчерпаны ('+back+').\n\nОК — применить все равно решением мастера.')) return false;
+  }
+  let poolDb=null, poolEntry=null, poolCur=null;
+  if(rolls&&rolls.poolSpend){
+    poolDb=abilityOf(rolls.poolSpend);
+    poolEntry=(caster.abilities||[]).find(x=>x.abilityId===rolls.poolSpend);
+    if(poolDb&&poolEntry){
+      poolCur=poolEntry.cur==null?poolDb.uses:poolEntry.cur;
+      if(poolCur<=0&&!window.confirm('«'+poolDb.n+'» — запас исчерпан.\n\nОК — применить все равно решением мастера.')) return false;
     }
   }
-  /* 2. кость общего запаса (превосходство, ци, вдохновение) */
-  if(rolls&&rolls.poolSpend){
-    const pdb=abilityOf(rolls.poolSpend);
-    const pe=(caster.abilities||[]).find(x=>x.abilityId===rolls.poolSpend);
-    if(pdb&&pe){
-      const cur=pe.cur==null?pdb.uses:pe.cur;
-      if(cur<=0){
-        if(!window.confirm('«'+pdb.n+'» — запас исчерпан.\n\nОК — применить все равно решением мастера.')) return false;
-        chargeInfo+=' · '+pdb.n+' сверх запаса';
-      } else { pe.cur=cur-1; chargeInfo+=' · '+pdb.n+' −1 (осталось '+pe.cur+' из '+pdb.uses+')'; }
-    }
+  /* 2. Атомарный коммит ресурсов после успешного префлайта. */
+  if(ownEntry){
+    if(ownCur>0){ ownEntry.cur=ownCur-1; chargeInfo=' · заряд −1 (осталось '+ownEntry.cur+' из '+ab.uses+')'; }
+    else chargeInfo=' · сверх зарядов (решение мастера)';
+  }
+  if(poolDb&&poolEntry){
+    if(poolCur>0){ poolEntry.cur=poolCur-1; chargeInfo+=' · '+poolDb.n+' −1 (осталось '+poolEntry.cur+' из '+poolDb.uses+')'; }
+    else chargeInfo+=' · '+poolDb.n+' сверх запаса';
   }
   const tIsAlly=target.indexOf('ally:')===0;
   const tinfo=targetInfoOf(target);
@@ -3745,15 +3783,18 @@ function useAbilityApply(abilityId, casterId, target, rolls){
     }
   }
   /* 4. длящиеся эффекты на цель — только если прием не промахнулся */
-  const missed=!!(rolls&&(rolls.hit===false||(rolls.saveOk===true&&!rolls.dmgTotal)));
+  const effectAllowed=outcomeAllowsEffect(rolls);
   const lasting=recFx(ab,'ability').filter(f=>!(f.stat==='hp'&&f.mode==='add'));
-  if(lasting.length&&tIsAlly&&!missed){
+  if(lasting.length&&tIsAlly&&effectAllowed){
     applyFxTo(target.slice(5), {k:'ability', id:ab.id, label:ab.n, from:caster.name,
       why:'применено: '+caster.name+(ab.rest?' · восст.: '+ab.rest:''), fx:lasting});
     info+=' · эффект наложен';
-  } else if(lasting.length&&tinfo.kind==='foe'&&tinfo.obj&&!missed){
-    tinfo.obj.notes=(tinfo.obj.notes?tinfo.obj.notes+'\n':'')+'✦ '+ab.n+' ('+caster.name+')';
-    info+=' · действие приема записано противнику';
+  } else if(lasting.length&&tinfo.kind==='foe'&&tinfo.obj&&effectAllowed){
+    const entry={k:'ability',id:ab.id,label:ab.n,from:caster.name,casterId:caster.id,
+      castId:castUid(),stackKey:'ability:'+ab.id,power:0,why:'применено: '+caster.name,fx:lasting.map(x=>Object.assign({},x))};
+    attachDuration(entry,{n:ab.n,d:'',x:ab.x||''},0);
+    applyFxToFoe(tinfo.obj,entry);
+    info+=' · эффект наложен на противника';
   }
   const tl=tinfo.name||(target==='enemy'?'враг':'—');
   fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
@@ -3812,6 +3853,7 @@ function encounterEnd(){
 function concEntriesOf(casterId){
   const out=[];
   chars.forEach(ch=>(ch.activeFx||[]).forEach(a=>{ if(a.conc&&a.casterId===casterId) out.push({ch,a}); }));
+  foesDB.forEach(ch=>(ch.activeFx||[]).forEach(a=>{ if(a.conc&&a.casterId===casterId) out.push({ch,a,foe:true}); }));
   return out;
 }
 function concLabelOf(c){
@@ -3822,10 +3864,10 @@ function breakConcentration(caster, reason){
   const olds=concEntriesOf(caster.id);
   if(!olds.length) return false;
   const names=olds.map(o=>o.a.label).filter((v,i,a)=>a.indexOf(v)===i);
-  olds.forEach(o=>{ detachActiveFx(o.ch,o.a); o.ch.activeFx=o.ch.activeFx.filter(x=>x.uid!==o.a.uid); });
+  olds.forEach(o=>{ if(!o.foe) detachActiveFx(o.ch,o.a); o.ch.activeFx=o.ch.activeFx.filter(x=>x.uid!==o.a.uid); });
   fxInvalidate();
-  olds.forEach(o=>{ syncStackedGrants(o.ch); o.ch.hp=Math.min(+o.ch.hp||0, eHpMax(o.ch)); });
-  scheduleSave(); renderChars();
+  olds.filter(o=>!o.foe).forEach(o=>{ syncStackedGrants(o.ch); o.ch.hp=Math.min(+o.ch.hp||0, eHpMax(o.ch)); });
+  scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
   setStatus('🧠✕ Концентрация '+caster.name+' на «'+names.join('», «')+'» прервана: '+reason+'.');
   if(typeof castLogLine==='function') castLogLine(caster.name+': концентрация на «'+names.join('», «')+'» прервана ('+reason+')');
   return true;
@@ -3855,10 +3897,14 @@ function concDamageCheck(c, dmg){
 
 /* ── спец-заклинания контрмагии: работают по имени записи — готово и для будущих ── */
 function castCounterspell(sp, caster, target, usedLvl, plan){
-  if(plan&&plan.targetLevel) window.__csLevel=plan.targetLevel;
-  const raw=window.prompt('⚡ Контрзаклинание: какого круга заклинание прерываем? (1-9)','1');
-  if(raw==null) return true;
-  const tLvl=Math.max(1,Math.min(9,parseInt(raw,10)||1));
+  /* Круг цели уже выбран в префлайте до списания ячейки. Повторный prompt
+     здесь раньше позволял отменить окно после коммита ресурсов. */
+  let tLvl=plan&&plan.targetLevel;
+  if(!tLvl){
+    const raw=window.prompt('⚡ Контрзаклинание: какого круга заклинание прерываем? (1-9)','1');
+    if(raw==null) return false;
+    tLvl=Math.max(1,Math.min(9,parseInt(raw,10)||1));
+  }
   const myLvl=usedLvl||3;
   let ok, note;
   if(myLvl>=tLvl){ ok=true; note='автоматически (ячейка '+myLvl+' круга ≥ круга цели)'; }
@@ -4323,9 +4369,9 @@ function rollSpecOf(rec, opts){
     atkFx.filter(f=>f.mode==='die').forEach((f,i)=>{
       const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!dm) return;
       const cnt=Math.max(1,+dm[2]||1);
-      rows.push({key:'atkfx'+i, type:'other', side:'caster', cnt, sides:+dm[3], mod:0,
+      rows.push({key:'atkfx'+i, type:'other', side:'caster', cnt, sides:+dm[3], mod:0, addTo:'atk', sign:dm[1]?-1:1,
         label:f.label+': '+(dm[1]?'-':'')+cnt+'d'+dm[3],
-        hint:'кость действующего эффекта — мастер прибавляет ее к броску атаки'});
+        hint:'кость действующего эффекта — движок учтет ее в итоге атаки'});
     });
   }
   if(meta.afterHit){
@@ -4368,6 +4414,14 @@ function rollSpecOf(rec, opts){
       hint:'СЛ '+meta.dc+(known?'':' · у цели нет записи — впишите итог с ее модификатором')
         +(meta.half?' · при успехе урон вдвое меньше (посчитаю сам)':'')
         +(advPre?' · ▲ сопротивление магии':'')});
+    if(ti.kind==='ally'&&ti.obj){
+      rollFxEntries(ti.obj,'save.'+meta.saveKey).filter(f=>f.mode==='die').forEach((f,i)=>{
+        const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!dm) return;
+        const cnt=Math.max(1,+dm[2]||1);
+        rows.push({key:'savefx'+i,type:'other',side:'target',cnt,sides:+dm[3],mod:0,addTo:'save',sign:dm[1]?-1:1,
+          label:f.label+': '+(dm[1]?'-':'')+cnt+'d'+dm[3],hint:'кость действующего эффекта — движок учтет ее в спасброске'});
+      });
+    }
   }
   else if(!noSave && ti.kind!=='object' && kind!=='spell' &&
       /(?:должн[аоы]|совершает|совершить|проходит|бросает|требует)[^.]{0,40}спасброс|спасброс[а-я]*\s+(?:по\s+наследию|против)/.test(all)){
@@ -4458,7 +4512,8 @@ function rollSpecOf(rec, opts){
 function resolveOutcome(spec, v, ctx){
   const meta=spec.meta, ti=meta.target||{kind:'none',known:false,name:''};
   const out={verdict:[], notes:[], hit:null, crit:false, fumble:false, saveOk:null, contestWin:null,
-    healTotal:null, tempTotal:null, dmgRaw:null, dmgTotal:null, dmgType:meta.dmgType||'', targetName:ti.name||'', blocked:false};
+    healTotal:null, tempTotal:null, dmgRaw:null, dmgTotal:null, dmgType:meta.dmgType||'', targetName:ti.name||'',
+    effectAllowed:null, blocked:false};
   const row=t=>spec.rows.find(r=>r.type===t);
   const resR=row('res'); const resVal=(resR&&v.res!=null)?v.res:0;
   /* атака */
@@ -4466,8 +4521,10 @@ function resolveOutcome(spec, v, ctx){
   if(ar){
     const nat=pickNat(v,'atk',ar.adv);
     if(nat!=null){
+      const fxBonus=spec.rows.filter(r=>r.addTo==='atk'&&v[r.key]!=null)
+        .reduce((a,r)=>a+(v[r.key]+(r.mod||0))*(r.sign||1),0);
       const bonus=(resR&&resR.addTo==='atk')?resVal:0;
-      const total=nat+ar.mod+bonus;
+      const total=nat+ar.mod+bonus+fxBonus;
       const critImmune=ti.known&&ti.obj&&(typeof fxNotesOf==='function')&&ti.kind==='ally'
         ? fxNotesOf(ti.obj).some(t=>/иммунитет к критическ/i.test(t))
         : (ti.obj&&/иммунитет к критическ/i.test(String(ti.obj.traits||'')));
@@ -4476,7 +4533,8 @@ function resolveOutcome(spec, v, ctx){
       if(nat===20) out.hit=true;
       else if(nat===1) out.hit=false;
       else if(ti.known&&ti.ac!=null) out.hit=(total>=ti.ac);
-      out.verdict.push('Атака: d20 '+nat+(ar.mod?' '+fmtMod(ar.mod):'')+(bonus?' + '+bonus+' (кость запаса)':'')+' = '+total
+      out.verdict.push('Атака: d20 '+nat+(ar.mod?' '+fmtMod(ar.mod):'')+(bonus?' + '+bonus+' (кость запаса)':'')
+        +(fxBonus?' '+(fxBonus>0?'+ ':'− ')+Math.abs(fxBonus)+' (действующие эффекты)':'')+' = '+total
         +(ti.known&&ti.ac!=null?(' против КД '+ti.ac+' — '+(out.hit?'ПОПАДАНИЕ':'промах')):' — попадание определяет мастер')
         +(out.crit?' · КРИТИЧЕСКОЕ ПОПАДАНИЕ (кости урона бросаются дважды)':'')
         +(out.fumble?' · критический промах':''));
@@ -4492,10 +4550,13 @@ function resolveOutcome(spec, v, ctx){
   if(sr){
     const raw=sr.natural?pickNat(v,'save',sr.adv):v.save;
     if(raw!=null){
-      const total=sr.natural?(raw+sr.mod):raw;
+      const fxBonus=spec.rows.filter(r=>r.addTo==='save'&&v[r.key]!=null)
+        .reduce((a,r)=>a+(v[r.key]+(r.mod||0))*(r.sign||1),0);
+      const total=(sr.natural?(raw+sr.mod):raw)+fxBonus;
       out.saveOk=(total>=sr.dc);
       out.verdict.push('Спасбросок цели'+(meta.saveAb?' ('+meta.saveAb+')':'')+': '
-        +(sr.natural?('d20 '+raw+' '+fmtMod(sr.mod)+' = '+total):total)+' против СЛ '+sr.dc+' — '+(out.saveOk?'УСПЕХ':'провал'));
+        +(sr.natural?('d20 '+raw+' '+fmtMod(sr.mod)):raw)+(fxBonus?' '+(fxBonus>0?'+ ':'− ')+Math.abs(fxBonus)+' (эффект)':'')
+        +' = '+total+' против СЛ '+sr.dc+' — '+(out.saveOk?'УСПЕХ':'провал'));
       out.notes.push('спасбросок цели '+total+' против СЛ '+sr.dc+' — '+(out.saveOk?'успех':'провал'));
     }
   }
@@ -4510,6 +4571,14 @@ function resolveOutcome(spec, v, ctx){
       out.notes.push('состязание '+at+' против '+bt);
     }
   }
+  /* Длительное последствие разрешено только после всех требуемых проверок.
+     Пустое поле не равно провалу цели: без результата движок не имеет права
+     молча наложить состояние. */
+  const gates=[];
+  if(ar) gates.push(out.hit===true?true:(out.hit===false?false:null));
+  if(sr) gates.push(out.saveOk===false?true:(out.saveOk===true?false:null));
+  if(ck&&tck) gates.push(out.contestWin===true?true:(out.contestWin===false?false:null));
+  out.effectAllowed=gates.some(x=>x===false)?false:(gates.some(x=>x===null)?null:true);
   /* временные хиты */
   let temp=0, tempSeen=false;
   spec.rows.forEach(r=>{ if(r.type==='temp'&&v[r.key]!=null){ temp+=v[r.key]+(r.mod||0); tempSeen=true; } });
@@ -4555,7 +4624,7 @@ function resolveOutcome(spec, v, ctx){
       if(afterTemp-ti.hp>=ti.hpMax) out.verdict.push('⚠ Урон превышает запас хитов на величину максимума — по правилам это мгновенная смерть.');
     }
   }
-  if(out.hit===false&&meta.kind!=='spell') out.blocked=true;
+  if(out.effectAllowed===false) out.blocked=true;
   spec.rows.forEach(r=>{
     if(v[r.key]==null) return;
     if(r.type==='other') out.notes.push(String(r.label).replace(/:.*$/,'')+': '+(v[r.key]+(r.mod||0)));
@@ -4565,22 +4634,41 @@ function resolveOutcome(spec, v, ctx){
   return out;
 }
 
+/* Единый предохранитель для заклинаний, способностей и предметов. Старые
+   программные вызовы без effectAllowed остаются совместимыми, но явный
+   успешный спасбросок, промах или проигранное состязание всегда блокируют
+   состояние и другой длящийся эффект. */
+function outcomeAllowsEffect(rolls){
+  if(!rolls) return true;
+  if(Object.prototype.hasOwnProperty.call(rolls,'effectAllowed')) return rolls.effectAllowed===true;
+  if(rolls.hit===false||rolls.saveOk===true||rolls.contestWin===false||rolls.blocked===true) return false;
+  return true;
+}
+
 /* ═══ Применение итога к цели: герой, противник бестиария, объект ═══ */
 function applyHealTo(targetVal, amount, srcLabel){
   const ti=targetInfoOf(targetVal);
   if(!ti.obj||!(amount>0)) return null;
   if(ti.kind==='ally'){
     const t=ti.obj, mx=eHpMax(t), was=+t.hp||0;
+    if(was<=0&&t.deaths&&(+t.deaths.f||0)>=3)
+      return {name:t.name,hp:was,hpMax:mx,blocked:true,reason:'герой мертв — обычное лечение не действует'};
+    if(fxNotesOf(t).some(x=>/не может восстанавлива[а-я]* (?:хиты|здоровье)/.test(x)))
+      return {name:t.name,hp:was,hpMax:mx,blocked:true,reason:'действующий эффект запрещает восстанавливать хиты'};
     t.hp=Math.min(mx, was+amount);
     let extra='';
-    if(was<=0&&t.hp>0){ t.deaths={s:0,f:0}; const i=(t.cond||[]).indexOf('Без сознания'); if(i>=0) t.cond.splice(i,1); extra=' · герой пришел в себя'; }
+    if(was<=0&&t.hp>0){
+      t.deaths={s:0,f:0};
+      t.cond=normalizeConditions(t.cond).filter(x=>x!=='Бессознательный');
+      extra=' · герой пришел в себя';
+    }
     return {name:t.name, hp:t.hp, hpMax:mx, extra};
   }
   const f=ti.obj;
   f.hp=Math.min(+f.hpMax||0,(+f.hp||0)+amount);
   return {name:f.n, hp:f.hp, hpMax:+f.hpMax||0, extra:''};
 }
-function applyDamageTo(targetVal, amount, dtype, srcLabel){
+function applyDamageTo(targetVal, amount, dtype, srcLabel, ctx){
   const ti=targetInfoOf(targetVal);
   if(!ti.obj||!(amount>0)) return null;
   let d=amount, absorbed=0;
@@ -4589,12 +4677,19 @@ function applyDamageTo(targetVal, amount, dtype, srcLabel){
   const was=+o.hp||0;
   const over=d-was;
   o.hp=Math.max(0, was-d);
-  const res={name:ti.name, hp:o.hp, hpMax:ti.hpMax, absorbed, down:o.hp<=0, dead:false};
+  const res={name:ti.name, hp:o.hp, hpMax:ti.hpMax, absorbed, down:o.hp<=0, dead:false, deathFails:0};
   if(ti.kind==='ally'){
     if(o.hp<=0){
       breakConcentration(o,'герой упал до 0 хитов');
-      if((o.cond||[]).indexOf('Без сознания')<0) o.cond.push('Без сознания');
+      o.cond=normalizeConditions(o.cond);
+      if(o.cond.indexOf('Бессознательный')<0) o.cond.push('Бессознательный');
+      o.deaths=o.deaths||{s:0,f:0};
       if(over>=ti.hpMax){ res.dead=true; o.deaths={s:0,f:3}; }
+      else if(was<=0){
+        res.deathFails=(ctx&&ctx.crit)?2:1;
+        o.deaths.f=Math.min(3,(+o.deaths.f||0)+res.deathFails);
+        if(o.deaths.f>=3) res.dead=true;
+      }
     } else if(amount>0) concDamageCheck(o, amount);
   } else {
     if(o.hp<=0){ res.dead=true; o.cond=o.cond||[]; if(o.cond.indexOf('Повержен')<0) o.cond.push('Повержен'); }
@@ -4608,7 +4703,8 @@ function applyRollsToTarget(targetVal, rolls, srcLabel){
   const ti=targetInfoOf(targetVal);
   if(rolls.healTotal!=null&&rolls.healTotal>0){
     const r=applyHealTo(targetVal, rolls.healTotal, srcLabel);
-    if(r){ info+=' · лечение +'+rolls.healTotal+' хитов ('+r.name+': '+r.hp+'/'+r.hpMax+')'+(r.extra||'');
+    if(r&&r.blocked){ info+=' · лечение не применено ('+r.reason+')'; }
+    else if(r){ info+=' · лечение +'+rolls.healTotal+' хитов ('+r.name+': '+r.hp+'/'+r.hpMax+')'+(r.extra||'');
       diceOutSet(srcLabel+' → '+r.name+': +'+rolls.healTotal+' хитов','var(--ok)'); }
     else info+=' · лечение +'+rolls.healTotal+' хитов (цель вне листов — записано в летопись)';
   }
@@ -4617,9 +4713,11 @@ function applyRollsToTarget(targetVal, rolls, srcLabel){
     if(r) info+=' · временные хиты '+r.temp+(r.replaced?'':' (прежние были выше)');
   }
   if(rolls.dmgTotal!=null&&rolls.dmgTotal>0){
-    const r=applyDamageTo(targetVal, rolls.dmgTotal, rolls.dmgType, srcLabel);
+    const r=applyDamageTo(targetVal, rolls.dmgTotal, rolls.dmgType, srcLabel,{crit:!!rolls.crit});
     if(r){ info+=' · урон '+rolls.dmgTotal+(rolls.dmgType?' ('+rolls.dmgType+')':'')+' → '+r.name+': '+r.hp+'/'+r.hpMax
-        +(r.absorbed?' (временные хиты поглотили '+r.absorbed+')':'')+(r.dead?' · '+(ti.kind==='ally'?'МГНОВЕННАЯ СМЕРТЬ':'повержен'):(r.down?' · без сознания':''));
+        +(r.absorbed?' (временные хиты поглотили '+r.absorbed+')':'')
+        +(r.deathFails?' · провалы спасбросков от смерти +'+r.deathFails:'')
+        +(r.dead?' · '+(ti.kind==='ally'?'СМЕРТЬ':'повержен'):(r.down?' · без сознания':''));
       diceOutSet(srcLabel+' → '+r.name+': '+rolls.dmgTotal+' урона','var(--rubric)'); }
     else { info+=' · урон '+rolls.dmgTotal+' по цели'; diceOutSet(srcLabel+': '+rolls.dmgTotal+' урона по цели','var(--rubric)'); }
   } else if(rolls.dmgTotal===0&&rolls.dmgRaw>0){
@@ -4673,6 +4771,7 @@ function castFormulaShow(){
   if(!spec.rows.length) return false;
   castCtx.spec=spec; castCtx.formulaLvl=lv; castCtx.hitOverride='';
   let h='<div class="cast-info" style="border:none;padding:0">Формула'+(isSpell&&lv>(+rec.l||0)?' (усилено ячейкой '+lv+' круга)':'')
+    +((castCtx.extraTargets||[]).length?' · цель: '+esc(ti.name):'')
     +' — впишите результаты реальных бросков. Итог разберу по правилам и применю.</div>';
   const mine=spec.rows.filter(r=>r.side!=='target'), theirs=spec.rows.filter(r=>r.side==='target');
   if(mine.length){
@@ -4694,6 +4793,12 @@ function castFormulaShow(){
   h+='<div id="castVerdict" class="roll-live" style="white-space:pre-line"></div>';
   h+='<div class="note-ital" style="font-size:12.5px;margin-top:4px">Любое поле можно оставить пустым — эта часть просто не применится.</div>';
   document.getElementById('castFormula').innerHTML=h;
+  if(isSpell&&castCtx.primaryTarget&&castCtx.target!==castCtx.primaryTarget&&castCtx.sharedCasterVals){
+    Object.keys(castCtx.sharedCasterVals).forEach(k=>{
+      const el=document.getElementById('cf_'+k);
+      if(el){ el.value=castCtx.sharedCasterVals[k]; el.readOnly=true; el.title='Общий бросок заклинания уже сделан для всех целей'; }
+    });
+  }
   document.getElementById('castStep1').style.display='none';
   document.getElementById('castStep2').style.display='none';
   document.getElementById('castStep3').style.display='block';
@@ -4727,10 +4832,25 @@ function castFormulaLive(){
     else if(r.type==='heal') t.textContent='= +'+(val+(r.mod||0))+' хитов';
     else if(r.type==='temp') t.textContent='= '+(val+(r.mod||0))+' временных хитов';
     else if(r.type==='dmg') t.textContent='= '+(val+(r.mod||0))+' до разбора';
+    else if(r.addTo) t.textContent='= '+((r.sign||1)<0?'−':'+')+(val+(r.mod||0))+' к '+(r.addTo==='atk'?'атаке':'спасброску');
     else t.textContent='= '+(val+(r.mod||0));
   });
   const box=document.getElementById('castVerdict');
   if(box) box.textContent=res.verdict.length?('\u2723 Итог\n'+res.verdict.join('\n')):'Впишите результаты бросков — итог разберу сам.';
+}
+function spellSpecNeedsPerTarget(spec){
+  return !!spec&&spec.rows.some(r=>r.type==='atk'||r.type==='save'||r.type==='tcheck');
+}
+function sharedSpellRowKeys(spec){
+  if(!spec||spec.rows.some(r=>r.type==='atk')) return [];
+  return spec.rows.filter(r=>r.type==='dmg'||r.type==='heal'||r.type==='temp').map(r=>r.key);
+}
+function rollsShareAcrossTargets(rolls){
+  if(!rolls) return false;
+  /* Один бросок лечения/временных хитов применяется ко всем целям. Урон здесь
+     не делим: его сопротивления и спасброски зависят от конкретной цели. */
+  return rolls.dmgRaw==null&&(rolls.healTotal!=null||rolls.tempTotal!=null)
+    &&rolls.hit==null&&rolls.saveOk==null&&rolls.contestWin==null;
 }
 function castFormulaConfirm(){
   if(!castCtx||!castCtx.spec) return;
@@ -4738,7 +4858,7 @@ function castFormulaConfirm(){
   const res=resolveOutcome(spec, v, {hitOverride:castCtx.hitOverride});
   const rolls={notes:res.notes.slice(), verdict:res.verdict.slice(), healTotal:res.healTotal, tempTotal:res.tempTotal,
     dmgTotal:res.dmgTotal, dmgRaw:res.dmgRaw, dmgType:res.dmgType, hit:res.hit, crit:res.crit,
-    saveOk:res.saveOk, contestWin:res.contestWin};
+    saveOk:res.saveOk, contestWin:res.contestWin, effectAllowed:res.effectAllowed, blocked:res.blocked};
   const resR=spec.rows.find(r=>r.type==='res');
   if(resR&&v.res!=null&&spec.meta.pool) rolls.poolSpend=spec.meta.pool.ab.id;
   if(castCtx.kind==='weapon'){
@@ -4753,10 +4873,30 @@ function castFormulaConfirm(){
     if(useAbilityApply(castCtx.abilityId, castCtx.casterId, castCtx.target, rolls)) closeCastModal();
     return;
   }
-  if(castSpellApply(castCtx.spellId, castCtx.casterId, castCtx.target, castCtx.inv, castCtx.mat, castCtx.slotSel, rolls, castCtx.extraTargets)) closeCastModal();
+  const current=castCtx.target;
+  castCtx.rollsByTarget=castCtx.rollsByTarget||{};
+  castCtx.rollsByTarget[current]=rolls;
+  if(current===(castCtx.primaryTarget||current)){
+    castCtx.sharedCasterVals={};
+    sharedSpellRowKeys(spec).forEach(k=>{ if(v[k]!=null) castCtx.sharedCasterVals[k]=v[k]; });
+  }
+  if(!Array.isArray(castCtx.rollQueue)){
+    castCtx.rollQueue=spellSpecNeedsPerTarget(spec)?(castCtx.extraTargets||[]).slice():[];
+  }
+  while(castCtx.rollQueue.length){
+    castCtx.target=castCtx.rollQueue.shift();
+    castCtx.spec=null; castCtx.hitOverride='';
+    if(castFormulaShow()) return;   /* следующий отдельный спасбросок/атака */
+  }
+  const primary=castCtx.primaryTarget||current;
+  const primaryRolls=castCtx.rollsByTarget[primary]||rolls;
+  if(castSpellApply(castCtx.spellId, castCtx.casterId, primary, castCtx.inv, castCtx.mat, castCtx.slotSel,
+      primaryRolls, castCtx.extraTargets, castCtx.rollsByTarget)) closeCastModal();
 }
 function castFormulaBack(){
   if(!castCtx) return;
+  castCtx.target=castCtx.primaryTarget||castCtx.target;
+  castCtx.rollsByTarget={}; castCtx.rollQueue=null; castCtx.sharedCasterVals=null;
   document.getElementById('castStep3').style.display='none';
   document.getElementById('castStep1').style.display='block';
 }
@@ -4879,7 +5019,8 @@ function castConfirm(){
   const inv=document.getElementById('castItem').value;
   const chk=canCastCheck(caster, sp);
   if(!chk.ok){ castShowErr(chk.reason); return; }
-  castCtx.target=target; castCtx.inv=inv;
+  castCtx.target=target; castCtx.primaryTarget=target; castCtx.inv=inv;
+  castCtx.rollsByTarget={}; castCtx.rollQueue=null; castCtx.sharedCasterVals=null;
   castCtx.extraTargets=collectCastExtraTargets(sp, (sp.l>0&&document.getElementById('castSlotWrap').style.display!=='none')?document.getElementById('castSlot').value:null);
   castCtx.slotSel=(sp.l>0&&document.getElementById('castSlotWrap').style.display!=='none')?document.getElementById('castSlot').value:null;
   if(chk.comp.m){
@@ -4973,12 +5114,16 @@ function spellSelfOnly(sp){
 }
 function spellTargetLimit(sp,usedLvl){
   const n=normSpellName(sp&&sp.n), lv=+usedLvl||+sp.l||0;
-  if(/^(благословение|порча|героизм)$/.test(n)) return 3+Math.max(0,lv-1);
+  if(/^(благословение|порча)$/.test(n)) return 3+Math.max(0,lv-1);
+  if(n==='героизм') return 1+Math.max(0,lv-1);
+  if(n==='очарование личности'||n==='приказ'||n==='скороход') return 1+Math.max(0,lv-1);
   if(n==='подмога') return 3;
   if(n==='невидимость'||n==='улучшение характеристики'||n==='удержание личности') return 1+Math.max(0,lv-2);
   if(n==='полет') return 1+Math.max(0,lv-3);
+  if(n==='массовое лечащее слово') return 6;
   if(n==='изгнание') return 1+Math.max(0,lv-4);
   if(n==='удержание чудовища') return 1+Math.max(0,lv-5);
+  if(n==='цепная молния') return 4+Math.max(0,lv-6);
   if(n==='молебен лечения'||n==='массовое лечение ран') return 6;
   if(n==='подводное дыхание') return 10;
   return 1;
@@ -5000,13 +5145,15 @@ function renderCastMultiTargets(){
   const wrap=document.getElementById('castMultiWrap'), box=document.getElementById('castMultiTargets');
   if(!sp||!caster||!wrap||!box) return;
   const primary=document.getElementById('castTarget').value, max=spellTargetLimit(sp,castSelectedSlotLevel());
-  if(max<=1||primary.indexOf('ally:')!==0){ wrap.style.display='none'; box.innerHTML=''; return; }
-  const pid=primary.slice(5), keep=new Set((castCtx.extraTargets||[]).map(x=>x.replace(/^ally:/,'')));
-  const choices=chars.filter(x=>x.id!==pid);
+  if(max<=1||(!primary.startsWith('ally:')&&!primary.startsWith('foe:'))){ wrap.style.display='none'; box.innerHTML=''; return; }
+  const keep=new Set(castCtx.extraTargets||[]);
+  const choices=chars.map(x=>({v:'ally:'+x.id,label:x.name+' — герой'}))
+    .concat(foesDB.map(x=>({v:'foe:'+x.id,label:x.n+' — '+(x.kind==='npc'?'NPC':'монстр')})))
+    .filter(x=>x.v!==primary);
   if(!choices.length){ wrap.style.display='none'; box.innerHTML=''; return; }
-  document.getElementById('castMultiLabel').textContent='Дополнительные союзные цели — еще до '+Math.max(0,max-1);
-  box.innerHTML=choices.map(x=>'<label class="chip"><input type="checkbox" class="cast-multi" value="ally:'+x.id+'"'
-    +(keep.has(x.id)?' checked':'')+'> '+esc(x.name)+'</label>').join('');
+  document.getElementById('castMultiLabel').textContent='Дополнительные известные цели — еще до '+Math.max(0,max-1);
+  box.innerHTML=choices.map(x=>'<label class="chip"><input type="checkbox" class="cast-multi" value="'+x.v+'"'
+    +(keep.has(x.v)?' checked':'')+'> '+esc(x.label)+'</label>').join('');
   wrap.style.display='block';
 }
 function specialCastPlan(sp,caster,target,usedLvl){
@@ -5033,7 +5180,7 @@ function applyImmediateSpell(sp,caster,target,usedLvl){
   }
   return '';
 }
-function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rolls, extraTargets){
+function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rolls, extraTargets, rollsByTarget){
   /* 7-й аргумент принимает и итоги бросков, и список дополнительных целей */
   if(Array.isArray(rolls)){ extraTargets=rolls; rolls=null; }
   const sp=spellOf(spellId), caster=getCh(casterId);
@@ -5054,8 +5201,8 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rol
   const extraPlans=extras.map(x=>castTargetCheck(caster,x,invEntryId,sp));
   const badExtra=extraPlans.find(x=>!x.ok);
   if(badExtra){ setStatus('✕ '+badExtra.reason,true); castShowErr&&castShowErr(badExtra.reason); return false; }
-  if(extras.length&&target.indexOf('ally:')!==0){
-    const r='Дополнительные герои допустимы только при основной цели-герое.';
+  if(extras.some(x=>x.indexOf('ally:')!==0&&x.indexOf('foe:')!==0)){
+    const r='Дополнительной целью может быть только существующая запись героя или противника.';
     setStatus('✕ '+r,true); castShowErr&&castShowErr(r); return false;
   }
   const matPlan=materialPlanFor(caster,sp,chk.comp,mat);
@@ -5083,22 +5230,35 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rol
   const dur=durationSpecOf(sp,usedSlotLvl);
 
   /* ══ Фаза 3 — применение. ══ */
-  let rollInfo='';
-  if(rolls) rollInfo=applyRollsToTarget(target, rolls, '«'+sp.n+'»');
-
-  if(target.indexOf('ally:')===0){
-    const targets=[targetPlan].concat(extraPlans).map(p=>p.targetChar), results=[], snapshots=[];
-    targets.forEach(t=>{
-      snapshots.push({charId:t.id,hp:t.hp,hpTemp:t.hpTemp,cond:(t.cond||[]).slice(),deaths:Object.assign({},t.deaths||{})});
-      const immediate=applyImmediateSpell(sp,caster,t,usedSlotLvl);
-      if(immediate) results.push(t.name+': '+immediate);
-      if(isConc||dur.kind!=='instant'||lastingFx.length){
+  const targetVals=[target].concat(extras), plans=[targetPlan].concat(extraPlans);
+  const creatures=plans.every(p=>p.targetChar||p.foe);
+  if(creatures){
+    const names=plans.map(p=>p.targetChar?p.targetChar.name:p.foe.n), results=[], snapshots=[], rollBits=[];
+    const shared=rollsShareAcrossTargets(rolls);
+    plans.forEach((p,i)=>{
+      const val=targetVals[i], t=p.targetChar||p.foe, isHero=!!p.targetChar;
+      if(isHero) snapshots.push({charId:t.id,hp:t.hp,hpTemp:t.hpTemp,cond:(t.cond||[]).slice(),deaths:Object.assign({},t.deaths||{})});
+      const hasOwn=!!(rollsByTarget&&Object.prototype.hasOwnProperty.call(rollsByTarget,val));
+      const ownRolls=hasOwn?rollsByTarget[val]:((i===0||shared)?rolls:null);
+      if(ownRolls){
+        const bit=applyRollsToTarget(val,ownRolls,'«'+sp.n+'»');
+        if(bit) rollBits.push((t.name||t.n)+bit);
+      }
+      /* Если формула требовала отдельного результата каждой цели, отсутствие
+         такого результата не считается провалом спасброска и не дает эффекта. */
+      const allowed=ownRolls?outcomeAllowsEffect(ownRolls):(!rolls||shared);
+      if(isHero&&allowed){
+        const immediate=applyImmediateSpell(sp,caster,t,usedSlotLvl);
+        if(immediate) results.push(t.name+': '+immediate);
+      }
+      if(allowed&&(isConc||dur.kind!=='instant'||lastingFx.length)){
         const entry={k:'spell',id:sp.id,label:sp.n,from:caster.name,casterId:caster.id,conc:isConc,castId,
-          stackKey:'spell:'+sp.id,power,fx:lastingFx,why:'наложено: '+caster.name+durWhy};
+          stackKey:'spell:'+sp.id,power,fx:lastingFx.map(x=>Object.assign({},x)),why:'наложено: '+caster.name+durWhy};
         attachDuration(entry,sp,usedSlotLvl);
-        applyFxTo(t.id,entry);
+        if(isHero) applyFxTo(t.id,entry); else applyFxToFoe(t,entry);
       }
     });
+    let rollInfo=rollBits.length?' · '+rollBits.join(' · '):'';
     /* Лечение без шага «Формула»: разбираем описание и просим у мастера кости. */
     if(!rolls){
       const ih=deriveInstantHeal(sp,'spell',caster,usedSlotLvl);
@@ -5109,26 +5269,32 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rol
             rows:[{key:'s',label:'Сумма '+ih.cnt+'d'+ih.sides,sub:'от '+ih.cnt+' до '+(ih.cnt*ih.sides),min:ih.cnt,max:ih.cnt*ih.sides}],
             compute:v=>'Лечение: +'+(v.s+ih.plus)+' хитов каждой цели',
             apply:v=>{ const tot=v.s+ih.plus;
-              targets.forEach(t=>{ const r=applyHealTo('ally:'+t.id,tot,'«'+sp.n+'»'); if(r) diceOutSet('«'+sp.n+'» → '+r.name+': +'+tot+' хитов','var(--ok)'); });
+              targetVals.forEach(vv=>{ const r=applyHealTo(vv,tot,'«'+sp.n+'»'); if(r&&!r.blocked) diceOutSet('«'+sp.n+'» → '+r.name+': +'+tot+' хитов','var(--ok)'); });
               fxInvalidate(); scheduleSave(); renderChars();
-              castLogLine(caster.name+' → '+targets.map(t=>t.name).join(', ')+': «'+sp.n+'» · лечение +'+tot+' хитов'+matPlan.info+slotPlan.info); }});
+              if(typeof renderFoes==='function') renderFoes();
+              castLogLine(caster.name+' → '+names.join(', ')+': «'+sp.n+'» · лечение +'+tot+' хитов'+matPlan.info+slotPlan.info); }});
           rollInfo+=' · лечение спрошено отдельным окном';
         } else {
-          targets.forEach(t=>applyHealTo('ally:'+t.id, ih.plus, '«'+sp.n+'»'));
+          targetVals.forEach(vv=>applyHealTo(vv, ih.plus, '«'+sp.n+'»'));
           rollInfo+=' · лечение +'+ih.plus+' хитов';
         }
       }
     }
     lastCastEvent={castId,casterId:caster.id,spellId:sp.id,usedSlotLvl,round:fxRound,snapshots};
-    fxInvalidate(); scheduleSave(); renderChars();
-    setStatus('⚡ «'+sp.n+'» наложено на '+targets.map(t=>t.name).join(', ')+matPlan.info+slotPlan.info+rollInfo+'.');
-    castLogLine(caster.name+' → '+targets.map(t=>t.name).join(', ')+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy
+    fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
+    setStatus('⚡ «'+sp.n+'» применено к '+names.join(', ')+matPlan.info+slotPlan.info+rollInfo+'.');
+    castLogLine(caster.name+' → '+names.join(', ')+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy
       +(results.length?' · '+results.join('; '):'')+matPlan.info+slotPlan.info+rollInfo);
-    if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
+    targetVals.forEach((v,i)=>{
+      const rr=rollsByTarget&&rollsByTarget[v]||((i===0||shared)?rolls:null);
+      if(rr&&rr.verdict&&rr.verdict.length) castLogLine('    '+names[i]+': '+rr.verdict.join(' | '));
+    });
     return true;
   }
 
   const tinfo=targetInfoOf(target);
+  let rollInfo='';
+  if(rolls) rollInfo=applyRollsToTarget(target, rolls, '«'+sp.n+'»');
   let tl = target==='enemy'?'враг':(target==='object'?'неодушевленный объект':(tinfo.kind==='foe'&&tinfo.obj?tinfo.name:''));
   if(target==='invitem'){
     tl='предмет: '+targetPlan.item.n;
@@ -5313,16 +5479,20 @@ function useItemApply(entryId, casterId, target, rolls){
   }
   /* длящиеся свойства расходуемого — записью на цель, с длительностью из описания */
   const tinfo=targetInfoOf(target);
-  const missed=!!(rolls&&(rolls.hit===false||(rolls.saveOk===true&&!rolls.dmgTotal)));
+  const effectAllowed=outcomeAllowsEffect(rolls);
   const lasting=recFx(it,'item').filter(f=>!(f.stat==='hp'&&(f.mode==='add'||f.mode==='grant')));
-  if(lasting.length&&sp.consumable&&tinfo.kind==='ally'&&!missed){
+  if(lasting.length&&sp.consumable&&tinfo.kind==='ally'&&effectAllowed){
     const entry={k:'use', id:it.id, label:it.n+' (применено)', fx:lasting, from:caster.name, casterId:caster.id,
       castId:castUid(), stackKey:'use:'+it.id, power:0, why:'применено: '+caster.name};
     attachDuration(entry, {n:it.n, d:'', x:it.desc||''}, 0);
     applyFxTo(tinfo.id, entry);
     info+=' · свойство наложено';
-  } else if(lasting.length&&tinfo.kind==='foe'&&tinfo.obj&&!missed){
-    tinfo.obj.notes=(tinfo.obj.notes?tinfo.obj.notes+'\n':'')+'⚗ '+it.n+' ('+caster.name+')';
+  } else if(lasting.length&&tinfo.kind==='foe'&&tinfo.obj&&effectAllowed){
+    const entry={k:'use',id:it.id,label:it.n+' (применено)',fx:lasting.map(x=>Object.assign({},x)),from:caster.name,casterId:caster.id,
+      castId:castUid(),stackKey:'use:'+it.id,power:0,why:'применено: '+caster.name};
+    attachDuration(entry,{n:it.n,d:'',x:it.desc||''},0);
+    applyFxToFoe(tinfo.obj,entry);
+    info+=' · свойство наложено на противника';
   }
   const tl=tinfo.name||'—';
   fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
@@ -5539,6 +5709,7 @@ function weaponSpecOf(caster, it, ti, opts){
   atkFx.filter(f=>f.mode==='die').forEach((f,i)=>{
     const d=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!d) return;
     rows.push({key:'wfx'+i, type:'other', side:'caster', cnt:Math.max(1,+d[2]||1), sides:+d[3], mod:0,
+      addTo:'atk',sign:d[1]?-1:1,
       label:f.label+': '+(d[1]?'-':'')+Math.max(1,+d[2]||1)+'d'+d[3], hint:'кость действующего эффекта — прибавьте к атаке'});
   });
   if(sides) rows.push({key:'dmg', type:'dmg', side:'caster', cnt, sides, mod:abm+flat+fxSum(caster,'dmg'),
@@ -6393,12 +6564,57 @@ function blankFoe(){
   return {id:'foe_'+uid(), n:'', kind:'monster', cr:'', ac:12, hpMax:11, hp:11, hpTemp:0, speed:'9 м',
     abil:{str:10,dex:10,con:10,int:10,wis:10,cha:10}, profB:2, saveP:{},
     resist:[], vuln:[], immune:[], condImmune:[], cond:[], magicRes:false,
-    senses:'', langs:'', traits:'', actions:'', notes:'', tags:[]};
+    activeFx:[], senses:'', langs:'', traits:'', actions:'', notes:'', tags:[]};
 }
 function foeOf(id){ return foesDB.find(f=>f.id===id)||null; }
 function foeAbMod(f,k){ return mod((f.abil&&f.abil[k])!=null?f.abil[k]:10); }
-function foeSaveMod(f,k){ return foeAbMod(f,k)+((f.saveP&&f.saveP[k])?(+f.profB||2):0); }
+function foeFxAll(f){
+  const out=[], active=(f&&f.activeFx)||[], winners={};
+  active.forEach(a=>{
+    const key=a.stackKey||(a.k==='spell'?'spell:'+a.id:null); if(!key) return;
+    const w=winners[key], power=+a.power||0, applied=+a.appliedRound||0;
+    if(!w||power>(+w.power||0)||(power===(+w.power||0)&&applied>=(+w.appliedRound||0))) winners[key]=a;
+  });
+  active.forEach(a=>{
+    const key=a.stackKey||(a.k==='spell'?'spell:'+a.id:null);
+    if(key&&winners[key]!==a) return;
+    (a.fx||[]).forEach(x=>out.push(x));
+  });
+  return out;
+}
+function foeFxSum(f,stat){
+  return foeFxAll(f).filter(x=>x.stat===stat&&x.mode==='add').reduce((a,x)=>a+(+x.value||0),0);
+}
+function effectiveFoeConditions(f){
+  const out=normalizeConditions(f&&f.cond);
+  foeFxAll(f).filter(x=>x.stat==='condition').forEach(x=>{
+    const n=canonicalCondition(x.value); if(n&&out.indexOf(n)<0) out.push(n);
+  });
+  return out;
+}
+function foeSaveMod(f,k){ return foeAbMod(f,k)+((f.saveP&&f.saveP[k])?(+f.profB||2):0)+foeFxSum(f,'save.'+k)+foeFxSum(f,'save.all'); }
 function foeAlive(f){ return (+f.hp||0)>0; }
+function applyFxToFoe(f,entry){
+  if(!f) return null;
+  f.activeFx=f.activeFx||[];
+  let fx=entry.fx;
+  if(!fx){
+    const rec=entry.k==='spell'?spellOf(entry.id):(entry.k==='ability'?abilityOf(entry.id):null);
+    fx=recFx(rec,entry.k);
+  }
+  const immune=normalizeConditions(f.condImmune);
+  entry.fx=(fx||[]).filter(x=>x.stat!=='condition'||immune.indexOf(canonicalCondition(x.value))<0);
+  entry.uid=entry.uid||fxUid();
+  if(entry.appliedRound==null) entry.appliedRound=fxRound;
+  f.activeFx.push(entry);
+  fxInvalidate();
+  return entry;
+}
+function removeFoeActiveFx(id,uid){
+  const f=foeOf(id); if(!f) return;
+  f.activeFx=(f.activeFx||[]).filter(x=>x.uid!==uid);
+  fxInvalidate(); scheduleSave(); renderFoes(); renderChars();
+}
 /* урон по противнику с учетом сопротивлений/уязвимостей/иммунитета */
 function dmgAfterTraits(holder, amount, dtype){
   const t=dmgTypeCanon(dtype);
@@ -6472,17 +6688,22 @@ function foeCardHTML(f){
   if((f.resist||[]).length) bars.push('сопротивление: '+esc(f.resist.join(', ')));
   if((f.vuln||[]).length) bars.push('уязвимость: '+esc(f.vuln.join(', ')));
   if((f.immune||[]).length) bars.push('иммунитет: '+esc(f.immune.join(', ')));
+  const cond=effectiveFoeConditions(f);
+  if(cond.length) bars.push('состояния: '+esc(cond.join(', ')));
+  const effects=(f.activeFx||[]).map(a=>'<span class="uses-box">✦ '+esc(a.label||'Эффект')+' · '+esc(fxDurationLabel(a))
+    +'<button class="del-x" title="Снять эффект" onclick="removeFoeActiveFx(\''+f.id+'\',\''+a.uid+'\')">✕</button></span>').join(' ');
   return '<div class="card"><div class="card-tools">'
    +'<button class="mini" title="Править" onclick="foeEditing=\''+f.id+'\';renderFoes();window.scrollTo({top:0,behavior:\'smooth\'})">✎</button>'
    +'<button class="mini" title="Вычеркнуть" onclick="delFoe(\''+f.id+'\')">✕</button></div>'
    +'<h4>'+esc(f.n)+' <span style="font-size:12.5px;color:var(--ink-faint);font-weight:400">'+(f.kind==='npc'?'NPC':'монстр')+(f.cr?' · опасность '+esc(f.cr):'')+'</span></h4>'
    +'<div class="row-line" style="font-size:14px;gap:10px;flex-wrap:wrap">'
-   +'<span>КД <b>'+(+f.ac||10)+'</b></span>'
+   +'<span>КД <b>'+((+f.ac||10)+foeFxSum(f,'ac'))+'</b></span>'
    +'<span class="uses-box"><button class="mini-btn" onclick="foeHpDelta(\''+f.id+'\',-1)">−</button>хиты '+(+f.hp||0)+' / '+(+f.hpMax||0)+'<button class="mini-btn" onclick="foeHpDelta(\''+f.id+'\',1)">+</button></span>'
    +'<button class="btn ghost sm" title="Полностью восстановить" onclick="foeFullHeal(\''+f.id+'\')">⟳</button>'
    +'<span style="color:var(--ink-faint)">'+AB_KEYS.map(k=>AB_FULL[k].slice(0,3)+' '+fmtMod(foeAbMod(f,k))).join(' · ')+'</span></div>'
    +(sv?'<p style="font-size:13.5px;margin:2px 0">Спасброски с владением: '+esc(sv)+'</p>':'')
    +(bars.length?'<p style="font-size:13.5px;margin:2px 0;color:var(--gold)">'+bars.join(' · ')+'</p>':'')
+   +(effects?'<div class="row-line" style="font-size:13px;gap:6px;flex-wrap:wrap">'+effects+'</div>':'')
    +(f.traits?'<p style="font-size:14px;white-space:pre-wrap">'+esc(f.traits)+'</p>':'')
    +(f.actions?'<p style="font-size:14px;white-space:pre-wrap"><b>Действия.</b> '+esc(f.actions)+'</p>':'')
    +'</div>';
@@ -6515,9 +6736,9 @@ function targetInfoOf(val){
   if(v.indexOf('foe:')===0){
     const f=foeOf(v.slice(4));
     if(!f) return {kind:'foe', name:'враг', known:false};
-    return {kind:'foe', id:f.id, obj:f, name:f.n, known:true, ac:+f.ac||10, hp:+f.hp||0, hpMax:+f.hpMax||0,
+    return {kind:'foe', id:f.id, obj:f, name:f.n, known:true, ac:(+f.ac||10)+foeFxSum(f,'ac'), hp:+f.hp||0, hpMax:+f.hpMax||0,
       saveMod:k=>foeSaveMod(f,k), abMod:k=>foeAbMod(f,k), skillMod:n=>foeAbMod(f,(SKILLS.find(x=>x[0]===n)||[0,'dex'])[1]),
-      resist:f.resist||[], vuln:f.vuln||[], immune:f.immune||[], magicRes:!!f.magicRes};
+      resist:f.resist||[], vuln:f.vuln||[], immune:f.immune||[], conditions:effectiveFoeConditions(f), magicRes:!!f.magicRes};
   }
   if(v==='object') return {kind:'object', name:'неодушевленный объект', known:false};
   if(v==='self')   return {kind:'none', name:'—', known:false};
@@ -7089,6 +7310,7 @@ function shortRest(){
 }
 function upgradeChar3(c){
   if(!c) return c;
+  c.cond=normalizeConditions(c.cond);
   if(!Array.isArray(c.resist)) c.resist=[];
   if(!Array.isArray(c.vuln)) c.vuln=[];
   if(!Array.isArray(c.immune)) c.immune=[];
@@ -7342,7 +7564,7 @@ function deathSaveRoll(){
       let out=d.text;
       if(d.kind==='up'){
         c.hp=1; c.deaths={s:0,f:0};
-        const i=(c.cond||[]).indexOf('Без сознания'); if(i>=0) c.cond.splice(i,1);
+        c.cond=normalizeConditions(c.cond).filter(x=>x!=='Бессознательный');
         out+=' Герой в сознании.';
       } else if(d.kind==='f2') c.deaths.f=Math.min(3,(c.deaths.f||0)+2);
       else if(d.kind==='f')  c.deaths.f=Math.min(3,(c.deaths.f||0)+1);
