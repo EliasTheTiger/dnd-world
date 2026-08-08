@@ -15,6 +15,7 @@ function loadEngine(random = () => 0) {
         rulesDB=s.rules||[]; foesDB=s.foes||[]; activeCharId=s.activeCharId||null; fxRound=s.fxRound||1;
         lastCastEvent=null; castCtx=null; fxInvalidate();
       },
+      loadAll,
       state() { return {chars,itemsDB,spellsDB,foesDB,activeCharId,fxRound,lastCastEvent}; },
       applyFxTo, removeActiveFx, advanceFxRound, attachDuration, spellFxForCast,
       castSpellApply, canCastCheck, parseComponents, materialPlanFor,
@@ -23,8 +24,11 @@ function loadEngine(random = () => 0) {
       applyDamageTo, applyRollsToTarget, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
       rollSpecOf, resolveOutcome, targetInfoOf, weaponSpecOf, weaponAttackApply, useItemApply,
       dmgAfterTraits, effectiveFoeConditions, castDispel, rollbackLastCast,
-      seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, gameDataAudit,
-      abilityIsActive, isPassiveAbility, itemProfile,
+      seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, seedFoesDB, gameDataAudit,
+      buildRoku, buildTorgar, buildSeptih, buildLegerem,
+      foeActionOf, foeActionFormula, foeActionSpecOf, foeActionApply,
+      abilityIsActive, isPassiveAbility, itemProfile, weaponBonusOf, ammoRemaining, ammoRecover, invQty,
+      validateFormulaValues, saveConditionMode,
       makeBlank() { return buildBlank(); },
       renderWorld() {
         renderRaces(); renderClasses(); renderRules(); renderChars(); renderJournal();
@@ -711,6 +715,251 @@ test('Огненный шар одним кастом отдельно разб�
     rollsA, [`foe:${b.id}`, `foe:${c.id}`], {[`foe:${b.id}`]: rollsB, [`foe:${c.id}`]: rollsC}), true);
   assert.deepEqual([a.hp, b.hp, c.hp], [30, 40, 40]);
   assert.equal(caster.slots[3].cur, 0);
+});
+
+test('встроенная группа экипирована реактивно, без двойного учета импортированных бонусов', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const party = [e.buildRoku(), e.buildTorgar(), e.buildSeptih(), e.buildLegerem()];
+  e.setState({chars: party, items, spells, abilities, classes});
+
+  assert.deepEqual(party.map(c => e.acTotal(c)), [13, 18, 14, 16]);
+  party.forEach(c => {
+    c.inventory.forEach(entry => assert.ok(items.some(x => x.id === entry.itemId), `${c.name}: предмет ${entry.itemId} отсутствует в базе`));
+    c.spellbook.forEach(entry => assert.ok(spells.some(x => x.id === entry.spellId), `${c.name}: заклинание ${entry.spellId} отсутствует в базе`));
+    c.abilities.forEach(entry => assert.ok(abilities.some(x => x.id === entry.abilityId), `${c.name}: способность ${entry.abilityId} отсутствует в базе`));
+    Object.values(c.equipment).forEach(id => assert.ok(c.inventory.some(x => x.id === id), `${c.name}: осиротевший слот ${id}`));
+    assert.ok(['MAIN_HAND', 'TWO_HAND'].some(slot => c.equipment[slot]), `${c.name}: оружие не взято в руки`);
+  });
+  const septih = party[2];
+  assert.equal(e.ammoRemaining(septih.inventory.find(x => x.itemId === 'it_стрелы_20'), items.find(x => x.id === 'it_стрелы_20')), 20);
+
+  const legerem = party[3], axe = items.find(x => x.id === 'it_korlinn_axe');
+  const axeSpec = e.weaponSpecOf(legerem, axe, {kind: 'none', known: false}, {entryId: 'inv_l6'});
+  assert.equal(axeSpec.rows.find(r => r.type === 'dmg').mod, 3, 'Дуэлянт не должен усиливать двуручный топор');
+  const talon = items.find(x => x.id === 'it_talon');
+  assert.deepEqual(plain(e.weaponBonusOf(talon)), {atk: 1, dmg: 1});
+});
+
+test('пустое хранилище загружается сразу с четырьмя экипированными героями и четырьмя врагами', async () => {
+  const e = loadEngine();
+  await e.loadAll();
+  const state = e.state();
+  assert.deepEqual(plain(state.chars.map(c => c.id)), ['char_roku','char_torgar','char_septih','char_legerem']);
+  assert.deepEqual(plain(state.foesDB.map(f => f.id)), ['foe_goblin_scout','foe_skeleton_guard','foe_orc_raider','foe_dire_wolf']);
+  state.chars.forEach(c => {
+    Object.values(c.equipment).forEach(entryId => assert.ok(c.inventory.some(e => e.id === entryId), `${c.name}: слот ${entryId} не существует`));
+    c.inventory.forEach(entry => assert.ok(state.itemsDB.some(it => it.id === entry.itemId), `${c.name}: предмет ${entry.itemId} осиротел`));
+  });
+});
+
+test('стартовый бестиарий содержит исполняемые формулы каждого действия', () => {
+  const e = loadEngine();
+  const foes = e.seedFoesDB();
+  assert.deepEqual(plain(foes.map(f => f.n)), ['Гоблин-разведчик', 'Скелет-страж', 'Орк-налетчик', 'Лютоволк']);
+  const target = hero('target', {hp: 30, hpMax: 30, ab: {str: 14, dex: 12, con: 12, int: 10, wis: 10, cha: 10}});
+  e.setState({chars: [target], foes});
+  foes.forEach(f => {
+    assert.ok(f.combatActions.length, `${f.n}: нет структурированных действий`);
+    f.combatActions.forEach(a => {
+      const spec = e.foeActionSpecOf(f, a, e.targetInfoOf(`ally:${target.id}`));
+      assert.ok(spec.rows.some(r => r.type === 'dmg'), `${f.n}/${a.n}: нет урона`);
+      if (a.kind === 'attack') assert.ok(spec.rows.some(r => r.type === 'atk'), `${f.n}/${a.n}: нет d20 атаки`);
+      assert.match(e.foeActionFormula(a), /d20|спасбросок/);
+    });
+  });
+  const html = e.renderWorld().foes;
+  ['Гоблин-разведчик', 'Скелет-страж', 'Орк-налетчик', 'Лютоволк', 'Провести действие'].forEach(x => assert.ok(html.includes(x), `нет индикатора «${x}»`));
+});
+
+test('полный обмен ударами отражает КД, уязвимость, промах, урон и состояние на листах', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const torgar = e.buildTorgar(), septih = e.buildSeptih();
+  const foes = e.seedFoesDB();
+  e.setState({chars: [torgar, septih], items, abilities, classes, foes});
+
+  const skeleton = foes.find(f => f.id === 'foe_skeleton_guard');
+  const hammer = items.find(x => x.id === 'it_warhammer_gorn');
+  const hammerSpec = e.weaponSpecOf(torgar, hammer, e.targetInfoOf(`foe:${skeleton.id}`), {entryId: 'inv_t7'});
+  const hammerRolls = e.resolveOutcome(hammerSpec, {atk: 10, dmg: 5}, {});
+  assert.equal(hammerRolls.dmgRaw, 7);
+  assert.equal(hammerRolls.dmgTotal, 14, 'дробящая уязвимость скелета должна удвоить итог');
+  assert.equal(e.weaponAttackApply('inv_t7', torgar.id, `foe:${skeleton.id}`, hammerRolls), true);
+  assert.equal(skeleton.hp, 0);
+  assert.ok(skeleton.cond.includes('Повержен'));
+
+  const orc = foes.find(f => f.id === 'foe_orc_raider');
+  const axe = e.foeActionOf(orc, 'greataxe');
+  const orcSpec = e.foeActionSpecOf(orc, axe, e.targetInfoOf(`ally:${torgar.id}`));
+  const before = torgar.hp;
+  const miss = e.resolveOutcome(orcSpec, {atk: 12, dmg0: 6}, {}); // 17 против КД 18
+  assert.equal(miss.hit, false);
+  assert.equal(miss.dmgTotal, 0);
+  assert.equal(e.foeActionApply(orc.id, axe.id, `ally:${torgar.id}`, miss), true);
+  assert.equal(torgar.hp, before);
+
+  const wolf = foes.find(f => f.id === 'foe_dire_wolf'), bite = e.foeActionOf(wolf, 'bite');
+  const biteSpec = e.foeActionSpecOf(wolf, bite, e.targetInfoOf(`ally:${septih.id}`));
+  const biteRolls = e.resolveOutcome(biteSpec, {atk: 10, dmg0: 7, save: 8}, {});
+  assert.equal(biteRolls.hit, true);
+  assert.equal(biteRolls.saveOk, false);
+  assert.equal(biteRolls.dmgTotal, 10);
+  assert.equal(e.foeActionApply(wolf.id, bite.id, `ally:${septih.id}`, biteRolls), true);
+  assert.equal(septih.hp, 23);
+  assert.ok(e.effectiveConditions(septih).includes('Сбитый с ног'));
+
+  const meleeAfterProne = e.foeActionSpecOf(orc, axe, e.targetInfoOf(`ally:${septih.id}`));
+  const bowAfterProne = e.foeActionSpecOf(foes[0], e.foeActionOf(foes[0], 'shortbow'),
+    e.targetInfoOf(`ally:${septih.id}`), {within5:false});
+  assert.equal(meleeAfterProne.rows.find(r => r.type === 'atk').adv, 1);
+  assert.equal(bowAfterProne.rows.find(r => r.type === 'atk').adv, 2);
+});
+
+test('вторичный спасбросок лютоволка не отменяет урон укуса, но управляет падением', () => {
+  const e = loadEngine();
+  const target = hero('target', {hp: 30, hpMax: 30, ab: {str: 14, dex: 10, con: 10, int: 10, wis: 10, cha: 10}});
+  const wolf = e.seedFoesDB().find(f => f.id === 'foe_dire_wolf');
+  e.setState({chars: [target], foes: [wolf]});
+  const bite = e.foeActionOf(wolf, 'bite');
+  const spec = e.foeActionSpecOf(wolf, bite, e.targetInfoOf(`ally:${target.id}`));
+
+  const saved = e.resolveOutcome(spec, {atk: 10, dmg0: 7, save: 20}, {});
+  assert.equal(saved.dmgTotal, 10);
+  assert.equal(saved.effectAllowed, false);
+  e.foeActionApply(wolf.id, bite.id, `ally:${target.id}`, saved);
+  assert.equal(target.hp, 20);
+  assert.equal(e.effectiveConditions(target).includes('Сбитый с ног'), false);
+
+  target.hp = 30;
+  const noSaveEntered = e.resolveOutcome(spec, {atk: 10, dmg0: 7, save: null}, {});
+  assert.equal(noSaveEntered.dmgTotal, 10);
+  assert.equal(noSaveEntered.effectAllowed, null);
+  e.foeActionApply(wolf.id, bite.id, `ally:${target.id}`, noSaveEntered);
+  assert.equal(target.hp, 20);
+  assert.equal(e.effectiveConditions(target).includes('Сбитый с ног'), false);
+
+  target.hp = 30;
+  const missed = e.resolveOutcome(spec, {atk: 1, dmg0: 7, save: 1}, {});
+  assert.equal(missed.dmgTotal, 0);
+  e.foeActionApply(wolf.id, bite.id, `ally:${target.id}`, missed);
+  assert.equal(target.hp, 30);
+  assert.equal(e.effectiveConditions(target).includes('Сбитый с ног'), false);
+});
+
+test('ближняя атака по герою без сознания автоматически критична и ставит два провала смерти', () => {
+  const e = loadEngine();
+  const target = hero('downed', {hp: 0, hpMax: 30, cond: ['Бессознательный'], deaths: {s: 0, f: 0}});
+  const orc = e.seedFoesDB().find(f => f.id === 'foe_orc_raider');
+  e.setState({chars: [target], foes: [orc]});
+  const axe = e.foeActionOf(orc, 'greataxe');
+  const spec = e.foeActionSpecOf(orc, axe, e.targetInfoOf(`ally:${target.id}`));
+  assert.equal(spec.rows.find(r => r.type === 'atk').adv, 1);
+  const rolls = e.resolveOutcome(spec, {atk: 10, atk_2: 12, dmg0: 8}, {});
+  assert.equal(rolls.hit, true);
+  assert.equal(rolls.crit, true);
+  assert.equal(e.validateFormulaValues(spec, {atk: 10, atk_2: 12, dmg0: 8}, rolls).ok, true);
+  e.foeActionApply(orc.id, axe.id, `ally:${target.id}`, rolls);
+  assert.equal(target.deaths.f, 2);
+  assert.equal(target.hp, 0);
+});
+
+test('ручной ввод формул проверяет границы костей и не применяет неподтвержденные последствия', () => {
+  const e = loadEngine();
+  const target = hero('target', {cond: ['Сбитый с ног'], hp: 30, hpMax: 30});
+  const wolf = e.seedFoesDB().find(f => f.id === 'foe_dire_wolf');
+  e.setState({chars: [target], foes: [wolf]});
+  const spec = e.foeActionSpecOf(wolf, e.foeActionOf(wolf, 'bite'), e.targetInfoOf(`ally:${target.id}`));
+  assert.equal(spec.rows.find(r => r.type === 'atk').adv, 1);
+
+  let values = {atk: 10, atk_2: null, dmg0: 7, save: 8};
+  let outcome = e.resolveOutcome(spec, values, {});
+  assert.equal(e.validateFormulaValues(spec, values, outcome).ok, false, 'преимущество требует два d20');
+  values = {atk: 20, atk_2: 19, dmg0: 14, save: 8};
+  outcome = e.resolveOutcome(spec, values, {});
+  assert.equal(outcome.crit, true);
+  assert.equal(e.validateFormulaValues(spec, values, outcome).ok, true, 'крит допускает сумму удвоенных костей');
+  values = {atk: 20, atk_2: 19, dmg0: 25, save: 8};
+  outcome = e.resolveOutcome(spec, values, {});
+  assert.equal(e.validateFormulaValues(spec, values, outcome).ok, false, '4d6 не может дать 25');
+
+  const unresolvedAttack = e.resolveOutcome(spec, {atk: null, dmg0: 7, save: 8}, {});
+  assert.equal(unresolvedAttack.dmgTotal, 0);
+  const saveDamage = {rows:[
+    {key:'save',type:'save',side:'target',natural:true,mod:0,dc:12,adv:0},
+    {key:'dmg',type:'dmg',side:'caster',cnt:1,sides:6,mod:0,dmgType:'огонь'}
+  ],meta:{target:e.targetInfoOf(`ally:${target.id}`),saveAb:'Ловкость',saveAffectsDamage:true,half:false}};
+  assert.equal(e.resolveOutcome(saveDamage, {save:null,dmg:6}, {}).dmgTotal, 0);
+});
+
+test('формула запрашивает фактическую дистанцию и применяет пространственные правила 5e', () => {
+  const e = loadEngine();
+  const caster = hero('caster', {cls: 'Волшебник', level: 5, ab: {str: 10, dex: 12, con: 12, int: 16, wis: 10, cha: 10}});
+  const prone = {id:'prone',n:'Лежащая цель',kind:'monster',ac:12,hp:20,hpMax:20,hpTemp:0,
+    abil:{str:10,dex:10,con:10,int:10,wis:10,cha:10},saveP:{},profB:2,resist:[],vuln:[],immune:[],condImmune:[],
+    cond:['Сбитый с ног'],activeFx:[],combatActions:[]};
+  e.setState({chars:[caster],foes:[prone]});
+  const lash = {id:'lash',n:'Дальняя плеть',l:0,r:'30 футов',hi:'',
+    x:'Совершите рукопашную атаку заклинанием по цели. При попадании цель получает 1d6 рубящего урона.'};
+  const target=e.targetInfoOf(`foe:${prone.id}`);
+
+  const unknown=e.rollSpecOf(lash,{caster,kind:'spell',target});
+  assert.equal(unknown.meta.within5,null);
+  assert.equal(unknown.meta.spatialRequired,true);
+  assert.equal(e.validateFormulaValues(unknown,{},e.resolveOutcome(unknown,{},{})).ok,false);
+  assert.equal(e.rollSpecOf(lash,{caster,kind:'spell',target,within5:true}).rows.find(r=>r.type==='atk').adv,1);
+  assert.equal(e.rollSpecOf(lash,{caster,kind:'spell',target,within5:false}).rows.find(r=>r.type==='atk').adv,2);
+
+  const victim=hero('victim');
+  const goblin=e.seedFoesDB().find(f=>f.id==='foe_goblin_scout');
+  e.setState({chars:[victim],foes:[goblin]});
+  const bow=e.foeActionOf(goblin,'shortbow'), victimTarget=e.targetInfoOf(`ally:${victim.id}`);
+  const unknownBow=e.foeActionSpecOf(goblin,bow,victimTarget);
+  assert.equal(unknownBow.meta.spatialRequired,true);
+  assert.equal(e.foeActionSpecOf(goblin,bow,victimTarget,{within5:true}).rows.find(r=>r.type==='atk').adv,2,
+    'дальнобойная атака рядом с видящим дееспособным противником совершается с помехой');
+  assert.equal(e.foeActionSpecOf(goblin,bow,victimTarget,{within5:false}).rows.find(r=>r.type==='atk').adv,0);
+});
+
+test('смешанный урон применяет сопротивление и уязвимость отдельно по типам', () => {
+  const e = loadEngine();
+  const target = {id:'mixed',n:'Смешанная цель',kind:'monster',ac:10,hp:50,hpMax:50,hpTemp:0,
+    abil:{str:10,dex:10,con:10,int:10,wis:10,cha:10},saveP:{},profB:2,
+    resist:['огонь'],vuln:['дробящий'],immune:[],condImmune:[],cond:[],activeFx:[],combatActions:[]};
+  e.setState({foes:[target]});
+  const spec = {rows:[
+    {key:'fire',type:'dmg',side:'caster',cnt:1,sides:6,mod:0,dmgType:'огонь'},
+    {key:'blunt',type:'dmg',side:'caster',cnt:1,sides:6,mod:0,dmgType:'дробящий'}
+  ],meta:{target:e.targetInfoOf(`foe:${target.id}`),dmgType:'',half:false}};
+  const out = e.resolveOutcome(spec, {fire:5,blunt:5}, {});
+  assert.equal(out.dmgRaw, 10);
+  assert.equal(out.dmgTotal, 12); // огонь 5 → 2; дробящий 5 → 10
+  assert.deepEqual(plain(out.damageParts.map(x => [x.type,x.total])), [['огонь',2],['дробящий',10]]);
+  e.applyRollsToTarget(`foe:${target.id}`, out, 'смешанный тест');
+  assert.equal(target.hp, 38);
+});
+
+test('пачка стрел расходуется по одной и возвращает половину выпущенного после боя', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const septih = e.buildSeptih();
+  const target = {id:'target',n:'Тренировочная цель',kind:'monster',ac:10,hp:100,hpMax:100,hpTemp:0,
+    abil:{str:10,dex:10,con:10,int:10,wis:10,cha:10},saveP:{},profB:2,resist:[],vuln:[],immune:[],condImmune:[],cond:[],activeFx:[],combatActions:[]};
+  e.setState({chars:[septih],activeCharId:septih.id,items,abilities,classes,foes:[target]});
+  const bow = items.find(x => x.id === 'it_shortbow_s'), arrows = septih.inventory.find(x => x.itemId === 'it_стрелы_20');
+  for(let i=0;i<4;i++){
+    const spec=e.weaponSpecOf(septih,bow,e.targetInfoOf(`foe:${target.id}`),{entryId:'inv_s8',mode:'ranged'});
+    const rolls=e.resolveOutcome(spec,{atk:10,dmg:3},{});
+    assert.equal(e.weaponAttackApply('inv_s8',septih.id,`foe:${target.id}`,rolls),true);
+  }
+  assert.equal(e.ammoRemaining(arrows,items.find(x=>x.id===arrows.itemId)),16);
+  assert.ok(septih.inventory.includes(arrows),'неполная пачка не должна исчезать');
+  e.ammoRecover(arrows.id);
+  assert.equal(e.ammoRemaining(arrows,items.find(x=>x.id===arrows.itemId)),18);
+  e.invQty(arrows.id,1);
+  assert.equal(e.ammoRemaining(arrows,items.find(x=>x.id===arrows.itemId)),38,'новая пачка добавляет ровно 20 стрел к остатку');
+  e.invQty(arrows.id,-1);
+  assert.equal(e.ammoRemaining(arrows,items.find(x=>x.id===arrows.itemId)),18,'удаление пачки не сбрасывает частичный остаток');
 });
 
 test('все девять вкладок и шесть панелей листа рендерятся с индикаторами', () => {
