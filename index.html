@@ -1625,6 +1625,42 @@ function seedItemsDB(){
     if(clash>=0) out.splice(clash,1);
     out.push(Object.assign({},it));
   });
+  /* Персональные записи остальных встроенных героев являются частью
+     канонической базы, а не только поздней миграцией сохраненного мира. */
+  const addHeroItems=(arr,replaced)=>{
+    if(!Array.isArray(arr)) return;
+    const ids=new Set(arr.map(x=>x.id));
+    if(Array.isArray(replaced)){
+      for(let i=out.length-1;i>=0;i--) if(replaced.indexOf(out[i].n)>=0&&!ids.has(out[i].id)) out.splice(i,1);
+    }
+    arr.forEach(it=>{ if(!out.some(x=>x.id===it.id)) out.push(JSON.parse(JSON.stringify(it))); });
+  };
+  if(typeof TORGAR_ITEMS!=='undefined') addHeroItems(TORGAR_ITEMS,TORGAR_REPLACED_ITEMS);
+  if(typeof SEPTIH_ITEMS!=='undefined') addHeroItems(SEPTIH_ITEMS,SEPTIH_REPLACED_ITEMS);
+  if(typeof LEGEREM_ITEMS!=='undefined') addHeroItems(LEGEREM_ITEMS,[]);
+  /* Новый мир сразу получает канонический полный набор. Миграция ниже нужна
+     только для уже сохраненных миров старых версий. */
+  if(typeof ITEM_NEW!=='undefined') ITEM_NEW.forEach(rec=>{ if(!out.some(x=>x.id===rec.id)) out.push(JSON.parse(JSON.stringify(rec))); });
+  if(typeof ITEM_LORE_A!=='undefined'){
+    const lore=Object.assign({},ITEM_LORE_A,ITEM_LORE_B,ITEM_LORE_C);
+    Object.keys(lore).forEach(id=>{
+      const it=out.find(x=>x.id===id); if(!it) return;
+      const L=lore[id];
+      if(L.desc&&(String(it.desc||'').trim().length<130||id==='it_spider_letter')) it.desc=L.desc;
+      if(L.text&&!String(it.text||'').trim()) it.text=L.text;
+      if(L.props&&!String(it.props||'').trim()) it.props=L.props;
+      if(L.cap&&!it.cap) it.cap=L.cap;
+      if(L.box) it.box=true;
+      if(L.contents&&!it.contents) it.contents=JSON.parse(JSON.stringify(L.contents));
+    });
+    Object.keys(ITEM_TAG_FIX).forEach(n=>{
+      const it=out.find(x=>x.n===n); if(!it) return;
+      const f=ITEM_TAG_FIX[n]; let tg=(it.tags||[]).slice();
+      if(f.drop) tg=tg.filter(t=>f.drop.indexOf(t)<0);
+      if(f.add) f.add.forEach(t=>{ if(tg.indexOf(t)<0) tg.push(t); });
+      it.tags=tg;
+    });
+  }
   out.forEach(o=>{ o.tags=uniqTags((o.tags||[]).concat(itemEnrichTags(o))); });
   return out;
 }
@@ -1649,6 +1685,24 @@ function seedSpellsDB(){
       ritual:/ритуал/i.test(sp.t), conc:/Концентрация/i.test(sp.d), custom:false, tags:spellAutoTags(sp), x:sp.x, hi:''});
   });
   ROKU_SPELLS.forEach(sp=>out.push(Object.assign({},sp)));
+  if(typeof TORGAR_SPELLS!=='undefined'){
+    const names=new Set(TORGAR_SPELLS.map(x=>x.n)), ids=new Set(TORGAR_SPELLS.map(x=>x.id));
+    for(let i=out.length-1;i>=0;i--) if(names.has(out[i].n)&&!ids.has(out[i].id)) out.splice(i,1);
+    TORGAR_SPELLS.forEach(sp=>{ if(!out.some(x=>x.id===sp.id)) out.push(JSON.parse(JSON.stringify(sp))); });
+  }
+  if(typeof SPELL_HI_PATCHES!=='undefined') Object.keys(SPELL_HI_PATCHES).forEach(id=>{
+    const sp=out.find(x=>x.id===id); if(sp&&!sp.hi) sp.hi=SPELL_HI_PATCHES[id];
+  });
+  if(typeof SPELL_X_PATCHES!=='undefined') Object.keys(SPELL_X_PATCHES).forEach(id=>{
+    const sp=out.find(x=>x.id===id); if(sp&&(!sp.x||sp.x.length<40)) sp.x=SPELL_X_PATCHES[id];
+  });
+  if(typeof ANTIMAGIC_SPELL!=='undefined'&&!out.some(s=>s.n==='Антимагическое поле')) out.push(Object.assign({},ANTIMAGIC_SPELL));
+  const guidance=out.find(x=>x.id==='sp_guidance_t');
+  if(guidance){ guidance.d='Концентрация, до 1 минуты'; guidance.conc=true; }
+  const web=out.find(x=>x.id==='sp_web');
+  if(web){ web.s='Вызов'; web.d='Концентрация, до 1 часа'; web.conc=true; }
+  const faerie=out.find(x=>x.n==='Огонь фей');
+  if(faerie) faerie.x='Все существа в кубе с гранью 6 м должны пройти спасбросок Ловкости. При провале цель на время действия очерчена светом: атаки по ней совершаются с преимуществом, а сама цель не получает преимуществ от невидимости.';
   out.forEach(o=>{ o.tags=uniqTags((o.tags||[]).concat(spellEnrichTags(o))); });
   return out;
 }
@@ -1659,11 +1713,21 @@ function seedAbilitiesDB(){
     r.tr.forEach(tr=>{
       const name=tr.split(':')[0].trim();
       out.push({id:'ab_'+slugify(r.n+'_'+name), n:name+' ('+r.n+')', type:'racial', source:r.n, custom:false,
-        tags:['racial','passive'], uses:null, rest:'', x:tr});
+        tags:['racial','passive'], uses:null, rest:'', mode:'passive', x:tr});
     });
   });
-  ROKU_ABILITIES.forEach(a=>out.push(Object.assign({},a)));
-  out.forEach(o=>{ o.tags=uniqTags((o.tags||[]).concat(abilityEnrichTags(o))); });
+  ROKU_ABILITIES.forEach(a=>out.push(Object.assign({mode:'passive'},a)));
+  [typeof TORGAR_ABILITIES!=='undefined'?TORGAR_ABILITIES:[],
+   typeof SEPTIH_ABILITIES!=='undefined'?SEPTIH_ABILITIES:[],
+   typeof LEGEREM_ABILITIES!=='undefined'?LEGEREM_ABILITIES:[]].forEach(arr=>arr.forEach(a=>{
+    if(!out.some(x=>x.id===a.id)) out.push(JSON.parse(JSON.stringify(a)));
+  }));
+  out.forEach(o=>{
+    if(typeof ABILITY_X_PATCHES_BY_NAME!=='undefined'&&ABILITY_X_PATCHES_BY_NAME[o.n]&&(!o.x||o.x.length<30)) o.x=ABILITY_X_PATCHES_BY_NAME[o.n];
+    const up=typeof ABILITY_USES_PATCHES_BY_NAME!=='undefined'&&ABILITY_USES_PATCHES_BY_NAME[o.n];
+    if(up) Object.assign(o,up);
+    o.tags=uniqTags((o.tags||[]).concat(abilityEnrichTags(o)));
+  });
   return out;
 }
 
@@ -2496,7 +2560,7 @@ const ITEM_TAG_FIX={
 };
 async function ensureItemAudit(){
   const flag=await store.get('dndworld2:itemaudit');
-  if(flag==='1') return;
+  if(flag==='2') return;
   ITEM_NEW.forEach(rec=>{ if(!itemsDB.some(x=>x.id===rec.id)) itemsDB.push(rec); });
   const lore=Object.assign({}, ITEM_LORE_A, ITEM_LORE_B, ITEM_LORE_C);
   Object.keys(lore).forEach(id=>{
@@ -2523,12 +2587,12 @@ async function ensureItemAudit(){
     const it=itemOf(e.itemId);
     if(it&&Array.isArray(it.contents)&&it.contents.length) fillContainer(e,it);
   }));
-  await store.set('dndworld2:itemaudit','1');
+  await store.set('dndworld2:itemaudit','2');
   fxInvalidate(); scheduleSave();
 }
 async function ensureSpellAudit(){
   const flag=await store.get('dndworld2:spellaudit');
-  if(flag==='3') return;   /* версия 3: исправлены концентрация и длительность перенесенных записей */
+  if(flag==='5') return;   /* версия 5: Огонь фей содержит спасбросок и машинные последствия */
   Object.keys(SPELL_HI_PATCHES).forEach(id=>{
     const sp=spellsDB.find(s=>s.id===id);
     if(sp && !sp.hi) sp.hi=SPELL_HI_PATCHES[id];
@@ -2546,7 +2610,12 @@ async function ensureSpellAudit(){
   if(guidance){ guidance.d='Концентрация, до 1 минуты'; guidance.conc=true; guidance.tags=uniqTags((guidance.tags||[]).concat(['buff','concentration'])); }
   const web=spellsDB.find(x=>x.id==='sp_web');
   if(web){ web.s='Вызов'; web.d='Концентрация, до 1 часа'; web.conc=true; web.tags=uniqTags((web.tags||[]).concat(['concentration','control'])); }
-  await store.set('dndworld2:spellaudit','3');
+  const faerie=spellsDB.find(x=>x.n==='Огонь фей');
+  if(faerie){
+    faerie.x='Все существа в кубе с гранью 6 м должны пройти спасбросок Ловкости. При провале цель на время действия очерчена светом: атаки по ней совершаются с преимуществом, а сама цель не получает преимуществ от невидимости.';
+    faerie.tags=uniqTags((faerie.tags||[]).concat(spellEnrichTags(faerie)));
+  }
+  await store.set('dndworld2:spellaudit','5');
   scheduleSave();
 }
 
@@ -2563,26 +2632,32 @@ const ABILITY_X_PATCHES_BY_NAME={
  'Дополнительный язык (Полуэльф)':'Вы знаете один дополнительный язык на ваш выбор.'
 };
 const ABILITY_USES_PATCHES_BY_NAME={
- 'Непоколебимая стойкость (Полуорк)':{uses:1, rest:'длинный отдых'},
- 'Дьявольское наследие (Тифлинг)':{uses:1, rest:'длинный отдых'}
+  'Непоколебимая стойкость (Полуорк)':{uses:1, rest:'длинный отдых', mode:'active'},
+  /* Наследие само выдает заклинания по уровню; один общий заряд здесь был
+     ложным счетчиком. Заряды конкретных заклинаний ведутся их записями. */
+  'Дьявольское наследие (Тифлинг)':{uses:null, rest:'', mode:'passive'},
+  'Оружие дыхания (Драконорожденный)':{uses:1, rest:'короткий отдых', mode:'active'}
 };
 async function ensureAbilityAudit(){
   const flag=await store.get('dndworld2:abaudit');
-  if(flag==='2') return;   /* версия 2: канон владений жреца дополнен */
+  if(flag==='3') return;   /* версия 3: пассивные и активные способности размечены явно */
   const clericArmor=abilitiesDB.find(a=>a.n==='Владение доспехами: Жрец (Домен Жизни)');
   if(clericArmor && clericArmor.x && clericArmor.x.indexOf('легкими и средними')<0)
     clericArmor.x+=' Вы также владеете легкими и средними доспехами и щитами.';
   abilitiesDB.forEach(ab=>{
     if(ABILITY_X_PATCHES_BY_NAME[ab.n] && (!ab.x||ab.x.length<30)) ab.x=ABILITY_X_PATCHES_BY_NAME[ab.n];
     const up=ABILITY_USES_PATCHES_BY_NAME[ab.n];
-    if(up && ab.uses==null){ ab.uses=up.uses; ab.rest=up.rest; }
+    if(up){
+      ab.uses=up.uses; ab.rest=up.rest;
+      if(up.mode) ab.mode=up.mode;
+    }
   });
   /* героям с этими способностями — счетчики зарядов */
   chars.forEach(c=>(c.abilities||[]).forEach(e=>{
     const db=abilitiesDB.find(a=>a.id===e.abilityId);
     if(db&&db.uses!=null&&e.cur==null) e.cur=db.uses;
   }));
-  await store.set('dndworld2:abaudit','2');
+  await store.set('dndworld2:abaudit','3');
   scheduleSave();
 }
 
@@ -3120,7 +3195,13 @@ function spellPresetFx(sp){
     {stat:'note',mode:'text',value:'при окончании цель падает, если ее ничто не удерживает'}
   ];
   if(n==='невидимость'||n==='высшая невидимость') return [
+    {stat:'condition',mode:'text',value:'Невидимый'},
     {stat:'note',mode:'text',value:n==='невидимость'?'невидимость до атаки или наложения заклинания':'невидимость не прекращается от атак и заклинаний'}
+  ];
+  if(n==='огонь фей') return [
+    {stat:'incoming.attack',mode:'adv',value:1},
+    {stat:'visibility.revealed',mode:'set',value:1},
+    {stat:'note',mode:'text',value:'атаки по цели совершаются с преимуществом; невидимость не дает преимуществ'}
   ];
   if(n==='каменная кожа') return [
     {stat:'note',mode:'text',value:'сопротивление немагическому дробящему, колющему и рубящему урону'}
@@ -3146,6 +3227,7 @@ function spellPresetFx(sp){
     {stat:'note',mode:'text',value:'цель не может восстанавливать хиты до начала следующего хода заклинателя'}
   ];
   if(n==='направляющий снаряд') return [
+    {stat:'incoming.attack',mode:'adv',value:1,consume:'roll'},
     {stat:'note',mode:'text',value:'следующая атака по цели совершается с преимуществом'}
   ];
   return [];
@@ -3624,6 +3706,17 @@ function consumeRollFx(c,uids){
   });
   fxInvalidate(); syncStackedGrants(c); scheduleSave(); renderChars();
 }
+function consumeOutcomeRollFx(caster,targetVal,rolls){
+  if(!rolls) return;
+  consumeRollFx(caster,rolls.consumeCasterFx||[]);
+  const ti=targetInfoOf(targetVal);
+  if(ti.kind==='ally'&&ti.obj) consumeRollFx(ti.obj,rolls.consumeTargetFx||[]);
+  else if(ti.kind==='foe'&&ti.obj&&(rolls.consumeTargetFx||[]).length){
+    const gone=new Set(rolls.consumeTargetFx);
+    ti.obj.activeFx=(ti.obj.activeFx||[]).filter(a=>!gone.has(a.uid));
+    fxInvalidate(); scheduleSave();
+  }
+}
 function removeActiveFx(charId, uid){
   const t=getCh(charId); if(!t||!t.activeFx) return;
   const a=t.activeFx.find(x=>x.uid===uid);
@@ -3763,6 +3856,8 @@ function useAbilityApply(abilityId, casterId, target, rolls){
     if(poolCur>0){ poolEntry.cur=poolCur-1; chargeInfo+=' · '+poolDb.n+' −1 (осталось '+poolEntry.cur+' из '+poolDb.uses+')'; }
     else chargeInfo+=' · '+poolDb.n+' сверх запаса';
   }
+  consumeOutcomeRollFx(caster,target,rolls);
+  if(rolls&&rolls.attackMade) endTriggeredSpellEffects(caster,'attack');
   const tIsAlly=target.indexOf('ally:')===0;
   const tinfo=targetInfoOf(target);
   let info='';
@@ -3895,6 +3990,27 @@ function concDamageCheck(c, dmg){
     }});
 }
 
+function combatSnapshot(t,isFoe){
+  return {id:t.id,foe:!!isFoe,hp:+t.hp||0,hpTemp:+t.hpTemp||0,cond:(t.cond||[]).slice(),
+    deaths:isFoe?null:Object.assign({},t.deaths||{s:0,f:0}),
+    activeFx:JSON.parse(JSON.stringify(t.activeFx||[]))};
+}
+function rollbackLastCast(casterId){
+  const ev=lastCastEvent;
+  if(!ev||ev.casterId!==casterId||ev.round!==fxRound) return {ok:false,reason:'нет зафиксированного каста этого заклинателя в текущем раунде'};
+  removeCastGroup(ev.castId);
+  (ev.snapshots||[]).forEach(s=>{
+    const t=s.foe?foeOf(s.id):getCh(s.id); if(!t) return;
+    t.hp=s.hp; t.hpTemp=s.hpTemp; t.cond=s.cond.slice();
+    if(!s.foe) t.deaths=Object.assign({},s.deaths||{s:0,f:0});
+    t.activeFx=JSON.parse(JSON.stringify(s.activeFx||[]));
+  });
+  lastCastEvent=null;
+  fxInvalidate(); chars.forEach(syncStackedGrants); scheduleSave(); renderChars();
+  if(typeof renderFoes==='function') renderFoes();
+  return {ok:true,spellId:ev.spellId,castId:ev.castId};
+}
+
 /* ── спец-заклинания контрмагии: работают по имени записи — готово и для будущих ── */
 function castCounterspell(sp, caster, target, usedLvl, plan){
   /* Круг цели уже выбран в префлайте до списания ячейки. Повторный prompt
@@ -3925,35 +4041,38 @@ function castCounterspell(sp, caster, target, usedLvl, plan){
   return true;
 }
 function counterspellResolve(caster, target, tLvl, ok, note){
+  let rollback='';
   if(target.indexOf('ally:')===0 && ok){
     const t=getCh(target.slice(5));
     if(t){
-      let last=null;
-      chars.forEach(ch=>(ch.activeFx||[]).forEach(a=>{ if(a.casterId===t.id) last={ch,a}; }));
-      if(last){ removeActiveFx(last.ch.id, last.a.uid); }
-      breakConcentration(t, 'заклинание прервано Контрзаклинанием');
+      const rb=rollbackLastCast(t.id);
+      rollback=rb.ok?' · последствия последнего каста полностью отменены':' · '+rb.reason;
     }
   }
   const tl=target.indexOf('ally:')===0?(getCh(target.slice(5))||{}).name:(target==='enemy'?'враг':'цель');
-  setStatus('⚡ Контрзаклинание от '+caster.name+' против '+tl+': '+(ok?'заклинание ('+tLvl+' круг) ПРЕРВАНО':'не удалось')+' — '+note+'.');
-  castLogLine(caster.name+' → '+tl+': «Контрзаклинание» против заклинания '+tLvl+' круга — '+(ok?'прервано':'провал')+' ('+note+')');
+  setStatus('⚡ Контрзаклинание от '+caster.name+' против '+tl+': '+(ok?'заклинание ('+tLvl+' круг) ПРЕРВАНО':'не удалось')+' — '+note+rollback+'.');
+  castLogLine(caster.name+' → '+tl+': «Контрзаклинание» против заклинания '+tLvl+' круга — '+(ok?'прервано':'провал')+' ('+note+')'+rollback);
   fxInvalidate(); scheduleSave(); renderChars();
 }
 function castDispel(sp, caster, target, usedLvl){
   const myLvl=usedLvl||3;
-  if(target.indexOf('ally:')!==0){
+  const ti=targetInfoOf(target);
+  if(!ti.known||(ti.kind!=='ally'&&ti.kind!=='foe')){
     const tl=target==='enemy'?'враг':'неодушевленный объект';
     setStatus('⚡ Рассеивание магии: заклинания круга ≤ '+myLvl+' на цели («'+tl+'») оканчиваются; более высокие — проверка d20 + '+eMod(caster,spellAbOf(caster))+' против СЛ 10 + круг.');
     castLogLine(caster.name+' → '+tl+': «Рассеивание магии» (ячейка '+myLvl+' круга)');
     return true;
   }
-  const t=getCh(target.slice(5)); if(!t) return false;
+  const t=ti.obj;
   const dispelled=[], held=[];
   const above=[];
   (t.activeFx||[]).slice().forEach(a=>{
     if(a.k!=='spell') return;
-    const rec=spellOf(a.id); const lv=rec?(+rec.l||0):0;
-    if(lv<=myLvl){ removeActiveFx(t.id, a.uid); dispelled.push(a.label+(lv?' ('+lv+' кр.)':'')); }
+    const rec=spellOf(a.id); const lv=Math.max(rec?(+rec.l||0):0,+a.power||0);
+    if(lv<=myLvl){
+      if(ti.kind==='ally') removeActiveFx(t.id,a.uid); else t.activeFx=t.activeFx.filter(x=>x.uid!==a.uid);
+      dispelled.push(a.label+(lv?' ('+lv+' кр.)':''));
+    }
     else above.push({a, lv});
   });
   if(above.length){
@@ -3964,10 +4083,13 @@ function castDispel(sp, caster, target, usedLvl){
       apply:v=>{
         above.forEach((x,i)=>{
           const tot=v['r'+i]+m;
-          if(tot>=10+x.lv){ removeActiveFx(t.id, x.a.uid); dispelled.push(x.a.label+' ('+x.lv+' кр., проверка '+tot+'≥'+(10+x.lv)+')'); }
+          if(tot>=10+x.lv){
+            if(ti.kind==='ally') removeActiveFx(t.id,x.a.uid); else t.activeFx=t.activeFx.filter(a=>a.uid!==x.a.uid);
+            dispelled.push(x.a.label+' ('+x.lv+' кр., проверка '+tot+'≥'+(10+x.lv)+')');
+          }
           else held.push(x.a.label+' ('+x.lv+' кр., проверка '+tot+'<'+(10+x.lv)+')');
         });
-        dispelFinish(caster, t, myLvl, dispelled, held);
+        dispelFinish(caster,t,myLvl,dispelled,held);
       }});
     return true;
   }
@@ -3975,9 +4097,11 @@ function castDispel(sp, caster, target, usedLvl){
   return true;
 }
 function dispelFinish(caster, t, myLvl, dispelled, held){
-  const msg='⚡ Рассеивание магии на '+t.name+': '+(dispelled.length?'рассеяно — '+dispelled.join('; '):'рассеивать нечего')+(held.length?' · устояло — '+held.join('; '):'');
+  const tn=t.name||t.n||'цель';
+  const msg='⚡ Рассеивание магии на '+tn+': '+(dispelled.length?'рассеяно — '+dispelled.join('; '):'рассеивать нечего')+(held.length?' · устояло — '+held.join('; '):'');
   setStatus(msg+'.');
-  castLogLine(caster.name+' → '+t.name+': «Рассеивание магии» (ячейка '+myLvl+' круга) — '+(dispelled.length?'рассеяно: '+dispelled.join(', '):'ничего')+(held.length?'; устояло: '+held.join(', '):''));
+  castLogLine(caster.name+' → '+tn+': «Рассеивание магии» (ячейка '+myLvl+' круга) — '+(dispelled.length?'рассеяно: '+dispelled.join(', '):'ничего')+(held.length?'; устояло: '+held.join(', '):''));
+  fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
 }
 function castAntimagic(sp, caster, target, usedLvl){
   const isAlly=target.indexOf('ally:')===0;
@@ -3996,7 +4120,34 @@ function castAntimagic(sp, caster, target, usedLvl){
   castLogLine(caster.name+' → '+tl+': «'+sp.n+'» — магия в сфере подавлена');
   return true;
 }
-const SPECIAL_CAST={ 'Контрзаклинание':castCounterspell, 'Рассеивание магии':castDispel, 'Антимагическое поле':castAntimagic };
+function castPowerWordKill(sp,caster,target){
+  const ti=targetInfoOf(target);
+  if(!ti.known||!ti.obj){
+    setStatus('⚡ «'+sp.n+'»: цель без записи — мастер проверяет, было ли у нее 100 хитов или меньше.');
+    castLogLine(caster.name+' → '+ti.name+': «'+sp.n+'» — порог 100 текущих хитов проверяет мастер');
+    return true;
+  }
+  if(ti.hp>100){
+    setStatus('⚡ «'+sp.n+'» не подействовало: у '+ti.name+' '+ti.hp+' хитов (> 100).');
+    castLogLine(caster.name+' → '+ti.name+': «'+sp.n+'» — без эффекта ('+ti.hp+' хитов)');
+    return true;
+  }
+  ti.obj.hp=0;
+  if(ti.kind==='ally'){
+    breakConcentration(ti.obj,'герой убит заклинанием «'+sp.n+'»');
+    ti.obj.deaths={s:0,f:3};
+    ti.obj.cond=normalizeConditions(ti.obj.cond);
+    if(ti.obj.cond.indexOf('Бессознательный')<0) ti.obj.cond.push('Бессознательный');
+  } else {
+    ti.obj.cond=ti.obj.cond||[]; if(ti.obj.cond.indexOf('Повержен')<0) ti.obj.cond.push('Повержен');
+  }
+  setStatus('⚡ «'+sp.n+'»: '+ti.name+' погибает ('+ti.hp+' ≤ 100 хитов).');
+  castLogLine(caster.name+' → '+ti.name+': «'+sp.n+'» — цель погибает ('+ti.hp+' ≤ 100)');
+  fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
+  return true;
+}
+const SPECIAL_CAST={ 'Контрзаклинание':castCounterspell, 'Рассеивание магии':castDispel,
+  'Антимагическое поле':castAntimagic, 'Слово силы: смерть':castPowerWordKill };
 function breakConcById(charId){ const c=getCh(charId); if(!c) return;
   if(confirm('Прервать концентрацию '+c.name+'?')) breakConcentration(c, 'решение мастера'); }
 
@@ -4210,6 +4361,9 @@ function kwDist(ctx, pos, srcRe, skipNegated){
 function classifyDice(g){
   const h=kwDist(g.ctx, g.ctxPos, HEAL_KW_SRC, true);
   const d=kwDist(g.ctx, g.ctxPos, DMG_KW_SRC, false);
+  /* В русских описаниях тип урона часто стоит сразу после кости без слова
+     «урон»: «20d6 огнем + 20d6 дробящим». Это все равно кость урона. */
+  if(/^\s*(?:огнем|холодом|кислотой|ядом|электричеством|молнией|громом|звуком|излучением|силовым\s+полем|некротическ[а-я]*|психическ[а-я]*|дробящ[а-я]*|колющ[а-я]*|рубящ[а-я]*)/.test(g.after)) return 'dmg';
   if(h===Infinity&&d===Infinity) return 'other';
   return (h<=d)?'heal':'dmg';
 }
@@ -4236,14 +4390,20 @@ const SAVE_AB_KEY={'силы':'str','ловкости':'dex','телосложе
    разбирает итог по правилам 5e и применяет его к листам и бестиарию.  */
 
 /* ── активные и пассивные способности ── */
-const AB_ACTIVE_RE=/вы можете потратить|вы тратите|потратить\s+(?:одну|один|одно)?\s*(?:кость|очко|заряд)|в качестве действия|действием|бонусным действием|своей реакцией|реакцией|бросок атаки|броска атаки|броску атаки|спасбросок|спасброска|проверк[уаи]|вы наносите|дополнительный урон|наносит[еь]\s+урон|восстанавлива[а-я]+\s+\d|можете попытаться|при попадании|если вы попадаете|когда вы попадаете|один раз в ход|раз в ход|раз за бой|вы можете заставить|вы можете добавить/;
+const AB_ACTIVE_RE=/вы можете потратить|вы тратите|потратить\s+(?:одну|один|одно)?\s*(?:кость|очко|заряд)|в качестве действия|действием|бонусным действием|своей реакцией|реакцией|бросок атаки|броска атаки|броску атаки|спасбросок|спасброска|проверк[уаи]|вы наносите|дополнительный урон|наносит[еь]\s+урон|восстанавлива[а-я]+\s+\d|можете попытаться|вы можете (?:выбрать|изменить|расставить|установить|совершить|использовать|применить|перебросить|создать)|при попадании|если вы попадаете|когда вы попадаете|один раз в ход|раз в ход|раз за бой|вы можете заставить|вы можете добавить/;
 function abilityIsActive(ab){
   if(!ab) return false;
   if(ab.mode==='active') return true;
   if(ab.mode==='passive') return false;
   if(ab.uses!=null||ab.rest) return true;
   const t=ab.tags||[];
-  if(['attack','action','bonus','reaction','save','extradamage','control','heal','limited'].some(x=>t.indexOf(x)>=0)) return true;
+  /* Ярлык passive сильнее тематических ярлыков attack/save. Например,
+     «Везучий» меняет бросок атаки, но не является отдельным действием. */
+  if(t.indexOf('passive')>=0) return false;
+  /* Тематические ярлыки attack/save/heal описывают и постоянные свойства.
+     Действием считаются только явная экономика действия/реакции, лимит либо
+     формулировка применения в тексте. */
+  if(['action','bonusaction','reaction','limited'].some(x=>t.indexOf(x)>=0)) return true;
   return AB_ACTIVE_RE.test(normRollTxt(ab.n)+' '+normRollTxt(ab.x));
 }
 /* пассивность для эффектов и владений считается по-прежнему (без зарядов) */
@@ -4256,7 +4416,7 @@ function isPassiveAbility(ab){
   if(ab.mode==='passive') return true;
   const tags=ab.tags||[];
   if(tags.indexOf('passive')>=0) return true;
-  if(/пассивн[а-я]*/.test(fxTextOf(ab).toLowerCase())) return true;
+  if(/(?:особенность|черта)[^.\n]{0,80},\s*пассивн[а-я]*\./.test(fxTextOf(ab).toLowerCase())) return true;
   return !abilityIsActive(ab);
 }
 
@@ -4296,6 +4456,24 @@ function abilityAfterHit(ab){
   return /если вы попадаете|когда вы попадаете|при попадании|если вы наносите урон/.test(x)
       && !/до или после совершения броска атаки|добавить ее к броску(?!\s+урона)/.test(x);
 }
+function attackConditionMode(caster,ti){
+  const mine=effectiveConditions(caster), theirs=ti&&ti.kind==='ally'&&ti.obj?effectiveConditions(ti.obj)
+    :(ti&&ti.kind==='foe'&&ti.obj?effectiveFoeConditions(ti.obj):[]);
+  const targetFx=ti&&ti.kind==='ally'&&ti.obj?charFxAll(ti.obj)
+    :(ti&&ti.kind==='foe'&&ti.obj?foeFxAll(ti.obj):[]);
+  const incoming=targetFx.filter(f=>f.stat==='incoming.attack');
+  const revealed=targetFx.some(f=>f.stat==='visibility.revealed'&&f.mode==='set'&&+f.value);
+  const adv=[],dis=[];
+  if(mine.indexOf('Невидимый')>=0) adv.push('атакующий невидим');
+  ['Ослепленный','Отравленный','Опутанный'].forEach(n=>{ if(mine.indexOf(n)>=0) dis.push('атакующий: '+n); });
+  ['Ослепленный','Парализованный','Окаменевший','Опутанный','Ошеломленный','Бессознательный'].forEach(n=>{
+    if(theirs.indexOf(n)>=0) adv.push('цель: '+n);
+  });
+  if(theirs.indexOf('Невидимый')>=0&&!revealed) dis.push('цель невидима');
+  incoming.forEach(f=>(f.mode==='adv'?adv:dis).push(f.label||'действующий эффект цели'));
+  return {adv,dis,mode:adv.length&&dis.length?0:(adv.length?1:(dis.length?2:0)),
+    consumeTargetFx:[...new Set(incoming.filter(f=>f.consume==='roll'&&f.sourceUid).map(f=>f.sourceUid))]};
+}
 function weaponOptionsOf(c){
   if(!c) return [];
   const out=(typeof weaponRows==='function')?weaponRows(c).map(w=>Object.assign({},w)):[];
@@ -4324,6 +4502,8 @@ function detectDmgType(ctx){
   if(m) return dmgTypeCanon(m[1]);
   m=t.match(/урон[а-я]*\s+(огнем|холодом|кислотой|ядом|электричеством|звуком|излучением)/);
   if(m) return dmgTypeCanon(m[1]);
+  m=t.match(/(?:\d+d\d+|^)\s*(огнем|холодом|кислотой|ядом|электричеством|молнией|громом|звуком|излучением|силовым\s+полем|некротическ[а-я]*|психическ[а-я]*|дробящ[а-я]*|колющ[а-я]*|рубящ[а-я]*)/);
+  if(m) return dmgTypeCanon(m[1]);
   return '';
 }
 /* ── бросок d20 с преимуществом: какой результат берется ── */
@@ -4345,7 +4525,10 @@ function rollSpecOf(rec, opts){
   const ti=opts.target||{kind:'none', known:false, name:''};
   const weapon=opts.weapon||null;
   const pool=opts.pool||null;
-  const x=normRollTxt(rec.x), hi=normRollTxt(rec.hi), all=x+' '+hi;
+  /* У заклинаний правила лежат в x/hi, у предметов — в desc/props. Раньше
+     общий парсер предметов получал пустой x и молча пропускал их формулы. */
+  const body=isSpell?rec.x:fxTextOf(rec);
+  const x=normRollTxt(body), hi=normRollTxt(rec.hi), all=x+' '+hi;
   const rows=[], meta={half:false, dc:0, saveAb:'', saveKey:'', dmgType:'', target:ti,
     weapon:weapon, pool:pool, autoHit:false, afterHit:false, kind:kind, recName:rec.n||''};
 
@@ -4360,16 +4543,19 @@ function rollSpecOf(rec, opts){
     else if(weapon){ mod=weapon.atk; hint='+ '+mod+' ('+weapon.n+')'; }
     else if(caster){ mod=PROF[caster.level]+Math.max(eMod(caster,'str'),eMod(caster,'dex')); hint='+ '+mod+' (мастерство + характеристика)'; }
     else { mod=0; hint=''; }
-    const atkFx=caster?rollFxEntries(caster,'attack'):[];
-    const aA=atkFx.some(f=>f.mode==='adv'), aD=atkFx.some(f=>f.mode==='dis');
+    const atkFx=caster?rollFxEntries(caster,'attack'):[], condMode=caster?attackConditionMode(caster,ti):{adv:[],dis:[],mode:0,consumeTargetFx:[]};
+    meta.consumeTargetFx=condMode.consumeTargetFx||[];
+    const aA=atkFx.some(f=>f.mode==='adv')||condMode.adv.length>0, aD=atkFx.some(f=>f.mode==='dis')||condMode.dis.length>0;
     const atkAdv=(aA===aD)?0:(aA?1:2);
     rows.push({key:'atk', type:'atk', side:'caster', natural:true, mod, adv:atkAdv,
       label:'Бросок атаки: d20', hint:hint+(ti.known&&ti.ac!=null?' · КД цели '+ti.ac:' · КД цели определяет мастер')
-        +(atkAdv?(atkAdv===1?' · преимущество от эффекта':' · помеха от эффекта'):'')});
+        +(atkAdv?(atkAdv===1?' · преимущество':' · помеха'):'')
+        +((condMode.adv.length||condMode.dis.length)?' · состояния: '+condMode.adv.concat(condMode.dis).join(', '):'')});
     atkFx.filter(f=>f.mode==='die').forEach((f,i)=>{
       const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!dm) return;
       const cnt=Math.max(1,+dm[2]||1);
       rows.push({key:'atkfx'+i, type:'other', side:'caster', cnt, sides:+dm[3], mod:0, addTo:'atk', sign:dm[1]?-1:1,
+        consume:f.consume||'',sourceUid:f.sourceUid||null,
         label:f.label+': '+(dm[1]?'-':'')+cnt+'d'+dm[3],
         hint:'кость действующего эффекта — движок учтет ее в итоге атаки'});
     });
@@ -4407,18 +4593,23 @@ function rollSpecOf(rec, opts){
     meta.half=/при успехе[^.]{0,60}половин|половин[а-я]*\s+урона|успешном спасброске[^.]{0,60}половин|или\s+половин|вдвое\s+меньш[а-я]*\s+урон|половинный\s+урон/.test(all);
     const known=ti.known&&typeof ti.saveMod==='function';
     const tmod=known?ti.saveMod(meta.saveKey):0;
-    const advPre=(isSpell&&ti.magicRes)?1:0;
-    rows.push({key:'save', type:'save', side:'target', natural:known, mod:known?tmod:0, dc:meta.dc, adv:advPre, saveKey:meta.saveKey,
+    const saveFx=ti.kind==='ally'&&ti.obj?rollFxEntries(ti.obj,'save.'+meta.saveKey)
+      :(ti.kind==='foe'&&ti.obj?foeFxAll(ti.obj).filter(f=>f.stat==='save.'+meta.saveKey||f.stat==='save'):[]);
+    const hasAdv=(isSpell&&ti.magicRes)||saveFx.some(f=>f.mode==='adv');
+    const hasDis=saveFx.some(f=>f.mode==='dis');
+    const saveAdv=(hasAdv===hasDis)?0:(hasAdv?1:2);
+    rows.push({key:'save', type:'save', side:'target', natural:known, mod:known?tmod:0, dc:meta.dc, adv:saveAdv, saveKey:meta.saveKey,
       label:known?('Спасбросок цели ('+sm[1]+'): d20 '+fmtMod(tmod)+' — бросает '+ti.name)
                  :('Спасбросок цели ('+sm[1]+'): итог броска цели'),
       hint:'СЛ '+meta.dc+(known?'':' · у цели нет записи — впишите итог с ее модификатором')
         +(meta.half?' · при успехе урон вдвое меньше (посчитаю сам)':'')
-        +(advPre?' · ▲ сопротивление магии':'')});
+        +(saveAdv?(saveAdv===1?' · ▲ преимущество от свойств цели':' · ▼ помеха от свойств цели'):'')});
     if(ti.kind==='ally'&&ti.obj){
-      rollFxEntries(ti.obj,'save.'+meta.saveKey).filter(f=>f.mode==='die').forEach((f,i)=>{
+      saveFx.filter(f=>f.mode==='die').forEach((f,i)=>{
         const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!dm) return;
         const cnt=Math.max(1,+dm[2]||1);
         rows.push({key:'savefx'+i,type:'other',side:'target',cnt,sides:+dm[3],mod:0,addTo:'save',sign:dm[1]?-1:1,
+          consume:f.consume||'',sourceUid:f.sourceUid||null,
           label:f.label+': '+(dm[1]?'-':'')+cnt+'d'+dm[3],hint:'кость действующего эффекта — движок учтет ее в спасброске'});
       });
     }
@@ -4453,10 +4644,19 @@ function rollSpecOf(rec, opts){
     }
   }
   /* 6. кости из текста записи */
-  let groups=scanDiceGroups(x).filter(g=>!/^\s*(?:хитов\s*)?за (?:каждый\s+)?круг|^\s*за каждые|^\s*за круг/.test(g.after));
+  let groups=scanDiceGroups(x).filter(g=>
+    !/^\s*(?:хитов\s*)?за (?:каждый\s+)?круг|^\s*за каждые|^\s*за круг/.test(g.after)
+    && !/восстанавлива[а-я]*[^.]{0,35}заряд|заряд[а-я]*[^.]{0,35}восстанавлива/.test(g.ctx));
   const hasTiers=/\d+\s*(?:[–—-]\s*\d+\s*)?уровен[ья]|на\s+\d+\s*уровне/.test(x);
   const buckets={};
-  groups.forEach(g=>{ const k=(hasTiers?'lvl':classifyDice(g))+'_'+g.sides; (buckets[k]=buckets[k]||[]).push(g); });
+  groups.forEach(g=>{
+    const cls=hasTiers?'lvl':classifyDice(g);
+    /* Разные виды урона одной и той же костью — отдельные строки. Это важно
+       для «Метеоритного дождя»: 20d6 огнем и 20d6 дробящим. */
+    const localType=cls==='dmg'?detectDmgType('0d0 '+g.after.slice(0,42)):'';
+    const k=cls+'_'+g.sides+'_'+localType;
+    (buckets[k]=buckets[k]||[]).push(g);
+  });
   groups=Object.keys(buckets).map(k=>{
     const arr=buckets[k].sort((a,b)=>a.idx-b.idx);
     if(arr.length===1) return arr[0];
@@ -4476,7 +4676,8 @@ function rollSpecOf(rec, opts){
   const seen={};
   groups.forEach(g=>{
     const cls=g.cls||classifyDice(g);
-    const key=cls+'_'+g.sides;
+    const localDmg=cls==='dmg'?detectDmgType('0d0 '+g.after.slice(0,42)):'';
+    const key=cls+'_'+g.sides+'_'+localDmg;
     if(seen[key]) return; seen[key]=1;
     let cnt=g.cnt;
     if(isSpell&&lvl===0&&caster){
@@ -4487,13 +4688,14 @@ function rollSpecOf(rec, opts){
     let mod=g.plus, modLabel=g.plus?'из описания':'';
     if(/^\s*\+\s*(?:ваш\s+)?модификатор/.test(g.after)&&caster){ mod=isSpell?eMod(caster,spellAbOf(caster)):Math.max(eMod(caster,'str'),eMod(caster,'dex'),eMod(caster,'con')); modLabel='модификатор характеристики'; }
     else if(/^\s*\+\s*(?:ваш\s+)?уровень/.test(g.after)&&caster){ mod=caster.level; modLabel='ваш уровень'; }
-    let dt=detectDmgType(g.ctx);
+    let dt=localDmg||detectDmgType(g.ctx);
     const isTemp=/временн[а-я]*\s+хит/.test(g.ctx||'');
     if(isTemp){ dt=''; }
     if(cls==='dmg'&&dt&&!meta.dmgType) meta.dmgType=dt;
-    const kind2=isTemp?'temp':cls;
+    const isSleep=isSpell&&/^(магический сон|сон)$/.test(normSpellName(rec.n));
+    const kind2=isSleep?'sleep':(isTemp?'temp':cls);
     rows.push({key:kind2+rows.length, type:kind2, side:'caster', cnt, sides:g.sides, mod, modLabel, dmgType:dt,
-      label:(kind2==='temp'?'Временные хиты':cls==='heal'?'Лечение':cls==='dmg'?('Урон'+(dt?' ('+dt+')':'')):'Прочий бросок')+': сумма '+cnt+'d'+g.sides,
+      label:(kind2==='sleep'?'Пул магического сна':kind2==='temp'?'Временные хиты':cls==='heal'?'Лечение':cls==='dmg'?('Урон'+(dt?' ('+dt+')':'')):'Прочий бросок')+': сумма '+cnt+'d'+g.sides,
       hint:(cnt!==g.cnt?'усилено: было '+g.cnt+'d'+g.sides+' · ':'')+'обычно '+cnt+'–'+(cnt*g.sides)+' (крит и несколько целей дают больше)'+(mod?' · + '+mod+(modLabel?' ('+modLabel+')':''):'')});
   });
   /* 7. шкала заговора, если костей в тексте нет */
@@ -4587,6 +4789,11 @@ function resolveOutcome(spec, v, ctx){
     const had=(ti.obj&&+ti.obj.hpTemp)||0;
     out.verdict.push('Временные хиты: '+out.tempTotal+(had?(out.tempTotal>had?' — заменят прежние '+had+' (по правилам берется большее)':' — прежние '+had+' сильнее, останутся они'):''));
   }
+  /* общий пул хитов для «Сна»: применяется затем от существа с наименьшими
+     текущими хитами к следующему, пока пула хватает. */
+  let sleep=0,sleepSeen=false;
+  spec.rows.forEach(r=>{ if(r.type==='sleep'&&v[r.key]!=null){ sleep+=v[r.key]+(r.mod||0); sleepSeen=true; } });
+  if(sleepSeen){ out.sleepTotal=Math.max(0,sleep); out.verdict.push('Пул магического сна: '+out.sleepTotal+' хитов.'); }
   /* лечение */
   let heal=0, healSeen=false;
   spec.rows.forEach(r=>{ if(r.type==='heal'&&v[r.key]!=null){ heal+=v[r.key]+(r.mod||0); healSeen=true; } });
@@ -4680,6 +4887,15 @@ function applyDamageTo(targetVal, amount, dtype, srcLabel, ctx){
   const res={name:ti.name, hp:o.hp, hpMax:ti.hpMax, absorbed, down:o.hp<=0, dead:false, deathFails:0};
   if(ti.kind==='ally'){
     if(o.hp<=0){
+      /* Непоколебимая стойкость срабатывает в тот же атомарный переход: если
+         урон не убивает мгновенно, герой может остаться на 1 хите. */
+      const rel=(o.abilities||[]).map(e=>({e,ab:abilityOf(e.abilityId)})).find(x=>x.ab&&/^Непоколебимая стойкость/.test(x.ab.n));
+      const relCur=rel&&rel.ab.uses!=null?(rel.e.cur==null?rel.ab.uses:rel.e.cur):0;
+      if(was>0&&over<ti.hpMax&&rel&&relCur>0&&window.confirm('✦ '+rel.ab.n+': остаться с 1 хитом вместо падения до 0?')){
+        rel.e.cur=relCur-1; o.hp=1; res.hp=1; res.down=false; res.relentless=true;
+        concDamageCheck(o,amount);
+        return res;
+      }
       breakConcentration(o,'герой упал до 0 хитов');
       o.cond=normalizeConditions(o.cond);
       if(o.cond.indexOf('Бессознательный')<0) o.cond.push('Бессознательный');
@@ -4717,7 +4933,8 @@ function applyRollsToTarget(targetVal, rolls, srcLabel){
     if(r){ info+=' · урон '+rolls.dmgTotal+(rolls.dmgType?' ('+rolls.dmgType+')':'')+' → '+r.name+': '+r.hp+'/'+r.hpMax
         +(r.absorbed?' (временные хиты поглотили '+r.absorbed+')':'')
         +(r.deathFails?' · провалы спасбросков от смерти +'+r.deathFails:'')
-        +(r.dead?' · '+(ti.kind==='ally'?'СМЕРТЬ':'повержен'):(r.down?' · без сознания':''));
+        +(r.relentless?' · Непоколебимая стойкость: остался 1 хит'
+          :(r.dead?' · '+(ti.kind==='ally'?'СМЕРТЬ':'повержен'):(r.down?' · без сознания':'')));
       diceOutSet(srcLabel+' → '+r.name+': '+rolls.dmgTotal+' урона','var(--rubric)'); }
     else { info+=' · урон '+rolls.dmgTotal+' по цели'; diceOutSet(srcLabel+': '+rolls.dmgTotal+' урона по цели','var(--rubric)'); }
   } else if(rolls.dmgTotal===0&&rolls.dmgRaw>0){
@@ -4747,7 +4964,8 @@ function castHitSet(val){ if(castCtx){ castCtx.hitOverride=val; castFormulaLive(
 const CF_ADV=[[0,'\u2696 обычный'],[1,'\u25b2 преимущество'],[2,'\u25bc помеха']];
 function cfRowHTML(r){
   let h='<div class="formula-row"><label>'+esc(r.label)+'</label>'
-    +'<input type="number" id="cf_'+r.key+'" oninput="castFormulaLive()" min="'+(r.natural?1:0)+'"'+(r.natural?' max="20"':'')+'>';
+    +'<input type="number" id="cf_'+r.key+'" oninput="castFormulaLive()" min="'+(r.natural?1:0)+'"'+(r.natural?' max="20"':'')
+    +(r.fixed?' value="0" readonly':'')+'>';
   if(r.natural){
     h+='<select id="cfa_'+r.key+'" style="font-size:12.5px;padding:2px 4px" onchange="castAdvSet(\''+r.key+'\',this.value)">'
       +CF_ADV.map(o=>'<option value="'+o[0]+'"'+((r.adv||0)===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'
@@ -4839,26 +5057,34 @@ function castFormulaLive(){
   if(box) box.textContent=res.verdict.length?('\u2723 Итог\n'+res.verdict.join('\n')):'Впишите результаты бросков — итог разберу сам.';
 }
 function spellSpecNeedsPerTarget(spec){
-  return !!spec&&spec.rows.some(r=>r.type==='atk'||r.type==='save'||r.type==='tcheck');
+  /* Для урона каждой известной цели нужен собственный разбор сопротивления,
+     уязвимости и иммунитета. Сами кости остаются общими и подставляются в
+     следующие формы автоматически. */
+  return !!spec&&spec.rows.some(r=>r.type==='atk'||r.type==='save'||r.type==='tcheck'||r.type==='dmg');
 }
 function sharedSpellRowKeys(spec){
   if(!spec||spec.rows.some(r=>r.type==='atk')) return [];
-  return spec.rows.filter(r=>r.type==='dmg'||r.type==='heal'||r.type==='temp').map(r=>r.key);
+  return spec.rows.filter(r=>r.type==='dmg'||r.type==='heal'||r.type==='temp'||r.type==='sleep').map(r=>r.key);
 }
 function rollsShareAcrossTargets(rolls){
   if(!rolls) return false;
   /* Один бросок лечения/временных хитов применяется ко всем целям. Урон здесь
      не делим: его сопротивления и спасброски зависят от конкретной цели. */
-  return rolls.dmgRaw==null&&(rolls.healTotal!=null||rolls.tempTotal!=null)
+  return rolls.dmgRaw==null&&(rolls.healTotal!=null||rolls.tempTotal!=null||rolls.sleepTotal!=null)
     &&rolls.hit==null&&rolls.saveOk==null&&rolls.contestWin==null;
 }
 function castFormulaConfirm(){
   if(!castCtx||!castCtx.spec) return;
   const v=castFormulaVals(), spec=castCtx.spec;
   const res=resolveOutcome(spec, v, {hitOverride:castCtx.hitOverride});
+  const attackMade=spec.rows.some(r=>r.type==='atk'&&v[r.key]!=null);
   const rolls={notes:res.notes.slice(), verdict:res.verdict.slice(), healTotal:res.healTotal, tempTotal:res.tempTotal,
-    dmgTotal:res.dmgTotal, dmgRaw:res.dmgRaw, dmgType:res.dmgType, hit:res.hit, crit:res.crit,
-    saveOk:res.saveOk, contestWin:res.contestWin, effectAllowed:res.effectAllowed, blocked:res.blocked};
+    sleepTotal:res.sleepTotal, dmgTotal:res.dmgTotal, dmgRaw:res.dmgRaw, dmgType:res.dmgType, hit:res.hit, crit:res.crit,
+    saveOk:res.saveOk, contestWin:res.contestWin, effectAllowed:res.effectAllowed, blocked:res.blocked,
+    attackMade,
+    consumeCasterFx:spec.rows.filter(r=>r.side!=='target'&&r.consume==='roll'&&r.sourceUid&&v[r.key]!=null).map(r=>r.sourceUid),
+    consumeTargetFx:[...new Set(spec.rows.filter(r=>r.side==='target'&&r.consume==='roll'&&r.sourceUid&&v[r.key]!=null).map(r=>r.sourceUid)
+      .concat(attackMade?(spec.meta.consumeTargetFx||[]):[]))]};
   const resR=spec.rows.find(r=>r.type==='res');
   if(resR&&v.res!=null&&spec.meta.pool) rolls.poolSpend=spec.meta.pool.ab.id;
   if(castCtx.kind==='weapon'){
@@ -5126,6 +5352,8 @@ function spellTargetLimit(sp,usedLvl){
   if(n==='цепная молния') return 4+Math.max(0,lv-6);
   if(n==='молебен лечения'||n==='массовое лечение ран') return 6;
   if(n==='подводное дыхание') return 10;
+  if(n==='магический сон'||n==='сон') return Math.max(1,chars.length+foesDB.length);
+  if((sp.tags||[]).indexOf('aoe')>=0) return Math.max(1,chars.length+foesDB.length);
   return 1;
 }
 function castSelectedSlotLevel(){
@@ -5220,6 +5448,10 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rol
   commitSlotPlan(caster,slotPlan);
   const spent=commitMaterialPlan(caster,matPlan);
   if(!spent.ok){ setStatus('✕ '+spent.reason,true); return false; }
+  /* Одноразовые кости эффектов списываются только после успешного общего
+     префлайта каста. Отмена до коммита не меняет ни один лист. */
+  consumeOutcomeRollFx(caster,target,rolls);
+  extras.forEach(v=>consumeOutcomeRollFx(caster,v,rollsByTarget&&rollsByTarget[v]));
   endTriggeredSpellEffects(caster,'spell');
   if(isConc&&concLabelOf(caster)) breakConcentration(caster,'начато новое заклинание концентрации «'+sp.n+'»');
   if(SPECIAL_CAST[sp.n]) return SPECIAL_CAST[sp.n](sp,caster,target,usedSlotLvl,specialPlan,slotPlan.info,matPlan.info);
@@ -5235,9 +5467,23 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rol
   if(creatures){
     const names=plans.map(p=>p.targetChar?p.targetChar.name:p.foe.n), results=[], snapshots=[], rollBits=[];
     const shared=rollsShareAcrossTargets(rolls);
+    const sleepSpell=/^(магический сон|сон)$/.test(normSpellName(sp.n));
+    const sleepEligible=new Set();
+    if(sleepSpell&&rolls&&rolls.sleepTotal!=null){
+      let pool=+rolls.sleepTotal||0;
+      plans.map((p,i)=>({p,val:targetVals[i],hp:+(p.targetChar||p.foe).hp||0}))
+        .filter(x=>x.hp>0)
+        .sort((a,b)=>a.hp-b.hp)
+        .forEach(x=>{
+          const t=x.p.targetChar||x.p.foe;
+          const immune=x.p.targetChar?fxNotesOf(t).some(n=>/магическ[а-я]*\s+сн|не действует усыплен/.test(n))
+            :/иммунитет[^.]{0,50}(?:магическ[а-я]*\s+сн|усыплен)/i.test(String(t.traits||''));
+          if(!immune&&x.hp<=pool){ pool-=x.hp; sleepEligible.add(x.val); }
+        });
+    }
     plans.forEach((p,i)=>{
       const val=targetVals[i], t=p.targetChar||p.foe, isHero=!!p.targetChar;
-      if(isHero) snapshots.push({charId:t.id,hp:t.hp,hpTemp:t.hpTemp,cond:(t.cond||[]).slice(),deaths:Object.assign({},t.deaths||{})});
+      snapshots.push(combatSnapshot(t,!isHero));
       const hasOwn=!!(rollsByTarget&&Object.prototype.hasOwnProperty.call(rollsByTarget,val));
       const ownRolls=hasOwn?rollsByTarget[val]:((i===0||shared)?rolls:null);
       if(ownRolls){
@@ -5246,7 +5492,8 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rol
       }
       /* Если формула требовала отдельного результата каждой цели, отсутствие
          такого результата не считается провалом спасброска и не дает эффекта. */
-      const allowed=ownRolls?outcomeAllowsEffect(ownRolls):(!rolls||shared);
+      const allowed=sleepSpell&&rolls&&rolls.sleepTotal!=null?sleepEligible.has(val)
+        :(ownRolls?outcomeAllowsEffect(ownRolls):(!rolls||shared));
       if(isHero&&allowed){
         const immediate=applyImmediateSpell(sp,caster,t,usedSlotLvl);
         if(immediate) results.push(t.name+': '+immediate);
@@ -5471,6 +5718,8 @@ function useItemApply(entryId, casterId, target, rolls){
       cost+=' · запас исчерпан';
     }
   }
+  consumeOutcomeRollFx(caster,target,rolls);
+  if(rolls&&rolls.attackMade) endTriggeredSpellEffects(caster,'attack');
   let info='';
   if(rolls) info+=applyRollsToTarget(target, rolls, '⚗ '+it.n);
   else{
@@ -5570,6 +5819,12 @@ function itemProfile(it){
   }
   /* ── доспехи и щиты ── */
   if(it.type==='armor'){
+    /* Наплечники, плащи и другие чудесные носимые вещи могут исторически
+       иметь type=armor, но без собственного КД они не являются доспехом. */
+    if(!/\d/.test(String(it.ac||''))&&it.slot!=='CHEST'&&it.slot!=='OFF_HAND'){
+      p.kind=(has('magical')||has('attuned')||it.rarity&&it.rarity!=='обычный')?'magic':'misc';
+      return p;
+    }
     p.kind=has('shield')?'shield':'armor';
     const sm=txt.match(/сил[аы]\s*(\d+)/);
     p.armor={ac:it.ac||'', stealthDis:has('stealthdis')||/помеха на скрытност/.test(txt),
@@ -5609,7 +5864,7 @@ function itemProfile(it){
   if(has('poison')&&!has('tool')){ p.kind='poison'; return p; }
   /* ── инструменты и наборы ── */
   const kit=itemToolKit(it);
-  if(kit&&(has('tool')||/набор|инструмент/.test(n))){ p.kind='tool'; p.tool=kit; return p; }
+  if(kit){ p.kind='tool'; p.tool=kit; return p; }
   if(has('instrument')){ p.kind='instrument'; return p; }
   /* ── записи: книги, карты, письма, свитки ── */
   if(has('book')||has('map')||has('scroll')||/книга|карт[аы]\s|письмо|свиток|записк|родословн|дневник/.test(n)){
@@ -5650,6 +5905,109 @@ const ITEM_KIND_RU={weapon:'оружие', armor:'доспех', shield:'щит'
   camp:'лагерное снаряжение', rope:'веревка', container:'вместилище', focus:'магическая фокусировка',
   magic:'магический предмет', oil:'горючее масло', trap:'рассыпная помеха', gamble:'игральный набор',
   ritual:'обрядовый расходник', writing:'письменные принадлежности', misc:'снаряжение'};
+
+/* Машинно-проверяемый контракт всей боевой базы. Он намеренно не требует
+   автоматизировать творческие и внебоевые решения, но гарантирует, что они
+   останутся явно ручными и не превратятся в ошибочное автоматическое
+   последствие. */
+function gameDataAudit(data){
+  data=data||{};
+  const ss=data.spells||spellsDB, aa=data.abilities||abilitiesDB, ii=data.items||itemsDB;
+  const errors=[], modes={spell:{automatic:0,special:0,manual:0},ability:{active:0,passive:0},item:{}};
+  const caster=buildBlank();
+  caster.id='audit'; caster.name='Аудитор'; caster.level=20;
+  caster.ab={str:18,dex:18,con:18,int:18,wis:18,cha:18}; caster.activeFx=[]; caster.fxOff=[];
+  const target={kind:'none',name:'цель',known:false};
+  const fxModes=['add','min','mul','set','grant','text','die','adv','dis'];
+  let variants=0, actionableItems=0;
+  const manualItems=[];
+  function base(kind,arr){
+    const ids=new Set();
+    arr.forEach((r,i)=>{
+      const at=kind+'['+i+'] '+String(r&&r.n||'без имени');
+      if(!r||!r.id||!String(r.n||'').trim()) errors.push(at+': нет id или имени');
+      if(r&&ids.has(r.id)) errors.push(at+': повтор id '+r.id); else if(r) ids.add(r.id);
+    });
+  }
+  function checkFx(rec,kind,at){
+    recFx(rec,kind).forEach((f,i)=>{
+      if(!f||!String(f.stat||'').trim()) errors.push(at+': эффект '+i+' без показателя');
+      if(!f||fxModes.indexOf(f.mode)<0) errors.push(at+': эффект '+i+' с неизвестным режимом '+String(f&&f.mode));
+      if(f&&['add','min','mul','set','grant'].indexOf(f.mode)>=0&&f.value==null) errors.push(at+': эффект '+i+' без значения');
+    });
+  }
+  function checkSpec(rec,kind,at,lv){
+    let spec;
+    try{ spec=rollSpecOf(rec,{caster,kind,slotLvl:lv,target}); variants++; }
+    catch(e){ errors.push(at+': парсер бросков выбросил '+e.message); return null; }
+    const keys=new Set();
+    (spec.rows||[]).forEach((r,i)=>{
+      if(!r.key||keys.has(r.key)) errors.push(at+': повтор/пустой ключ строки '+i); else keys.add(r.key);
+      if(r.sides!=null&&(+r.sides<0||!Number.isFinite(+r.sides))) errors.push(at+': неверная кость в строке '+r.key);
+      if(r.cnt!=null&&(+r.cnt<0||!Number.isFinite(+r.cnt))) errors.push(at+': неверное число костей в строке '+r.key);
+    });
+    return spec;
+  }
+  base('spell',ss); base('ability',aa); base('item',ii);
+  ss.forEach((sp,i)=>{
+    const at='spell['+i+'] '+sp.n, lv=+sp.l;
+    if(!Number.isInteger(lv)||lv<0||lv>9) errors.push(at+': круг вне диапазона 0–9');
+    const comp=parseComponents(sp);
+    if(!comp||['v','s','m'].some(k=>typeof comp[k]!=='boolean')) errors.push(at+': компоненты не разобраны');
+    const levels=lv===0?[0]:Array.from({length:10-lv},(_,x)=>lv+x);
+    let hasRoll=false;
+    levels.forEach(useLv=>{ const spec=checkSpec(sp,'spell',at+' @'+useLv,useLv); if(spec&&(spec.rows||[]).some(r=>r.type!=='extra')) hasRoll=true; });
+    const dur=durationSpecOf(sp,lv);
+    if(!dur||!['instant','rounds','manual'].includes(dur.kind)||(dur.kind==='rounds'&&!(dur.rounds>0))) errors.push(at+': неверная длительность');
+    const lim=spellTargetLimit(sp,Math.max(lv,1)); if(!Number.isInteger(lim)||lim<1) errors.push(at+': неверный предел целей');
+    checkFx(sp,'spell',at);
+    const special=!!SPECIAL_CAST[sp.n]||/^(малое восстановление|уход за умирающим)$/.test(normSpellName(sp.n));
+    const automatic=hasRoll||recFx(sp,'spell').length>0||!!deriveInstantHeal(sp,'spell',caster,lv);
+    modes.spell[special?'special':(automatic?'automatic':'manual')]++;
+  });
+  aa.forEach((ab,i)=>{
+    const at='ability['+i+'] '+ab.n;
+    checkSpec(ab,'ability',at,0); checkFx(ab,'ability',at);
+    const active=abilityIsActive(ab), passive=isPassiveAbility(ab);
+    if(active===passive) errors.push(at+': должна быть ровно одна семантика — active или passive');
+    modes.ability[active?'active':'passive']++;
+    if(ab.uses!=null&&(!Number.isInteger(+ab.uses)||+ab.uses<0)) errors.push(at+': неверное число использований');
+  });
+  ii.forEach((it,i)=>{
+    const at='item['+i+'] '+it.n, p=itemProfile(it);
+    if(!p||!ITEM_KIND_RU[p.kind]) errors.push(at+': предмет не классифицирован');
+    else modes.item[p.kind]=(modes.item[p.kind]||0)+1;
+    checkSpec(it,'item',at,0); checkFx(it,'item',at);
+    /* Карточка, кнопки и оружейная формула — разные пути выполнения. Проверяем
+       каждый из них отдельно, чтобы корректный текст предмета не скрывал
+       сломанную кнопку в реальном инвентаре. */
+    const entry={id:'audit_item_'+i,itemId:it.id,qty:1};
+    caster.inventory=[entry]; caster.equipment={};
+    try{
+      const actions=itemActions(caster,entry,it);
+      if(!Array.isArray(actions)) errors.push(at+': действия предмета не являются списком');
+      else{
+        const labels=new Set();
+        actions.forEach((a,j)=>{
+          if(!a||!String(a.label||'').trim()||!String(a.fn||'').trim()) errors.push(at+': действие '+j+' не имеет подписи или обработчика');
+          if(a&&labels.has(a.label)) errors.push(at+': повтор действия «'+a.label+'»');
+          else if(a) labels.add(a.label);
+        });
+        if(actions.length) actionableItems++; else manualItems.push(it.n);
+      }
+    }catch(e){ errors.push(at+': построение действий выбросило '+e.message); }
+    if(p&&p.kind==='weapon'){
+      try{
+        const ws=weaponSpecOf(caster,it,target,{}), rows=(ws&&ws.rows)||[];
+        if(!rows.some(r=>r.type==='atk')||!rows.some(r=>r.type==='dmg')) errors.push(at+': оружейная формула неполна');
+      }catch(e){ errors.push(at+': оружейная формула выбросила '+e.message); }
+    }
+    if(p&&p.kind==='weapon'&&!String(it.dmg||'').match(/\d+\s*[dкд]\s*\d+|^\s*\d+\s*$/i)&&normSpellName(it.n)!=='сеть') errors.push(at+': у оружия нет формулы урона');
+    if(p&&(p.kind==='armor'||p.kind==='shield')&&!String(it.ac||'').match(/\d+/)) errors.push(at+': у доспеха нет КД');
+  });
+  return {counts:{spells:ss.length,abilities:aa.length,items:ii.length,total:ss.length+aa.length+ii.length},
+    variants,modes,itemActions:{automatic:actionableItems,manual:manualItems.length,manualNames:manualItems},errors};
+}
 /* ═══════════════ ДЕЙСТВИЯ ПРЕДМЕТА: у каждого вида свои ═══════════════ */
 function invEntryOf(c,id){ return (c.inventory||[]).find(x=>x.id===id)||null; }
 function itemLog(c,txt){ setStatus(txt+'.'); castLogLine(txt); }
@@ -5665,6 +6023,8 @@ function itemSpendOne(c,e,it){
 /* ── оружие: атака через общее окно ── */
 function weaponAttackFx(entryId, casterId, mode){
   const caster=getCh(casterId||activeCharId); if(!caster) return;
+  const block=ACTION_BLOCK_CONDS.find(n=>effectiveConditions(caster).indexOf(n)>=0);
+  if(block){ setStatus('✕ Состояние «'+block+'» не позволяет совершить атаку.',true); return; }
   const e=invEntryOf(caster,entryId); if(!e) return;
   const it=itemOf(e.itemId); if(!it) return;
   const back=document.getElementById('castBack'); if(!back) return;
@@ -5698,25 +6058,29 @@ function weaponSpecOf(caster, it, ti, opts){
   const hasProf=(typeof weaponProfHas==='function')?weaponProfHas(caster,it):true;
   const atk=abm+(hasProf?PROF[caster.level]:0)+fxSum(caster,'atk');
   const dm=normRollTxt(it.dmg||'').match(/(\d*)d(\d+)(?:\s*\+\s*(\d+))?/);
-  let cnt=dm?(+dm[1]||1):0, sides=dm?+dm[2]:0, flat=dm?(+dm[3]||0):0;
+  const fixed=dm?0:(parseInt(String(it.dmg||'').trim(),10)||0);
+  let cnt=dm?(+dm[1]||1):0, sides=dm?+dm[2]:0, flat=dm?(+dm[3]||0):fixed;
   if(opts.two&&w.versatile){ cnt=w.versatile.cnt; sides=w.versatile.sides; }
   const rows=[], meta={target:ti, kind:'weapon', dmgType:dmgTypeCanon(it.dmgType), half:false, dc:0, weapon:it.n};
-  const atkFx=rollFxEntries(caster,'attack');
-  const aA=atkFx.some(f=>f.mode==='adv'), aD=atkFx.some(f=>f.mode==='dis');
+  const atkFx=rollFxEntries(caster,'attack'), condMode=attackConditionMode(caster,ti);
+  meta.consumeTargetFx=condMode.consumeTargetFx||[];
+  const aA=atkFx.some(f=>f.mode==='adv')||condMode.adv.length>0, aD=atkFx.some(f=>f.mode==='dis')||condMode.dis.length>0;
   rows.push({key:'atk', type:'atk', side:'caster', natural:true, mod:atk, adv:(aA===aD)?0:(aA?1:2),
     label:'Бросок атаки: d20', hint:'+ '+atk+' ('+(hasProf?'мастерство + ':'без владения, только ')+(useDex?'Ловкость':'Сила')+')'
-      +(ti.known&&ti.ac!=null?' · КД цели '+ti.ac:' · КД цели определяет мастер')});
+      +(ti.known&&ti.ac!=null?' · КД цели '+ti.ac:' · КД цели определяет мастер')
+      +((condMode.adv.length||condMode.dis.length)?' · состояния: '+condMode.adv.concat(condMode.dis).join(', '):'')});
   atkFx.filter(f=>f.mode==='die').forEach((f,i)=>{
     const d=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!d) return;
     rows.push({key:'wfx'+i, type:'other', side:'caster', cnt:Math.max(1,+d[2]||1), sides:+d[3], mod:0,
-      addTo:'atk',sign:d[1]?-1:1,
+      addTo:'atk',sign:d[1]?-1:1,consume:f.consume||'',sourceUid:f.sourceUid||null,
       label:f.label+': '+(d[1]?'-':'')+Math.max(1,+d[2]||1)+'d'+d[3], hint:'кость действующего эффекта — прибавьте к атаке'});
   });
   if(sides) rows.push({key:'dmg', type:'dmg', side:'caster', cnt, sides, mod:abm+flat+fxSum(caster,'dmg'),
     modLabel:'характеристика'+(flat?' и свойство оружия':''), dmgType:dmgTypeCanon(it.dmgType),
     label:'Урон: сумма '+cnt+'d'+sides, hint:'от '+cnt+' до '+(cnt*sides)+' · + '+(abm+flat+fxSum(caster,'dmg'))+' · при критическом ударе кости бросаются дважды'});
-  else rows.push({key:'dmg', type:'dmg', side:'caster', cnt:0, sides:0, mod:abm,
-    label:'Урон: впишите итог', hint:'у оружия не указана кость урона'});
+  else rows.push({key:'dmg', type:'dmg', side:'caster', cnt:0, sides:0, mod:abm+flat+fxSum(caster,'dmg'),fixed:!!fixed,
+    dmgType:dmgTypeCanon(it.dmgType), label:fixed?'Фиксированный урон':'Урон: впишите итог',
+    hint:fixed?'база '+fixed+' + характеристика '+abm+(fxSum(caster,'dmg')?' + эффекты '+fxSum(caster,'dmg'):''):'у оружия не указана кость урона'});
   rows.push({key:'extra', type:'extra', side:'caster', mod:0, label:'Прочий бросок (по решению мастера)', hint:'необязательно'});
   return {rows, meta};
 }
@@ -5731,6 +6095,8 @@ function ammoEntryFor(c, it){
 }
 function weaponAttackApply(entryId, casterId, target, rolls){
   const caster=getCh(casterId); if(!caster) return false;
+  const block=ACTION_BLOCK_CONDS.find(n=>effectiveConditions(caster).indexOf(n)>=0);
+  if(block){ const msg='Состояние «'+block+'» не позволяет совершить атаку.'; setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false; }
   const e=invEntryOf(caster,entryId); if(!e) return false;
   const it=itemOf(e.itemId); if(!it) return false;
   const pr=itemProfile(it);
@@ -5747,6 +6113,8 @@ function weaponAttackApply(entryId, casterId, target, rolls){
   if(pr.weapon&&pr.weapon.thrown&&castCtx&&castCtx.mode==='throw'){
     cost+=itemSpendOne(caster,e,it).replace('запас исчерпан','оружие брошено и лежит у цели');
   }
+  consumeOutcomeRollFx(caster,target,rolls);
+  endTriggeredSpellEffects(caster,'attack');
   const info=applyRollsToTarget(target, rolls, '⚔ '+it.n);
   const tl=targetInfoOf(target).name||'цель';
   fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
@@ -6550,9 +6918,10 @@ const DMG_TYPES=['дробящий','колющий','рубящий','огон�
 /* как урон назван в текстах записей → канонический вид */
 const DMG_ALIASES={'огнем':'огонь','огня':'огонь','огненный':'огонь','холодом':'холод','холода':'холод',
   'кислотой':'кислота','кислоты':'кислота','ядом':'яд','яда':'яд','электричеством':'электричество',
-  'звуком':'звук','звуковой':'звук','некротический':'некротическая энергия','некротической':'некротическая энергия',
+  'молнией':'электричество','громом':'звук','звуком':'звук','звуковой':'звук','некротический':'некротическая энергия','некротической':'некротическая энергия',
   'излучением':'излучение','психический':'психическая энергия','психической':'психическая энергия',
-  'силовым':'силовое поле','силового':'силовое поле','дробящий':'дробящий','колющий':'колющий','рубящий':'рубящий'};
+  'силовым':'силовое поле','силового':'силовое поле','дробящий':'дробящий','дробящим':'дробящий',
+  'колющий':'колющий','колющим':'колющий','рубящий':'рубящий','рубящим':'рубящий'};
 function dmgTypeCanon(t){
   const k=String(t||'').toLowerCase().trim();
   if(!k) return '';
@@ -6578,7 +6947,7 @@ function foeFxAll(f){
   active.forEach(a=>{
     const key=a.stackKey||(a.k==='spell'?'spell:'+a.id:null);
     if(key&&winners[key]!==a) return;
-    (a.fx||[]).forEach(x=>out.push(x));
+    (a.fx||[]).forEach(x=>out.push(Object.assign({},x,{label:x.label||a.label||'',sourceUid:x.sourceUid||a.uid||null})));
   });
   return out;
 }
@@ -6619,12 +6988,21 @@ function removeFoeActiveFx(id,uid){
 function dmgAfterTraits(holder, amount, dtype){
   const t=dmgTypeCanon(dtype);
   const list=k=>((holder&&holder[k])||[]).map(dmgTypeCanon);
-  let note='';
-  if(!t) return {amount, note};
-  if(list('immune').indexOf(t)>=0) return {amount:0, note:'иммунитет к «'+t+'»'};
-  if(list('resist').indexOf(t)>=0) return {amount:Math.floor(amount/2), note:'сопротивление «'+t+'» — урон вдвое меньше'};
-  if(list('vuln').indexOf(t)>=0)   return {amount:amount*2, note:'уязвимость к «'+t+'» — урон вдвое больше'};
-  return {amount, note};
+  const notes=(chars.indexOf(holder)>=0?fxNotesOf(holder):foeFxAll(holder).filter(x=>x.mode==='text').map(x=>String(x.value).toLowerCase()));
+  const fromFx={resist:[],vuln:[],immune:[]};
+  notes.forEach(n=>{
+    let m=n.match(/сопротивление\s+урону\s*:?\s*([а-я]+)/); if(m) fromFx.resist.push(dmgTypeCanon(m[1]));
+    m=n.match(/уязвимост[а-я]*\s+(?:к\s+)?урону\s*:?\s*([а-я]+)/); if(m) fromFx.vuln.push(dmgTypeCanon(m[1]));
+    m=n.match(/иммунитет\s+(?:к\s+)?урону\s*:?\s*([а-я]+)/); if(m) fromFx.immune.push(dmgTypeCanon(m[1]));
+  });
+  const has=k=>list(k).concat(fromFx[k]||[]).indexOf(t)>=0;
+  const reasons=[];
+  if(!t) return {amount, note:''};
+  if(has('immune')) return {amount:0, note:'иммунитет к «'+t+'»'};
+  let result=amount;
+  if(has('resist')){ result=Math.floor(result/2); reasons.push('сопротивление «'+t+'»'); }
+  if(has('vuln')){ result=result*2; reasons.push('уязвимость к «'+t+'»'); }
+  return {amount:result,note:reasons.join(' + ')};
 }
 function csvArr(s){ return String(s||'').split(/[,;]/).map(x=>x.trim()).filter(Boolean); }
 let foeEditing=null, foeSearch='';

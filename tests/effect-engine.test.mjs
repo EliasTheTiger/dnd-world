@@ -11,8 +11,9 @@ function loadEngine(random = () => 0) {
     globalThis.__engine = {
       setState(s) {
         chars=s.chars||[]; journal=[]; itemsDB=s.items||[]; spellsDB=s.spells||[];
-        abilitiesDB=s.abilities||[]; racesDB=[]; classesDB=s.classes||[];
-        rulesDB=[]; foesDB=s.foes||[]; activeCharId=s.activeCharId||null; fxRound=s.fxRound||1;
+        abilitiesDB=s.abilities||[]; racesDB=s.races||[]; classesDB=s.classes||[];
+        rulesDB=s.rules||[]; foesDB=s.foes||[]; activeCharId=s.activeCharId||null; fxRound=s.fxRound||1;
+        lastCastEvent=null; castCtx=null; fxInvalidate();
       },
       state() { return {chars,itemsDB,spellsDB,foesDB,activeCharId,fxRound,lastCastEvent}; },
       applyFxTo, removeActiveFx, advanceFxRound, attachDuration, spellFxForCast,
@@ -20,7 +21,20 @@ function loadEngine(random = () => 0) {
       charFxAll, fxSum, eHpMax, acTotal, speedTotal, concEntriesOf,
       breakConcentration, longRest, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
       applyDamageTo, applyRollsToTarget, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
-      rollSpecOf, resolveOutcome, targetInfoOf,
+      rollSpecOf, resolveOutcome, targetInfoOf, weaponSpecOf, weaponAttackApply, useItemApply,
+      dmgAfterTraits, effectiveFoeConditions, castDispel, rollbackLastCast,
+      seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, gameDataAudit,
+      abilityIsActive, isPassiveAbility, itemProfile,
+      makeBlank() { return buildBlank(); },
+      renderWorld() {
+        renderRaces(); renderClasses(); renderRules(); renderChars(); renderJournal();
+        renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderFoes();
+        return ['chars','races','classes','spellsdb','itemsdb','abilitiesdb','foes','rules','journal']
+          .reduce((o,id)=>{ o[id]=document.getElementById('tab-'+id).innerHTML; return o; },{});
+      },
+      renderSheetPanel(name) {
+        sheetTab=name; renderChars(); return document.getElementById('tab-chars').innerHTML;
+      },
       setConfirmResults(v){ globalThis.__confirmQueue=v.slice(); },
       setPromptResults(v){ globalThis.__promptQueue=v.slice(); globalThis.__promptCount=0; },
       promptCount(){ return globalThis.__promptCount||0; },
@@ -103,6 +117,10 @@ function hero(id, overrides = {}) {
     hdUsed: 0,
     ...overrides,
   };
+}
+
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 test('неудачный префлайт не тратит ячейку и не рвет старую концентрацию', () => {
@@ -402,4 +420,332 @@ test('кости Благословения входят в итог атаки 
   const saveSpell = {n: 'Испытание', l: 1, x: 'Цель совершает спасбросок Мудрости.'};
   const saveSpec = e.rollSpecOf(saveSpell, {caster, kind: 'spell', slotLvl: 1, target: e.targetInfoOf(`ally:${target.id}`)});
   assert.equal(e.resolveOutcome(saveSpec, {save: 7, savefx0: 2}, {}).saveOk, true);
+});
+
+test('контракт проверяет все 331 запись и каждый допустимый вариант круга без ошибок', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB(), items = e.seedItemsDB();
+  e.setState({spells, abilities, items});
+  const audit = e.gameDataAudit({spells, abilities, items});
+
+  assert.deepEqual(plain(audit.counts), {spells: 121, abilities: 77, items: 133, total: 331});
+  assert.equal(audit.variants, 881);
+  assert.deepEqual(plain(audit.errors), []);
+  assert.equal(Object.values(audit.modes.spell).reduce((a, b) => a + b, 0), 121);
+  assert.equal(Object.values(audit.modes.ability).reduce((a, b) => a + b, 0), 77);
+  assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 133);
+  assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 133);
+  assert.equal(new Set(audit.itemActions.manualNames).size, audit.itemActions.manual);
+});
+
+test('парсер различает два вида урона, формулу зелья и фиксированный урон оружия', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB(), items = e.seedItemsDB();
+  const caster = hero('caster', {level: 20, cls: 'Воин', ab: {str: 18, dex: 14, con: 14, int: 10, wis: 10, cha: 10}});
+  e.setState({chars: [caster], spells, items});
+
+  const meteor = spells.find(x => x.n === 'Метеоритный дождь');
+  const meteorRows = e.rollSpecOf(meteor, {caster, kind: 'spell', slotLvl: 9}).rows.filter(r => r.type === 'dmg');
+  assert.deepEqual(plain(meteorRows.map(r => [r.cnt, r.sides, r.dmgType])), [[20, 6, 'огонь'], [20, 6, 'дробящий']]);
+
+  const potion = items.find(x => /^Зелье лечения/.test(x.n));
+  const heal = e.rollSpecOf(potion, {caster, kind: 'item'}).rows.find(r => r.type === 'heal');
+  assert.deepEqual(plain([heal.cnt, heal.sides, heal.mod]), [2, 4, 2]);
+
+  const blowgun = items.find(x => x.n === 'Духовая трубка');
+  const fixed = e.weaponSpecOf(caster, blowgun, {kind: 'none', known: false}, {}).rows.find(r => r.type === 'dmg');
+  assert.equal(fixed.fixed, true);
+  assert.equal(fixed.mod, 3); // 1 фиксированный + 2 Ловкости
+});
+
+test('пассивные черты не становятся действиями, а дыхание и стойкость имеют заряды', () => {
+  const e = loadEngine();
+  const abilities = e.seedAbilitiesDB();
+  const lucky = abilities.find(x => /^Везучий/.test(x.n));
+  const breath = abilities.find(x => /^Оружие дыхания/.test(x.n));
+  const relentless = abilities.find(x => /^Непоколебимая стойкость/.test(x.n));
+
+  assert.equal(e.abilityIsActive(lucky), false);
+  assert.equal(e.isPassiveAbility(lucky), true);
+  assert.deepEqual([breath.mode, breath.uses, breath.rest], ['active', 1, 'короткий отдых']);
+  assert.deepEqual([relentless.mode, relentless.uses, relentless.rest], ['active', 1, 'длинный отдых']);
+});
+
+test('преимущество цели и одноразовая кость спасброска проходят через общую формулу', () => {
+  const e = loadEngine();
+  const caster = hero('caster');
+  const target = hero('target');
+  const saveSpell = {id: 'save', n: 'Проверка пламени', l: 1, cm: '—', d: 'Мгновенная', x: 'Цель совершает спасбросок Ловкости.'};
+  e.setState({chars: [caster, target], spells: [saveSpell]});
+
+  e.applyFxTo(target.id, {k: 'spell', id: 'haste', label: 'Ускорение', fx: [{stat: 'save.dex', mode: 'adv', value: 1}]});
+  let spec = e.rollSpecOf(saveSpell, {caster, kind: 'spell', slotLvl: 1, target: e.targetInfoOf(`ally:${target.id}`)});
+  assert.equal(spec.rows.find(r => r.type === 'save').adv, 1);
+  e.removeActiveFx(target.id, target.activeFx[0].uid);
+
+  e.applyFxTo(target.id, {k: 'spell', id: 'resistance', label: 'Сопротивление',
+    fx: [{stat: 'save', mode: 'die', value: '1d4', consume: 'roll'}]});
+  const uid = target.activeFx[0].uid;
+  spec = e.rollSpecOf(saveSpell, {caster, kind: 'spell', slotLvl: 1, target: e.targetInfoOf(`ally:${target.id}`)});
+  const out = e.resolveOutcome(spec, {save: 10, savefx0: 4}, {});
+  assert.equal(out.saveOk, true);
+  assert.equal(e.castSpellApply(saveSpell.id, caster.id, `ally:${target.id}`, '', undefined, 'free', {
+    saveOk: out.saveOk, effectAllowed: out.effectAllowed, dmgRaw: null, dmgTotal: null, verdict: out.verdict,
+    consumeTargetFx: [uid]
+  }), true);
+  assert.equal(target.activeFx.some(x => x.uid === uid), false);
+});
+
+test('сопротивление от эффекта и уязвимость применяются в каноническом порядке', () => {
+  const e = loadEngine();
+  const target = hero('target', {vuln: ['огонь']});
+  target.activeFx.push({uid: 'fire-res', k: 'ability', id: 'fire-res', label: 'Сопротивление огню',
+    fx: [{stat: 'note', mode: 'text', value: 'сопротивление урону: огнем'}]});
+  e.setState({chars: [target]});
+
+  assert.deepEqual(plain(e.dmgAfterTraits(target, 5, 'огонь')), {
+    amount: 4,
+    note: 'сопротивление «огонь» + уязвимость к «огонь»'
+  });
+});
+
+test('Непоколебимая стойкость и зелье последовательно меняют один боевой лист', () => {
+  const e = loadEngine();
+  const abilities = e.seedAbilitiesDB(), items = e.seedItemsDB();
+  const relentless = abilities.find(x => /^Непоколебимая стойкость/.test(x.n));
+  const potion = items.find(x => /^Зелье лечения/.test(x.n));
+  const target = hero('target', {
+    hp: 10, hpMax: 30,
+    abilities: [{abilityId: relentless.id, cur: 1}],
+    inventory: [{id: 'potion-entry', itemId: potion.id, qty: 1}]
+  });
+  e.setState({chars: [target], abilities, items});
+
+  const hit = e.applyDamageTo(`ally:${target.id}`, 20, 'рубящий', 'Удар', {});
+  assert.equal(hit.relentless, true);
+  assert.equal(target.hp, 1);
+  assert.equal(target.abilities[0].cur, 0);
+  assert.equal(e.effectiveConditions(target).includes('Бессознательный'), false);
+
+  assert.equal(e.useItemApply('potion-entry', target.id, `ally:${target.id}`, {
+    healTotal: 6, dmgRaw: null, dmgTotal: null, effectAllowed: true, verdict: []
+  }), true);
+  assert.equal(target.hp, 7);
+  assert.equal(target.inventory.length, 0);
+});
+
+test('Магический сон расходует общий пул от цели с наименьшими хитами', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB();
+  const sleep = spells.find(x => x.n === 'Магический сон');
+  sleep.cm = '—';
+  const caster = hero('caster', {slots: {5: {max: 1, cur: 1}}});
+  const foe = hp => ({id: `f${hp}`, n: `Враг ${hp}`, kind: 'monster', ac: 10, hp, hpMax: hp, hpTemp: 0,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
+    resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: [], traits: ''});
+  const a = foe(4), b = foe(7), c = foe(12);
+  e.setState({chars: [caster], foes: [a, b, c], spells});
+
+  assert.equal(e.castSpellApply(sleep.id, caster.id, `foe:${c.id}`, '', undefined, 'free', {
+    sleepTotal: 11, dmgRaw: null, dmgTotal: null, hit: null, saveOk: null, contestWin: null,
+    effectAllowed: true, verdict: []
+  }, [`foe:${b.id}`, `foe:${a.id}`]), true);
+  assert.equal(e.effectiveFoeConditions(a).includes('Бессознательный'), true);
+  assert.equal(e.effectiveFoeConditions(b).includes('Бессознательный'), true);
+  assert.equal(e.effectiveFoeConditions(c).includes('Бессознательный'), false);
+});
+
+test('Слово силы убивает цель на пороге 100 хитов и не затрагивает 101', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB(), word = spells.find(x => x.n === 'Слово силы: смерть');
+  const caster = hero('caster');
+  const foe = (id, hp) => ({id, n: id, kind: 'monster', ac: 10, hp, hpMax: 150, hpTemp: 0,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
+    resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: []});
+  const low = foe('low', 100), high = foe('high', 101);
+  e.setState({chars: [caster], foes: [low, high], spells});
+
+  assert.equal(e.castSpellApply(word.id, caster.id, `foe:${low.id}`, '', undefined, 'free'), true);
+  assert.equal(low.hp, 0);
+  assert.equal(e.castSpellApply(word.id, caster.id, `foe:${high.id}`, '', undefined, 'free'), true);
+  assert.equal(high.hp, 101);
+});
+
+test('Контрзаклинание откатывает урон и эффекты именно последнего каста', () => {
+  const e = loadEngine();
+  const mage = hero('mage');
+  const counterer = hero('counterer', {slots: {3: {max: 1, cur: 1}}});
+  const victim = hero('victim', {hp: 30, hpMax: 30});
+  const blast = {id: 'blast', n: 'Взрыв', l: 3, cm: 'В', d: 'Мгновенная', x: 'Цель получает 8d6 урона огнем.'};
+  const counter = {id: 'counter', n: 'Контрзаклинание', l: 3, cm: 'В', d: 'Мгновенная', x: ''};
+  e.setState({chars: [mage, counterer, victim], spells: [blast, counter]});
+
+  assert.equal(e.castSpellApply(blast.id, mage.id, `ally:${victim.id}`, '', undefined, 'free', {
+    dmgRaw: 10, dmgTotal: 10, dmgType: 'огонь', hit: null, saveOk: null, contestWin: null,
+    effectAllowed: true, verdict: []
+  }), true);
+  assert.equal(victim.hp, 20);
+  e.setPromptResults(['3']);
+  assert.equal(e.castSpellApply(counter.id, counterer.id, `ally:${mage.id}`, '', undefined, '3'), true);
+  assert.equal(victim.hp, 30);
+  assert.equal(counterer.slots[3].cur, 0);
+  assert.equal(e.state().lastCastEvent, null);
+});
+
+test('Рассеивание магии снимает с противника эффект по фактическому кругу', () => {
+  const e = loadEngine();
+  const caster = hero('caster', {slots: {5: {max: 1, cur: 1}}});
+  const foe = {id: 'foe', n: 'Враг', kind: 'monster', ac: 12, hp: 20, hpMax: 20, hpTemp: 0,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
+    resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: [
+      {uid: 'hold', k: 'spell', id: 'hold', label: 'Удержание', power: 5, fx: [{stat: 'condition', mode: 'text', value: 'Парализованный'}]}
+    ]};
+  const hold = {id: 'hold', n: 'Удержание', l: 2, cm: 'В', d: '1 мин.', x: ''};
+  const dispel = {id: 'dispel', n: 'Рассеивание магии', l: 3, cm: 'В, С', d: 'Мгновенная', x: ''};
+  e.setState({chars: [caster], foes: [foe], spells: [hold, dispel]});
+
+  assert.equal(e.castSpellApply(dispel.id, caster.id, `foe:${foe.id}`, '', undefined, '5'), true);
+  assert.equal(foe.activeFx.length, 0);
+});
+
+test('боевой раунд связывает Благословение, оружие и сопротивление противника', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB();
+  const sword = items.find(x => x.n === 'Длинный меч');
+  const cleric = hero('cleric');
+  const fighter = hero('fighter', {
+    cls: 'Воин', level: 5, ab: {str: 18, dex: 12, con: 16, int: 10, wis: 10, cha: 10},
+    inventory: [{id: 'sword-entry', itemId: sword.id, qty: 1}], equipment: {MAIN_HAND: 'sword-entry'}
+  });
+  const foe = {id: 'foe', n: 'Каменный страж', kind: 'monster', ac: 15, hp: 20, hpMax: 20, hpTemp: 0,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
+    resist: ['рубящий'], vuln: [], immune: [], condImmune: [], cond: [], activeFx: []};
+  const bless = {id: 'bless', n: 'Благословение', l: 1, cm: 'В', d: 'Концентрация, 1 мин.', conc: true, x: ''};
+  e.setState({chars: [cleric, fighter], foes: [foe], items, spells: [bless], classes: e.seedClassesDB()});
+
+  assert.equal(e.castSpellApply(bless.id, cleric.id, `ally:${fighter.id}`, '', undefined, 'free'), true);
+  const spec = e.weaponSpecOf(fighter, sword, e.targetInfoOf(`foe:${foe.id}`), {});
+  assert.equal(spec.rows.some(r => r.addTo === 'atk' && /Благословение/.test(r.label)), true);
+  const rolls = e.resolveOutcome(spec, {atk: 8, wfx0: 4, dmg: 6}, {});
+  assert.equal(rolls.hit, true);
+  assert.equal(rolls.dmgTotal, 5); // (6 + 4 Силы) / 2 от сопротивления
+  assert.equal(e.weaponAttackApply('sword-entry', fighter.id, `foe:${foe.id}`, {...rolls, attackMade: true}), true);
+  assert.equal(foe.hp, 15);
+  assert.equal(fighter.activeFx.some(x => x.id === bless.id), true);
+});
+
+test('Направляющий снаряд дает ровно одну следующую атаку с преимуществом', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB(), items = e.seedItemsDB();
+  const bolt = spells.find(x => x.n === 'Направляющий снаряд');
+  const sword = items.find(x => x.n === 'Длинный меч');
+  const cleric = hero('cleric', {slots: {1: {max: 1, cur: 1}}});
+  const fighter = hero('fighter', {cls: 'Воин', ab: {str: 16, dex: 12, con: 14, int: 10, wis: 10, cha: 10},
+    inventory: [{id: 'sword-entry', itemId: sword.id, qty: 1}], equipment: {MAIN_HAND: 'sword-entry'}});
+  const foe = {id: 'foe', n: 'Цель', kind: 'monster', ac: 20, hp: 30, hpMax: 30, hpTemp: 0,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
+    resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: []};
+  e.setState({chars: [cleric, fighter], foes: [foe], spells, items, classes: e.seedClassesDB()});
+
+  assert.equal(e.castSpellApply(bolt.id, cleric.id, `foe:${foe.id}`, '', undefined, '1', {
+    dmgRaw: 8, dmgTotal: 8, dmgType: 'излучение', hit: true, saveOk: null, contestWin: null,
+    effectAllowed: true, verdict: [], notes: [], attackMade: true
+  }), true);
+  const mark = foe.activeFx.find(x => x.id === bolt.id);
+  assert.ok(mark);
+
+  const spec = e.weaponSpecOf(fighter, sword, e.targetInfoOf(`foe:${foe.id}`), {});
+  assert.equal(spec.rows.find(r => r.type === 'atk').adv, 1);
+  assert.deepEqual(plain(spec.meta.consumeTargetFx), [mark.uid]);
+  assert.equal(e.weaponAttackApply('sword-entry', fighter.id, `foe:${foe.id}`, {
+    dmgRaw: 5, dmgTotal: 0, dmgType: 'рубящий', hit: false, effectAllowed: false,
+    verdict: [], notes: [], attackMade: true, consumeTargetFx: spec.meta.consumeTargetFx
+  }), true);
+  assert.equal(foe.activeFx.some(x => x.uid === mark.uid), false);
+});
+
+test('Огонь фей раскрывает невидимую цель только после проваленного спасброска', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB(), items = e.seedItemsDB();
+  const faerie = spells.find(x => x.n === 'Огонь фей');
+  const invis = spells.find(x => x.n === 'Невидимость');
+  const sword = items.find(x => x.n === 'Длинный меч');
+  const caster = hero('caster');
+  const attacker = hero('attacker', {cls: 'Воин', inventory: [{id: 'sword-entry', itemId: sword.id, qty: 1}]});
+  const foe = {id: 'foe', n: 'Невидимка', kind: 'monster', ac: 12, hp: 20, hpMax: 20, hpTemp: 0,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
+    resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: [{uid: 'invis', k: 'spell', id: invis.id,
+      label: invis.n, casterId: 'other', stackKey: `spell:${invis.id}`, power: 2, fx: e.spellFxForCast(invis, 2)}]};
+  e.setState({chars: [caster, attacker], foes: [foe], spells, items, classes: e.seedClassesDB()});
+
+  const saveSpec = e.rollSpecOf(faerie, {caster, kind: 'spell', slotLvl: 1, target: e.targetInfoOf(`foe:${foe.id}`)});
+  assert.ok(saveSpec.rows.some(r => r.type === 'save'));
+  assert.ok(e.spellTargetLimit(faerie, 1) >= 2);
+  assert.equal(e.castSpellApply(faerie.id, caster.id, `foe:${foe.id}`, '', undefined, 'free', {
+    dmgRaw: null, dmgTotal: null, hit: null, saveOk: false, contestWin: null,
+    effectAllowed: true, verdict: [], notes: []
+  }), true);
+  const attack = e.weaponSpecOf(attacker, sword, e.targetInfoOf(`foe:${foe.id}`), {});
+  assert.equal(attack.rows.find(r => r.type === 'atk').adv, 1);
+});
+
+test('Огненный шар одним кастом отдельно разбирает три цели в реальном бою', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB(), fireball = spells.find(x => x.n === 'Огненный шар');
+  const focus = {id: 'focus', n: 'Магическая фокусировка', type: 'equipment', tags: ['focus'], desc: ''};
+  const caster = hero('caster', {cls: 'Волшебник', level: 5, ab: {str: 10, dex: 10, con: 12, int: 16, wis: 10, cha: 10},
+    slots: {3: {max: 1, cur: 1}}, inventory: [{id: 'focus-entry', itemId: focus.id, qty: 1}]});
+  const foe = (id, traits = {}) => ({id, n: id, kind: 'monster', ac: 12, hp: 50, hpMax: 50, hpTemp: 0,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
+    resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: [], ...traits});
+  const a = foe('a'), b = foe('b', {resist: ['огонь']}), c = foe('c');
+  e.setState({chars: [caster], foes: [a, b, c], spells, items: [focus]});
+
+  const outcome = (target, save) => {
+    const spec = e.rollSpecOf(fireball, {caster, kind: 'spell', slotLvl: 3, target: e.targetInfoOf(`foe:${target.id}`)});
+    const damage = spec.rows.find(r => r.type === 'dmg');
+    return e.resolveOutcome(spec, {[damage.key]: 20, save}, {});
+  };
+  const rollsA = outcome(a, 1), rollsB = outcome(b, 1), rollsC = outcome(c, 20);
+  assert.equal(e.castSpellApply(fireball.id, caster.id, `foe:${a.id}`, '', {entryId: 'focus-entry', use: 0}, '3',
+    rollsA, [`foe:${b.id}`, `foe:${c.id}`], {[`foe:${b.id}`]: rollsB, [`foe:${c.id}`]: rollsC}), true);
+  assert.deepEqual([a.hp, b.hp, c.hp], [30, 40, 40]);
+  assert.equal(caster.slots[3].cur, 0);
+});
+
+test('все девять вкладок и шесть панелей листа рендерятся с индикаторами', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB(), items = e.seedItemsDB();
+  const c = e.makeBlank();
+  Object.assign(c, {id: 'hero', name: 'Тестовый герой', cls: 'Жрец', level: 5, hp: 8, hpMax: 20, hpTemp: 3,
+    slots: {1: {max: 4, cur: 2}}, spentRest: 2, cond: ['Отравленный']});
+  const sword = items.find(x => x.n === 'Длинный меч');
+  const potion = items.find(x => /^Зелье лечения/.test(x.n));
+  c.inventory = [{id: 'sword', itemId: sword.id, qty: 1}, {id: 'potion', itemId: potion.id, qty: 1}];
+  c.equipment = {MAIN_HAND: 'sword'};
+  c.spellbook = [{spellId: spells.find(x => x.n === 'Благословение').id, prep: true}];
+  const breath = abilities.find(x => /^Оружие дыхания/.test(x.n));
+  c.abilities = [{abilityId: breath.id, cur: 1}];
+  const foe = {id: 'foe', n: 'Манекен', kind: 'monster', ac: 12, hp: 10, hpMax: 10, hpTemp: 0,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
+    resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: []};
+  e.setState({chars: [c], activeCharId: c.id, foes: [foe], spells, abilities, items,
+    races: e.seedRacesDB(), classes: e.seedClassesDB(), rules: [{id: 'r', t: 'Правило', x: 'Текст'}]});
+
+  const world = e.renderWorld();
+  assert.deepEqual(Object.keys(world), ['chars', 'races', 'classes', 'spellsdb', 'itemsdb', 'abilitiesdb', 'foes', 'rules', 'journal']);
+  Object.entries(world).forEach(([name, html]) => assert.ok(html.length > 40, `пустая вкладка ${name}`));
+
+  const expected = {
+    stats: ['Характеристики', 'Хиты', 'Класс доспеха', 'Состояния'],
+    inventory: ['Инвентарь', 'Валюта', 'Зелье лечения'],
+    equipment: ['Экипировка персонажа', 'Основная рука', 'Длинный меч'],
+    spells: ['Ячейки заклинаний', 'Подготовлено', 'Благословение'],
+    abilities: ['Все способности', 'Оружие дыхания', 'готовы к применению'],
+    notes: ['Игрок', 'Заметки мастера']
+  };
+  Object.entries(expected).forEach(([panel, labels]) => {
+    const html = e.renderSheetPanel(panel);
+    labels.forEach(label => assert.ok(html.includes(label), `${panel}: нет индикатора «${label}»`));
+  });
 });
