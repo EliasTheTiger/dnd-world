@@ -515,6 +515,50 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 .formula-row input{width:84px;font-size:16px;padding:4px 6px;text-align:center}
 .formula-part{font-family:var(--disp)}
 
+/* ─── Боевой пульт: пошаговый контур в стиле CRPG ─── */
+.combat-shell{margin:-22px -24px -30px;min-height:72vh;padding:18px;color:#f3ead4;
+  background:radial-gradient(circle at 50% -20%,rgba(144,91,35,.34),transparent 45%),linear-gradient(150deg,#171917,#20241f 48%,#121412);
+  font-family:var(--serif)}
+.combat-shell input,.combat-shell select,.combat-shell textarea{color:#f6edd8;background:#20251f;border-color:#7f693c;box-shadow:inset 0 1px 5px #000}
+.combat-shell input::placeholder,.combat-shell textarea::placeholder{color:#9d9789}
+.combat-shell .btn.ghost{color:#d8cba9;border-color:#75633e}.combat-shell .btn.ghost:hover{color:#fff0b6;border-color:#c59b43}
+.combat-shell .btn[disabled],.combat-action[disabled]{opacity:.38;cursor:not-allowed;filter:grayscale(1)}
+.combat-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;padding:11px 14px;border:1px solid #7f693c;
+  background:linear-gradient(180deg,rgba(73,60,34,.72),rgba(24,27,23,.95));box-shadow:0 6px 22px #0008}
+.combat-title{font-family:var(--disp);font-size:27px;color:#f2d58a;letter-spacing:.05em}.combat-top .spacer{flex:1}
+.combat-round{min-width:92px;text-align:center;padding:6px 14px;border:1px solid #b18b43;background:#1b1e1a;color:#f2d58a;font-family:var(--disp);font-size:18px}
+.combat-initiative{display:flex;gap:7px;overflow-x:auto;padding:6px 2px 12px;scrollbar-color:#8f6e32 #181a17}
+.combat-init-card{position:relative;flex:0 0 142px;padding:8px 10px;border:1px solid #665a40;background:#252923;color:#d8cfbc;cursor:pointer}
+.combat-init-card.active{border-color:#e3b653;background:linear-gradient(180deg,#57431e,#292a22);box-shadow:0 0 16px #d39a3159}
+.combat-init-card.down{opacity:.52}.combat-init-card .init{font-family:var(--disp);font-size:22px;color:#f0ce77;float:right}
+.combat-init-card .name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.combat-init-card .side{font-size:11px;color:#aaa18d;text-transform:uppercase;letter-spacing:.08em}
+.combat-layout{display:grid;grid-template-columns:minmax(210px,270px) minmax(360px,1fr) minmax(250px,330px);gap:12px;align-items:start}
+.combat-panel{border:1px solid #62583f;background:rgba(26,29,25,.94);box-shadow:0 8px 24px #0007;padding:11px}
+.combat-panel h3{font-family:var(--disp);font-weight:400;color:#e8c873;font-size:18px;border-bottom:1px solid #685a38;padding-bottom:5px;margin-bottom:9px}
+.combatant{padding:8px;margin-bottom:7px;border:1px solid #4d4d43;background:#222620}.combatant.current{border-color:#c99b40;background:#302c1f}
+.combatant .head{display:flex;gap:7px;align-items:center}.combatant .head b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.combat-hp{height:8px;background:#3b1918;border:1px solid #160b0a;margin:5px 0;overflow:hidden}.combat-hp>i{display:block;height:100%;background:linear-gradient(90deg,#7d1515,#d5492d);transition:width .2s}
+.combatant .meta{font-size:12.5px;color:#b7ad97}.combat-cond{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}.combat-cond span{font-size:11px;padding:1px 5px;border:1px solid #795c3b;color:#e1c793}
+.combat-stage-head{text-align:center;padding:5px 8px 12px}.combat-stage-head .who{font-family:var(--disp);font-size:30px;color:#f0d286}
+.combat-stage-head .subline{color:#bfb49f;font-style:italic}.combat-resources{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:10px 0}
+.combat-resource{border:1px solid #6e6249;background:#1b1f1a;color:#d5cab1;padding:5px 9px;font-size:13px}.combat-resource.ready{border-color:#cba34f;color:#ffe8a7}.combat-resource.used{text-decoration:line-through;opacity:.55}
+.combat-move{display:flex;align-items:center;justify-content:center;gap:7px;margin:8px 0;color:#cfc4ac}.combat-move input{width:68px}
+.combat-groups{display:flex;gap:4px;flex-wrap:wrap;margin:12px 0 7px;border-bottom:1px solid #685a38;padding-bottom:7px}
+.combat-group{padding:5px 9px;border:1px solid #5f5846;background:#272b25;color:#c8bea8;cursor:pointer;font-family:var(--disp)}.combat-group.active{background:#7b5824;color:#fff1bf;border-color:#d2a64f}
+.combat-actions{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:7px;max-height:350px;overflow:auto;padding-right:3px}
+.combat-action{text-align:left;min-height:58px;padding:7px 8px;border:1px solid #625a46;background:linear-gradient(180deg,#30352e,#20231f);color:#eee2c9;cursor:pointer;font-family:var(--serif)}
+.combat-action:hover{border-color:#d1a44b;background:linear-gradient(180deg,#4b432c,#272922)}.combat-action b{display:block;color:#f2d58a}.combat-action small{display:block;color:#a9a18f;margin-top:2px}
+.combat-action.spent{opacity:.42}.combat-endturn{width:100%;margin-top:11px;font-size:18px;padding:10px}
+.combat-log{height:510px;overflow:auto;padding-right:4px}.combat-log-entry{padding:6px 7px;border-left:2px solid #645b46;margin-bottom:5px;background:#20231f;font-size:13.5px}
+.combat-log-entry.action{border-color:#c89b3e}.combat-log-entry.change{border-color:#9b3730}.combat-log-entry.round{border-color:#4e8c6b}.combat-log-entry .stamp{font-size:10.5px;color:#918a7a;margin-bottom:1px;text-transform:uppercase;letter-spacing:.05em}
+.combat-log-empty{padding:28px 10px;text-align:center;color:#8f897d;font-style:italic}.combat-note{display:flex;gap:5px;margin-top:7px}.combat-note input{flex:1;min-width:0}
+.combat-setup{max-width:900px;margin:0 auto}.combat-setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.combat-setup-card{border:1px solid #62583f;background:#20241f;padding:12px}
+.combat-setup-row{display:grid;grid-template-columns:24px 1fr 82px 70px;gap:7px;align-items:center;padding:6px 0;border-bottom:1px solid #3d4038}.combat-setup-row input[type=number]{width:78px}
+.combat-callout{padding:10px 12px;border:1px solid #8e6f34;background:#332c1d;color:#edd9a8;margin:10px 0}.combat-winner{padding:9px;text-align:center;background:#273d2d;border:1px solid #5d966c;color:#bff0c8;margin-bottom:10px}
+.combat-hp-controls{display:grid;grid-template-columns:58px 1fr 1fr 1fr;gap:4px;margin-top:6px}.combat-hp-controls input{width:58px}.combat-hp-controls button{font-size:11px;padding:3px;background:#282d27;color:#d9ccb1;border:1px solid #5e5746;cursor:pointer}
+@media(max-width:980px){.combat-layout{grid-template-columns:220px 1fr}.combat-layout>.combat-panel:last-child{grid-column:1/-1}.combat-log{height:300px}}
+@media(max-width:700px){.combat-shell{margin:-14px -10px -22px;padding:10px}.combat-layout,.combat-setup-grid{grid-template-columns:1fr}.combat-layout>.combat-panel:last-child{grid-column:auto}.combat-actions{max-height:none}.combat-setup-row{grid-template-columns:24px 1fr 72px 58px}.combat-title{font-size:22px}}
+
 </style>
 </head>
 <body>
@@ -551,6 +595,7 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 
 <nav class="tabs" id="tabsNav">
   <button class="tab active" data-tab="chars" onclick="switchTab('chars')">Персонажи</button>
+  <button class="tab" data-tab="combat" onclick="switchTab('combat')">⚔ Бой</button>
   <button class="tab" data-tab="races" onclick="switchTab('races')">Расы</button>
   <button class="tab" data-tab="classes" onclick="switchTab('classes')">Классы</button>
   <button class="tab" data-tab="spellsdb" onclick="switchTab('spellsdb')">Заклинания</button>
@@ -558,12 +603,12 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
   <button class="tab" data-tab="abilitiesdb" onclick="switchTab('abilitiesdb')">Способности</button>
   <button class="tab" data-tab="foes" onclick="switchTab('foes')">Противники</button>
   <button class="tab" data-tab="rules" onclick="switchTab('rules')">Справочник</button>
-  <button class="tab" data-tab="journal" onclick="switchTab('journal')">Журнал</button>
 </nav>
 
 <main class="leaf">
   <div class="save-status" id="saveStatus"></div>
   <div id="tab-chars"></div>
+  <div id="tab-combat" class="hidden"></div>
   <div id="tab-races" class="hidden"></div>
   <div id="tab-classes" class="hidden"></div>
   <div id="tab-spellsdb" class="hidden"></div>
@@ -571,7 +616,6 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
   <div id="tab-abilitiesdb" class="hidden"></div>
   <div id="tab-foes" class="hidden"></div>
   <div id="tab-rules" class="hidden"></div>
-  <div id="tab-journal" class="hidden"></div>
 </main>
 
 <footer class="colophon">Писано рукою мастера · все в сей книге правится вручную и хранится меж сессиями ❦</footer>
@@ -2738,8 +2782,23 @@ async function ensureAbilityAudit(){
 }
 
 /* ═══════════════ СОСТОЯНИЕ И ХРАНИЛИЩЕ ═══════════════ */
+function blankCombat(){
+  return {version:1,active:false,id:'',name:'Схватка',round:0,turnIndex:0,order:[],turn:null,
+    setup:{},log:[],history:[],snapshots:{},uiGroup:'basic',focusKey:'',startedAt:null,endedAt:null};
+}
+function normalizeCombatState(v){
+  const c=Object.assign(blankCombat(),v||{});
+  c.order=Array.isArray(c.order)?c.order:[]; c.log=Array.isArray(c.log)?c.log:[];
+  c.history=Array.isArray(c.history)?c.history:[];
+  c.setup=c.setup&&typeof c.setup==='object'?c.setup:{};
+  c.snapshots=c.snapshots&&typeof c.snapshots==='object'?c.snapshots:{};
+  c.turnIndex=Math.max(0,Math.min(+c.turnIndex||0,Math.max(0,c.order.length-1)));
+  if(c.active&&!c.order.length) c.active=false;
+  return c;
+}
 let chars=[], journal=[], itemsDB=[], spellsDB=[], abilitiesDB=[];
 let foesDB=[];   /* бестиарий: монстры и NPC — цели заклинаний и способностей */
+let combat=blankCombat();
 let fxRound=1;   /* единые боевые часы: длительности хранятся как абсолютный номер раунда */
 let lastCastEvent=null;
 let racesDB=[], classesDB=[], rulesDB=[];   /* мировые своды: народы, призвания, записи мастера */
@@ -2782,11 +2841,13 @@ async function runScheduledSave(){
     await persist('dndworld2:rules',rulesDB);
     await persist('dndworld2:foes',foesDB);
     await persist('dndworld2:fxround',fxRound);
+    await persist('dndworld2:combat',combat);
   }
   if(j) await persist('dndworld2:journal',journal);
   if(typeof syncTouch==='function') syncTouch();
 }
 function scheduleSave(){
+  if(typeof combatSyncChanges==='function') combatSyncChanges();
   savePendWorld=true;
   clearTimeout(saveTimer); setStatus('Перо скрипит…');
   saveTimer=setTimeout(runScheduledSave,600);
@@ -2875,15 +2936,19 @@ async function loadAll(){
   if(typeof ensureCombatLoadouts==='function') await ensureCombatLoadouts();
   if(typeof ensureFoeAudit==='function') await ensureFoeAudit();
   journal=(await readJSON('dndworld2:journal')) || (await readJSON('dndworld:journal')) || [];
+  combat=normalizeCombatState(await readJSON('dndworld2:combat'));
+  combat.order=combat.order.filter(e=>e&&((e.kind==='ally'&&chars.some(c=>c.id===e.id))||(e.kind==='foe'&&foesDB.some(f=>f.id===e.id))));
+  if(typeof combatRepairRuntime==='function') combatRepairRuntime();
   setStatus('Летопись открыта');
 }
 
 /* ═══════════════ ВКЛАДКИ, КОСТИ, ЭКСПОРТ ═══════════════ */
 function switchTab(t){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
-  ['chars','races','classes','spellsdb','itemsdb','abilitiesdb','foes','rules','journal'].forEach(x=>{
+  ['chars','combat','races','classes','spellsdb','itemsdb','abilitiesdb','foes','rules'].forEach(x=>{
     const el=document.getElementById('tab-'+x); if(el) el.classList.toggle('hidden', x!==t);
   });
+  if(t==='combat'&&typeof renderCombat==='function') renderCombat();
 }
 
 /* ═══ Броски d20 с преимуществом/помехой ═══ */
@@ -2944,7 +3009,12 @@ function rollDone(){
   if(!r.full){ document.getElementById('rollLive').textContent='Заполните все поля бросков.'; return; }
   const spec=rollSpec; rollSpec=null;
   document.getElementById('rollBack').style.display='none';
-  spec.apply(r.vals);
+  const applied=spec.apply(r.vals);
+  /* Часть старых предметных действий не знает о боевом контуре и списывает
+     действие здесь. Новые атомарные обработчики уже сделали это сами — в
+     таком случае повторно тратить ресурс и показывать ложную ошибку нельзя. */
+  if(spec.combatAction&&applied!==false&&combatCanSpend(spec.combatAction.cost,spec.combatAction.actorKey,true))
+    combatSpend(spec.combatAction.cost,spec.combatAction.label,spec.combatAction.actorKey);
 }
 function rollCancel(){
   rollSpec=null;
@@ -3028,7 +3098,7 @@ function rollNotation(){
 }
 function doExport(){
   const blob=new Blob([JSON.stringify({app:'dndworld2', exported:new Date().toISOString(),
-    chars, journal, items:itemsDB, spells:spellsDB, abilities:abilitiesDB, races:racesDB, classes:classesDB, rules:rulesDB, foes:foesDB}, null, 2)], {type:'application/json'});
+    chars, journal, combat, items:itemsDB, spells:spellsDB, abilities:abilitiesDB, races:racesDB, classes:classesDB, rules:rulesDB, foes:foesDB}, null, 2)], {type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob); a.download='dnd-world-letopis.json'; a.click();
   URL.revokeObjectURL(a.href);
@@ -3041,16 +3111,18 @@ function doImport(inp){
       const data=JSON.parse(rd.result);
       if(data.app==='dndworld2'){
         chars=data.chars||[]; journal=data.journal||[];
+        combat=normalizeCombatState(data.combat);
         chars.forEach(c=>{ if(typeof upgradeChar3==='function') upgradeChar3(c); });
         itemsDB=data.items||itemsDB; spellsDB=data.spells||spellsDB; abilitiesDB=data.abilities||abilitiesDB;
         racesDB=data.races||racesDB; classesDB=data.classes||classesDB; rulesDB=data.rules||rulesDB; foesDB=data.foes||foesDB;
         foesDB.forEach(upgradeFoe);
+        if(typeof combatRepairRuntime==='function') combatRepairRuntime();
       } else if(data.app==='dndworld'){
         journal=data.journal||journal;
         (data.chars||[]).forEach(o=>chars.push(upgradeOldChar(o)));
       } else { alert('Это не летопись D&D World.'); return; }
       scheduleSave(); scheduleJournalSave();
-      renderChars(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderRaces(); renderClasses(); renderRules(); renderFoes();
+      renderChars(); renderCombat(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderRaces(); renderClasses(); renderRules(); renderFoes();
       alert('Летопись загружена.');
     }catch(e){ alert('Свиток поврежден: '+e.message); }
   };
@@ -3088,6 +3160,7 @@ function fxPush(out, fx){
 }
 function fxSigned(v){ return +(String(v||'').replace(/\s/g,'').replace(/[−–—]/g,'-'))||0; }
 const FX_CONDITIONS=[
+ ['Захваченный',/захвачен(?:ный|ная|ное|ные|а|о|ы)?(?=[^а-я]|$)/],
  ['Бессознательный',/бессознательн(?:ый|ая|ое|ые|ым|ой|а|о|ы)?(?=[^а-я]|$)/],
  ['Парализованный',/парализован(?:ный|ная|ное|ные|а|о|ы)?(?=[^а-я]|$)/],
  ['Окаменевший',/окаменевш(?:ий|ая|ее|ие|им|ей)(?=[^а-я]|$)/],
@@ -3598,6 +3671,7 @@ function fxRollMode(c,stat){
 }
 function speedTotal(c){
   const raw=String(c.speed||'');
+  if(effectiveConditions(c).some(n=>n==='Захваченный'||n==='Опутанный')) return '0 '+(/фут/i.test(raw)?'футов':'м');
   const over=(typeof carryWeight==='function')?(carryWeight(c)>Math.round((+c.ab.str||10)*7.5)):false;
   const m=raw.replace(',','.').match(/-?\d+(?:\.\d+)?/);
   if(!m) return raw;
@@ -3637,6 +3711,7 @@ function effectiveSpeed(c){
   const raw=String(c.speed||''), m=raw.match(/(\d+(?:[.,]\d+)?)\s*(м|фут)/i);
   if(!m) return raw;
   const unit=/^фут/i.test(m[2])?'фут':'м', base=parseFloat(m[1].replace(',','.'));
+  if(effectiveConditions(c).some(n=>n==='Захваченный'||n==='Опутанный')) return raw.replace(m[1],'0');
   const all=charFxAll(c).filter(f=>f.stat==='speed');
   const parts=all.filter(f=>f.mode==='add');
   const delta=parts.reduce((a,f)=>{
@@ -3914,6 +3989,7 @@ function deriveAbilityHeal(ab, caster){
 function useAbilityApply(abilityId, casterId, target, rolls){
   const ab=abilityOf(abilityId), caster=getCh(casterId);
   if(!ab||!caster||!target) return false;
+  if(!combatCastPreflight()) return false;
   const chk=canUseAbilityCheck(caster, ab);
   if(!chk.ok){ setStatus('✕ '+chk.reason, true); castShowErr&&castShowErr(chk.reason); return false; }
   rolls=rolls||(arguments.length>3?arguments[3]:null);
@@ -3962,6 +4038,7 @@ function useAbilityApply(abilityId, casterId, target, rolls){
         rows:[{key:'s',label:'Сумма '+heal.cnt+'d'+heal.sides,sub:'от '+heal.cnt+' до '+(heal.cnt*heal.sides),min:heal.cnt,max:heal.cnt*heal.sides}],
         compute:v=>'Лечение: '+v.s+(heal.plus?' + '+heal.plus:'')+' = +'+(v.s+heal.plus)+' хитов',
         apply:v=>useAbilityApply(abilityId, casterId, target, {healTotal:v.s+heal.plus, notes:[], verdict:[]})});
+      if(rollSpec&&castCtx&&castCtx.combatCost) rollSpec.combatAction={actorKey:castCtx.combatActorKey,cost:castCtx.combatCost,label:castCtx.combatLabel||('Способность «'+ab.n+'»')};
       return true;
     }
   }
@@ -3984,6 +4061,8 @@ function useAbilityApply(abilityId, casterId, target, rolls){
   setStatus('✦ «'+ab.n+'» — применено (цель: '+tl+')'+chargeInfo+info+'.');
   castLogLine('✦ '+caster.name+' → '+tl+': способность «'+ab.n+'»'+chargeInfo+info);
   if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
+  combatAbilityAfterApply(ab,caster.id);
+  combatCommitCastAction('Способность «'+ab.n+'»');
   return true;
 }
 function abilityCastFx(abilityId, casterId){
@@ -4048,13 +4127,14 @@ function concLabelOf(c){
 function breakConcentration(caster, reason){
   const olds=concEntriesOf(caster.id);
   if(!olds.length) return false;
+  const casterName=caster.name||caster.n||'Существо';
   const names=olds.map(o=>o.a.label).filter((v,i,a)=>a.indexOf(v)===i);
   olds.forEach(o=>{ if(!o.foe) detachActiveFx(o.ch,o.a); o.ch.activeFx=o.ch.activeFx.filter(x=>x.uid!==o.a.uid); });
   fxInvalidate();
   olds.filter(o=>!o.foe).forEach(o=>{ syncStackedGrants(o.ch); o.ch.hp=Math.min(+o.ch.hp||0, eHpMax(o.ch)); });
   scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
-  setStatus('🧠✕ Концентрация '+caster.name+' на «'+names.join('», «')+'» прервана: '+reason+'.');
-  if(typeof castLogLine==='function') castLogLine(caster.name+': концентрация на «'+names.join('», «')+'» прервана ('+reason+')');
+  setStatus('🧠✕ Концентрация '+casterName+' на «'+names.join('», «')+'» прервана: '+reason+'.');
+  if(typeof castLogLine==='function') castLogLine(casterName+': концентрация на «'+names.join('», «')+'» прервана ('+reason+')');
   return true;
 }
 function concAdvantage(c){
@@ -5166,7 +5246,7 @@ function castFormulaShow(){
     ? foeActionSpecOf(actor,foeActionOf(actor,castCtx.actionId),ti,distanceOpts)
     : castCtx.kind==='weapon'
     ? weaponSpecOf(caster, itemOf(castCtx.itemId), ti,
-      Object.assign({two:castCtx.two,mode:castCtx.mode,entryId:castCtx.entryId},distanceOpts))
+      Object.assign({two:castCtx.two,mode:castCtx.mode,entryId:castCtx.entryId,offhand:!!castCtx.offhand},distanceOpts))
     : rollSpecOf(rec,Object.assign({caster, kind:castCtx.kind==='item'?'item':(isSpell?'spell':'ability'),
       slotLvl:lv, target:ti, weapon, pool},distanceOpts));
   if(!spec.rows.length) return false;
@@ -5527,6 +5607,7 @@ function castLogLine(txt){
   page.text=(page.text?page.text+'\n':'')+hm+' · '+txt;
   if(typeof scheduleJournalSave==='function') scheduleJournalSave();
   if(typeof renderJournal==='function') renderJournal();
+  if(combat&&combat.active){ combatLog(txt,'action',combatFocusedKey()); if(typeof renderCombat==='function') renderCombat(); }
 }
 function slotPlanFor(caster,sp,slotSel){
   if(sp.l===0) return {ok:true,mode:'cantrip',lv:0,info:''};
@@ -5646,6 +5727,7 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rol
   if(Array.isArray(rolls)){ extraTargets=rolls; rolls=null; }
   const sp=spellOf(spellId), caster=getCh(casterId);
   if(!sp||!caster||!target) return false;
+  if(!combatCastPreflight()) return false;
 
   /* ══ Фаза 1 — только проверки. До ее конца мир не меняется. ══ */
   const chk=canCastCheck(caster, sp);
@@ -5687,7 +5769,11 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rol
   extras.forEach(v=>consumeOutcomeRollFx(caster,v,rollsByTarget&&rollsByTarget[v]));
   endTriggeredSpellEffects(caster,'spell');
   if(isConc&&concLabelOf(caster)) breakConcentration(caster,'начато новое заклинание концентрации «'+sp.n+'»');
-  if(SPECIAL_CAST[sp.n]) return SPECIAL_CAST[sp.n](sp,caster,target,usedSlotLvl,specialPlan,slotPlan.info,matPlan.info);
+  if(SPECIAL_CAST[sp.n]){
+    const ok=SPECIAL_CAST[sp.n](sp,caster,target,usedSlotLvl,specialPlan,slotPlan.info,matPlan.info);
+    if(ok) combatCommitSpellAction(sp);
+    return ok;
+  }
 
   const castId=castUid(), power=usedSlotLvl||0;
   const durWhy=(isConc?' · концентрация':'')+(sp.d&&!/мгновенн/i.test(sp.d)?' · '+sp.d:'');
@@ -5769,6 +5855,7 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rol
       const rr=rollsByTarget&&rollsByTarget[v]||((i===0||shared)?rolls:null);
       if(rr&&rr.verdict&&rr.verdict.length) castLogLine('    '+names[i]+': '+rr.verdict.join(' | '));
     });
+    combatCommitSpellAction(sp);
     return true;
   }
 
@@ -5796,6 +5883,7 @@ function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rol
   setStatus('⚡ «'+sp.n+'» наложено на: '+tl+' (СЛ спасброска '+spellDC(caster)+')'+matPlan.info+slotPlan.info+rollInfo+'.');
   castLogLine(caster.name+' → '+tl+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy+matPlan.info+slotPlan.info+rollInfo);
   if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
+  combatCommitSpellAction(sp);
   return true;
 }
 function toggleAbilityFx(abilityId){
@@ -5940,6 +6028,7 @@ function useItemApply(entryId, casterId, target, rolls){
   const caster=getCh(casterId); if(!caster) return false;
   const e=(caster.inventory||[]).find(x=>x.id===entryId); if(!e) return false;
   const it=itemOf(e.itemId); if(!it||!target) return false;
+  if(!combatCastPreflight()) return false;
   const chk=canUseItemCheck(caster,e,it);
   if(!chk.ok){ setStatus('✕ '+chk.reason,true); castShowErr&&castShowErr(chk.reason); return false; }
   const sp=itemSpec(it), ch=invCharges(e,it);
@@ -5983,6 +6072,7 @@ function useItemApply(entryId, casterId, target, rolls){
   setStatus('⚗ «'+it.n+'» применено (цель: '+tl+')'+cost+info+'.');
   castLogLine('⚗ '+caster.name+' → '+tl+': предмет «'+it.n+'»'+cost+info);
   if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
+  combatCommitCastAction('Предмет «'+it.n+'»');
   return true;
 }
 /* временные хиты по правилам 5e: не складываются, остается большее */
@@ -6316,6 +6406,7 @@ function weaponSpecOf(caster, it, ti, opts){
   const tags=it.tags||[];
   const useDex=w.ranged||(w.finesse&&eMod(caster,'dex')>=eMod(caster,'str'));
   const abm=useDex?eMod(caster,'dex'):eMod(caster,'str');
+  const dmgAb=opts.offhand?Math.min(0,abm):abm; /* 5e: вторая рука не добавляет положительный модификатор к урону */
   const hasProf=(typeof weaponProfHas==='function')?weaponProfHas(caster,it):true;
   const wb=weaponBonusOf(it), duel=duelingBonusOf(caster,it,opts);
   const atk=abm+(hasProf?PROF[caster.level]:0)+fxSum(caster,'atk')+wb.atk;
@@ -6341,12 +6432,12 @@ function weaponSpecOf(caster, it, ti, opts){
       addTo:'atk',sign:d[1]?-1:1,consume:f.consume||'',sourceUid:f.sourceUid||null,
       label:f.label+': '+(d[1]?'-':'')+Math.max(1,+d[2]||1)+'d'+d[3], hint:'кость действующего эффекта — прибавьте к атаке'});
   });
-  if(sides) rows.push({key:'dmg', type:'dmg', side:'caster', cnt, sides, mod:abm+flat+fxSum(caster,'dmg')+wb.dmg+duel,
+  if(sides) rows.push({key:'dmg', type:'dmg', side:'caster', cnt, sides, mod:dmgAb+flat+fxSum(caster,'dmg')+wb.dmg+duel,
     modLabel:'характеристика'+(flat?' и свойство оружия':''), dmgType:dmgTypeCanon(it.dmgType),
-    label:'Урон: сумма '+cnt+'d'+sides, hint:'от '+cnt+' до '+(cnt*sides)+' · + '+(abm+flat+fxSum(caster,'dmg')+wb.dmg+duel)+' · при критическом ударе кости бросаются дважды'});
-  else rows.push({key:'dmg', type:'dmg', side:'caster', cnt:0, sides:0, mod:abm+flat+fxSum(caster,'dmg')+wb.dmg+duel,fixed:!!fixed,
+    label:'Урон: сумма '+cnt+'d'+sides, hint:'от '+cnt+' до '+(cnt*sides)+' · + '+(dmgAb+flat+fxSum(caster,'dmg')+wb.dmg+duel)+(opts.offhand?' (без положительного мод. второй руки)':'')+' · при критическом ударе кости бросаются дважды'});
+  else rows.push({key:'dmg', type:'dmg', side:'caster', cnt:0, sides:0, mod:dmgAb+flat+fxSum(caster,'dmg')+wb.dmg+duel,fixed:!!fixed,
     dmgType:dmgTypeCanon(it.dmgType), label:fixed?'Фиксированный урон':'Урон: впишите итог',
-    hint:fixed?'база '+fixed+' + характеристика '+abm+(fxSum(caster,'dmg')?' + эффекты '+fxSum(caster,'dmg'):''):'у оружия не указана кость урона'});
+    hint:fixed?'база '+fixed+' + характеристика '+dmgAb+(fxSum(caster,'dmg')?' + эффекты '+fxSum(caster,'dmg'):''):'у оружия не указана кость урона'});
   rows.push({key:'extra', type:'extra', side:'caster', mod:0, label:'Прочий бросок (по решению мастера)', hint:'необязательно'});
   return {rows, meta};
 }
@@ -6368,6 +6459,7 @@ function ammoEntryFor(c, it){
 }
 function weaponAttackApply(entryId, casterId, target, rolls){
   const caster=getCh(casterId); if(!caster) return false;
+  if(!combatCastPreflight()) return false;
   const block=ACTION_BLOCK_CONDS.find(n=>effectiveConditions(caster).indexOf(n)>=0);
   if(block){ const msg='Состояние «'+block+'» не позволяет совершить атаку.'; setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false; }
   const e=invEntryOf(caster,entryId); if(!e) return false;
@@ -6392,6 +6484,7 @@ function weaponAttackApply(entryId, casterId, target, rolls){
   fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
   itemLog(caster,'⚔ '+caster.name+' → '+tl+': '+it.n+cost+info);
   if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
+  combatCommitCastAction('Атака: '+it.n);
   return true;
 }
 function ammoRecover(entryId){
@@ -6837,8 +6930,9 @@ const chWorld=makeChan('мир','w',
   });
 const chCamp=makeChan('кампания','c',
   ()=>{ const b=syncBase(), r=syncRoom(); return (b&&r)? b+'/campaigns/'+r+'.json' : null; },
-  ()=>({ chars, journal }),
-  (d)=>{ chars=(d.chars||[]).map(x=>typeof upgradeChar3==='function'?upgradeChar3(x):x); journal=d.journal||[]; renderChars(); renderJournal(); });
+  ()=>({ chars, journal, combat }),
+  (d)=>{ chars=(d.chars||[]).map(x=>typeof upgradeChar3==='function'?upgradeChar3(x):x); journal=d.journal||[];
+    combat=normalizeCombatState(d.combat); if(typeof combatRepairRuntime==='function') combatRepairRuntime(); renderChars(); renderCombat(); renderJournal(); });
 const syncChans=[chWorld, chCamp];
 
 /* ─── применение чужих правок ─── */
@@ -6852,6 +6946,7 @@ async function syncPersistLocal(){
   await store.set('dndworld2:rules',   JSON.stringify(rulesDB));
   await store.set('dndworld2:foes',    JSON.stringify(foesDB));
   await store.set('dndworld2:journal', JSON.stringify(journal));
+  await store.set('dndworld2:combat',  JSON.stringify(combat));
 }
 function syncApplyRemote(ch,msg){
   const ae=document.activeElement;   /* не сбивать набор текста */
@@ -7415,6 +7510,7 @@ function endTriggeredFoeEffects(f,trigger){
 function foeActionApply(foeId,actionId,target,rolls){
   const f=foeOf(foeId), a=foeActionOf(f,actionId);
   if(!f||!a||!target) return false;
+  if(!combatCastPreflight()) return false;
   if((a.kind==='attack'||a.save)&&!rolls){ const msg='Сначала заполните формулу действия и подтвердите реальные броски.'; setStatus('✕ '+msg,true); return false; }
   if(!foeAlive(f)){ const msg='«'+f.n+'» повержен и не может действовать.'; setStatus('✕ '+msg,true); if(typeof castShowErr==='function') castShowErr(msg); return false; }
   const block=ACTION_BLOCK_CONDS.find(n=>effectiveFoeConditions(f).indexOf(n)>=0);
@@ -7441,6 +7537,7 @@ function foeActionApply(foeId,actionId,target,rolls){
   const line='☠ '+f.n+' → '+(ti.name||'цель')+': '+a.n+info;
   setStatus(line+'.'); castLogLine(line);
   if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
+  combatCommitCastAction('Действие: '+a.n);
   return true;
 }
 function csvArr(s){ return String(s||'').split(/[,;]/).map(x=>x.trim()).filter(Boolean); }
@@ -7659,10 +7756,496 @@ function renderRules(){
   document.getElementById('tab-rules').innerHTML = h;
 }
 
-/* ═══════════════ ЖУРНАЛ КАМПАНИИ ═══════════════ */
+/* ═══════════════ БОЕВОЙ ПУЛЬТ ═══════════════ */
+function combatEntryKey(e){ return e?e.kind+':'+e.id:''; }
+function combatActorByKey(key){
+  if(!key) return null;
+  const p=String(key).split(':'), kind=p.shift(), id=p.join(':');
+  return kind==='ally'?getCh(id):(kind==='foe'?foeOf(id):null);
+}
+function combatEntryByKey(key){ return (combat.order||[]).find(e=>combatEntryKey(e)===key)||null; }
+function combatActorName(key){ const o=combatActorByKey(key); return o?(o.name||o.n||'—'):'—'; }
+function combatActorAlive(key){ const o=combatActorByKey(key); return !!o&&(+o.hp||0)>0; }
+function combatActorHasTurn(key){
+  const e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||!o) return false;
+  return e.kind==='ally'?((+(o.deaths&&o.deaths.f)||0)<3):foeAlive(o);
+}
+function combatCurrentEntry(){ return combat.active&&combat.order.length?combat.order[combat.turnIndex]||null:null; }
+function combatCurrentKey(){ return combatEntryKey(combatCurrentEntry()); }
+function combatFocusedKey(){ return combat.focusKey&&combatEntryByKey(combat.focusKey)?combat.focusKey:combatCurrentKey(); }
+function combatRepairRuntime(){
+  combat=normalizeCombatState(combat);
+  combat.order=combat.order.filter(e=>e&&((e.kind==='ally'&&getCh(e.id))||(e.kind==='foe'&&foeOf(e.id))));
+  if(!combat.order.length){ combat.active=false; combat.turn=null; combat.turnIndex=0; return combat; }
+  combat.turnIndex=Math.max(0,Math.min(+combat.turnIndex||0,combat.order.length-1));
+  if(combat.active){
+    const key=combatCurrentKey(),prior=combat.turn||{};
+    combat.turn=Object.assign({actorKey:key,actionUsed:false,actionKind:'',attacksUsed:0,attackMax:combatAttackCount(key),bonusUsed:false,objectUsed:false,movementUsed:0,dash:false,disengage:false,spellCasts:[],bonusSpellUsed:false},prior);
+    combat.turn.spellCasts=Array.isArray(combat.turn.spellCasts)?combat.turn.spellCasts:[];
+    combat.turn.actorKey=key; if(!combat.turn.attackMax) combat.turn.attackMax=combatAttackCount(key); if(!combatEntryByKey(combat.focusKey)) combat.focusKey=key;
+  }
+  return combat;
+}
+function combatActorMaxHp(key){ const e=combatEntryByKey(key),o=combatActorByKey(key); return !o?1:(e&&e.kind==='ally'?eHpMax(o):Math.max(1,+o.hpMax||1)); }
+function combatActorAc(key){
+  const e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||!o) return 0;
+  return e.kind==='ally'?acTotal(o):Math.max(0,(+o.ac||10)+foeFxSum(o,'ac'));
+}
+function combatActorSpeed(key){ const e=combatEntryByKey(key),o=combatActorByKey(key); if(!o) return '—'; if(e.kind==='ally') return speedTotal(o); const raw=o.speed||'—'; return effectiveFoeConditions(o).some(n=>n==='Захваченный'||n==='Опутанный')?('0 '+(/фут/i.test(raw)?'футов':'м')):raw; }
+function combatActorConditions(key){ const e=combatEntryByKey(key),o=combatActorByKey(key); return !o?[]:(e.kind==='ally'?effectiveConditions(o):effectiveFoeConditions(o)); }
+function combatLog(text,kind,actorKey){
+  if(!combat||!String(text||'').trim()) return null;
+  const now=new Date(), e={id:'cl_'+uid(),at:now.toISOString(),round:+combat.round||0,
+    turn:(+combat.turnIndex||0)+1,actorKey:actorKey||'',kind:kind||'action',text:String(text)};
+  combat.log=combat.log||[]; combat.log.push(e); if(combat.log.length>1000) combat.log.splice(0,combat.log.length-1000);
+  return e;
+}
+function combatSnapshotOf(entry){
+  const key=combatEntryKey(entry),o=combatActorByKey(key); if(!o) return null;
+  const snap={hp:+o.hp||0,hpTemp:+o.hpTemp||0,hpMax:combatActorMaxHp(key),ac:combatActorAc(key),speed:combatActorSpeed(key),
+    cond:combatActorConditions(key).slice().sort(),fx:(o.activeFx||[]).map(x=>x.label||x.id||x.k).filter(Boolean).sort()};
+  if(entry.kind==='ally'){
+    snap.deaths=(+(o.deaths&&o.deaths.s)||0)+'/'+(+(o.deaths&&o.deaths.f)||0);
+    snap.exhaustion=+o.exhaustion||0; snap.inspiration=!!o.inspiration;
+    snap.slots={}; Object.keys(o.slots||{}).sort().forEach(k=>{ const s=o.slots[k]||{}; snap.slots[k]=(+s.cur||0)+'/'+(+s.max||0); });
+    snap.abilities={}; (o.abilities||[]).forEach(x=>{ const a=abilityOf(x.abilityId); if(a&&a.uses!=null) snap.abilities[x.abilityId]=(x.cur==null?a.uses:x.cur)+'/'+a.uses; });
+    snap.inventory={}; (o.inventory||[]).forEach(x=>{ const it=itemOf(x.itemId); if(!it) return; const ch=invCharges(x,it); snap.inventory[x.id]=(it.n||x.itemId)+' ×'+(+x.qty||0)+(x.ammoCur!=null?' · боеприпасы '+x.ammoCur:'')+(ch?' · заряды '+ch.cur+'/'+ch.max:'')+(x.kit!=null?' · набор '+x.kit:'')+(x.att?' · настроен':''); });
+    snap.equipment={}; Object.keys(o.equipment||{}).sort().forEach(k=>{ const x=invEntryOf(o,o.equipment[k]),it=x&&itemOf(x.itemId); snap.equipment[k]=it?it.n:''; });
+  }
+  return snap;
+}
+function combatMapDelta(before,after,label){
+  before=before||{}; after=after||{}; const out=[];
+  [...new Set(Object.keys(before).concat(Object.keys(after)))].sort().forEach(k=>{
+    if(String(before[k]||'')!==String(after[k]||'')) out.push(label+' '+k+': '+(before[k]==null?'—':before[k])+'→'+(after[k]==null?'—':after[k]));
+  });
+  return out;
+}
+function combatSyncChanges(){
+  if(!combat||!combat.active) return false;
+  combat.snapshots=combat.snapshots||{}; let changed=false;
+  (combat.order||[]).forEach(entry=>{
+    const key=combatEntryKey(entry),now=combatSnapshotOf(entry),was=combat.snapshots[key]; if(!now) return;
+    if(was){
+      const bits=[];
+      if(was.hp!==now.hp) bits.push('хиты '+was.hp+'→'+now.hp);
+      if(was.hpTemp!==now.hpTemp) bits.push('врем. хиты '+was.hpTemp+'→'+now.hpTemp);
+      if(was.hpMax!==now.hpMax) bits.push('макс. хиты '+was.hpMax+'→'+now.hpMax);
+      if(was.ac!==now.ac) bits.push('КД '+was.ac+'→'+now.ac);
+      if(was.speed!==now.speed) bits.push('скорость '+was.speed+'→'+now.speed);
+      if(was.exhaustion!==now.exhaustion) bits.push('истощение '+(was.exhaustion||0)+'→'+(now.exhaustion||0));
+      if(was.inspiration!==now.inspiration) bits.push('вдохновение '+(was.inspiration?'есть':'нет')+'→'+(now.inspiration?'есть':'нет'));
+      if(was.deaths!==now.deaths) bits.push('спасброски смерти (успех/провал) '+(was.deaths||'0/0')+'→'+(now.deaths||'0/0'));
+      if(JSON.stringify(was.cond)!==JSON.stringify(now.cond)) bits.push('состояния: '+(was.cond.join(', ')||'нет')+' → '+(now.cond.join(', ')||'нет'));
+      if(JSON.stringify(was.fx)!==JSON.stringify(now.fx)) bits.push('эффекты: '+(was.fx.join(', ')||'нет')+' → '+(now.fx.join(', ')||'нет'));
+      bits.push(...combatMapDelta(was.slots,now.slots,'ячейка'));
+      bits.push(...combatMapDelta(was.abilities,now.abilities,'ресурс'));
+      bits.push(...combatMapDelta(was.inventory,now.inventory,'запас'));
+      bits.push(...combatMapDelta(was.equipment,now.equipment,'слот'));
+      if(bits.length){ combatLog(combatActorName(key)+': '+bits.join(' · '),'change',key); changed=true; }
+    }
+    combat.snapshots[key]=now;
+  });
+  if(changed&&typeof renderCombat==='function') renderCombat();
+  return changed;
+}
+function combatEnsureSetup(){
+  combat.setup=combat.setup||{};
+  chars.forEach(c=>{ const k='ally:'+c.id; if(!combat.setup[k]) combat.setup[k]={selected:(+c.hp||0)>0,nat:''}; });
+  foesDB.forEach(f=>{ const k='foe:'+f.id; if(!combat.setup[k]) combat.setup[k]={selected:foeAlive(f),nat:''}; });
+}
+function combatSetupToggle(key,on){ combatEnsureSetup(); combat.setup[key].selected=!!on; }
+function combatSetupRoll(key,v){
+  combatEnsureSetup(); combat.setup[key].nat=v;
+  const e=document.getElementById('combatInitTotal_'+combatDomKey(key)),o=combatActorByKey(key),kind=key.indexOf('ally:')===0?'ally':'foe';
+  const n=+v,modi=o?(kind==='ally'?initTotal(o):foeAbMod(o,'dex')):0;
+  if(e) e.textContent=(Number.isInteger(n)&&n>=1&&n<=20)?String(n+modi):'—';
+}
+function combatStart(entries,name){
+  if(combat.active){ setStatus('✕ Текущий бой нужно сначала завершить.',true); return false; }
+  combatEnsureSetup();
+  const raw=Array.isArray(entries)?entries:Object.keys(combat.setup).filter(k=>combat.setup[k].selected).map(k=>{
+    const p=k.split(':'); return {kind:p[0],id:p.slice(1).join(':'),nat:+combat.setup[k].nat};
+  });
+  const seen={},order=[];
+  raw.forEach((x,seq)=>{
+    if(!x) return; const kind=x.kind||(String(x.key||'').split(':')[0]),id=x.id||String(x.key||'').split(':').slice(1).join(':');
+    const key=kind+':'+id,o=combatActorByKey(key),nat=+x.nat; if(!o||seen[key]) return; seen[key]=1;
+    if(!Number.isInteger(nat)||nat<1||nat>20) return;
+    const modi=kind==='ally'?initTotal(o):foeAbMod(o,'dex');
+    order.push({kind,id,nat,mod:modi,initiative:nat+modi,reactionUsed:false,seq});
+  });
+  const selectedCount=raw.filter(Boolean).length;
+  if(order.length!==selectedCount){ setStatus('✕ Для каждого участника нужен целый результат d20 от 1 до 20.',true); return false; }
+  if(order.length<2||!order.some(x=>x.kind==='ally')||!order.some(x=>x.kind==='foe')){
+    setStatus('✕ Для боя выберите минимум одного героя и одного противника.',true); return false;
+  }
+  order.sort((a,b)=>(b.initiative-a.initiative)||(a.seq-b.seq));
+  const history=(combat.history||[]).slice();
+  if((combat.log||[]).length) history.unshift({id:combat.id||'combat_'+uid(),name:combat.name||'Схватка',startedAt:combat.startedAt,endedAt:combat.endedAt,log:combat.log.slice()});
+  if(history.length>20) history.length=20;
+  combat=blankCombat(); combat.history=history; combat.active=true; combat.id='combat_'+uid();
+  combat.name=String(name||(document.getElementById('combatName')||{}).value||'Схватка').trim()||'Схватка';
+  combat.round=1; combat.turnIndex=0; combat.order=order; combat.startedAt=new Date().toISOString(); combat.focusKey=combatEntryKey(order[0]);
+  combat.snapshots={}; order.forEach(e=>{ combat.snapshots[combatEntryKey(e)]=combatSnapshotOf(e); });
+  combatLog('Бой «'+combat.name+'» начат. Инициатива: '+order.map(e=>combatActorName(combatEntryKey(e))+' '+e.nat+(e.mod?fmtMod(e.mod):'')+' = '+e.initiative).join('; '),'round');
+  const tied={}; order.forEach(e=>(tied[e.initiative]=tied[e.initiative]||[]).push(e));
+  Object.keys(tied).forEach(k=>{ if(tied[k].length>1) combatLog('Ничья инициативы '+k+': '+tied[k].map(e=>combatActorName(combatEntryKey(e))).join(', ')+'. Мастер может переставить их стрелками.','round'); });
+  combatBeginTurn(); scheduleSave(); renderCombat(); return true;
+}
+function combatClearStartEffects(key){
+  const o=combatActorByKey(key); if(!o) return;
+  const before=(o.activeFx||[]).length; o.activeFx=(o.activeFx||[]).filter(x=>x.combatUntilTurn!==key);
+  if(o.activeFx.length!==before) fxInvalidate();
+}
+function combatBeginTurn(){
+  const e=combatCurrentEntry(); if(!e) return false; const key=combatEntryKey(e);
+  if(e.ready){ combatLog(combatActorName(key)+': срок подготовленного действия истек.','change',key); delete e.ready; }
+  combatClearStartEffects(key); e.reactionUsed=false; combat.focusKey=key;
+  combat.turn={actorKey:key,actionUsed:false,actionKind:'',attacksUsed:0,attackMax:combatAttackCount(key),bonusUsed:false,objectUsed:false,movementUsed:0,dash:false,disengage:false,spellCasts:[],bonusSpellUsed:false,startedAt:new Date().toISOString()};
+  if(e.kind==='ally') activeCharId=e.id;
+  combatLog('Ход: '+combatActorName(key),'round',key); return true;
+}
+function combatFocus(key){ if(!combatEntryByKey(key)) return; combat.focusKey=key; renderCombat(); }
+function combatMoveOrder(index,delta){
+  const to=index+delta; if(!combat.active||index<0||to<0||index>=combat.order.length||to>=combat.order.length) return false;
+  if(combat.order[index].initiative!==combat.order[to].initiative){ setStatus('✕ По правилам 5e вручную решается только ничья инициативы.',true); return false; }
+  const cur=combatCurrentKey(),x=combat.order[index]; combat.order.splice(index,1); combat.order.splice(to,0,x);
+  combat.turnIndex=Math.max(0,combat.order.findIndex(e=>combatEntryKey(e)===cur));
+  combatLog('Порядок инициативы уточнен: '+combatActorName(combatEntryKey(x))+' перемещен.','round');
+  scheduleSave(); renderCombat(); return true;
+}
+function combatNextTurn(){
+  if(!combat.active||!combat.order.length) return false;
+  if(castCtx||rollSpec){ setStatus('✕ Сначала завершите или отмените текущую формулу.',true); return false; }
+  const old=combat.turnIndex; combatLog('Ход завершен: '+combatActorName(combatCurrentKey()),'round',combatCurrentKey());
+  let idx=old,wrapped=false,found=-1;
+  for(let i=0;i<combat.order.length;i++){ idx=(idx+1)%combat.order.length; if(idx===0) wrapped=true; if(combatActorHasTurn(combatEntryKey(combat.order[idx]))){ found=idx; break; } }
+  if(found<0){ setStatus('✕ Нет дееспособных участников.',true); return false; }
+  if(wrapped){ combat.round++; advanceFxRound(1); combatLog('Раунд '+combat.round+' начат.','round'); }
+  combat.turnIndex=found; combatBeginTurn(); scheduleSave(); renderCombat(); return true;
+}
+function combatVictoryText(){
+  if(!combat.active) return '';
+  const a=combat.order.some(e=>e.kind==='ally'&&combatActorAlive(combatEntryKey(e)));
+  const f=combat.order.some(e=>e.kind==='foe'&&combatActorAlive(combatEntryKey(e)));
+  return !a?'Все герои выбыли — противники победили.':(!f?'Все противники повержены — герои победили.':'');
+}
+function combatEnd(force){
+  if(!combat.active) return false;
+  if(!force&&!window.confirm('Завершить бой? Хиты, состояния и израсходованные ресурсы останутся на листах.')) return false;
+  const verdict=combatVictoryText(); combatLog('Бой «'+combat.name+'» завершен'+(verdict?' · '+verdict:''),'round');
+  encounterEnd(); combat.active=false; combat.endedAt=new Date().toISOString(); combat.turn=null; scheduleSave(); renderCombat(); return true;
+}
+function combatAttackCount(key){
+  const e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||!o||e.kind!=='ally') return 1;
+  const lv=+o.level||1,cl=String(o.cls||''); let n=1;
+  if(/Воин/.test(cl)) n=lv>=20?4:(lv>=11?3:(lv>=5?2:1));
+  else if(/(Варвар|Монах|Паладин|Следопыт)/.test(cl)&&lv>=5) n=2;
+  (o.abilities||[]).forEach(x=>{ const a=abilityOf(x.abilityId); if(!a) return; const m=String(a.n||'').match(/Дополнительная атака(?:\s*\((\d+)\))?/i); if(m) n=Math.max(n,(m[1]?+m[1]+1:2)); });
+  return n;
+}
+function combatCostLabel(cost){ return {action:'действие',attack:'действие Атака',offhand:'бонусная атака второй рукой',bonus:'бонусное действие',reaction:'реакция',object:'взаимодействие',turnfree:'без затраты действия',free:'без затрат',long:'дольше одного хода'}[cost]||cost; }
+function combatCanSpend(cost,actorKey,quiet){
+  actorKey=actorKey||combatFocusedKey(); const e=combatEntryByKey(actorKey),current=actorKey===combatCurrentKey();
+  let ok=!!(combat.active&&e&&combatActorAlive(actorKey));
+  if(ok&&ACTION_BLOCK_CONDS.some(n=>combatActorConditions(actorKey).indexOf(n)>=0)) ok=false;
+  if(ok&&cost==='reaction') ok=!e.reactionUsed;
+  else if(ok&&cost==='action') ok=current&&combat.turn&&!combat.turn.actionUsed;
+  else if(ok&&cost==='attack') ok=current&&combat.turn&&((!combat.turn.actionUsed)||(combat.turn.actionKind==='attack'&&(+combat.turn.attacksUsed||0)<(+combat.turn.attackMax||1)));
+  else if(ok&&cost==='offhand') ok=current&&combat.turn&&!combat.turn.bonusUsed&&combat.turn.actionKind==='attack'&&(+combat.turn.attacksUsed||0)>0;
+  else if(ok&&cost==='bonus') ok=current&&combat.turn&&!combat.turn.bonusUsed;
+  else if(ok&&cost==='object') ok=current&&combat.turn&&!combat.turn.objectUsed;
+  else if(ok&&cost==='turnfree') ok=current;
+  else if(ok&&cost==='long') ok=false;
+  else if(ok&&cost!=='free') ok=false;
+  if(!ok&&!quiet) setStatus('✕ Недоступно: '+combatCostLabel(cost)+'. Проверьте очередь и ресурсы хода.',true);
+  return ok;
+}
+function combatSpend(cost,label,actorKey){
+  actorKey=actorKey||combatFocusedKey(); if(!combatCanSpend(cost,actorKey)) return false;
+  const e=combatEntryByKey(actorKey);
+  if(cost==='reaction') e.reactionUsed=true;
+  else if(cost==='action'){ combat.turn.actionUsed=true; combat.turn.actionKind='other'; }
+  else if(cost==='attack'){
+    combat.turn.actionUsed=true; combat.turn.actionKind='attack'; combat.turn.attacksUsed=(+combat.turn.attacksUsed||0)+1;
+  }
+  else if(cost==='bonus') combat.turn.bonusUsed=true;
+  else if(cost==='offhand') combat.turn.bonusUsed=true;
+  else if(cost==='object') combat.turn.objectUsed=true;
+  const attackInfo=cost==='attack'?' · атака '+combat.turn.attacksUsed+'/'+combat.turn.attackMax:'';
+  combatLog(combatActorName(actorKey)+': '+label+' [затрата: '+combatCostLabel(cost)+attackInfo+']','action',actorKey);
+  scheduleSave(); renderCombat(); return true;
+}
+function combatCastPreflight(){
+  if(!castCtx||!castCtx.combatCost||castCtx.combatCommitted) return true;
+  if(castCtx.kind==='spell'){
+    const sp=spellOf(castCtx.spellId); if(sp&&!combatSpellTurnAllowed(sp,castCtx.combatCost,castCtx.combatActorKey)) return false;
+  }
+  return combatCanSpend(castCtx.combatCost,castCtx.combatActorKey);
+}
+function combatCommitCastAction(fallback){
+  if(!castCtx||!castCtx.combatCost||castCtx.combatCommitted) return true;
+  const ok=combatSpend(castCtx.combatCost,castCtx.combatLabel||fallback||'Действие',castCtx.combatActorKey);
+  if(ok) castCtx.combatCommitted=true; return ok;
+}
+function combatPrimeCast(actorKey,cost,label,open){
+  if(!combatCanSpend(cost,actorKey)) return false; open();
+  if(castCtx){ castCtx.combatActorKey=actorKey; castCtx.combatCost=cost; castCtx.combatLabel=label; castCtx.combatCommitted=false; return true; }
+  return false;
+}
+function combatSpellCost(sp){ const t=normRollTxt(sp&&sp.t||''); if(/реакц/.test(t)) return 'reaction'; if(/бонусн/.test(t)) return 'bonus'; if(/минут|час|ритуал/.test(t)) return 'long'; return 'action'; }
+function combatSpellTurnAllowed(sp,cost,actorKey,quiet){
+  actorKey=actorKey||combatFocusedKey(); if(!combat.active||actorKey!==combatCurrentKey()||!combat.turn) return true;
+  const casts=combat.turn.spellCasts||[],isActionCantrip=(+sp.l||0)===0&&cost==='action'; let ok=true;
+  if(combat.turn.bonusSpellUsed) ok=isActionCantrip;
+  else if(cost==='bonus') ok=casts.every(x=>x.level===0&&x.cost==='action');
+  if(!ok&&!quiet) setStatus('✕ После заклинания бонусным действием в этот ход можно наложить еще только заговор со временем «1 действие» (5e 2014).',true);
+  return ok;
+}
+function combatCommitSpellAction(sp){
+  if(!castCtx||!castCtx.combatCost) return true; const actorKey=castCtx.combatActorKey,cost=castCtx.combatCost,wasCommitted=!!castCtx.combatCommitted;
+  const ok=combatCommitCastAction('Заклинание «'+sp.n+'»');
+  if(ok&&!wasCommitted&&combat.active&&actorKey===combatCurrentKey()&&combat.turn){
+    combat.turn.spellCasts=combat.turn.spellCasts||[];
+    combat.turn.spellCasts.push({id:sp.id,level:+sp.l||0,cost});
+    if(cost==='bonus') combat.turn.bonusSpellUsed=true;
+    scheduleSave(); renderCombat();
+  }
+  return ok;
+}
+function combatAbilityCost(ab){
+  const t=(ab&&ab.tags)||[],x=normRollTxt((ab&&ab.x)||'');
+  if(t.indexOf('reaction')>=0||/реакци/.test(x)) return 'reaction';
+  if(t.indexOf('bonusaction')>=0||/бонусным действием/.test(x)) return 'bonus';
+  if(/дополнительное действие|(?:если|когда) [^.]{0,90}(?:попадаете|совершаете атаку|бросок атаки)/.test(x)) return 'turnfree';
+  if(/в качестве действия|своим действием|действием вы/.test(x)) return 'action';
+  return t.indexOf('action')>=0?'action':'action';
+}
+function combatCastSpell(id){ const key=combatFocusedKey(),e=combatEntryByKey(key),sp=spellOf(id); if(!e||e.kind!=='ally'||!sp) return false; const cost=combatSpellCost(sp); if(!combatSpellTurnAllowed(sp,cost,key)) return false; return combatPrimeCast(key,cost,'Заклинание «'+sp.n+'»',()=>castSpellFx(id,e.id)); }
+function combatUseAbility(id){ const key=combatFocusedKey(),e=combatEntryByKey(key),ab=abilityOf(id); if(!e||e.kind!=='ally'||!ab) return false; return combatPrimeCast(key,combatAbilityCost(ab),'Способность «'+ab.n+'»',()=>abilityCastFx(id,e.id)); }
+function combatAbilityAfterApply(ab,casterId){
+  if(!combat.active||!ab||combatCurrentKey()!=='ally:'+casterId) return;
+  if(/дополнительное действие/.test(normRollTxt(ab.x||''))){
+    combat.turn.actionUsed=false; combat.turn.actionKind=''; combat.turn.attacksUsed=0;
+    combatLog(combatActorName('ally:'+casterId)+': получено дополнительное действие.','change','ally:'+casterId);
+  }
+}
+function combatUseItem(id){ const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key),x=o&&invEntryOf(o,id),it=x&&itemOf(x.itemId); if(!e||e.kind!=='ally'||!it) return false; return combatPrimeCast(key,'action','Предмет «'+it.n+'»',()=>itemCastFx(id,e.id)); }
+function combatWeapon(id,mode,cost,offhand){ const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key),x=o&&invEntryOf(o,id),it=x&&itemOf(x.itemId); if(!e||e.kind!=='ally'||!it) return false; cost=cost||'attack'; const ok=combatPrimeCast(key,cost,(offhand?'Атака второй рукой: ':'Атака: ')+it.n,()=>weaponAttackFx(id,e.id,mode||'melee')); if(ok&&castCtx) castCtx.offhand=!!offhand; return ok; }
+function combatFoeAction(id,cost){ const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key),a=o&&foeActionOf(o,id); if(!e||e.kind!=='foe'||!a) return false; cost=cost||'action'; return combatPrimeCast(key,cost,(cost==='reaction'?'Провокационная атака: ':'Действие: ')+a.n,()=>foeActionFx(e.id,id)); }
+function combatDodge(key){
+  const e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||!o) return;
+  const entry={k:'combat',id:'dodge',label:'Уклонение',from:o.name||o.n,combatUntilTurn:key,stackKey:'combat:dodge',power:0,
+    fx:[{stat:'incoming.attack',mode:'dis',value:1},{stat:'save.dex',mode:'adv',value:1}]};
+  if(e.kind==='ally') applyFxTo(e.id,entry); else applyFxToFoe(o,entry);
+}
+function combatSkillMod(key,skill,ab){ const e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||!o) return 0; if(e.kind==='foe') return foeAbMod(o,ab); const i=SKILLS.findIndex(x=>x[0]===skill); return i>=0?skillBonus(o,i).v:eMod(o,ab); }
+function combatOpponents(key){ const e=combatEntryByKey(key); return !e?[]:combat.order.filter(x=>x.kind!==e.kind&&combatActorAlive(combatEntryKey(x))); }
+function combatApplyConditionDirect(key,n,source){
+  const o=combatActorByKey(key); if(!o) return false; n=canonicalCondition(n);
+  if(holderConditionImmune(o,n)){ combatLog(combatActorName(key)+': «'+n+'» не наложено — иммунитет.','change',key); return false; }
+  o.cond=normalizeConditions((o.cond||[]).concat([n])); fxInvalidate();
+  combatLog(combatActorName(key)+': наложено состояние «'+n+'»'+(source?' ('+source+')':''),'change',key); return true;
+}
+function combatContestAction(kind){
+  const key=combatCurrentKey(); if(!combatCanSpend('attack',key)) return false;
+  const sel=document.getElementById('combatQuickTarget'),target=sel&&sel.value; if(!target||!combatEntryByKey(target)){ setStatus('✕ Выберите цель состязания.',true); return false; }
+  const defense=(document.getElementById('combatContestDefense')||{}).value||'ath',am=combatSkillMod(key,'Атлетика','str');
+  const dm=defense==='acr'?combatSkillMod(target,'Акробатика','dex'):combatSkillMod(target,'Атлетика','str');
+  const label=kind==='grapple'?'Захват':'Толчок: сбить с ног',condition=kind==='grapple'?'Захваченный':'Сбитый с ног';
+  askRolls({title:'⚔ '+label,note:combatActorName(key)+': Атлетика '+fmtMod(am)+' против '+combatActorName(target)+': '+(defense==='acr'?'Акробатика':'Атлетика')+' '+fmtMod(dm)+'. Ничья остается защищающемуся; размер и свободную руку проверяет мастер.',
+    rows:[{key:'a',label:combatActorName(key)+': d20 Атлетики',min:1,max:20},{key:'d',label:combatActorName(target)+': d20 '+(defense==='acr'?'Акробатики':'Атлетики'),min:1,max:20}],
+    compute:v=>label+': '+(v.a+am)+' против '+(v.d+dm)+' — '+(v.a+am>v.d+dm?'успех':'защита устояла'),
+    apply:v=>{ if(!combatCanSpend('attack',key)) return; const win=v.a+am>v.d+dm; if(win) combatApplyConditionDirect(target,condition,label); combatLog(combatActorName(key)+' → '+combatActorName(target)+': '+label+' · '+(v.a+am)+' против '+(v.d+dm)+' — '+(win?'успех':'провал'),'action',key); combatSpend('attack',label,key); }});
+  return true;
+}
+function combatCheckAction(code,label,skill,ab){
+  const key=combatCurrentKey(); if(!combatCanSpend('action',key)) return false; const m=combatSkillMod(key,skill,ab);
+  askRolls({title:'⚔ '+label+' — '+combatActorName(key),note:'d20 '+fmtMod(m)+'. Результат вписывает мастер.',rows:[{key:'d',label:'d20',min:1,max:20}],
+    compute:v=>label+': '+v.d+fmtMod(m)+' = '+(v.d+m),apply:v=>{ combatLog(combatActorName(key)+': '+label+' — d20 '+v.d+fmtMod(m)+' = '+(v.d+m),'action',key); combatSpend('action',label,key); }});
+  return true;
+}
+function combatBasicAction(code){
+  const key=combatCurrentKey(); if(code==='useobject'){ combat.uiGroup='items'; renderCombat(); return true; }
+  if(code==='hide') return combatCheckAction(code,'Засада / Скрытность','Скрытность','dex');
+  if(code==='search') return combatCheckAction(code,'Поиск / Внимательность','Внимательность','wis');
+  if(!combatCanSpend('action',key)) return false; let label='',note='';
+  if(code==='dash'){ label='Рывок'; combat.turn.dash=true; }
+  else if(code==='disengage'){ label='Отход'; combat.turn.disengage=true; }
+  else if(code==='dodge'){ label='Уклонение'; combatDodge(key); }
+  else if(code==='help'){ label='Помощь'; note=window.prompt('Кому и в чем оказана помощь?','')||''; if(!note) return false; }
+  else if(code==='ready'){ label='Подготовка'; note=window.prompt('Условие и подготовленное действие:','')||''; if(!note) return false; }
+  else if(code==='improvise'){ label='Импровизация'; note=window.prompt('Опишите действие и назначенную мастером проверку:','')||''; if(!note) return false; }
+  else return false;
+  const ok=combatSpend('action',label+(note?' — '+note:''),key);
+  if(ok&&code==='ready'){
+    const e=combatEntryByKey(key); e.ready={text:note,round:combat.round,at:new Date().toISOString()};
+    combatLog(combatActorName(key)+': подготовлено до начала следующего хода — '+note+'.','change',key);
+    scheduleSave(); renderCombat();
+  }
+  return ok;
+}
+function combatTriggerReady(key){
+  key=key||combatFocusedKey(); const e=combatEntryByKey(key);
+  if(!e||!e.ready||key===combatCurrentKey()) return false;
+  const text=e.ready.text;
+  if(!combatSpend('reaction','Исполнить подготовленное действие — '+text,key)) return false;
+  delete e.ready; combatLog(combatActorName(key)+': подготовленное действие исполнено.','change',key);
+  scheduleSave(); renderCombat(); return true;
+}
+function combatOpportunityBlocked(reactorKey){
+  return !!(combat.active&&combat.turn&&reactorKey!==combatCurrentKey()&&combat.turn.disengage);
+}
+function combatDeathSave(){
+  const key=combatCurrentKey(),e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||e.kind!=='ally'||!o||(+o.hp||0)>0) return false;
+  if((+(o.deaths&&o.deaths.f)||0)>=3){ setStatus('✕ '+o.name+' погиб: спасброски смерти больше не делаются.',true); return false; }
+  if((+(o.deaths&&o.deaths.s)||0)>=3){ setStatus(o.name+' стабилизирован: спасбросок не нужен.'); return false; }
+  activeCharId=o.id; deathSaveRoll(); return true;
+}
+function combatEquipCost(it){ const p=itemProfile(it); if(p.kind==='armor') return 'long'; if(p.kind==='shield') return 'action'; return 'object'; }
+function combatToggleEquip(entryId){
+  const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key),inv=o&&invEntryOf(o,entryId),it=inv&&itemOf(inv.itemId); if(!e||e.kind!=='ally'||!it||!it.slot) return false;
+  const cost=combatEquipCost(it); if(!combatCanSpend(cost,key)) return false; const before=JSON.stringify(o.equipment||{}),was=isEquipped(o,entryId); activeCharId=o.id; invEquipToggle(entryId);
+  if(before===JSON.stringify(o.equipment||{})) return false;
+  return combatSpend(cost,(was?'Снять / убрать: ':'Надеть / взять: ')+it.n,key);
+}
+function combatItemActionCost(a){ const l=String(a&&a.label||''); if(/Собрать после боя|Продать|Разбить лагерь/.test(l)) return 'long'; if(/Погасить|Зажечь|Открыть|Закрепить|Смотать|Прочитать/.test(l)) return 'object'; return 'action'; }
+function combatRunItemAction(entryId,index){
+  const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||e.kind!=='ally'||!o) return false;
+  const inv=invEntryOf(o,entryId),it=inv&&itemOf(inv.itemId),a=it&&itemActions(o,inv,it)[index]; if(!a) return false;
+  if(/^weaponAttackFx/.test(a.fn)){ const m=a.fn.match(/'(melee|throw)'\)$/); return combatWeapon(entryId,m?m[1]:'melee'); }
+  if(/^itemCastFx/.test(a.fn)) return combatUseItem(entryId);
+  const cost=combatItemActionCost(a); if(!combatCanSpend(cost,key)) return false;
+  const m=String(a.fn).match(/^([A-Za-z_$][\w$]*)\((.*)\)$/),args=[]; if(!m) return false;
+  String(m[2]).replace(/'([^']*)'/g,(_,v)=>{ args.push(v); return _; });
+  const calls={ammoRecover,lightToggle,oilUse,fireStart,trapScatter,poisonApply,toolCheck,healerKitStabilize,instrumentPlay,gamblePlay,loreRead,valuableSell,foodEat,waterDrink,campSet,ropeUse,writingUse,containerOpen,ritualBurn};
+  if(!calls[m[1]]) return false; activeCharId=o.id; const oldRoll=rollSpec; calls[m[1]](...args);
+  if(castCtx){ castCtx.combatActorKey=key; castCtx.combatCost=cost; castCtx.combatLabel=a.label; castCtx.combatCommitted=false; return true; }
+  if(rollSpec&&rollSpec!==oldRoll){ rollSpec.combatAction={actorKey:key,cost,label:a.label}; return true; }
+  return combatSpend(cost,a.label,key);
+}
+function combatInspectItem(entryId){ const key=combatFocusedKey(),o=combatActorByKey(key),e=o&&invEntryOf(o,entryId),it=e&&itemOf(e.itemId); if(!it) return; askShow({title:it.n,body:it.desc||it.props||'Описание не заполнено.',note:(it.dmg?'Урон: '+it.dmg+' '+(it.dmgType||''):'')}); }
+function combatSetGroup(g){ combat.uiGroup=g; renderCombat(); }
+function combatMoveSet(v){ if(!combat.active||!combat.turn) return; const n=Math.max(0,+v||0),max=combatMoveMax(),was=+combat.turn.movementUsed||0; combat.turn.movementUsed=Math.min(n,max); if(was!==combat.turn.movementUsed) combatLog(combatActorName(combat.turn.actorKey)+': перемещение '+was+'→'+combat.turn.movementUsed,'action',combat.turn.actorKey); scheduleSave(); renderCombat(); }
+function combatSpeedNumber(key){ const m=String(combatActorSpeed(key)).replace(',','.').match(/\d+(?:\.\d+)?/); return m?+m[0]:0; }
+function combatMoveMax(){ if(!combat.turn) return 0; return combatSpeedNumber(combat.turn.actorKey)*(combat.turn.dash?2:1); }
+function combatAdjustHp(key,mode){
+  const id=combatDomKey(key),el=document.getElementById('combatHpVal_'+id),n=Math.max(0,+(el&&el.value)||0); if(!n) return false;
+  const o=combatActorByKey(key); if(!o) return false; let result=null,info='';
+  if(mode==='damage'){ const dt=(document.getElementById('combatDmgType_'+id)||{}).value||''; const d=dmgAfterTraits(o,n,dt); result=applyDamageTo(key,d.amount,dt,'ручная правка'); info='урон '+n+(d.note?' → '+d.amount+' ('+d.note+')':''); }
+  else if(mode==='heal'){ result=applyHealTo(key,n,'ручная правка'); info='лечение +'+n; }
+  else if(mode==='temp'){ result=applyTempHp(key,n); info='временные хиты '+n; }
+  if(!result) return false; fxInvalidate(); scheduleSave(); renderChars(); renderFoes(); combatLog(combatActorName(key)+': '+info,'change',key); renderCombat(); return true;
+}
+function combatAddCondition(key){
+  const o=combatActorByKey(key),sel=document.getElementById('combatCondSel_'+combatDomKey(key)); if(!o||!sel||!sel.value) return false; const n=canonicalCondition(sel.value);
+  if(holderConditionImmune(o,n)){ setStatus('✕ '+combatActorName(key)+': иммунитет к состоянию «'+n+'».',true); return false; }
+  o.cond=normalizeConditions((o.cond||[]).concat([n]));
+  if(ACTION_BLOCK_CONDS.indexOf(n)>=0) breakConcentration(o,'состояние «'+n+'» делает существо недееспособным');
+  fxInvalidate(); scheduleSave(); renderChars(); renderFoes(); return true;
+}
+function combatRemoveCondition(key,n){ const o=combatActorByKey(key); if(!o) return; o.cond=normalizeConditions(o.cond).filter(x=>x!==n); fxInvalidate(); scheduleSave(); renderChars(); renderFoes(); }
+function combatRemoveEffect(key,uid2){ const e=combatEntryByKey(key); if(!e) return; if(e.kind==='ally') removeActiveFx(e.id,uid2); else removeFoeActiveFx(e.id,uid2); renderCombat(); }
+function combatAddNote(){ const el=document.getElementById('combatNote'),v=String(el&&el.value||'').trim(); if(!v) return; combatLog('Запись мастера: '+v,'action',combatFocusedKey()); if(el) el.value=''; scheduleSave(); renderCombat(); }
+function combatDomKey(key){ return String(key||'').replace(/[^a-zA-Z0-9_-]/g,'_'); }
+function combatLogHTML(list){
+  if(!list||!list.length) return '<div class="combat-log-empty">Журнал пока пуст.</div>';
+  return list.slice(-250).map(x=>'<div class="combat-log-entry '+esc(x.kind||'action')+'"><div class="stamp">'+(x.round?'раунд '+x.round+' · ':'')+esc(String(x.at||'').slice(11,16))+'</div>'+esc(x.text)+'</div>').join('');
+}
+function combatArchiveHTML(){
+  const battles=(combat.history||[]),pages=journal||[]; if(!battles.length&&!pages.length) return '';
+  let h='<details class="combat-panel" style="margin-top:10px"><summary style="cursor:pointer;color:#e8c873;font-family:var(--disp)">⚔ Архив боев и прежней хроники</summary><div style="margin-top:9px">';
+  battles.forEach(b=>{ h+='<details style="margin-bottom:6px"><summary style="cursor:pointer">'+esc(b.name||'Схватка')+' · '+esc(String(b.startedAt||'').slice(0,16).replace('T',' '))+'</summary><div class="combat-log" style="height:220px;margin-top:5px">'+combatLogHTML(b.log||[])+'</div></details>'; });
+  pages.slice().reverse().forEach(p=>{ h+='<details style="margin-bottom:6px"><summary style="cursor:pointer">'+esc(p.date||'')+' · '+esc(p.title||'Запись')+'</summary><div class="combat-log-entry" style="white-space:pre-wrap;margin-top:5px">'+esc(p.text||'')+'</div></details>'; });
+  return h+'</div></details>';
+}
+function combatSetupRows(kind,list){
+  return list.map(o=>{ const key=kind+':'+o.id,s=combat.setup[key]||{selected:false,nat:''},modi=kind==='ally'?initTotal(o):foeAbMod(o,'dex'),n=+s.nat,total=Number.isInteger(n)&&n>=1&&n<=20?n+modi:'—';
+    return '<div class="combat-setup-row"><input type="checkbox" '+(s.selected?'checked':'')+' onchange="combatSetupToggle(\''+key+'\',this.checked)"><span><b>'+esc(o.name||o.n)+'</b><small style="display:block;color:#aaa">'+(kind==='ally'?esc((o.cls||'')+' '+(o.level||1)+' ур.'):'КД '+(+o.ac||10)+' · '+(+o.hp||0)+'/'+(+o.hpMax||0))+'</small></span><input type="number" min="1" max="20" placeholder="d20" value="'+esc(s.nat)+'" oninput="combatSetupRoll(\''+key+'\',this.value)"><b id="combatInitTotal_'+combatDomKey(key)+'">'+total+'</b></div>';
+  }).join('');
+}
+function combatSetupHTML(){
+  combatEnsureSetup(); let h='<div class="combat-shell"><div class="combat-setup"><div class="combat-top"><div class="combat-title">⚔ Новый бой</div><span class="spacer"></span><span>Броски вводит мастер</span></div>';
+  h+='<div class="combat-callout">Выберите участников и впишите фактический результат d20. Модификаторы и итог рассчитываются реактивно; при ничьей порядок уточняет мастер.</div>';
+  h+='<label style="display:block;margin-bottom:10px">Название схватки <input id="combatName" style="width:100%;margin-top:4px" value="'+esc(combat.name||'Схватка')+'"></label>';
+  h+='<div class="combat-setup-grid"><div class="combat-setup-card"><h3>⚔ Герои <small>· d20 + инициа</small></h3>'+combatSetupRows('ally',chars)+'</div><div class="combat-setup-card"><h3>☠ Противники <small>· d20 + Ловк.</small></h3>'+combatSetupRows('foe',foesDB)+'</div></div>';
+  h+='<div style="text-align:center;margin:16px"><button class="btn rub" style="font-size:19px;padding:11px 28px" onclick="combatStart()">⚔ Начать бой</button></div>';
+  if((combat.log||[]).length) h+='<div class="combat-panel"><h3>Журнал последнего боя</h3><div class="combat-log" style="height:260px">'+combatLogHTML(combat.log)+'</div></div>';
+  h+=combatArchiveHTML(); return h+'</div></div>';
+}
+function combatActorCardHTML(entry){
+  const key=combatEntryKey(entry),o=combatActorByKey(key); if(!o) return ''; const mx=combatActorMaxHp(key),hp=+o.hp||0,p=Math.max(0,Math.min(100,Math.round(hp/mx*100))),conds=combatActorConditions(key),fx=(o.activeFx||[]);
+  const opts=CONDITIONS.map(x=>'<option value="'+esc(x.n)+'">'+esc(x.n)+'</option>').join('');
+  const types=['','дробящий','колющий','рубящий','огонь','холод','молния','кислота','яд','некротический','излучение','психический','силовое поле'].map(x=>'<option value="'+x+'">'+(x||'тип урона')+'</option>').join('');
+  return '<div class="combatant '+(key===combatCurrentKey()?'current ':'')+(!combatActorAlive(key)?'down':'')+'" onclick="combatFocus(\''+key+'\')"><div class="head"><b>'+esc(o.name||o.n)+'</b><span>КД '+combatActorAc(key)+'</span></div><div class="combat-hp"><i style="width:'+p+'%"></i></div><div class="meta">'+hp+' / '+mx+' хитов'+((+o.hpTemp||0)?' · '+o.hpTemp+' врем.':'')+' · '+esc(combatActorSpeed(key))+'</div>'
+    +'<div class="combat-cond">'+conds.map(n=>'<span onclick="event.stopPropagation();combatRemoveCondition(\''+key+'\',\''+n+'\')" title="Снять">'+esc(n)+' ×</span>').join('')+fx.slice(0,4).map(x=>'<span onclick="event.stopPropagation();combatRemoveEffect(\''+key+'\',\''+esc(x.uid||'')+'\')" title="Снять эффект">✦ '+esc(x.label||x.id)+' ×</span>').join('')+'</div>'
+    +'<div onclick="event.stopPropagation()"><div class="combat-hp-controls"><input id="combatHpVal_'+combatDomKey(key)+'" type="number" min="0" value="1"><button onclick="combatAdjustHp(\''+key+'\',\'damage\')">− урон</button><button onclick="combatAdjustHp(\''+key+'\',\'heal\')">+ лечение</button><button onclick="combatAdjustHp(\''+key+'\',\'temp\')">◇ врем.</button></div><select id="combatDmgType_'+combatDomKey(key)+'" style="width:100%;margin-top:4px;font-size:12px">'+types+'</select>'
+    +'<div style="display:flex;gap:4px;margin-top:4px"><select id="combatCondSel_'+combatDomKey(key)+'" style="flex:1;min-width:0;font-size:12px"><option value="">Состояние…</option>'+opts+'</select><button class="btn ghost xs" onclick="combatAddCondition(\''+key+'\')">+</button></div></div></div>';
+}
+function combatActionButton(icon,label,sub,call,cost,key,forced){ const disabled=!!forced||!combatCanSpend(cost,key,true); return '<button class="combat-action '+(disabled?'spent':'')+'" '+(disabled?'disabled':'')+' onclick="'+call+'"><b>'+icon+' '+esc(label)+'</b><small>'+esc(sub||combatCostLabel(cost))+'</small></button>'; }
+function combatActionsHTML(key){
+  const entry=combatEntryByKey(key),o=combatActorByKey(key); if(!entry||!o) return ''; const g=combat.uiGroup||'basic',down=!combatActorAlive(key),current=key===combatCurrentKey(); let h='';
+  if(entry.kind==='ally'&&(+o.hp||0)<=0){
+    const ds=+(o.deaths&&o.deaths.s)||0,df=+(o.deaths&&o.deaths.f)||0,done=ds>=3||df>=3;
+    return '<button class="combat-action '+(!current||done?'spent':'')+'" '+(!current||done?'disabled':'')+' onclick="combatDeathSave()"><b>⚒ Спасбросок от смерти</b><small>Чистый d20 · успехи '+ds+'/3 · провалы '+df+'/3'+(ds>=3?' · стабилизирован':(df>=3?' · погиб':''))+'</small></button>';
+  }
+  if(g==='basic'){
+    const a=[['⇥','Рывок','Удвоить доступное перемещение','dash'],['◈','Отход','Без провокационных атак','disengage'],['◆','Уклонение','Помеха входящим атакам; преим. спас. Лов.','dodge'],['⚑','Помощь','Зафиксировать союзника и задачу','help'],['◐','Засада','d20 + Скрытность','hide'],['⌕','Поиск','d20 + Внимательность','search'],['⏳','Подготовить','Условие + действие; исполнение тратит реакцию','ready'],['✷','Импровизация','Решение мастера и ручная формула','improvise'],['▣','Использовать предмет','Открыть инвентарь','useobject']];
+    h=a.map(x=>combatActionButton(x[0],x[1],x[2],'combatBasicAction(\''+x[3]+'\')','action',key,down||!current)).join('');
+    if(!current&&entry.ready) h=combatActionButton('↯','Исполнить подготовленное',entry.ready.text,'combatTriggerReady(\''+key+'\')','reaction',key,down)+h;
+  } else if(g==='weapons'&&entry.kind==='ally'){
+    h+=combatActionButton('✥','Захват','Состязание Атлетики · заменяет одну атаку','combatContestAction(\'grapple\')','attack',key,down)+combatActionButton('↧','Толчок','Сбить с ног · заменяет одну атаку','combatContestAction(\'shove\')','attack',key,down);
+    const eq=new Set(Object.values(o.equipment||{})),main=invEntryOf(o,(o.equipment||{}).MAIN_HAND),mainIt=main&&itemOf(main.itemId),mainP=mainIt&&itemProfile(mainIt);
+    (o.inventory||[]).forEach(x=>{
+      const it=itemOf(x.itemId),p=it&&itemProfile(it); if(!it||!p||p.kind!=='weapon') return; const mode=p.weapon&&p.weapon.ranged?'ranged':'melee';
+      h+=combatActionButton(eq.has(x.id)?'⚔':'†',it.n,(eq.has(x.id)?'Экипировано · ':'Не экипировано · возьмите в руки · ')+(it.dmg||'—')+' '+(it.dmgType||''),'combatWeapon(\''+x.id+'\',\''+mode+'\')','attack',key,down||!eq.has(x.id));
+      if(!current&&eq.has(x.id)&&mode==='melee') h+=combatActionButton('↯',it.n+' — провокационная','Одна рукопашная атака за реакцию','combatWeapon(\''+x.id+'\',\'melee\',\'reaction\')','reaction',key,down||combatOpportunityBlocked(key));
+      if(p.weapon&&p.weapon.thrown) h+=combatActionButton('➶',it.n+' — метнуть',it.dmg||'—','combatWeapon(\''+x.id+'\',\'throw\')','attack',key,down||!eq.has(x.id));
+      const off=(o.equipment||{}).OFF_HAND===x.id&&(o.equipment||{}).MAIN_HAND!==x.id&&p.weapon&&p.weapon.light&&mainP&&mainP.weapon&&mainP.weapon.light;
+      if(off) h+=combatActionButton('◇',it.n+' — вторая рука','После действия Атака · без положительного мод. к урону','combatWeapon(\''+x.id+'\',\''+mode+'\',\'offhand\',true)','offhand',key,down);
+    });
+  } else if(g==='spells'&&entry.kind==='ally'){
+    (o.spellbook||[]).forEach(x=>{ const sp=spellOf(x.spellId); if(!sp) return; const cost=combatSpellCost(sp),prep=sp.l===0||x.prep; h+=combatActionButton('✦',sp.n,(sp.l?sp.l+' круг':'заговор')+' · '+(prep?'подготовлено':'не подготовлено')+' · '+combatCostLabel(cost),'combatCastSpell(\''+sp.id+'\')',cost,key,down||!prep); });
+  } else if(g==='abilities'&&entry.kind==='ally'){
+    (o.abilities||[]).forEach(x=>{ const ab=abilityOf(x.abilityId); if(!ab||!abilityIsActive(ab)) return; const cur=x.cur==null?ab.uses:x.cur,cost=combatAbilityCost(ab),uses=ab.uses!=null?' · '+cur+'/'+ab.uses:''; h+=combatActionButton('✦',ab.n,combatCostLabel(cost)+uses,'combatUseAbility(\''+ab.id+'\')',cost,key,down||(ab.uses!=null&&cur<=0)); });
+  } else if(g==='items'&&entry.kind==='ally'){
+    (o.inventory||[]).forEach(x=>{ const it=itemOf(x.itemId); if(!it) return; const aa=itemActions(o,x,it); if(!aa.length&&!it.slot) h+=combatActionButton('▣',it.n,'×'+(+x.qty||0)+' · осмотр','combatInspectItem(\''+x.id+'\')','free',key,down); if(it.slot){ const cost=combatEquipCost(it),on=isEquipped(o,x.id); h+=combatActionButton(on?'◉':'○',it.n+': '+(on?'снять':'надеть'),(on?'экипировано · ':'')+combatCostLabel(cost),'combatToggleEquip(\''+x.id+'\')',cost,key,down); } aa.forEach((a,i)=>{ const cost=/^weaponAttackFx/.test(a.fn)?'attack':(/^itemCastFx/.test(a.fn)?'action':combatItemActionCost(a)); h+=combatActionButton(a.icon||'▣',it.n+': '+a.label,'×'+(+x.qty||0)+' · '+combatCostLabel(cost),'combatRunItemAction(\''+x.id+'\','+i+')',cost,key,down); }); });
+  } else if(g==='foe'&&entry.kind==='foe'){
+    h+=combatActionButton('✥','Захват','Состязание Атлетики','combatContestAction(\'grapple\')','attack',key,down)+combatActionButton('↧','Толчок','Сбить с ног','combatContestAction(\'shove\')','attack',key,down);
+    (o.combatActions||[]).forEach(a=>{ h+=combatActionButton('☠',a.n,foeActionFormula(a),'combatFoeAction(\''+a.id+'\')','action',key,down); if(!current&&(a.mode||'')==='melee') h+=combatActionButton('↯',a.n+' — провокационная',foeActionFormula(a),'combatFoeAction(\''+a.id+'\',\'reaction\')','reaction',key,down||combatOpportunityBlocked(key)); });
+  }
+  return h||'<div class="combat-log-empty">В этой группе нет доступных действий.</div>';
+}
+function combatStageHTML(){
+  const key=combatFocusedKey(),entry=combatEntryByKey(key),o=combatActorByKey(key),current=key===combatCurrentKey(); if(!entry||!o) return '';
+  const groups=entry.kind==='ally'?[['basic','Основные'],['weapons','Оружие'],['spells','Заклинания'],['abilities','Способности'],['items','Инвентарь']]:[['basic','Основные'],['foe','Атаки и приемы']];
+  if(!groups.some(x=>x[0]===combat.uiGroup)) combat.uiGroup=groups[0][0];
+  const r=combat.turn||{},ce=combatEntryByKey(key),mv=current?(+r.movementUsed||0):0,max=current?combatMoveMax():combatSpeedNumber(key);
+  let resources='<span class="combat-resource '+(current&&!r.actionUsed?'ready':'used')+'">● Действие</span><span class="combat-resource '+(current&&!r.bonusUsed?'ready':'used')+'">◆ Бонусное</span><span class="combat-resource '+(!ce.reactionUsed?'ready':'used')+'">↯ Реакция</span><span class="combat-resource '+(current&&!r.objectUsed?'ready':'used')+'">▣ Объект</span>';
+  if(current&&(+r.attackMax||1)>1) resources+='<span class="combat-resource '+(r.actionKind==='attack'&&(+r.attacksUsed||0)<(+r.attackMax||1)?'ready':'')+'">⚔ Атаки '+(+r.attacksUsed||0)+'/'+(+r.attackMax||1)+'</span>';
+  if(entry.kind==='ally') Object.keys(o.slots||{}).sort().forEach(l=>{ const s=o.slots[l]; resources+='<span class="combat-resource '+((+s.cur||0)>0?'ready':'used')+'">✦ '+l+' кр.: '+(+s.cur||0)+'/'+(+s.max||0)+'</span>'; });
+  const opponents=combatOpponents(key),targetCtl=opponents.length?'<div class="combat-move"><span>◎ Быстрая цель</span><select id="combatQuickTarget">'+opponents.map(x=>{ const k=combatEntryKey(x); return '<option value="'+k+'">'+esc(combatActorName(k))+' · КД '+combatActorAc(k)+'</option>'; }).join('')+'</select><select id="combatContestDefense" title="Чем цель защищается от захвата/толчка"><option value="ath">Защита: Атлетика</option><option value="acr">Защита: Акробатика</option></select></div>':'';
+  return '<div class="combat-stage-head"><div class="who">'+esc(o.name||o.n)+'</div><div class="subline">'+(current?'Текущий ход':'Фокус вне хода: доступны только реакции')+' · КД '+combatActorAc(key)+' · '+(+o.hp||0)+'/'+combatActorMaxHp(key)+' хитов</div></div><div class="combat-resources">'+resources+'</div>'
+    +targetCtl
+    +(current?'<div class="combat-move">⇥ Перемещение <input type="number" min="0" max="'+max+'" step="1.5" value="'+mv+'" onchange="combatMoveSet(this.value)"> / '+max+' '+(String(combatActorSpeed(key)).indexOf('фут')>=0?'футов':'м')+(r.dash?' (Рывок)':'')+'</div>':'')
+    +'<div class="combat-groups">'+groups.map(x=>'<button class="combat-group '+(combat.uiGroup===x[0]?'active':'')+'" onclick="combatSetGroup(\''+x[0]+'\')">'+x[1]+'</button>').join('')+'</div><div class="combat-actions">'+combatActionsHTML(key)+'</div>'
+    +(current?'<button class="btn rub combat-endturn" onclick="combatNextTurn()">Завершить ход ▶</button>':'');
+}
+function renderCombat(){
+  const box=document.getElementById('tab-combat'); if(!box) return; if(!combat.active){ box.innerHTML=combatSetupHTML(); return; }
+  const victory=combatVictoryText(); let h='<div class="combat-shell"><div class="combat-top"><div class="combat-title">⚔ '+esc(combat.name)+'</div><div class="combat-round">Раунд '+combat.round+'</div><span class="spacer"></span><button class="btn ghost sm" onclick="combatEnd()">Завершить бой</button></div>';
+  h+='<div class="combat-initiative">'+combat.order.map((e,i)=>{ const key=combatEntryKey(e),canL=i>0&&combat.order[i-1].initiative===e.initiative,canR=i<combat.order.length-1&&combat.order[i+1].initiative===e.initiative; return '<div class="combat-init-card '+(i===combat.turnIndex?'active ':'')+(!combatActorAlive(key)?'down':'')+'" onclick="combatFocus(\''+key+'\')"><span class="init">'+e.initiative+'</span><div class="side">'+(e.kind==='ally'?'герой':'противник')+'</div><div class="name">'+esc(combatActorName(key))+'</div><div style="margin-top:3px"><button class="combat-group" style="padding:0 5px" '+(canL?'':'disabled')+' onclick="event.stopPropagation();combatMoveOrder('+i+',-1)">←</button> <button class="combat-group" style="padding:0 5px" '+(canR?'':'disabled')+' onclick="event.stopPropagation();combatMoveOrder('+i+',1)">→</button></div></div>'; }).join('')+'</div>';
+  if(victory) h+='<div class="combat-winner">'+esc(victory)+' Проверьте последствия и завершите бой.</div>';
+  h+='<div class="combat-layout"><div class="combat-panel"><h3>Участники и последствия</h3>'+combat.order.map(combatActorCardHTML).join('')+'</div><div class="combat-panel">'+combatStageHTML()+'</div><div class="combat-panel"><h3>Журнал боя</h3><div class="combat-log" id="combatLogBox">'+combatLogHTML(combat.log)+'</div><div class="combat-note"><input id="combatNote" placeholder="Запись мастера…" onkeydown="if(event.key===\'Enter\')combatAddNote()"><button class="btn ghost sm" onclick="combatAddNote()">+</button></div>'+combatArchiveHTML()+'</div></div></div>';
+  box.innerHTML=h; const log=document.getElementById('combatLogBox'); if(log) log.scrollTop=log.scrollHeight;
+}
+
+/* ═══════════════ ЖУРНАЛ КАМПАНИИ (архив совместимости) ═══════════════ */
 
 function renderJournal(){
   const box=document.getElementById('tab-journal');
+  if(!box) return;
   let h='<h2 class="rubric">Журнал кампании</h2>'
     + '<div style="text-align:right;margin-bottom:10px"><button class="btn rub" onclick="addJournal()">✠ Новая запись</button></div>';
   if(!journal.length){
@@ -9018,7 +9601,7 @@ function stNotes(c){
 (async function init(){
   await loadAll();
   renderRaces(); renderClasses(); renderRules();
-  renderChars(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderFoes();
+  renderChars(); renderCombat(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderFoes();
   if(typeof syncAutoStart==='function') syncAutoStart();
 })();
 </script>
