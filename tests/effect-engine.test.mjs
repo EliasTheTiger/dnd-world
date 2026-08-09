@@ -21,18 +21,20 @@ function loadEngine(random = () => 0) {
       castSpellApply, canCastCheck, parseComponents, materialPlanFor,
       charFxAll, fxSum, eHpMax, acTotal, speedTotal, concEntriesOf,
       breakConcentration, longRest, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
-      applyDamageTo, applyRollsToTarget, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
+      applyDamageTo, applyRollsToTarget, resolveUndeadFortitude, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
       rollSpecOf, resolveOutcome, targetInfoOf, weaponSpecOf, weaponAttackApply, useItemApply,
       dmgAfterTraits, effectiveFoeConditions, castDispel, rollbackLastCast,
       seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, seedFoesDB, gameDataAudit,
+      upgradeFoe, mergeBuiltinFoe, foeSaveMod, foeSkillMod, foeActionReady, foeResetActionState,
       buildRoku, buildTorgar, buildSeptih, buildLegerem,
-      foeActionOf, foeActionFormula, foeActionSpecOf, foeActionApply,
+      foeActionOf, foeActionFormula, foeActionSpecOf, foeActionApply, foeActionBatchApply,
       abilityIsActive, isPassiveAbility, abilityPoolOf, itemProfile, weaponBonusOf, ammoRemaining, ammoRecover, invQty,
       validateFormulaValues, saveConditionMode,
       combatStart, combatNextTurn, combatEnd, combatSpend, combatCanSpend, combatBasicAction, combatFocus,
       combatCastSpell, combatUseAbility, combatWeapon, combatFoeAction, combatSyncChanges, combatVictoryText,
       combatDeathSave, combatContestAction, combatTriggerReady, combatOpportunityBlocked, combatSetGroup, combatSpellTurnAllowed,
       combatAbilityCost, combatAbilityUsable, combatSpellCost, combatCunningAction,
+      combatFoeRecharge, combatFoeAttackAllowed, combatRecordFoeAttack, combatAttackCount,
       castConfirm, castFormulaShow, castFormulaConfirm, closeCastModal,
       castState() { return {ctx:castCtx, spec:castCtx&&castCtx.spec}; },
       makeBlank() { return buildBlank(); },
@@ -749,12 +751,14 @@ test('встроенная группа экипирована реактивн�
   assert.deepEqual(plain(e.weaponBonusOf(talon)), {atk: 1, dmg: 1});
 });
 
-test('пустое хранилище загружается сразу с четырьмя экипированными героями и четырьмя врагами', async () => {
+test('пустое хранилище загружается сразу с экипированной группой и полным кампанийным бестиарием', async () => {
   const e = loadEngine();
   await e.loadAll();
   const state = e.state();
   assert.deepEqual(plain(state.chars.map(c => c.id)), ['char_roku','char_torgar','char_septih','char_legerem']);
-  assert.deepEqual(plain(state.foesDB.map(f => f.id)), ['foe_goblin_scout','foe_skeleton_guard','foe_orc_raider','foe_dire_wolf']);
+  assert.equal(state.foesDB.length, 30);
+  ['foe_goblin_scout','foe_skeleton_guard','foe_orc_raider','foe_dire_wolf','foe_young_green_dragon','foe_cave_oracle','foe_dark_elf_plotter']
+    .forEach(id => assert.ok(state.foesDB.some(f => f.id === id), `нет записи ${id}`));
   state.chars.forEach(c => {
     Object.values(c.equipment).forEach(entryId => assert.ok(c.inventory.some(e => e.id === entryId), `${c.name}: слот ${entryId} не существует`));
     c.inventory.forEach(entry => assert.ok(state.itemsDB.some(it => it.id === entry.itemId), `${c.name}: предмет ${entry.itemId} осиротел`));
@@ -764,20 +768,366 @@ test('пустое хранилище загружается сразу с че�
 test('стартовый бестиарий содержит исполняемые формулы каждого действия', () => {
   const e = loadEngine();
   const foes = e.seedFoesDB();
-  assert.deepEqual(plain(foes.map(f => f.n)), ['Гоблин-разведчик', 'Скелет-страж', 'Орк-налетчик', 'Лютоволк']);
+  assert.equal(foes.length, 30);
   const target = hero('target', {hp: 30, hpMax: 30, ab: {str: 14, dex: 12, con: 12, int: 10, wis: 10, cha: 10}});
   e.setState({chars: [target], foes});
   foes.forEach(f => {
+    ['size','creatureType','alignment','cr','acSource','hpFormula','speed','senses','langs','source'].forEach(k => assert.ok(String(f[k] || '').trim(), `${f.n}: нет ${k}`));
+    assert.ok(Number.isFinite(f.ac) && f.ac > 0, `${f.n}: нет КД`);
+    assert.ok(Number.isFinite(f.hpMax) && f.hpMax > 0, `${f.n}: нет хитов`);
+    assert.equal(Object.keys(f.abil).length, 6, `${f.n}: не все характеристики`);
     assert.ok(f.combatActions.length, `${f.n}: нет структурированных действий`);
     f.combatActions.forEach(a => {
+      assert.ok(['action','attack','bonus','reaction','turnfree'].includes(a.cost), `${f.n}/${a.n}: нет стоимости`);
+      if (a.kind === 'utility') {
+        assert.ok(a.combatEffect, `${f.n}/${a.n}: прием не связан с боем`);
+        return;
+      }
       const spec = e.foeActionSpecOf(f, a, e.targetInfoOf(`ally:${target.id}`));
-      assert.ok(spec.rows.some(r => r.type === 'dmg'), `${f.n}/${a.n}: нет урона`);
+      if ((a.damage || []).length) assert.ok(spec.rows.some(r => r.type === 'dmg'), `${f.n}/${a.n}: нет урона`);
       if (a.kind === 'attack') assert.ok(spec.rows.some(r => r.type === 'atk'), `${f.n}/${a.n}: нет d20 атаки`);
-      assert.match(e.foeActionFormula(a), /d20|спасбросок/);
+      if (a.save) assert.ok(spec.rows.some(r => r.type === 'save'), `${f.n}/${a.n}: нет спасброска`);
+      assert.match(e.foeActionFormula(a), /d20|спасбросок|d\d+/);
     });
   });
   const html = e.renderWorld().foes;
-  ['Гоблин-разведчик', 'Скелет-страж', 'Орк-налетчик', 'Лютоволк', 'Провести действие'].forEach(x => assert.ok(html.includes(x), `нет индикатора «${x}»`));
+  ['Гоблин-разведчик', 'Молодой зеленый дракон', 'Подземный глазач', 'КД', 'формула', 'Источник', 'Creative Commons Attribution 4.0', 'Провести действие']
+    .forEach(x => assert.ok(html.includes(x), `нет индикатора «${x}»`));
+});
+
+test('миграция встроенного врага исправляет неполную запись и сохраняет последствия боя', () => {
+  const e = loadEngine();
+  const seed = e.seedFoesDB().find(f => f.id === 'foe_goblin_scout');
+  const old = {id: seed.id, n: seed.n, ac: 10, hpMax: 2, hp: 0, hpTemp: 3, cond: ['Отравленный'],
+    activeFx: [{uid: 'fx1', label: 'Метка', fx: []}], actionState: {shortbow: {ready: false}}, notes: 'мой экземпляр'};
+  e.mergeBuiltinFoe(old, seed);
+
+  assert.equal(old.ac, 15);
+  assert.equal(old.acSource, 'кожаный доспех, щит');
+  assert.equal(old.size, 'Маленький');
+  assert.equal(old.hpMax, 7);
+  assert.equal(old.hp, 0, 'поверженный экземпляр не должен ожить от миграции');
+  assert.equal(old.hpTemp, 3);
+  assert.deepEqual(plain(old.cond), ['Отравленный']);
+  assert.equal(old.activeFx[0].uid, 'fx1');
+  assert.equal(old.notes, 'мой экземпляр');
+});
+
+test('явные навыки и спасброски монстра участвуют в проверках вместо догадок по характеристике', () => {
+  const e = loadEngine();
+  const dragon = e.seedFoesDB().find(f => f.id === 'foe_young_green_dragon');
+  e.setState({foes: [dragon]});
+  const ti = e.targetInfoOf(`foe:${dragon.id}`);
+
+  assert.equal(ti.saveMod('dex'), 4);
+  assert.equal(ti.saveMod('con'), 6);
+  assert.equal(ti.skillMod('Внимательность'), 7);
+  assert.equal(ti.skillMod('Скрытность'), 4);
+});
+
+test('условная защита различает обычное, магическое и посеребренное оружие', () => {
+  const e = loadEngine();
+  const foes = e.seedFoesDB();
+  const grick = foes.find(f => f.id === 'foe_grick');
+  const wraith = foes.find(f => f.id === 'foe_wraith');
+
+  assert.deepEqual(plain(e.dmgAfterTraits(grick, 9, 'рубящий', {magical: false})), {amount: 4, note: 'сопротивление «рубящий» при этих свойствах источника'});
+  assert.equal(e.dmgAfterTraits(grick, 9, 'рубящий', {magical: true}).amount, 9);
+  assert.equal(e.dmgAfterTraits(wraith, 9, 'колющий', {magical: false, silvered: false}).amount, 4);
+  assert.equal(e.dmgAfterTraits(wraith, 9, 'колющий', {magical: false, silvered: true}).amount, 9);
+});
+
+test('Охристое желе реакцией делится от рубящего урона, вступает в ту же инициативу и не делится от промаха', () => {
+  const e = loadEngine();
+  const attacker = hero('attacker');
+  const jelly = e.seedFoesDB().find(f => f.id === 'foe_ochre_jelly');
+  e.setState({chars: [attacker], foes: [jelly]});
+  e.combatStart([{kind: 'ally', id: attacker.id, nat: 20}, {kind: 'foe', id: jelly.id, nat: 10}], 'Разделение');
+  const spec = {rows:[{key:'atk',type:'atk',side:'caster',natural:true,mod:5},{key:'dmg',type:'dmg',side:'caster',cnt:1,sides:8,mod:0,dmgType:'рубящий'}],
+    meta:{target:e.targetInfoOf(`foe:${jelly.id}`),dmgType:'рубящий',attackMode:'melee',within5:true,damageTags:{magical:false}}};
+  const rolls = e.resolveOutcome(spec, {atk: 10, dmg: 6}, {});
+
+  assert.equal(rolls.hit, true);
+  assert.equal(rolls.dmgTotal, 0, 'иммунитет к рубящему урону сохраняется');
+  e.applyRollsToTarget(`foe:${jelly.id}`, rolls, 'Рубящий удар');
+  assert.equal(e.state().foesDB.length, 2);
+  assert.deepEqual(plain(e.state().foesDB.map(x => [x.size,x.hp])), [['Средний',22],['Средний',22]]);
+  assert.equal(e.state().combat.order.filter(x => x.kind === 'foe').length, 2);
+  assert.equal(e.state().combat.order.find(x => x.id === jelly.id).reactionUsed, true);
+
+  const e2 = loadEngine(), attacker2 = hero('attacker2'), jelly2 = e2.seedFoesDB().find(f => f.id === 'foe_ochre_jelly');
+  e2.setState({chars: [attacker2], foes: [jelly2]});
+  const missSpec = {...spec, meta: {...spec.meta, target: e2.targetInfoOf(`foe:${jelly2.id}`)}};
+  const miss = e2.resolveOutcome(missSpec, {atk: 1, dmg: 6}, {});
+  e2.applyRollsToTarget(`foe:${jelly2.id}`, miss, 'Промах');
+  assert.equal(e2.state().foesDB.length, 1);
+});
+
+test('укус гигантского паука не отменяет колющий урон успешным спасброском от яда', () => {
+  const e = loadEngine();
+  const spider = e.seedFoesDB().find(f => f.id === 'foe_giant_spider');
+  const target = hero('target', {hp: 30, hpMax: 30});
+  e.setState({chars: [target], foes: [spider]});
+  const spec = e.foeActionSpecOf(spider, e.foeActionOf(spider, 'bite'), e.targetInfoOf(`ally:${target.id}`));
+
+  const saved = e.resolveOutcome(spec, {atk: 10, dmg0: 4, dmg1: 8, save: 20}, {});
+  assert.equal(saved.hit, true);
+  assert.equal(saved.saveOk, true);
+  assert.equal(saved.damageParts.find(p => p.type === 'колющий').total, 7);
+  assert.equal(saved.damageParts.find(p => p.type === 'яд').total, 4);
+  assert.equal(saved.dmgTotal, 11);
+
+  const missing = e.resolveOutcome(spec, {atk: 10, dmg0: 4, dmg1: 8}, {});
+  assert.equal(missing.damageParts.find(p => p.type === 'колющий').total, 7);
+  assert.equal(missing.damageParts.find(p => p.type === 'яд').total, 0);
+});
+
+test('яд гигантского паука стабилизирует и парализует только когда именно он снижает цель до 0', () => {
+  const e = loadEngine();
+  const spider = e.seedFoesDB().find(f => f.id === 'foe_giant_spider');
+  const target = hero('target', {hp: 10, hpMax: 20});
+  e.setState({chars: [target], foes: [spider]});
+  const bite = e.foeActionOf(spider, 'bite');
+  const spec = e.foeActionSpecOf(spider, bite, e.targetInfoOf(`ally:${target.id}`));
+  const rolls = e.resolveOutcome(spec, {atk: 10, dmg0: 4, dmg1: 8, save: 1}, {});
+
+  assert.equal(e.foeActionApply(spider.id, bite.id, `ally:${target.id}`, rolls), true);
+  assert.equal(target.hp, 0);
+  assert.deepEqual(plain(target.deaths), {s: 3, f: 0});
+  assert.ok(e.effectiveConditions(target).includes('Отравленный'));
+  assert.ok(e.effectiveConditions(target).includes('Парализованный'));
+  assert.equal(target.activeFx.find(x => x.id.endsWith(':poisoned-zero')).expiresAtRound, 601);
+
+  const pierced = hero('pierced', {hp: 7, hpMax: 20});
+  e.setState({chars: [pierced], foes: [spider]});
+  const spec2 = e.foeActionSpecOf(spider, bite, e.targetInfoOf(`ally:${pierced.id}`));
+  const rolls2 = e.resolveOutcome(spec2, {atk: 10, dmg0: 4, dmg1: 8, save: 1}, {});
+  assert.equal(e.foeActionApply(spider.id, bite.id, `ally:${pierced.id}`, rolls2), true);
+  assert.deepEqual(plain(pierced.deaths), {s: 0, f: 0});
+  assert.equal(pierced.activeFx.some(x => x.id.endsWith(':poisoned-zero')), false);
+});
+
+test('областное действие монстра применяет отдельный спасбросок каждой цели и расходуется один раз', () => {
+  const e = loadEngine();
+  const first = hero('first', {hp: 50, hpMax: 50}), second = hero('second', {hp: 50, hpMax: 50});
+  const dragon = e.seedFoesDB().find(f => f.id === 'foe_young_green_dragon');
+  const breath = e.foeActionOf(dragon, 'poison_breath');
+  e.setState({chars: [first, second], foes: [dragon]});
+  const rolls = {
+    [`ally:${first.id}`]: {dmgRaw: 36, dmgTotal: 36, dmgType: 'яд', damageParts: [{type: 'яд', raw: 36, total: 36}], saveOk: false, effectAllowed: true, verdict: [], notes: []},
+    [`ally:${second.id}`]: {dmgRaw: 36, dmgTotal: 18, dmgType: 'яд', damageParts: [{type: 'яд', raw: 36, total: 18}], saveOk: true, effectAllowed: false, verdict: [], notes: []},
+  };
+  assert.equal(e.foeActionBatchApply(dragon.id, breath.id, Object.keys(rolls), rolls), true);
+  assert.equal(first.hp, 14);
+  assert.equal(second.hp, 32);
+  assert.equal(dragon.actionState[breath.id].ready, false);
+});
+
+test('областное действие монстра атомарно отменяется, если нет броска одной из целей', () => {
+  const e = loadEngine();
+  const first = hero('first', {hp: 50, hpMax: 50}), second = hero('second', {hp: 50, hpMax: 50});
+  const dragon = e.seedFoesDB().find(f => f.id === 'foe_young_green_dragon');
+  const breath = e.foeActionOf(dragon, 'poison_breath');
+  e.setState({chars: [first, second], foes: [dragon]});
+  const firstTarget = `ally:${first.id}`, secondTarget = `ally:${second.id}`;
+  const rolls = {
+    [firstTarget]: {dmgRaw: 36, dmgTotal: 36, dmgType: 'яд', damageParts: [{type: 'яд', raw: 36, total: 36}], saveOk: false, effectAllowed: true, verdict: [], notes: []}
+  };
+
+  assert.equal(e.foeActionBatchApply(dragon.id, breath.id, [firstTarget, secondTarget], rolls), false);
+  assert.equal(first.hp, 50, 'урон не должен применяться частично');
+  assert.equal(second.hp, 50);
+  assert.notEqual(dragon.actionState[breath.id] && dragon.actionState[breath.id].ready, false, 'перезарядка не тратится');
+});
+
+test('мультиатака монстра соблюдает порядок и условие попадания, сохраняя отдельные цели и d20', () => {
+  const e = loadEngine();
+  const target = hero('target');
+  const owlbear = e.seedFoesDB().find(f => f.id === 'foe_owlbear');
+  e.setState({chars: [target], foes: [owlbear]});
+  e.combatStart([{kind: 'foe', id: owlbear.id, nat: 20}, {kind: 'ally', id: target.id, nat: 10}], 'Мультиатака');
+  assert.equal(e.state().combat.turn.attackMax, 2);
+  assert.equal(e.combatFoeAttackAllowed(owlbear, e.foeActionOf(owlbear, 'claws'), 'attack', true), false);
+  assert.equal(e.combatFoeAttackAllowed(owlbear, e.foeActionOf(owlbear, 'beak'), 'attack', true), true);
+  e.combatSpend('attack', 'Клюв', `foe:${owlbear.id}`);
+  e.combatRecordFoeAttack(owlbear, e.foeActionOf(owlbear, 'beak'), `ally:${target.id}`, {hit: true});
+  assert.equal(e.combatFoeAttackAllowed(owlbear, e.foeActionOf(owlbear, 'claws'), 'attack', true, `ally:${target.id}`), true);
+
+  const e2 = loadEngine(), victim = hero('victim'), grick = e2.seedFoesDB().find(f => f.id === 'foe_grick');
+  e2.setState({chars: [victim], foes: [grick]});
+  e2.combatStart([{kind: 'foe', id: grick.id, nat: 20}, {kind: 'ally', id: victim.id, nat: 10}], 'Условная мультиатака');
+  e2.combatSpend('attack', 'Щупальца', `foe:${grick.id}`);
+  e2.combatRecordFoeAttack(grick, e2.foeActionOf(grick, 'tentacles'), `ally:${victim.id}`, {hit: false});
+  assert.equal(e2.combatFoeAttackAllowed(grick, e2.foeActionOf(grick, 'beak'), 'attack', true, `ally:${victim.id}`), false);
+  assert.equal(e2.state().combat.turn.attackMax, 1);
+});
+
+test('Парирование главаря расходует реакцию, дает +2 КД на одну входящую атаку и затем снимается', () => {
+  const e = loadEngine();
+  const sword = {id: 'test_sword', n: 'Тестовый меч', type: 'weapon', tags: ['melee'], dmg: '1d8', dmgType: 'рубящий'};
+  const attacker = hero('attacker', {inventory: [{id: 'sword_entry', itemId: sword.id, qty: 1}], equipment: {MAIN_HAND: 'sword_entry'}});
+  const captain = e.seedFoesDB().find(f => f.id === 'foe_bandit_captain');
+  e.setState({chars: [attacker], items: [sword], foes: [captain]});
+  e.combatStart([{kind: 'ally', id: attacker.id, nat: 20}, {kind: 'foe', id: captain.id, nat: 10}], 'Парирование главаря');
+  e.combatFocus(`foe:${captain.id}`);
+
+  assert.equal(e.combatFoeAction('parry'), true);
+  assert.equal(e.targetInfoOf(`foe:${captain.id}`).ac, 17);
+  assert.equal(e.state().combat.order.find(x => x.id === captain.id).reactionUsed, true);
+
+  const spec = e.weaponSpecOf(attacker, sword, e.targetInfoOf(`foe:${captain.id}`), {entryId: 'sword_entry', within5: true});
+  const rolls = e.resolveOutcome(spec, {atk: 13, dmg: 4}, {});
+  rolls.attackMade = true;
+  rolls.consumeTargetFx = spec.meta.consumeTargetFx;
+  assert.equal(rolls.hit, false, 'итог 16 должен промахнуться по КД 17');
+  assert.equal(e.weaponAttackApply('sword_entry', attacker.id, `foe:${captain.id}`, rolls), true);
+  assert.equal(e.targetInfoOf(`foe:${captain.id}`).ac, 15);
+});
+
+test('перезарядка монстра принимает реальный d6, а бонусный прием не тратит действие', () => {
+  const e = loadEngine();
+  const target = hero('target'), dragon = e.seedFoesDB().find(f => f.id === 'foe_young_green_dragon');
+  e.setState({chars: [target], foes: [dragon]});
+  e.combatStart([{kind: 'foe', id: dragon.id, nat: 20}, {kind: 'ally', id: target.id, nat: 10}], 'Дыхание');
+  const breath = e.foeActionOf(dragon, 'poison_breath');
+  dragon.actionState[breath.id].ready = false;
+  e.setAutoRolls([4]);
+  assert.equal(e.combatFoeRecharge(breath.id), true);
+  assert.equal(dragon.actionState[breath.id].ready, false);
+  e.setAutoRolls([5]);
+  assert.equal(e.combatFoeRecharge(breath.id), true);
+  assert.equal(dragon.actionState[breath.id].ready, true);
+
+  const e2 = loadEngine(), hero2 = hero('hero2'), goblin = e2.seedFoesDB().find(f => f.id === 'foe_goblin_scout');
+  e2.setState({chars: [hero2], foes: [goblin]});
+  e2.combatStart([{kind: 'foe', id: goblin.id, nat: 20}, {kind: 'ally', id: hero2.id, nat: 10}], 'Ловкий побег');
+  assert.equal(e2.combatFoeAction('nimble_disengage'), true);
+  assert.equal(e2.state().combat.turn.bonusUsed, true);
+  assert.equal(e2.state().combat.turn.actionsUsed, 0);
+  assert.equal(e2.state().combat.turn.disengage, true);
+  assert.equal(e2.combatCanSpend('attack', `foe:${goblin.id}`, true), true);
+});
+
+test('повторный спасбросок состояния запрашивается в конце хода и снимает эффект при успехе', () => {
+  const e = loadEngine();
+  const target = hero('target', {activeFx: [{uid: 'paralyze', label: 'Гуль — Когти', fx: [{stat: 'condition', mode: 'set', value: 'Парализованный'}], repeatSave: {key: 'con', dc: 10, when: 'end'}}]});
+  const ghoul = e.seedFoesDB().find(f => f.id === 'foe_ghoul');
+  e.setState({chars: [target], foes: [ghoul]});
+  e.combatStart([{kind: 'ally', id: target.id, nat: 20}, {kind: 'foe', id: ghoul.id, nat: 10}], 'Повторный спасбросок');
+  e.setAutoRolls([20]);
+  assert.equal(e.combatNextTurn(), true);
+  assert.equal(target.activeFx.length, 0);
+  assert.equal(e.state().combat.turn.actorKey, `foe:${ghoul.id}`);
+  assert.ok(e.state().combat.log.some(x => x.text.includes('эффект снят')));
+});
+
+test('состояние от действия монстра истекает по общим часам раундов', () => {
+  const e = loadEngine();
+  const target = hero('target');
+  const ash = e.seedFoesDB().find(f => f.id === 'foe_ash_zombie');
+  e.setState({chars: [target], foes: [ash], fxRound: 4});
+  const rolls = {saveOk: false, effectAllowed: true, dmgRaw: null, dmgTotal: null, notes: [], verdict: []};
+
+  assert.equal(e.foeActionApply(ash.id, 'ash_burst', `ally:${target.id}`, rolls), true);
+  assert.equal(target.activeFx[0].expiresAtRound, 5);
+  assert.ok(e.effectiveConditions(target).includes('Ослепленный'));
+  e.advanceFxRound(1);
+  assert.equal(target.activeFx.length, 0);
+  assert.equal(e.effectiveConditions(target).includes('Ослепленный'), false);
+});
+
+test('Стойкость нежити запрашивает настоящий d20 и не работает против излучения или критического удара', () => {
+  const e = loadEngine();
+  const zombie = e.seedFoesDB().find(f => f.id === 'foe_zombie');
+  zombie.hp = 7;
+  e.setState({foes: [zombie]});
+
+  const hit = e.applyDamageTo(`foe:${zombie.id}`, 7, 'рубящий', 'тест', {});
+  assert.equal(hit.undeadFortitude.dc, 12);
+  assert.equal(hit.undeadFortitude.mod, 3);
+  assert.deepEqual(plain(e.resolveUndeadFortitude(hit, 9)), {success: true, total: 12, dc: 12});
+  assert.equal(zombie.hp, 1);
+  assert.equal(zombie.cond.includes('Повержен'), false);
+
+  const radiantZombie = e.seedFoesDB().find(f => f.id === 'foe_zombie');
+  e.setState({foes: [radiantZombie]});
+  const radiant = e.applyDamageTo(`foe:${radiantZombie.id}`, 30, 'излучение', 'тест', {});
+  assert.equal(radiant.undeadFortitude, undefined);
+  assert.equal(radiant.dead, true);
+
+  const critZombie = e.seedFoesDB().find(f => f.id === 'foe_zombie');
+  e.setState({foes: [critZombie]});
+  const crit = e.applyDamageTo(`foe:${critZombie.id}`, 30, 'рубящий', 'тест', {crit: true});
+  assert.equal(crit.undeadFortitude, undefined);
+});
+
+test('когти гуля не парализуют эльфов и нежить, но действуют на прочих гуманоидов', () => {
+  const e = loadEngine();
+  const ghoul = e.seedFoesDB().find(f => f.id === 'foe_ghoul');
+  const elf = hero('elf', {race: 'Высший эльф', hp: 30, hpMax: 30});
+  const human = hero('human', {race: 'Человек', hp: 30, hpMax: 30});
+  const skeleton = e.seedFoesDB().find(f => f.id === 'foe_skeleton_guard');
+  e.setState({chars: [elf, human], foes: [ghoul, skeleton]});
+  const rolls = {attackMade: true, hit: true, saveOk: false, effectAllowed: true, dmgRaw: 6, dmgTotal: 6,
+    dmgType: 'рубящий', notes: [], verdict: []};
+
+  assert.equal(e.foeActionApply(ghoul.id, 'claws', `ally:${elf.id}`, {...rolls}), true);
+  assert.equal(elf.activeFx.some(x => x.fx.some(f => f.value === 'Парализованный')), false);
+  assert.equal(e.foeActionApply(ghoul.id, 'claws', `ally:${human.id}`, {...rolls}), true);
+  assert.equal(human.activeFx.some(x => x.fx.some(f => f.value === 'Парализованный')), true);
+  assert.equal(e.foeActionApply(ghoul.id, 'claws', `foe:${skeleton.id}`, {...rolls}), true);
+  assert.equal(skeleton.activeFx.some(x => x.fx.some(f => f.value === 'Парализованный')), false);
+});
+
+test('Вытягивание жизни уменьшает максимум хитов до долгого отдыха и может убить на нуле', () => {
+  const e = loadEngine();
+  const wraith = e.seedFoesDB().find(f => f.id === 'foe_wraith');
+  const target = hero('target', {hp: 30, hpMax: 30});
+  e.setState({chars: [target], activeCharId: target.id, foes: [wraith]});
+  const failed = {attackMade: true, hit: true, saveOk: false, effectAllowed: true, dmgRaw: 11, dmgTotal: 11,
+    dmgType: 'некротическая энергия', notes: [], verdict: []};
+
+  assert.equal(e.foeActionApply(wraith.id, 'life_drain', `ally:${target.id}`, failed), true);
+  assert.equal(target.hp, 19);
+  assert.equal(e.eHpMax(target), 19);
+  assert.ok(target.activeFx.some(x => x.untilLongRest));
+  e.longRest();
+  assert.equal(e.eHpMax(target), 30);
+  assert.equal(target.hp, 30);
+
+  const doomed = hero('doomed', {hp: 10, hpMax: 10});
+  e.setState({chars: [doomed], foes: [wraith]});
+  assert.equal(e.foeActionApply(wraith.id, 'life_drain', `ally:${doomed.id}`,
+    {...failed, dmgRaw: 10, dmgTotal: 10}), true);
+  assert.equal(e.eHpMax(doomed), 0);
+  assert.equal(doomed.deaths.f, 3);
+});
+
+test('присосавшийся стирж наносит автоматический урон без действия ровно раз за ход и отсоединяется после 10 хитов', () => {
+  const e = loadEngine();
+  const target = hero('target', {hp: 50, hpMax: 50});
+  const stirge = e.seedFoesDB().find(f => f.id === 'foe_stirge');
+  e.setState({chars: [target], foes: [stirge]});
+  e.combatStart([{kind: 'foe', id: stirge.id, nat: 20}, {kind: 'ally', id: target.id, nat: 10}], 'Стирж');
+
+  assert.equal(e.combatFoeAction('drain'), true);
+  e.setElementValue('castTarget', `ally:${target.id}`); e.castConfirm();
+  e.setElementValue('cf_atk', '10'); e.setElementValue('cf_dmg0', '1'); e.castFormulaConfirm();
+  assert.ok(target.activeFx.some(x => x.id === `${stirge.id}:drain`));
+
+  e.combatNextTurn(); e.combatNextTurn();
+  assert.equal(e.combatFoeAction('attached_drain'), true);
+  e.setElementValue('castTarget', `ally:${target.id}`); e.castConfirm();
+  e.setElementValue('cf_dmg0', '4'); e.castFormulaConfirm();
+  assert.equal(e.state().combat.turn.actionsUsed, 0);
+  assert.equal(e.combatFoeAction('attached_drain'), false);
+  assert.equal(target.activeFx.find(x => x.id === `${stirge.id}:drain`).drained, 7);
+
+  e.combatNextTurn(); e.combatNextTurn();
+  assert.equal(e.combatFoeAction('attached_drain'), true);
+  e.setElementValue('castTarget', `ally:${target.id}`); e.castConfirm();
+  e.setElementValue('cf_dmg0', '3'); e.castFormulaConfirm();
+  assert.equal(target.activeFx.some(x => x.id === `${stirge.id}:drain`), false);
 });
 
 test('полный обмен ударами отражает КД, уязвимость, промах, урон и состояние на листах', () => {

@@ -2524,16 +2524,15 @@ async function ensureCombatLoadouts(){
 }
 async function ensureFoeAudit(){
   const flag=await store.get('dndworld2:foeaudit');
-  if(flag==='1') return;
+  if(flag==='2') return;
   let touched=false;
   seedFoesDB().forEach(seed=>{
     const old=foesDB.find(f=>f.id===seed.id);
     if(!old){ foesDB.push(seed); touched=true; return; }
-    upgradeFoe(old);
-    if(!old.combatActions.length){ old.combatActions=seed.combatActions; touched=true; }
+    mergeBuiltinFoe(old,seed); touched=true;
   });
   foesDB.forEach(upgradeFoe);
-  await store.set('dndworld2:foeaudit','1');
+  await store.set('dndworld2:foeaudit','2');
   if(touched) scheduleSave();
 }
 /* ═══ Описания предметов: оружие и доспехи ═══ */
@@ -3786,7 +3785,10 @@ function fxLine(c,stat){
 /* ── эффективные характеристики (каскад в модификаторы) ── */
 function eAb(c,k){ return (c.ab&&c.ab[k]!=null?c.ab[k]:10)+fxSum(c,'ab.'+k); }
 function eMod(c,k){ return Math.floor((eAb(c,k)-10)/2); }
-function eHpMax(c){ return Math.max(1,Math.floor(((+c.hpMax||0)+fxSum(c,'hpmax'))*fxMul(c,'hpmax'))); }
+/* Некоторые эффекты 5e (например, Вытягивание жизни) действительно могут
+   уменьшить максимум хитов до 0 — это не техническая «единица для деления»,
+   а смерть существа. Защиту от деления на ноль держим в самой полосе хитов. */
+function eHpMax(c){ return Math.max(0,Math.floor(((+c.hpMax||0)+fxSum(c,'hpmax'))*fxMul(c,'hpmax'))); }
 function fxSaveBonus(c,k){ return fxSum(c,'save.'+k)+fxSum(c,'save.all'); }
 function fxSkillBonus(c,name){ return fxSum(c,'skill.'+name); }
 
@@ -4782,8 +4784,9 @@ function attackConditionMode(caster,ti,opts){
   const autoCrit=opts.within5===true&&(theirs.indexOf('Парализованный')>=0||theirs.indexOf('Бессознательный')>=0);
   const requiresDistance=opts.within5==null&&(opts.mode==='ranged'||theirs.indexOf('Сбитый с ног')>=0
     ||theirs.indexOf('Парализованный')>=0||theirs.indexOf('Бессознательный')>=0);
+  const consumed=targetFx.filter(f=>f.consume==='roll'&&f.sourceUid&&(f.stat==='incoming.attack'||f.stat==='ac'));
   return {adv,dis,autoCrit,requiresDistance,mode:adv.length&&dis.length?0:(adv.length?1:(dis.length?2:0)),
-    consumeTargetFx:[...new Set(incoming.filter(f=>f.consume==='roll'&&f.sourceUid).map(f=>f.sourceUid))]};
+    consumeTargetFx:[...new Set(consumed.map(f=>f.sourceUid))]};
 }
 function saveConditionMode(ti,key,opts){
   opts=opts||{};
@@ -4813,7 +4816,12 @@ function weaponOptionsOf(c){
       m:m+fxSum(c,'dmg')+wb.dmg+duel, abn:useDex?'Лов':'Сил', mode:tags.indexOf('ranged')>=0?'ranged':'melee',
       within5:(tags.indexOf('ranged')>=0||tags.indexOf('reach')>=0)?null:true, fromBag:true});
   });
-  out.forEach((w,i)=>{ w.idx=i; });
+  out.forEach((w,i)=>{
+    w.idx=i;
+    const entry=w.entryId&&invEntryOf(c,w.entryId),it=itemOf(w.itemId||(entry&&entry.itemId)),tags=(it&&it.tags)||[];
+    w.damageTags={magical:tags.indexOf('magical')>=0||tags.indexOf('enchanted')>=0,
+      silvered:tags.indexOf('silvered')>=0||tags.indexOf('silver')>=0,adamantine:tags.indexOf('adamantine')>=0};
+  });
   return out;
 }
 
@@ -4855,6 +4863,7 @@ function rollSpecOf(rec, opts){
   const x=normRollTxt(body), hi=normRollTxt(rec.hi), all=x+' '+hi;
   const rows=[], meta={half:false, dc:0, saveAb:'', saveKey:'', dmgType:'', target:ti,
     weapon:weapon, pool:pool, autoHit:false, afterHit:false, kind:kind, recName:rec.n||'',
+    damageTags:Object.assign({magical:!!(isSpell||opts.magical),silvered:!!opts.silvered,adamantine:!!opts.adamantine},weapon&&weapon.damageTags||{}),
     contestBonus:rec.combatContestBonus||'',threshold:rec.combatThreshold||'',
     thresholdCondition:rec.combatThresholdCondition||''};
 
@@ -5172,15 +5181,16 @@ function resolveOutcome(spec, v, ctx){
   spec.rows.forEach(r=>{
     if(r.type!=='dmg'||v[r.key]==null) return;
     const type=dmgTypeCanon(r.dmgType||dtype||'');
-    const key=type||'__untyped';
+    const saveMode=r.saveMode||'';
+    const key=(type||'__untyped')+'|'+saveMode;
     const amount=v[r.key]+(r.mod||0);
-    if(!grouped[key]) grouped[key]={type,raw:0};
+    if(!grouped[key]) grouped[key]={type,raw:0,saveMode};
     grouped[key].raw+=amount; dmg+=amount; dmgSeen=true;
     if(type&&!dtype) dtype=type;
   });
   if(resR&&resR.addTo==='dmg'&&resVal){
-    const keys=Object.keys(grouped), key=keys[0]||(dtype||'__untyped');
-    if(!grouped[key]) grouped[key]={type:key==='__untyped'?'':key,raw:0};
+    const keys=Object.keys(grouped), key=keys[0]||((dtype||'__untyped')+'|');
+    if(!grouped[key]) grouped[key]={type:(dtype||''),raw:0,saveMode:''};
     grouped[key].raw+=resVal; dmg+=resVal; dmgSeen=dmgSeen||resVal>0;
   }
   if(meta.contestBonus==='half'&&out.contestWin===true&&dmgSeen){
@@ -5203,32 +5213,39 @@ function resolveOutcome(spec, v, ctx){
   });
   if(dmgSeen){
     out.dmgRaw=dmg;
-    let parts=Object.values(grouped).map(p=>({type:p.type,raw:p.raw,total:p.raw}));
+    let parts=Object.values(grouped).map(p=>({type:p.type,raw:p.raw,total:p.raw,saveMode:p.saveMode||''}));
     if(ar&&out.hit!==true){
       parts.forEach(p=>p.total=0);
       out.verdict.push(out.hit===false?'Промах — урон не применяется.':'Нет подтвержденного результата атаки — урон не применяется.');
     }
-    else if(sr&&out.saveOk==null&&meta.saveAffectsDamage!==false){
-      parts.forEach(p=>p.total=0);
-      out.verdict.push('Нет результата спасброска — урон не применяется.');
+    else if(sr&&out.saveOk==null){
+      let gated=false;
+      parts.forEach(p=>{
+        const needsSave=p.saveMode&&p.saveMode!=='always';
+        if(needsSave||meta.saveAffectsDamage!==false){ p.total=0; gated=true; }
+      });
+      if(gated) out.verdict.push('Нет результата спасброска — зависящие от него компоненты урона не применяются.');
     }
-    else if(out.saveOk===true&&meta.saveAffectsDamage!==false){
-      if(meta.half){
-        parts.forEach(p=>p.total=Math.floor(p.total/2));
-        out.verdict.push('Успешный спасбросок — каждый компонент урона вдвое меньше: '+parts.reduce((n,p)=>n+p.total,0)+'.');
-      } else { parts.forEach(p=>p.total=0); out.verdict.push('Успешный спасбросок — урон не применяется.'); }
+    else if(out.saveOk===true){
+      let changed=false;
+      parts.forEach(p=>{
+        const mode=p.saveMode||(meta.saveAffectsDamage===false?'always':(meta.half?'half':'zero'));
+        if(mode==='half'){ p.total=Math.floor(p.total/2); changed=true; }
+        else if(mode==='zero'){ p.total=0; changed=true; }
+      });
+      if(changed) out.verdict.push('Успешный спасбросок — компоненты урона обработаны по своим правилам: '+parts.reduce((n,p)=>n+p.total,0)+'.');
     }
     if(ti.known){
       parts.forEach(p=>{
         if(!(p.total>0)) return;
-        const tr=dmgAfterTraits(ti.obj,p.total,p.type);
+        const tr=dmgAfterTraits(ti.obj,p.total,p.type,meta.damageTags||{});
         if(tr.note) out.verdict.push('Свойства цели для '+(p.type||'урона')+': '+tr.note+' → '+tr.amount+'.');
         p.total=tr.amount;
       });
     }
     const d=parts.reduce((n,p)=>n+p.total,0);
     out.damageParts=parts;
-    const usedTypes=parts.filter(p=>p.raw>0&&p.type).map(p=>p.type);
+    const usedTypes=[...new Set(parts.filter(p=>p.raw>0&&p.type).map(p=>p.type))];
     out.dmgType=usedTypes.length>1?'смешанный: '+usedTypes.join(' + '):(usedTypes[0]||dtype);
     out.dmgTotal=d;
     if(d>0) out.verdict.push('Итоговый урон по цели: '+d+(out.dmgType?' ('+out.dmgType+')':'')+'.');
@@ -5319,9 +5336,41 @@ function applyDamageTo(targetVal, amount, dtype, srcLabel, ctx){
       }
     } else if(amount>0) concDamageCheck(o, amount);
   } else {
-    if(o.hp<=0){ res.dead=true; o.cond=o.cond||[]; if(o.cond.indexOf('Повержен')<0) o.cond.push('Повержен'); }
+    if(o.hp<=0){
+      res.dead=true; o.cond=o.cond||[]; if(o.cond.indexOf('Повержен')<0) o.cond.push('Повержен');
+      const rule=o.undeadFortitude,damageName=String(dtype||'').toLowerCase();
+      const excluded=rule&&((rule.exceptCrit&&ctx&&ctx.crit)||(rule.exceptDamage||[]).some(x=>damageName.indexOf(String(x).toLowerCase())>=0));
+      if(was>0&&rule&&!excluded){
+        res.undeadFortitude={target:o,dc:(+rule.dcBase||5)+amount,mod:foeSaveMod(o,rule.save||'con'),save:rule.save||'con',resolved:false};
+      }
+    }
   }
   return res;
+}
+/* Стойкость нежити не бросает кость за игрока. Урон уже проведен атомарно,
+   затем интерфейс запрашивает фактический d20 и при успехе возвращает 1 хит. */
+function resolveUndeadFortitude(result,natural){
+  const p=result&&result.undeadFortitude;
+  if(!p||p.resolved||!Number.isInteger(natural)||natural<1||natural>20) return null;
+  p.natural=natural; p.total=natural+(+p.mod||0); p.success=p.total>=p.dc; p.resolved=true;
+  if(p.success){
+    p.target.hp=1; p.target.cond=normalizeConditions(p.target.cond).filter(x=>x!=='Повержен');
+    result.hp=1; result.down=false; result.dead=false;
+  }
+  return {success:p.success,total:p.total,dc:p.dc};
+}
+function promptUndeadFortitude(result){
+  const p=result&&result.undeadFortitude; if(!p||p.resolved) return false;
+  askRolls({title:'☠ Стойкость нежити — '+(p.target.n||'зомби'),
+    note:'Существо упало до 0 хитов. Бросьте реальный d20 '+fmtMod(p.mod)+' против СЛ '+p.dc+'. Излучение и критическое попадание уже проверены.',
+    rows:[{key:'d',label:'d20 Телосложения',min:1,max:20}],
+    compute:v=>'Стойкость: '+v.d+fmtMod(p.mod)+' = '+(v.d+p.mod)+' против СЛ '+p.dc,
+    apply:v=>{
+      const r=resolveUndeadFortitude(result,v.d); if(!r){ setStatus('✕ Нужен целый результат d20 от 1 до 20.',true); return; }
+      const line=(p.target.n||'Зомби')+': Стойкость нежити — '+r.total+' против СЛ '+r.dc+' · '+(r.success?'успех, остается 1 хит':'провал, повержен');
+      combatLog(line,'change','foe:'+p.target.id); setStatus(line+'.'); fxInvalidate(); scheduleSave(); renderFoes(); renderCombat();
+    }});
+  return true;
 }
 function outcomeReactionPlan(rolls){
   const uses=rolls&&Array.isArray(rolls.reactionUses)?rolls.reactionUses:[];
@@ -5375,16 +5424,19 @@ function applyRollsToTarget(targetVal, rolls, srcLabel){
   }
   if(rolls.dmgTotal!=null&&rolls.dmgTotal>0){
     const r=applyDamageTo(targetVal, rolls.dmgTotal, rolls.dmgType, srcLabel,{crit:!!rolls.crit});
-    if(r){ info+=' · урон '+rolls.dmgTotal+(rolls.dmgType?' ('+rolls.dmgType+')':'')+' → '+r.name+': '+r.hp+'/'+r.hpMax
+    if(r){ if(r.undeadFortitude) promptUndeadFortitude(r);
+      info+=' · урон '+rolls.dmgTotal+(rolls.dmgType?' ('+rolls.dmgType+')':'')+' → '+r.name+': '+r.hp+'/'+r.hpMax
         +(r.absorbed?' (временные хиты поглотили '+r.absorbed+')':'')
         +(r.deathFails?' · провалы спасбросков от смерти +'+r.deathFails:'')
         +(r.relentless?' · Непоколебимая стойкость: остался 1 хит'
-          :(r.dead?' · '+(ti.kind==='ally'?'СМЕРТЬ':'повержен'):(r.down?' · без сознания':'')));
+          :(r.undeadFortitude&&!r.undeadFortitude.resolved?' · ожидается Стойкость нежити'
+            :(r.dead?' · '+(ti.kind==='ally'?'СМЕРТЬ':'повержен'):(r.down?' · без сознания':''))));
       diceOutSet(srcLabel+' → '+r.name+': '+rolls.dmgTotal+' урона','var(--rubric)'); }
     else { info+=' · урон '+rolls.dmgTotal+' по цели'; diceOutSet(srcLabel+': '+rolls.dmgTotal+' урона по цели','var(--rubric)'); }
   } else if(rolls.dmgTotal===0&&rolls.dmgRaw>0){
     info+=' · урон не прошел (промах, успешный спасбросок или иммунитет)';
   }
+  if(ti.kind==='foe'&&ti.obj){ const special=foeDamageReaction(ti.obj,rolls); if(special) info+=' · '+special; }
   if(rolls.notes&&rolls.notes.length) info+=' · '+rolls.notes.join(' · ');
   return info;
 }
@@ -5491,7 +5543,7 @@ function castFormulaShow(){
   h+='<div id="castVerdict" class="roll-live" style="white-space:pre-line"></div>';
   h+='<div class="note-ital" style="font-size:12.5px;margin-top:4px">Любое поле можно оставить пустым — эта часть просто не применится.</div>';
   document.getElementById('castFormula').innerHTML=h;
-  if(isSpell&&castCtx.primaryTarget&&castCtx.target!==castCtx.primaryTarget&&castCtx.sharedCasterVals){
+  if((isSpell||(isFoe&&foeActionOf(actor,castCtx.actionId).area))&&castCtx.primaryTarget&&castCtx.target!==castCtx.primaryTarget&&castCtx.sharedCasterVals){
     Object.keys(castCtx.sharedCasterVals).forEach(k=>{
       const el=document.getElementById('cf_'+k);
       if(el){ el.value=castCtx.sharedCasterVals[k]; el.readOnly=true; el.title='Общий бросок заклинания уже сделан для всех целей'; }
@@ -5605,7 +5657,20 @@ function castFormulaConfirm(){
   const resR=spec.rows.find(r=>r.type==='res');
   if(resR&&v.res!=null&&spec.meta.pool) rolls.poolSpend=spec.meta.pool.ab.id;
   if(castCtx.kind==='foe'){
-    if(foeActionApply(castCtx.foeId,castCtx.actionId,castCtx.target,rolls)) closeCastModal();
+    const f=foeOf(castCtx.foeId),a=foeActionOf(f,castCtx.actionId);
+    if(!a||!a.area){ if(foeActionApply(castCtx.foeId,castCtx.actionId,castCtx.target,rolls)) closeCastModal(); return; }
+    const current=castCtx.target;
+    castCtx.rollsByTarget=castCtx.rollsByTarget||{}; castCtx.rollsByTarget[current]=rolls;
+    if(current===(castCtx.primaryTarget||current)){
+      castCtx.sharedCasterVals={}; sharedSpellRowKeys(spec).forEach(k=>{ if(v[k]!=null) castCtx.sharedCasterVals[k]=v[k]; });
+    }
+    if(!Array.isArray(castCtx.rollQueue)) castCtx.rollQueue=(castCtx.extraTargets||[]).slice();
+    while(castCtx.rollQueue.length){
+      castCtx.target=castCtx.rollQueue.shift(); castCtx.spec=null; castCtx.hitOverride=''; castCtx.distanceExplicit=false; delete castCtx.within5;
+      if(castFormulaShow()) return;
+    }
+    const targets=[castCtx.primaryTarget||current].concat(castCtx.extraTargets||[]);
+    if(foeActionBatchApply(castCtx.foeId,castCtx.actionId,targets,castCtx.rollsByTarget)) closeCastModal();
     return;
   }
   if(castCtx.kind==='weapon'){
@@ -5727,6 +5792,7 @@ function castTargetChanged(){
   const v=document.getElementById('castTarget').value;
   document.getElementById('castItemWrap').style.display=(v==='invitem')?'block':'none';
   if(castCtx&&castCtx.kind==='spell') renderCastMultiTargets();
+  if(castCtx&&castCtx.kind==='foe') renderFoeMultiTargets();
 }
 function setCastConfirmCaption(text){ const b=document.getElementById('castConfirmBtn'); if(b) b.textContent=text; }
 function setCastTargetLabel(text){ const b=document.getElementById('castTargetLabel'); if(b) b.textContent=text; }
@@ -5738,7 +5804,10 @@ function castShowErr(msg){
 function castConfirm(){
   if(!castCtx) return;
   if(castCtx.kind==='foe'){
-    castCtx.target=document.getElementById('castTarget').value;
+    castCtx.target=document.getElementById('castTarget').value; castCtx.primaryTarget=castCtx.target;
+    const f=foeOf(castCtx.foeId),a=foeActionOf(f,castCtx.actionId);
+    castCtx.extraTargets=a&&a.area?[...document.querySelectorAll('.cast-multi:checked')].map(x=>x.value):[];
+    castCtx.rollsByTarget={}; castCtx.rollQueue=null; castCtx.sharedCasterVals=null;
     if(castFormulaShow()) return;
     return;
   }
@@ -5916,6 +5985,17 @@ function renderCastMultiTargets(){
   document.getElementById('castMultiLabel').textContent='Дополнительные известные цели — еще до '+Math.max(0,max-1);
   box.innerHTML=choices.map(x=>'<label class="chip"><input type="checkbox" class="cast-multi" value="'+x.v+'"'
     +(keep.has(x.v)?' checked':'')+'> '+esc(x.label)+'</label>').join('');
+  wrap.style.display='block';
+}
+function renderFoeMultiTargets(){
+  if(!castCtx||castCtx.kind!=='foe') return;
+  const f=foeOf(castCtx.foeId),a=foeActionOf(f,castCtx.actionId),wrap=document.getElementById('castMultiWrap'),box=document.getElementById('castMultiTargets');
+  if(!f||!a||!a.area||!wrap||!box){ if(wrap) wrap.style.display='none'; return; }
+  const primary=(document.getElementById('castTarget')||{}).value||castCtx.target,keep=new Set(castCtx.extraTargets||[]);
+  const choices=chars.map(x=>({v:'ally:'+x.id,label:x.name+' — герой'})).filter(x=>x.v!==primary);
+  if(!choices.length){ wrap.style.display='none'; box.innerHTML=''; return; }
+  document.getElementById('castMultiLabel').textContent='Другие цели, фактически попавшие в область';
+  box.innerHTML=choices.map(x=>'<label class="chip"><input type="checkbox" class="cast-multi" value="'+x.v+'"'+(keep.has(x.v)?' checked':'')+'> '+esc(x.label)+'</label>').join('');
   wrap.style.display='block';
 }
 function specialCastPlan(sp,caster,target,usedLvl){
@@ -6652,7 +6732,10 @@ function weaponSpecOf(caster, it, ti, opts){
   if(opts.two&&w.versatile){ cnt=w.versatile.cnt; sides=w.versatile.sides; }
   const attackMode=(opts.mode==='throw'||w.ranged)?'ranged':'melee';
   const within5=opts.within5!==undefined?opts.within5:((attackMode==='ranged'||w.reach)?null:true);
-  const rows=[], meta={target:ti, kind:'weapon', dmgType:dmgTypeCanon(it.dmgType), half:false, dc:0, weapon:it.n,attackMode,within5};
+  const rows=[], meta={target:ti, kind:'weapon', dmgType:dmgTypeCanon(it.dmgType), half:false, dc:0, weapon:it.n,attackMode,within5,
+    damageTags:{magical:tags.indexOf('magical')>=0||tags.indexOf('enchanted')>=0||!!w.magic,
+      silvered:tags.indexOf('silvered')>=0||tags.indexOf('silver')>=0,
+      adamantine:tags.indexOf('adamantine')>=0}};
   const atkFx=rollFxEntries(caster,'attack'), condMode=attackConditionMode(caster,ti,{mode:attackMode,within5});
   meta.spatialRequired=!!condMode.requiresDistance;
   meta.autoCritOnHit=!!condMode.autoCrit;
@@ -7186,6 +7269,7 @@ const chWorld=makeChan('мир','w',
   (d)=>{
     itemsDB=d.items||[]; spellsDB=d.spells||[]; abilitiesDB=d.abilities||[];
     racesDB=d.races||racesDB; classesDB=d.classes||classesDB; rulesDB=d.rules||rulesDB; foesDB=d.foes||foesDB;
+    foesDB.forEach(upgradeFoe);
     renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderRaces(); renderClasses(); renderRules(); renderFoes(); renderChars();
   });
 const chCamp=makeChan('кампания','c',
@@ -7535,11 +7619,10 @@ function renderClasses(){
 
 
 /* ═══════════════ БЕСТИАРИЙ: монстры, NPC и прочие цели ═══════════════
-   Каркас под будущую полную базу. Запись противника:
-   {id, n, kind:'monster'|'npc', cr, ac, hpMax, hp, hpTemp, speed, abil:{str…cha},
-    profB, saveP:{str…cha}, resist:[], vuln:[], immune:[], condImmune:[], cond:[],
-    magicRes:bool, senses, langs, traits, actions, notes, tags}
-   Все броски цели сайт умеет считать по этим числам; чего нет — спрашивает у мастера. */
+   Полная запись хранит идентичность и источник, КД/хиты/скорости, шесть
+   характеристик, явные спасброски и навыки, чувства, языки, защиты, состояния,
+   структурированные действия, мультиатаку и их ресурсы. Все числовые правила
+   движок берет из структуры; контекстные решения остаются за мастером. */
 const DMG_TYPES=['дробящий','колющий','рубящий','огонь','холод','кислота','яд','электричество','звук',
   'некротическая энергия','излучение','психическая энергия','силовое поле'];
 /* как урон назван в текстах записей → канонический вид */
@@ -7557,61 +7640,273 @@ function dmgTypeCanon(t){
   return hit||k;
 }
 function blankFoe(){
-  return {id:'foe_'+uid(), n:'', kind:'monster', cr:'', ac:12, hpMax:11, hp:11, hpTemp:0, speed:'9 м',
-    abil:{str:10,dex:10,con:10,int:10,wis:10,cha:10}, profB:2, saveP:{},
-    resist:[], vuln:[], immune:[], condImmune:[], cond:[], magicRes:false,
-    activeFx:[], senses:'', langs:'', traits:'', actions:'', combatActions:[], notes:'', tags:[]};
+  return {id:'foe_'+uid(), n:'', kind:'monster', size:'Средний', creatureType:'гуманоид', subtype:'', alignment:'Без мировоззрения',
+    cr:'', xp:0, ac:12, acSource:'', hpMax:11, hpFormula:'', hp:11, hpTemp:0, speed:'9 м', movement:{walk:9},
+    abil:{str:10,dex:10,con:10,int:10,wis:10,cha:10}, profB:2, saveP:{}, saveBonuses:{}, skills:{}, passive:10,
+    resist:[], vuln:[], immune:[], damageRules:[], condImmune:[], cond:[], magicRes:false,
+    activeFx:[], senses:'', langs:'', traits:'', actions:'', combatActions:[], multiattack:null, actionState:{},
+    notes:'', tags:[], source:'Авторская запись мастера', builtin:false};
 }
-/* Репрезентативный стартовый бестиарий по Basic Rules 2014. Числа хранятся
-   отдельно от текста: формула не парсится заново при каждом ударе и потому не
-   может незаметно измениться из-за склонения или редакторской правки описания. */
+const FOE_SRD_SOURCE='SRD 5.1 (2014), CC BY 4.0';
+function foeSeed(data,source){
+  const f=blankFoe();
+  Object.assign(f,data||{});
+  f.source=source||FOE_SRD_SOURCE; f.builtin=true;
+  f.hp=Object.prototype.hasOwnProperty.call(data||{},'hp')?data.hp:f.hpMax;
+  return upgradeFoe(f);
+}
+/* Кампания-совместимый стартовый бестиарий. Открытые существа основаны на
+   SRD 5.1; уникальные для готовых приключений роли представлены новыми,
+   самостоятельно спроектированными аналогами. Числа отделены от описаний:
+   боевой движок не пытается угадывать КД, спасбросок или урон из прозы. */
 function seedFoesDB(){
+  const D=(cnt,sides,mod,type,extra)=>Object.assign({cnt,sides,mod:mod||0,type},extra||{});
+  const A=(id,n,mode,attackBonus,range,damage,extra)=>Object.assign({id,n,kind:'attack',cost:'attack',mode,attackBonus,range,damage},extra||{});
+  const U=(id,n,cost,combatEffect,extra)=>Object.assign({id,n,kind:'utility',cost,combatEffect},extra||{});
+  const original='Авторская 5e-совместимая запись проекта dnd-world';
   return [
-    {id:'foe_goblin_scout',n:'Гоблин-разведчик',kind:'monster',cr:'1/4',ac:15,hpMax:7,hp:7,hpTemp:0,speed:'9 м',
-      abil:{str:8,dex:14,con:10,int:10,wis:8,cha:8},profB:2,saveP:{},resist:[],vuln:[],immune:[],condImmune:[],cond:[],magicRes:false,activeFx:[],
+    foeSeed({id:'foe_goblin_scout',n:'Гоблин-разведчик',size:'Маленький',creatureType:'гуманоид',subtype:'гоблиноид',alignment:'Нейтрально-злой',cr:'1/4',xp:50,
+      ac:15,acSource:'кожаный доспех, щит',hpMax:7,hpFormula:'2d6',speed:'9 м',movement:{walk:9},
+      abil:{str:8,dex:14,con:10,int:10,wis:8,cha:8},profB:2,skills:{'Скрытность':6},passive:9,
       senses:'Темное зрение 18 м; пассивная Внимательность 9',langs:'Общий, Гоблинский',
-      traits:'Ловкий побег. Бонусным действием в каждый свой ход гоблин может совершить Отход или Спрятаться.',
-      actions:'Скимитар: +4 к атаке, 1d6 + 2 рубящего. Короткий лук: +4 к атаке, 1d6 + 2 колющего, дистанция 24/96 м.',
-      combatActions:[
-        {id:'scimitar',n:'Скимитар',kind:'attack',mode:'melee',attackBonus:4,range:'досягаемость 1,5 м',damage:[{cnt:1,sides:6,mod:2,type:'рубящий'}]},
-        {id:'shortbow',n:'Короткий лук',kind:'attack',mode:'ranged',attackBonus:4,range:'24/96 м',damage:[{cnt:1,sides:6,mod:2,type:'колющий'}],rangeHint:'На дальней дистанции выберите помеху.'}
-      ],notes:'Официальная базовая запись D&D 5e (2014).',tags:['humanoid','goblinoid']},
-    {id:'foe_skeleton_guard',n:'Скелет-страж',kind:'monster',cr:'1/4',ac:13,hpMax:13,hp:13,hpTemp:0,speed:'9 м',
-      abil:{str:10,dex:14,con:15,int:6,wis:8,cha:5},profB:2,saveP:{},resist:[],vuln:['дробящий'],immune:['яд'],
-      condImmune:['Истощение','Отравленный'],cond:[],magicRes:false,activeFx:[],
-      senses:'Темное зрение 18 м; пассивная Внимательность 9',langs:'Понимает языки, известные при жизни, но не говорит',traits:'Нежить.',
-      actions:'Короткий меч: +4 к атаке, 1d6 + 2 колющего. Короткий лук: +4 к атаке, 1d6 + 2 колющего, дистанция 24/96 м.',
-      combatActions:[
-        {id:'shortsword',n:'Короткий меч',kind:'attack',mode:'melee',attackBonus:4,range:'досягаемость 1,5 м',damage:[{cnt:1,sides:6,mod:2,type:'колющий'}]},
-        {id:'shortbow',n:'Короткий лук',kind:'attack',mode:'ranged',attackBonus:4,range:'24/96 м',damage:[{cnt:1,sides:6,mod:2,type:'колющий'}],rangeHint:'На дальней дистанции выберите помеху.'}
-      ],notes:'Официальная базовая запись D&D 5e (2014).',tags:['undead']},
-    {id:'foe_orc_raider',n:'Орк-налетчик',kind:'monster',cr:'1/2',ac:13,hpMax:15,hp:15,hpTemp:0,speed:'9 м',
-      abil:{str:16,dex:12,con:16,int:7,wis:11,cha:10},profB:2,saveP:{},resist:[],vuln:[],immune:[],condImmune:[],cond:[],magicRes:false,activeFx:[],
+      traits:'Ловкий побег. Бонусным действием совершает Отход или пытается Спрятаться.',
+      actions:'Скимитар: +4, 1d6 + 2 рубящего. Короткий лук: +4, 1d6 + 2 колющего, 24/96 м.',
+      combatActions:[A('scimitar','Скимитар','melee',4,'1,5 м',[D(1,6,2,'рубящий')]),
+        A('shortbow','Короткий лук','ranged',4,'24/96 м',[D(1,6,2,'колющий')],{rangeHint:'На дальней дистанции выберите помеху.'}),
+        U('nimble_disengage','Ловкий побег: Отход','bonus','disengage'),U('nimble_hide','Ловкий побег: Спрятаться','bonus','hide')],tags:['humanoid','goblinoid']}),
+
+    foeSeed({id:'foe_wolf',n:'Волк',size:'Средний',creatureType:'зверь',alignment:'Без мировоззрения',cr:'1/4',xp:50,ac:13,acSource:'природный доспех',
+      hpMax:11,hpFormula:'2d8 + 2',speed:'12 м',movement:{walk:12},abil:{str:12,dex:15,con:12,int:3,wis:12,cha:6},profB:2,
+      skills:{'Внимательность':3,'Скрытность':4},passive:13,senses:'Пассивная Внимательность 13',langs:'—',
+      traits:'Острый слух и нюх. Преимущество на Внимательность по слуху или запаху.\nТактика стаи. Преимущество на атаку, когда у цели рядом есть дееспособный союзник волка.',
+      actions:'Укус: +4, 2d4 + 2 колющего; Сила СЛ 11 или цель сбита с ног.',
+      combatActions:[A('bite','Укус','melee',4,'1,5 м',[D(2,4,2,'колющий')],{save:{key:'str',dc:11,affectsDamage:false},condition:'Сбитый с ног',advHint:'Тактика стаи применяется только при фактическом союзнике возле цели.'})],tags:['beast']}),
+
+    foeSeed({id:'foe_bug_bear',n:'Багбир',size:'Средний',creatureType:'гуманоид',subtype:'гоблиноид',alignment:'Хаотично-злой',cr:'1',xp:200,ac:16,acSource:'шкурный доспех, щит',
+      hpMax:27,hpFormula:'5d8 + 5',speed:'9 м',movement:{walk:9},abil:{str:15,dex:14,con:13,int:8,wis:11,cha:9},profB:2,
+      skills:{'Скрытность':6,'Выживание':2},passive:10,senses:'Темное зрение 18 м; пассивная Внимательность 10',langs:'Общий, Гоблинский',
+      traits:'Грубая сила. Рукопашное оружие наносит дополнительную кость урона (уже включено).\nВнезапная атака. В первом раунде по застигнутой врасплох цели добавляет 2d6 один раз.',
+      actions:'Моргенштерн: +4, 2d8 + 2 колющего. Метательное копье: +4, вблизи 2d6 + 2, издали 1d6 + 2 колющего.',
+      combatActions:[A('morningstar','Моргенштерн','melee',4,'1,5 м',[D(2,8,2,'колющий')],{conditionalDamage:[D(2,6,0,'колющий',{label:'Внезапная атака — только в первом раунде по застигнутой врасплох цели'})]}),
+        A('javelin_melee','Метательное копье — вблизи','melee',4,'1,5 м',[D(2,6,2,'колющий')]),
+        A('javelin','Метательное копье — бросок','ranged',4,'9/36 м',[D(1,6,2,'колющий')],{rangeHint:'На дальней дистанции выберите помеху.'})],tags:['humanoid','goblinoid']}),
+
+    foeSeed({id:'foe_hobgoblin',n:'Хобгоблин',size:'Средний',creatureType:'гуманоид',subtype:'гоблиноид',alignment:'Законно-злой',cr:'1/2',xp:100,ac:18,acSource:'кольчуга, щит',
+      hpMax:11,hpFormula:'2d8 + 2',speed:'9 м',movement:{walk:9},abil:{str:13,dex:12,con:12,int:10,wis:10,cha:9},profB:2,passive:10,
+      senses:'Темное зрение 18 м; пассивная Внимательность 10',langs:'Общий, Гоблинский',
+      traits:'Военное преимущество. Один раз за ход добавляет 2d6 урона оружием, если рядом с целью находится дееспособный союзник хобгоблина.',
+      actions:'Длинный меч: +3, 1d8 + 1 рубящего (1d10 + 1 двумя руками). Длинный лук: +3, 1d8 + 1 колющего, 45/180 м.',
+      combatActions:[A('longsword','Длинный меч','melee',3,'1,5 м',[D(1,8,1,'рубящий')],{conditionalDamage:[D(2,6,0,'рубящий',{label:'Военное преимущество — один раз за ход при союзнике возле цели'})]}),
+        A('longbow','Длинный лук','ranged',3,'45/180 м',[D(1,8,1,'колющий')],{conditionalDamage:[D(2,6,0,'колющий',{label:'Военное преимущество — один раз за ход при союзнике возле цели'})],rangeHint:'На дальней дистанции выберите помеху.'})],tags:['humanoid','goblinoid']}),
+
+    foeSeed({id:'foe_skeleton_guard',n:'Скелет-страж',size:'Средний',creatureType:'нежить',alignment:'Законно-злой',cr:'1/4',xp:50,ac:13,acSource:'обрывки доспеха',
+      hpMax:13,hpFormula:'2d8 + 4',speed:'9 м',movement:{walk:9},abil:{str:10,dex:14,con:15,int:6,wis:8,cha:5},profB:2,passive:9,
+      vuln:['дробящий'],immune:['яд'],condImmune:['Истощение','Отравленный'],senses:'Темное зрение 18 м; пассивная Внимательность 9',
+      langs:'Понимает языки, известные при жизни, но не говорит',traits:'Не нуждается в пище, воздухе или сне.',
+      actions:'Короткий меч: +4, 1d6 + 2 колющего. Короткий лук: +4, 1d6 + 2 колющего, 24/96 м.',
+      combatActions:[A('shortsword','Короткий меч','melee',4,'1,5 м',[D(1,6,2,'колющий')]),A('shortbow','Короткий лук','ranged',4,'24/96 м',[D(1,6,2,'колющий')],{rangeHint:'На дальней дистанции выберите помеху.'})],tags:['undead']}),
+
+    foeSeed({id:'foe_zombie',n:'Зомби',size:'Средний',creatureType:'нежить',alignment:'Нейтрально-злой',cr:'1/4',xp:50,ac:8,hpMax:22,hpFormula:'3d8 + 9',speed:'6 м',movement:{walk:6},
+      abil:{str:13,dex:6,con:16,int:3,wis:6,cha:5},profB:2,saveBonuses:{wis:0},immune:['яд'],condImmune:['Отравленный'],passive:8,
+      senses:'Темное зрение 18 м; пассивная Внимательность 8',langs:'Понимает языки, известные при жизни, но не говорит',
+      traits:'Стойкость нежити. При падении до 0 хитов совершает спасбросок Телосложения СЛ 5 + полученный урон; излучение и критическое попадание отменяют эту черту.',undeadFortitude:{dcBase:5,save:'con',exceptDamage:['излучение'],exceptCrit:true},
+      actions:'Удар: +3, 1d6 + 1 дробящего.',combatActions:[A('slam','Удар','melee',3,'1,5 м',[D(1,6,1,'дробящий')])],tags:['undead']}),
+
+    foeSeed({id:'foe_orc_raider',n:'Орк-налетчик',size:'Средний',creatureType:'гуманоид',subtype:'орк',alignment:'Хаотично-злой',cr:'1/2',xp:100,ac:13,acSource:'шкурный доспех',
+      hpMax:15,hpFormula:'2d8 + 6',speed:'9 м',movement:{walk:9},abil:{str:16,dex:12,con:16,int:7,wis:11,cha:10},profB:2,passive:10,
       senses:'Темное зрение 18 м; пассивная Внимательность 10',langs:'Общий, Орочий',
-      traits:'Агрессивный. Бонусным действием орк перемещается на свою скорость к видимому враждебному существу.',
-      actions:'Секира: +5 к атаке, 1d12 + 3 рубящего. Метательное копье: +5 к атаке, 1d6 + 3 колющего, дистанция 9/36 м.',
-      combatActions:[
-        {id:'greataxe',n:'Секира',kind:'attack',mode:'melee',attackBonus:5,range:'досягаемость 1,5 м',damage:[{cnt:1,sides:12,mod:3,type:'рубящий'}]},
-        {id:'javelin',n:'Метательное копье',kind:'attack',mode:'ranged',attackBonus:5,range:'9/36 м',damage:[{cnt:1,sides:6,mod:3,type:'колющий'}],rangeHint:'В ближнем бою или на дальней дистанции мастер меняет режим броска по ситуации.'}
-      ],notes:'Официальная базовая запись D&D 5e (2014).',tags:['humanoid','orc']},
-    {id:'foe_dire_wolf',n:'Лютоволк',kind:'monster',cr:'1',ac:14,hpMax:37,hp:37,hpTemp:0,speed:'15 м',
-      abil:{str:17,dex:15,con:15,int:3,wis:12,cha:7},profB:2,saveP:{},resist:[],vuln:[],immune:[],condImmune:[],cond:[],magicRes:false,activeFx:[],
-      senses:'Пассивная Внимательность 13',langs:'—',
-      traits:'Острый слух и нюх. Преимущество на проверки Мудрости (Внимательность), основанные на слухе или нюхе.\nТактика стаи. Преимущество на атаку, если дееспособный союзник волка находится в 1,5 м от цели.',
-      actions:'Укус: +5 к атаке, 2d6 + 3 колющего. При попадании цель совершает спасбросок Силы СЛ 13; при провале сбита с ног.',
-      combatActions:[
-        {id:'bite',n:'Укус',kind:'attack',mode:'melee',attackBonus:5,range:'досягаемость 1,5 м',damage:[{cnt:2,sides:6,mod:3,type:'колющий'}],
-          save:{key:'str',dc:13,affectsDamage:false},condition:'Сбитый с ног',advHint:'Тактика стаи: выберите преимущество, только если рядом с целью есть дееспособный союзник лютоволка.'}
-      ],notes:'Официальная базовая запись D&D 5e (2014).',tags:['beast']}
+      traits:'Агрессивный. Бонусным действием перемещается на свою скорость к видимому врагу.',
+      actions:'Секира: +5, 1d12 + 3 рубящего. Метательное копье: +5, 1d6 + 3 колющего, 9/36 м.',
+      combatActions:[A('greataxe','Секира','melee',5,'1,5 м',[D(1,12,3,'рубящий')]),A('javelin','Метательное копье','ranged',5,'9/36 м',[D(1,6,3,'колющий')]),U('aggressive','Агрессивный рывок','bonus','dashToward')],tags:['humanoid','orc']}),
+
+    foeSeed({id:'foe_ogre',n:'Огр',size:'Большой',creatureType:'великан',alignment:'Хаотично-злой',cr:'2',xp:450,ac:11,acSource:'шкурный доспех',hpMax:59,hpFormula:'7d10 + 21',
+      speed:'12 м',movement:{walk:12},abil:{str:19,dex:8,con:16,int:5,wis:7,cha:7},profB:2,passive:8,senses:'Темное зрение 18 м; пассивная Внимательность 8',langs:'Общий, Великаний',
+      actions:'Палица: +6, 2d8 + 4 дробящего. Метательное копье: +6, 2d6 + 4 колющего, 9/36 м.',
+      combatActions:[A('greatclub','Палица','melee',6,'1,5 м',[D(2,8,4,'дробящий')]),A('javelin','Метательное копье','ranged',6,'9/36 м',[D(2,6,4,'колющий')])],tags:['giant']}),
+
+    foeSeed({id:'foe_owlbear',n:'Совомед',size:'Большой',creatureType:'монстр',alignment:'Без мировоззрения',cr:'3',xp:700,ac:13,acSource:'природный доспех',hpMax:59,hpFormula:'7d10 + 21',
+      speed:'12 м',movement:{walk:12},abil:{str:20,dex:12,con:17,int:3,wis:12,cha:7},profB:2,skills:{'Внимательность':3},passive:13,
+      senses:'Темное зрение 18 м; пассивная Внимательность 13',langs:'—',traits:'Острое зрение и нюх. Преимущество на Внимательность по зрению или запаху.\nМультиатака: клюв, затем когти.',
+      actions:'Клюв: +7, 1d10 + 5 колющего. Когти: +7, 2d8 + 5 рубящего.',multiattack:{sequences:[['beak','claws']]},
+      combatActions:[A('beak','Клюв','melee',7,'1,5 м',[D(1,10,5,'колющий')]),A('claws','Когти','melee',7,'1,5 м',[D(2,8,5,'рубящий')])],tags:['monstrosity']}),
+
+    foeSeed({id:'foe_grick',n:'Грик',size:'Средний',creatureType:'монстр',alignment:'Истинно нейтральный',cr:'2',xp:450,ac:14,acSource:'природный доспех',hpMax:27,hpFormula:'6d8',
+      speed:'9 м; лазание 9 м',movement:{walk:9,climb:9},abil:{str:14,dex:14,con:11,int:3,wis:14,cha:5},profB:2,passive:12,
+      damageRules:[{mode:'resist',types:['дробящий','колющий','рубящий'],when:'nonmagical'}],senses:'Темное зрение 18 м; пассивная Внимательность 12',langs:'—',
+      traits:'Каменная маскировка. Преимущество на Скрытность среди камня.\nМультиатака: щупальца; только при их попадании — клюв по той же цели.',
+      actions:'Щупальца: +4, 2d6 + 2 рубящего. Клюв: +4, 1d6 + 2 колющего.',multiattack:{sequences:[['tentacles','beak']]},
+      combatActions:[A('tentacles','Щупальца','melee',4,'1,5 м',[D(2,6,2,'рубящий')]),A('beak','Клюв','melee',4,'1,5 м',[D(1,6,2,'колющий')],{requiresHit:'tentacles',sameTarget:true})],tags:['monstrosity']}),
+
+    foeSeed({id:'foe_giant_spider',n:'Гигантский паук',size:'Большой',creatureType:'зверь',alignment:'Без мировоззрения',cr:'1',xp:200,ac:14,acSource:'природный доспех',hpMax:26,hpFormula:'4d10 + 4',
+      speed:'9 м; лазание 9 м',movement:{walk:9,climb:9},abil:{str:14,dex:16,con:12,int:2,wis:11,cha:4},profB:2,skills:{'Скрытность':7},passive:10,
+      senses:'Слепое зрение 3 м, темное зрение 18 м; пассивная Внимательность 10',langs:'—',traits:'Паучье лазание; чувство паутины; паутина не ограничивает перемещение.',
+      actions:'Укус: +5, 1d8 + 3 колющего и Телосложение СЛ 11 против 2d8 яда (половина при успехе). Паутина (перезарядка 5–6): +5, цель Опутана.',
+      combatActions:[A('bite','Укус','melee',5,'1,5 м',[D(1,8,3,'колющий',{saveMode:'always'}),D(2,8,0,'яд',{saveMode:'half'})],{save:{key:'con',dc:11,affectsDamage:false},zeroHpFromPoison:{durationRounds:600}}),
+        A('web','Паутина','ranged',5,'9/18 м',[],{condition:'Опутанный',recharge:{min:5,max:6},rangeHint:'Освобождение: действие и проверка Силы СЛ 12; паутина имеет КД 10 и 5 хитов.'})],tags:['beast']}),
+
+    foeSeed({id:'foe_ghoul',n:'Гуль',size:'Средний',creatureType:'нежить',alignment:'Хаотично-злой',cr:'1',xp:200,ac:12,hpMax:22,hpFormula:'5d8',speed:'9 м',movement:{walk:9},
+      abil:{str:13,dex:15,con:10,int:7,wis:10,cha:6},profB:2,passive:10,immune:['яд'],condImmune:['Очарованный','Истощение','Отравленный'],
+      senses:'Темное зрение 18 м; пассивная Внимательность 10',langs:'Общий',actions:'Укус: +2, 2d6 + 2 колющего. Когти: +4, 2d4 + 2 рубящего; Телосложение СЛ 10 или паралич до 1 минуты с повтором в конце хода.',
+      combatActions:[A('bite','Укус','melee',2,'1,5 м',[D(2,6,2,'колющий')]),A('claws','Когти','melee',4,'1,5 м',[D(2,4,2,'рубящий')],{save:{key:'con',dc:10,affectsDamage:false},condition:'Парализованный',durationRounds:10,repeatSave:{key:'con',dc:10,when:'end'},effectExcludes:{races:['эльф'],creatureTypes:['нежить']}})],tags:['undead']}),
+
+    foeSeed({id:'foe_stirge',n:'Стирж',size:'Крошечный',creatureType:'зверь',alignment:'Без мировоззрения',cr:'1/8',xp:25,ac:14,acSource:'природный доспех',hpMax:2,hpFormula:'1d4',
+      speed:'3 м; полет 12 м',movement:{walk:3,fly:12},abil:{str:4,dex:16,con:11,int:2,wis:8,cha:6},profB:2,passive:9,
+      senses:'Темное зрение 18 м; пассивная Внимательность 9',langs:'—',traits:'После попадания присасывается. В начале следующих ходов высасывает 1d4 + 3 хита без броска; снятие требует действия. После 10 высосанных хитов или смерти цели стирж отсоединяется.',
+      actions:'Высасывание крови: +5, 1d4 + 3 колющего и присасывание.',combatActions:[A('drain','Высасывание крови','melee',5,'1,5 м',[D(1,4,3,'колющий')],{condition:'Присосавшийся стирж',notWhileEffectActive:'drain'}),
+        {id:'attached_drain',n:'Кровопотеря у присосавшегося стиржа',kind:'auto',cost:'turnfree',damage:[D(1,4,3,'колющий')],requiresTargetEffect:'drain',oncePerTurn:true,tracksDrain:true}],tags:['beast']}),
+
+    foeSeed({id:'foe_ochre_jelly',n:'Охристое желе',size:'Большой',creatureType:'слизь',alignment:'Без мировоззрения',cr:'2',xp:450,ac:8,hpMax:45,hpFormula:'6d10 + 12',
+      speed:'3 м; лазание 3 м',movement:{walk:3,climb:3},abil:{str:15,dex:6,con:14,int:2,wis:6,cha:1},profB:2,passive:8,resist:['кислота'],immune:['электричество','рубящий'],
+      condImmune:['Ослепленный','Очарованный','Глухой','Истощение','Испуганный','Сбитый с ног'],senses:'Слепое зрение 18 м (за пределами слепо); пассивная Внимательность 8',langs:'—',
+      traits:'Аморфность; паучье лазание. Получив электрический или рубящий урон при 10+ хитах, Среднее или более крупное желе может реакцией разделиться на две меньшие части с половиной текущих хитов.',splitReaction:{damageTypes:['электричество','рубящий'],minHp:10},
+      actions:'Ложноножка: +4, 2d6 + 2 дробящего и 1d6 кислоты.',combatActions:[A('pseudopod','Ложноножка','melee',4,'1,5 м',[D(2,6,2,'дробящий'),D(1,6,0,'кислота')])],tags:['ooze']}),
+
+    foeSeed({id:'foe_dire_wolf',n:'Лютоволк',size:'Большой',creatureType:'зверь',alignment:'Без мировоззрения',cr:'1',xp:200,ac:14,acSource:'природный доспех',hpMax:37,hpFormula:'5d10 + 10',
+      speed:'15 м',movement:{walk:15},abil:{str:17,dex:15,con:15,int:3,wis:12,cha:7},profB:2,skills:{'Внимательность':3,'Скрытность':4},passive:13,
+      senses:'Пассивная Внимательность 13',langs:'—',traits:'Острый слух и нюх; тактика стаи.',
+      actions:'Укус: +5, 2d6 + 3 колющего; Сила СЛ 13 или цель сбита с ног.',combatActions:[A('bite','Укус','melee',5,'1,5 м',[D(2,6,3,'колющий')],{save:{key:'str',dc:13,affectsDamage:false},condition:'Сбитый с ног',advHint:'Тактика стаи применяется только при фактическом союзнике возле цели.'})],tags:['beast']}),
+
+    foeSeed({id:'foe_doppelganger',n:'Доппельгангер',size:'Средний',creatureType:'монстр',subtype:'перевертыш',alignment:'Истинно нейтральный',cr:'3',xp:700,ac:14,hpMax:52,hpFormula:'8d8 + 16',speed:'9 м',movement:{walk:9},
+      abil:{str:11,dex:18,con:14,int:11,wis:12,cha:14},profB:2,skills:{'Обман':6,'Проницательность':3},passive:11,condImmune:['Очарованный'],
+      senses:'Темное зрение 18 м; пассивная Внимательность 11',langs:'Общий',traits:'Смена облика; засадник; чтение мыслей. Внезапная атака добавляет 3d6 один раз по застигнутой врасплох цели.',
+      actions:'Мультиатака: два удара. Удар: +6, 1d6 + 4 дробящего.',multiattack:{sequences:[['slam','slam']]},
+      combatActions:[A('slam','Удар','melee',6,'1,5 м',[D(1,6,4,'дробящий')],{conditionalDamage:[D(3,6,0,'дробящий',{label:'Внезапная атака — один раз по застигнутой врасплох цели'})]}),U('read_thoughts','Чтение мыслей','action','note',{note:'Читает поверхностные мысли существа в пределах 18 м; требует концентрации.'}),U('shapechange','Смена облика','action','note',{note:'Принимает облик Маленького или Среднего гуманоида либо возвращается в истинный облик.'})],tags:['monstrosity','shapechanger']}),
+
+    foeSeed({id:'foe_young_green_dragon',n:'Молодой зеленый дракон',size:'Большой',creatureType:'дракон',alignment:'Законно-злой',cr:'8',xp:3900,ac:18,acSource:'природный доспех',hpMax:136,hpFormula:'16d10 + 48',
+      speed:'12 м; полет 24 м; плавание 12 м',movement:{walk:12,fly:24,swim:12},abil:{str:19,dex:12,con:17,int:16,wis:13,cha:15},profB:3,
+      saveBonuses:{dex:4,con:6,wis:4,cha:5},skills:{'Обман':5,'Внимательность':7,'Скрытность':4},passive:17,immune:['яд'],condImmune:['Отравленный'],
+      senses:'Слепое зрение 9 м, темное зрение 36 м; пассивная Внимательность 17',langs:'Общий, Драконий',traits:'Амфибия. Дышит воздухом и водой.\nМультиатака: укус, коготь, коготь.',
+      actions:'Укус: +7, 2d10 + 4 колющего и 2d6 яда. Коготь: +7, 2d6 + 4 рубящего. Ядовитое дыхание (5–6): конус 9 м, Телосложение СЛ 14, 12d6 яда, половина при успехе.',
+      multiattack:{sequences:[['bite','claw','claw']]},combatActions:[A('bite','Укус','melee',7,'3 м',[D(2,10,4,'колющий'),D(2,6,0,'яд')]),A('claw','Коготь','melee',7,'1,5 м',[D(2,6,4,'рубящий')]),
+        {id:'poison_breath',n:'Ядовитое дыхание',kind:'save',cost:'action',range:'конус 9 м',area:true,save:{key:'con',dc:14,half:true},damage:[D(12,6,0,'яд')],recharge:{min:5,max:6},magic:false}],tags:['dragon']}),
+
+    foeSeed({id:'foe_cultist',n:'Культист',kind:'npc',size:'Средний',creatureType:'гуманоид',alignment:'Любое недоброе',cr:'1/8',xp:25,ac:12,acSource:'кожаный доспех',hpMax:9,hpFormula:'2d8',speed:'9 м',movement:{walk:9},
+      abil:{str:11,dex:12,con:10,int:10,wis:11,cha:10},profB:2,skills:{'Обман':2,'Религия':2},passive:10,langs:'Один язык (обычно Общий)',
+      traits:'Темная преданность. Преимущество на спасброски против Очарования и Испуга.',actions:'Скимитар: +3, 1d6 + 1 рубящего.',combatActions:[A('scimitar','Скимитар','melee',3,'1,5 м',[D(1,6,1,'рубящий')])],tags:['humanoid']}),
+
+    foeSeed({id:'foe_bandit',n:'Разбойник',kind:'npc',size:'Средний',creatureType:'гуманоид',alignment:'Любое незаконное',cr:'1/8',xp:25,ac:12,acSource:'кожаный доспех',hpMax:11,hpFormula:'2d8 + 2',speed:'9 м',movement:{walk:9},
+      abil:{str:11,dex:12,con:12,int:10,wis:10,cha:10},profB:2,passive:10,langs:'Один язык (обычно Общий)',actions:'Скимитар: +3, 1d6 + 1 рубящего. Легкий арбалет: +3, 1d8 + 1 колющего, 24/96 м.',
+      combatActions:[A('scimitar','Скимитар','melee',3,'1,5 м',[D(1,6,1,'рубящий')]),A('crossbow','Легкий арбалет','ranged',3,'24/96 м',[D(1,8,1,'колющий')],{rangeHint:'На дальней дистанции выберите помеху.'})],tags:['humanoid']}),
+
+    foeSeed({id:'foe_guard',n:'Стражник',kind:'npc',size:'Средний',creatureType:'гуманоид',alignment:'Любое',cr:'1/8',xp:25,ac:16,acSource:'кольчужная рубаха, щит',hpMax:11,hpFormula:'2d8 + 2',speed:'9 м',movement:{walk:9},
+      abil:{str:13,dex:12,con:12,int:10,wis:11,cha:10},profB:2,skills:{'Внимательность':2},passive:12,langs:'Один язык (обычно Общий)',actions:'Копье: +3, 1d6 + 1 колющего, бросок 6/18 м.',
+      combatActions:[A('spear','Копье','melee',3,'1,5 м',[D(1,6,1,'колющий')]),A('spear_throw','Копье — бросок','ranged',3,'6/18 м',[D(1,6,1,'колющий')])],tags:['humanoid']}),
+
+    foeSeed({id:'foe_bandit_captain',n:'Главарь разбойников',kind:'npc',size:'Средний',creatureType:'гуманоид',alignment:'Любое незаконное',cr:'2',xp:450,ac:15,acSource:'клепаная кожа',hpMax:65,hpFormula:'10d8 + 20',speed:'9 м',movement:{walk:9},
+      abil:{str:15,dex:16,con:14,int:14,wis:11,cha:14},profB:2,saveBonuses:{str:4,dex:5,wis:2},skills:{'Атлетика':4,'Обман':4},passive:10,langs:'Любые два языка',
+      traits:'Мультиатака: два скимитара и кинжал либо два брошенных кинжала. Парирование дает +2 КД против одной видимой рукопашной атаки и расходует реакцию.',
+      actions:'Скимитар: +5, 1d6 + 3 рубящего. Кинжал: +5, 1d4 + 3 колющего, 6/18 м.',multiattack:{sequences:[['scimitar','scimitar','dagger'],['dagger_throw','dagger_throw']]},
+      combatActions:[A('scimitar','Скимитар','melee',5,'1,5 м',[D(1,6,3,'рубящий')]),A('dagger','Кинжал','melee',5,'1,5 м',[D(1,4,3,'колющий')]),A('dagger_throw','Кинжал — бросок','ranged',5,'6/18 м',[D(1,4,3,'колющий')]),
+        U('parry','Парирование','reaction','parry',{note:'Используйте только против видимой рукопашной атаки, которая попала бы без этого бонуса. +2 КД действует на один бросок атаки.'})],tags:['humanoid']}),
+
+    foeSeed({id:'foe_wraith',n:'Призрак-мститель',size:'Средний',creatureType:'нежить',alignment:'Нейтрально-злой',cr:'5',xp:1800,ac:13,hpMax:67,hpFormula:'9d8 + 27',speed:'0 м; полет 18 м (парение)',movement:{walk:0,fly:18,hover:true},
+      abil:{str:6,dex:16,con:16,int:12,wis:14,cha:15},profB:3,passive:12,resist:['кислота','холод','огонь','электричество','звук'],
+      damageRules:[{mode:'resist',types:['дробящий','колющий','рубящий'],when:'nonmagicalNonsilvered'}],immune:['некротическая энергия','яд'],condImmune:['Очарованный','Истощение','Захваченный','Парализованный','Окаменевший','Отравленный','Сбитый с ног','Опутанный'],
+      senses:'Темное зрение 18 м; пассивная Внимательность 12',langs:'Языки, известные при жизни',traits:'Бестелесное перемещение; чувствительность к солнечному свету. Провал против вытягивания жизни уменьшает максимум хитов на полученный урон до долгого отдыха; максимум 0 означает смерть.',
+      actions:'Вытягивание жизни: +6, 4d8 + 3 некротического; Телосложение СЛ 14 против уменьшения максимума хитов. Создание призрака: поднять недавно погибшего гуманоида, не более семи под контролем.',combatActions:[A('life_drain','Вытягивание жизни','melee',6,'1,5 м',[D(4,8,3,'некротическая энергия')],{save:{key:'con',dc:14,affectsDamage:false},failedSaveMaxHpReduction:'damage'}),
+        U('create_specter','Создать призрака','action','note',{note:'Цель — гуманоид, умерший не более минуты назад. Он возвращается призраком под контролем создателя; одновременно под контролем не более семи.'})],tags:['undead']}),
+
+    /* Оригинальные аналоги закрытых уникальных ролей приключений. */
+    foeSeed({id:'foe_thorn_sprout',n:'Колючий росток',size:'Маленький',creatureType:'растение',alignment:'Без мировоззрения',cr:'1/8',xp:25,ac:13,acSource:'волокнистая кора',hpMax:5,hpFormula:'2d6 - 2',speed:'6 м',movement:{walk:6},
+      abil:{str:6,dex:13,con:9,int:4,wis:8,cha:3},profB:2,skills:{'Скрытность':3},passive:9,vuln:['огонь'],senses:'Слепое зрение 18 м (за пределами слепо); пассивная Внимательность 9',langs:'Понимает Сильван, но не говорит',
+      traits:'Ложный облик. Пока неподвижен, похож на сухой куст.',actions:'Когти-ветви: +3, 1d4 + 1 колющего.',combatActions:[A('claws','Когти-ветви','melee',3,'1,5 м',[D(1,4,1,'колющий')])],tags:['plant']},original),
+
+    foeSeed({id:'foe_ash_zombie',n:'Пепельный зомби',size:'Средний',creatureType:'нежить',alignment:'Нейтрально-злой',cr:'1/2',xp:100,ac:8,hpMax:22,hpFormula:'3d8 + 9',speed:'6 м',movement:{walk:6},
+      abil:{str:13,dex:6,con:16,int:3,wis:6,cha:5},profB:2,saveBonuses:{wis:0},passive:8,immune:['яд'],condImmune:['Отравленный'],senses:'Темное зрение 18 м; пассивная Внимательность 8',langs:'Понимает известные при жизни языки',
+      traits:'Стойкость нежити. При первом тяжелом ударе с тела осыпается удушливый пепел.',undeadFortitude:{dcBase:5,save:'con',exceptDamage:['излучение'],exceptCrit:true},actions:'Удар: +3, 1d6 + 1 дробящего. Пепельный выброс (5–6): Телосложение СЛ 10 или Ослепление на 1 раунд.',
+      combatActions:[A('slam','Удар','melee',3,'1,5 м',[D(1,6,1,'дробящий')]),{id:'ash_burst',n:'Пепельный выброс',kind:'save',cost:'action',range:'радиус 1,5 м',area:true,save:{key:'con',dc:10,affectsDamage:false},condition:'Ослепленный',durationRounds:1,recharge:{min:5,max:6}}],tags:['undead']},original),
+
+    foeSeed({id:'foe_redcloak_ruffian',n:'Разбойник в красном плаще',kind:'npc',size:'Средний',creatureType:'гуманоид',alignment:'Любое недоброе',cr:'1/2',xp:100,ac:14,acSource:'клепаная кожа',hpMax:16,hpFormula:'3d8 + 3',speed:'9 м',movement:{walk:9},
+      abil:{str:12,dex:14,con:12,int:10,wis:9,cha:11},profB:2,skills:{'Запугивание':2,'Скрытность':4},passive:9,langs:'Общий',traits:'Уличный боец. Мультиатака: два удара коротким мечом.',actions:'Короткий меч: +4, 1d6 + 2 колющего.',
+      multiattack:{sequences:[['shortsword','shortsword']]},combatActions:[A('shortsword','Короткий меч','melee',4,'1,5 м',[D(1,6,2,'колющий')])],tags:['humanoid']},original),
+
+    foeSeed({id:'foe_cave_oracle',n:'Подземный глазач',size:'Средний',creatureType:'аберрация',alignment:'Нейтрально-злой',cr:'2',xp:450,ac:15,acSource:'каменистая кожа',hpMax:45,hpFormula:'6d8 + 18',speed:'9 м',movement:{walk:9},
+      abil:{str:14,dex:16,con:16,int:13,wis:14,cha:11},profB:2,skills:{'Внимательность':6,'Скрытность':5,'Проницательность':4},passive:16,senses:'Темное зрение 36 м; пассивная Внимательность 16',langs:'Подземный, телепатия 9 м',
+      traits:'Предчувствие опасности. Его нельзя застать врасплох, пока он дееспособен. Каменная маскировка.',actions:'Коготь: +5, 2d6 + 3 рубящего. Гнилостный взгляд (5–6): Телосложение СЛ 12, 3d6 некротического, половина при успехе.',
+      combatActions:[A('claw','Коготь','melee',5,'1,5 м',[D(2,6,3,'рубящий')]),{id:'rotting_gaze',n:'Гнилостный взгляд',kind:'save',cost:'action',range:'9 м',save:{key:'con',dc:12,half:true},damage:[D(3,6,0,'некротическая энергия')],recharge:{min:5,max:6},magic:true},U('weird_insight','Чуждая проницательность','action','note',{note:'Цель противопоставляет Обман Проницательности глазача; успех раскрывает одну тайну или уязвимость.'})],tags:['aberration']},original),
+
+    foeSeed({id:'foe_ember_skull',n:'Пылающий череп-страж',size:'Крошечный',creatureType:'нежить',alignment:'Законно-злой',cr:'4',xp:1100,ac:13,acSource:'магический панцирь',hpMax:40,hpFormula:'9d4 + 18',speed:'0 м; полет 12 м (парение)',movement:{walk:0,fly:12,hover:true},
+      abil:{str:1,dex:16,con:14,int:16,wis:10,cha:11},profB:2,saveBonuses:{dex:5,wis:2},skills:{'Магия':5,'Внимательность':2},passive:12,resist:['холод','электричество','некротическая энергия'],immune:['огонь','яд'],
+      condImmune:['Очарованный','Истощение','Захваченный','Парализованный','Окаменевший','Отравленный','Сбитый с ног'],magicRes:true,senses:'Темное зрение 18 м; пассивная Внимательность 12',langs:'Общий и один язык создателя',
+      traits:'Сопротивление магии. Парение. Возвращение после разрушения остается сюжетным решением мастера.',actions:'Огненный луч: +5, 3d6 огня. Вспышка пламени (5–6): Ловкость СЛ 13, 6d6 огня, половина при успехе.',
+      combatActions:[A('fire_ray','Огненный луч','ranged',5,'18 м',[D(3,6,0,'огонь')],{magic:true}),{id:'flame_burst',n:'Вспышка пламени',kind:'save',cost:'action',range:'радиус 6 м',area:true,save:{key:'dex',dc:13,half:true},damage:[D(6,6,0,'огонь')],recharge:{min:5,max:6},magic:true}],tags:['undead']},original),
+
+    foeSeed({id:'foe_eye_warden',n:'Парящий глаз-страж',size:'Средний',creatureType:'аберрация',alignment:'Законно-нейтральный',cr:'3',xp:700,ac:15,acSource:'природный доспех',hpMax:45,hpFormula:'6d8 + 18',speed:'0 м; полет 9 м (парение)',movement:{walk:0,fly:9,hover:true},
+      abil:{str:8,dex:14,con:16,int:13,wis:14,cha:11},profB:2,skills:{'Внимательность':6},passive:16,condImmune:['Сбитый с ног'],senses:'Темное зрение 36 м; пассивная Внимательность 16',langs:'Глубинная речь, телепатия 36 м',
+      traits:'Парение; круговой обзор. Каждый луч требует отдельного спасброска живого игрока.',actions:'Луч ужаса: Мудрость СЛ 13, Испуг на 1 раунд. Удерживающий луч: Сила СЛ 13, Опутывание на 1 раунд. Силовой луч: Ловкость СЛ 13, 4d6 силового урона, половина при успехе.',
+      combatActions:[{id:'fear_ray',n:'Луч ужаса',kind:'save',cost:'action',range:'18 м',save:{key:'wis',dc:13,affectsDamage:false},condition:'Испуганный',durationRounds:1,magic:true},
+        {id:'binding_ray',n:'Удерживающий луч',kind:'save',cost:'action',range:'18 м',save:{key:'str',dc:13,affectsDamage:false},condition:'Опутанный',durationRounds:1,magic:true},
+        {id:'force_ray',n:'Силовой луч',kind:'save',cost:'action',range:'18 м',save:{key:'dex',dc:13,half:true},damage:[D(4,6,0,'силовое поле')],magic:true}],tags:['aberration']},original),
+
+    foeSeed({id:'foe_dark_elf_plotter',n:'Темный эльф-интриган',kind:'npc',size:'Средний',creatureType:'гуманоид',subtype:'эльф',alignment:'Нейтрально-злой',cr:'3',xp:700,ac:15,acSource:'зачарованная клепаная кожа',hpMax:45,hpFormula:'10d8',speed:'9 м',movement:{walk:9},
+      abil:{str:9,dex:16,con:10,int:17,wis:12,cha:14},profB:2,saveBonuses:{int:5,wis:3},skills:{'Магия':5,'Обман':4,'Внимательность':3,'Скрытность':5},passive:13,
+      senses:'Темное зрение 36 м; пассивная Внимательность 13',langs:'Общий, Эльфийский, Подземный',traits:'Наследие фей: преимущество против Очарования, магия не усыпляет. Чувствительность к солнечному свету. Заклинатель 5 уровня (Интеллект, СЛ 13, +5 к атаке). Это самостоятельная кампания-совместимая роль темного эльфа, а не блок уникального персонажа приключения.',
+      actions:'Рапира: +5, 1d8 + 3 колющего. Теневой луч: +5, 2d10 некротического. Звон пустоты (2/бой): Телосложение СЛ 13, сфера радиусом 3 м, 3d8 звука, половина при успехе. Шаг во тьму (1/бой): бонусным действием телепортируется на 9 м.',
+      combatActions:[A('rapier','Рапира','melee',5,'1,5 м',[D(1,8,3,'колющий')],{advHint:'При прямом солнечном свете выберите помеху.'}),
+        A('shadow_ray','Теневой луч','ranged',5,'18 м',[D(2,10,0,'некротическая энергия')],{magic:true,advHint:'При прямом солнечном свете выберите помеху.'}),
+        {id:'void_chime',n:'Звон пустоты',kind:'save',cost:'action',range:'сфера радиусом 3 м в пределах 18 м',area:true,save:{key:'con',dc:13,half:true},damage:[D(3,8,0,'звук')],magic:true,maxUses:2},
+        U('shadow_step','Шаг во тьму','bonus','note',{note:'Телепортация на 9 м в видимое свободное пространство.',maxUses:1})],tags:['humanoid','elf','spellcaster']},original),
+
+    foeSeed({id:'foe_renegade_mage',n:'Маг-отступник',kind:'npc',size:'Средний',creatureType:'гуманоид',alignment:'Любое недоброе',cr:'2',xp:450,ac:12,acSource:'15 с активными Доспехами мага',hpMax:27,hpFormula:'6d8',speed:'9 м',movement:{walk:9},
+      abil:{str:9,dex:14,con:11,int:16,wis:12,cha:11},profB:2,saveBonuses:{int:5,wis:3},skills:{'Магия':5,'История':5},passive:11,langs:'Общий и еще два языка',
+      traits:'Заклинатель 4 уровня (Интеллект, СЛ 13, +5 к атаке). Защитные заклинания и ячейки мастер отмечает по ситуации.',actions:'Огненный снаряд: +5, 1d10 огня. Громовая волна: Телосложение СЛ 13, 2d8 звука, половина при успехе. Туманный шаг: бонусное действие, телепортация 9 м.',
+      combatActions:[A('fire_bolt','Огненный снаряд','ranged',5,'36 м',[D(1,10,0,'огонь')],{magic:true}),{id:'thunderwave',n:'Громовая волна',kind:'save',cost:'action',range:'куб 4,5 м',area:true,save:{key:'con',dc:13,half:true},damage:[D(2,8,0,'звук')],magic:true,maxUses:2},U('misty_step','Туманный шаг','bonus','note',{note:'Телепортация на 9 м в видимое свободное пространство.',maxUses:2})],tags:['humanoid','spellcaster']},original)
   ].map(x=>JSON.parse(JSON.stringify(x)));
 }
 function upgradeFoe(f){
   if(!f) return f;
+  const d=blankFoe();
+  ['kind','size','creatureType','subtype','alignment','cr','acSource','hpFormula','speed','senses','langs','traits','actions','notes','source'].forEach(k=>{
+    if(f[k]==null) f[k]=d[k];
+  });
+  ['xp','ac','hpMax','hp','hpTemp','profB','passive'].forEach(k=>{ if(f[k]==null||!Number.isFinite(+f[k])) f[k]=d[k]; else f[k]=+f[k]; });
   f.abil=Object.assign({str:10,dex:10,con:10,int:10,wis:10,cha:10},f.abil||{});
   f.saveP=f.saveP||{};
-  ['resist','vuln','immune','condImmune','activeFx','combatActions','tags'].forEach(k=>{ if(!Array.isArray(f[k])) f[k]=[]; });
+  f.saveBonuses=f.saveBonuses&&typeof f.saveBonuses==='object'?f.saveBonuses:{};
+  f.skills=f.skills&&typeof f.skills==='object'?f.skills:{};
+  f.movement=f.movement&&typeof f.movement==='object'?f.movement:{};
+  f.actionState=f.actionState&&typeof f.actionState==='object'?f.actionState:{};
+  if(!f.acSource) f.acSource='без доспеха или особой защиты';
+  if(!f.hpFormula) f.hpFormula=String(Math.max(1,+f.hpMax||1))+' (фиксированное значение)';
+  if(!f.senses) f.senses='Пассивная Внимательность '+(+f.passive||10);
+  if(!f.langs) f.langs='—';
+  ['resist','vuln','immune','damageRules','condImmune','activeFx','combatActions','tags'].forEach(k=>{ if(!Array.isArray(f[k])) f[k]=[]; });
+  f.activeFx.forEach(x=>{ if(x&&x.expiresAtRound==null&&x.untilRound!=null){ x.expiresAtRound=+x.untilRound; delete x.untilRound; } });
+  f.combatActions.forEach(a=>{
+    a.cost=a.cost||((a.kind==='attack')?'attack':'action');
+    a.damage=Array.isArray(a.damage)?a.damage:[];
+    if(a.recharge||a.maxUses!=null){
+      const s=f.actionState[a.id]=f.actionState[a.id]&&typeof f.actionState[a.id]==='object'?f.actionState[a.id]:{};
+      if(a.recharge&&s.ready==null) s.ready=true;
+      if(a.maxUses!=null&&s.uses==null) s.uses=Math.max(0,+a.maxUses||0);
+    }
+  });
   f.cond=normalizeConditions(f.cond);
   return f;
+}
+/* Встроенные записи являются версионируемыми правилами, а не одноразовым
+   импортом. При обновлении исправляем их базовые параметры целиком, но
+   сохраняем текущее состояние конкретного экземпляра в кампании. */
+function mergeBuiltinFoe(old,seed){
+  if(!old||!seed) return old;
+  const runtime={
+    hp:old.hp==null?seed.hp:Math.max(0,Math.min(+seed.hpMax||1,+old.hp||0)),
+    hpTemp:Math.max(0,+old.hpTemp||0),
+    cond:normalizeConditions(old.cond),
+    activeFx:Array.isArray(old.activeFx)?old.activeFx:[],
+    actionState:old.actionState&&typeof old.actionState==='object'?old.actionState:{},
+    notes:String(old.notes||seed.notes||'')
+  };
+  Object.keys(old).forEach(k=>delete old[k]);
+  Object.assign(old,JSON.parse(JSON.stringify(seed)),runtime);
+  upgradeFoe(old);
+  /* Новые действия получают полный запас; состояние знакомых действий
+     переносится по id, чтобы обновление страницы не возвращало перезарядку. */
+  (old.combatActions||[]).forEach(a=>{
+    const prev=runtime.actionState[a.id]; if(!prev) return;
+    old.actionState[a.id]=Object.assign({},old.actionState[a.id]||{},prev);
+  });
+  return old;
 }
 function foeOf(id){ return foesDB.find(f=>f.id===id)||null; }
 function foeAbMod(f,k){ return mod((f.abil&&f.abil[k])!=null?f.abil[k]:10); }
@@ -7639,7 +7934,17 @@ function effectiveFoeConditions(f){
   });
   return out;
 }
-function foeSaveMod(f,k){ return foeAbMod(f,k)+((f.saveP&&f.saveP[k])?(+f.profB||2):0)+foeFxSum(f,'save.'+k)+foeFxSum(f,'save.all'); }
+function foeSaveMod(f,k){
+  const explicit=f&&f.saveBonuses&&f.saveBonuses[k];
+  const base=explicit!=null&&explicit!==''?+explicit:foeAbMod(f,k)+((f.saveP&&f.saveP[k])?(+f.profB||2):0);
+  return base+foeFxSum(f,'save.'+k)+foeFxSum(f,'save.all');
+}
+function foeSkillMod(f,name,ab){
+  const explicit=f&&f.skills&&f.skills[name];
+  if(explicit!=null&&explicit!=='') return +explicit+foeFxSum(f,'check.'+name)+foeFxSum(f,'check.all');
+  const row=SKILLS.find(x=>x[0]===name),key=ab||(row&&row[1])||'dex';
+  return foeAbMod(f,key)+foeFxSum(f,'check.'+name)+foeFxSum(f,'check.all');
+}
 function foeAlive(f){ return (+f.hp||0)>0; }
 function applyFxToFoe(f,entry){
   if(!f) return null;
@@ -7663,7 +7968,8 @@ function removeFoeActiveFx(id,uid){
   fxInvalidate(); scheduleSave(); renderFoes(); renderChars();
 }
 /* урон по противнику с учетом сопротивлений/уязвимостей/иммунитета */
-function dmgAfterTraits(holder, amount, dtype){
+function dmgAfterTraits(holder, amount, dtype, ctx){
+  ctx=ctx||{};
   const t=dmgTypeCanon(dtype);
   const list=k=>((holder&&holder[k])||[]).map(dmgTypeCanon);
   const notes=(chars.indexOf(holder)>=0?fxNotesOf(holder):foeFxAll(holder).filter(x=>x.mode==='text').map(x=>String(x.value).toLowerCase()));
@@ -7673,23 +7979,64 @@ function dmgAfterTraits(holder, amount, dtype){
     m=n.match(/уязвимост[а-я]*\s+(?:к\s+)?урону\s*:?\s*([а-я]+)/); if(m) fromFx.vuln.push(dmgTypeCanon(m[1]));
     m=n.match(/иммунитет\s+(?:к\s+)?урону\s*:?\s*([а-я]+)/); if(m) fromFx.immune.push(dmgTypeCanon(m[1]));
   });
-  const has=k=>list(k).concat(fromFx[k]||[]).indexOf(t)>=0;
+  const applies=r=>{
+    if(!r||!(r.types||[]).map(dmgTypeCanon).includes(t)) return false;
+    if(r.when==='nonmagical') return ctx.magical===false;
+    if(r.when==='nonmagicalNonsilvered') return ctx.magical===false&&!ctx.silvered;
+    if(r.when==='nonmagicalNonadamantine') return ctx.magical===false&&!ctx.adamantine;
+    return true;
+  };
+  const rule=k=>((holder&&holder.damageRules)||[]).some(r=>r.mode===k&&applies(r));
+  const has=k=>list(k).concat(fromFx[k]||[]).indexOf(t)>=0||rule(k);
   const reasons=[];
   if(!t) return {amount, note:''};
-  if(has('immune')) return {amount:0, note:'иммунитет к «'+t+'»'};
+  if(has('immune')) return {amount:0, note:'иммунитет к «'+t+'»'+(rule('immune')?' при этих свойствах источника':'')};
   let result=amount;
-  if(has('resist')){ result=Math.floor(result/2); reasons.push('сопротивление «'+t+'»'); }
+  if(has('resist')){ result=Math.floor(result/2); reasons.push('сопротивление «'+t+'»'+(rule('resist')?' при этих свойствах источника':'')); }
   if(has('vuln')){ result=result*2; reasons.push('уязвимость к «'+t+'»'); }
   return {amount:result,note:reasons.join(' + ')};
 }
 function foeActionOf(f,id){ return f&&(f.combatActions||[]).find(a=>a.id===id)||null; }
+function foeActionStateOf(f,a){
+  if(!f||!a) return {};
+  f.actionState=f.actionState&&typeof f.actionState==='object'?f.actionState:{};
+  const s=f.actionState[a.id]=f.actionState[a.id]&&typeof f.actionState[a.id]==='object'?f.actionState[a.id]:{};
+  if(a.recharge&&s.ready==null) s.ready=true;
+  if(a.maxUses!=null&&s.uses==null) s.uses=Math.max(0,+a.maxUses||0);
+  return s;
+}
+function foeActionReady(f,a){
+  const s=foeActionStateOf(f,a);
+  return !!(f&&a)&&(!a.recharge||s.ready!==false)&&(a.maxUses==null||(+s.uses||0)>0);
+}
+function foeResetActionState(f){
+  if(!f) return;
+  (f.combatActions||[]).forEach(a=>{
+    const s=foeActionStateOf(f,a);
+    if(a.recharge) s.ready=true;
+    if(a.maxUses!=null) s.uses=Math.max(0,+a.maxUses||0);
+  });
+}
+function foeConsumeActionState(f,a){
+  const s=foeActionStateOf(f,a);
+  if(a.recharge) s.ready=false;
+  if(a.maxUses!=null) s.uses=Math.max(0,(+s.uses||0)-1);
+}
+function foeActionStateLabel(f,a){
+  const s=foeActionStateOf(f,a),bits=[];
+  if(a.recharge) bits.push(s.ready===false?'перезарядка '+a.recharge.min+'–'+a.recharge.max:'готово · перезарядка '+a.recharge.min+'–'+a.recharge.max);
+  if(a.maxUses!=null) bits.push('использований '+(+s.uses||0)+'/'+a.maxUses);
+  return bits.join(' · ');
+}
 function foeActionFormula(a){
   if(!a) return '—';
   const bits=[];
   if(a.kind==='attack') bits.push('d20 '+fmtMod(+a.attackBonus||0)+' против КД');
   if(a.save) bits.push('спасбросок '+(AB_FULL[a.save.key]||a.save.key)+' СЛ '+a.save.dc);
   (a.damage||[]).forEach(d=>bits.push((d.cnt||1)+'d'+d.sides+(d.mod?fmtMod(d.mod):'')+' '+d.type));
+  (a.conditionalDamage||[]).forEach(d=>bits.push('условно '+(d.cnt||1)+'d'+d.sides+(d.mod?fmtMod(d.mod):'')+' '+d.type));
   if(a.condition) bits.push('при провале: '+a.condition);
+  if(a.recharge) bits.push('перезарядка '+a.recharge.min+'–'+a.recharge.max);
   return bits.join(' · ');
 }
 function foeActionSpecOf(f,a,ti,opts){
@@ -7701,7 +8048,8 @@ function foeActionSpecOf(f,a,ti,opts){
     (a.mode==='melee'&&/1[,.]5\s*м|5\s*фут/.test(normRollTxt(a.range||''))?true:null)));
   const meta={target:ti,kind:'foe',recName:a.n||'',dmgType:'',half:!!(a.save&&a.save.half),dc:a.save?+a.save.dc||0:0,
     saveAb:a.save?(AB_FULL[a.save.key]||a.save.key):'',saveKey:a.save?a.save.key:'',
-    saveAffectsDamage:!(a.save&&a.save.affectsDamage===false),attackMode:a.mode||'',within5};
+    saveAffectsDamage:!(a.save&&a.save.affectsDamage===false),attackMode:a.mode||'',within5,
+    damageTags:{magical:!!a.magic,silvered:!!a.silvered,adamantine:!!a.adamantine}};
   if(a.kind==='attack'){
     const condMode=attackConditionMode(f,ti,{mode:a.mode||'',within5});
     const atkFx=foeFxAll(f).filter(x=>x.stat==='attack');
@@ -7748,9 +8096,15 @@ function foeActionSpecOf(f,a,ti,opts){
   (a.damage||[]).forEach((d,i)=>{
     const type=dmgTypeCanon(d.type);
     if(!meta.dmgType) meta.dmgType=type;
-    rows.push({key:'dmg'+i,type:'dmg',side:'caster',cnt:+d.cnt||1,sides:+d.sides||0,mod:+d.mod||0,dmgType:type,
+    rows.push({key:'dmg'+i,type:'dmg',side:'caster',cnt:+d.cnt||1,sides:+d.sides||0,mod:+d.mod||0,dmgType:type,saveMode:d.saveMode||'',
       label:'Урон'+(type?' ('+type+')':'')+': сумма '+(+d.cnt||1)+'d'+(+d.sides||0),
       hint:'впишите сумму костей'+(d.mod?' · затем '+fmtMod(+d.mod)+' из блока характеристик':'')+' · при критическом попадании бросьте кости дважды'});
+  });
+  (a.conditionalDamage||[]).forEach((d,i)=>{
+    const type=dmgTypeCanon(d.type); if(!meta.dmgType) meta.dmgType=type;
+    rows.push({key:'condmg'+i,type:'dmg',side:'caster',cnt:+d.cnt||1,sides:+d.sides||0,mod:+d.mod||0,dmgType:type,saveMode:d.saveMode||'',optional:true,
+      label:(d.label||'Условный дополнительный урон')+': сумма '+(+d.cnt||1)+'d'+(+d.sides||0),
+      hint:'необязательно · заполните только если условие действительно выполнено'});
   });
   rows.push({key:'extra',type:'extra',side:'caster',mod:0,label:'Прочий бросок (по решению мастера)',hint:'необязательно — уйдет в летопись'});
   return {rows,meta};
@@ -7762,64 +8116,191 @@ function holderConditionImmune(holder,condition){
   const text=(holder&&typeof fxNotesOf==='function'?fxNotesOf(holder):[]).join(' ');
   return text.indexOf('иммунитет к состоянию «'+n.toLowerCase()+'»')>=0;
 }
+function foeActionEffectExclusion(a,ti){
+  const x=a&&a.effectExcludes; if(!x||!ti||!ti.obj) return '';
+  const low=v=>String(v||'').toLowerCase();
+  if(ti.kind==='ally'){
+    const identity=low((ti.obj.race||'')+' '+(ti.obj.subrace||''));
+    const race=(x.races||[]).find(v=>identity.indexOf(low(v))>=0);
+    if(race) return 'черта не действует на народ «'+(ti.obj.race||race)+'»';
+  }
+  if(ti.kind==='foe'){
+    const identity=low((ti.obj.creatureType||'')+' '+(ti.obj.subtype||'')+' '+(ti.obj.tags||[]).join(' '));
+    const type=(x.creatureTypes||[]).find(v=>identity.indexOf(low(v))>=0);
+    if(type) return 'черта не действует на тип «'+(ti.obj.creatureType||type)+'»';
+  }
+  return '';
+}
+function foeActionEffectOf(f,a,ti){
+  if(!f||!a||!ti||!ti.obj) return null;
+  const ref=a.requiresTargetEffect||a.notWhileEffectActive;
+  return (ti.obj.activeFx||[]).find(x=>x.id===f.id+':'+ref)||null;
+}
+function foeSourceEffectActive(f,actionId){
+  const id=f&&f.id+':'+actionId;
+  return !!id&&chars.concat(foesDB).some(o=>(o.activeFx||[]).some(x=>x.id===id));
+}
+function foeActionTargetCheck(f,a,ti){
+  if(a.requiresTargetEffect&&!foeActionEffectOf(f,a,ti)) return {ok:false,reason:'сначала этот стирж должен присосаться к выбранной цели'};
+  if(a.notWhileEffectActive&&foeSourceEffectActive(f,a.notWhileEffectActive)) return {ok:false,reason:'этот стирж уже присосался к другой цели'};
+  return {ok:true};
+}
+function foeActionAftermath(f,a,ti,rolls,before){
+  if(!f||!a||!ti||!ti.obj||!rolls) return '';
+  let info='';
+  if(a.failedSaveMaxHpReduction==='damage'&&ti.kind==='ally'&&rolls.saveOk===false&&outcomeAllowsEffect(rolls)&&(+rolls.dmgTotal||0)>0){
+    const amount=+rolls.dmgTotal||0,entry={k:'foeaction',id:f.id+':'+a.id+':maxhp',label:a.n+': максимум хитов −'+amount,
+      from:f.n,casterId:f.id,castId:castUid(),untilLongRest:true,power:amount,
+      fx:[{stat:'hpmax',mode:'add',value:-amount,note:'до долгого отдыха'}]};
+    applyFxTo(ti.id,entry);
+    const mx=eHpMax(ti.obj); ti.obj.hp=Math.min(+ti.obj.hp||0,mx);
+    info+=' · максимум хитов уменьшен на '+amount+' (теперь '+mx+') до долгого отдыха';
+    if(mx<=0){
+      ti.obj.hp=0; ti.obj.deaths={s:0,f:3}; ti.obj.cond=normalizeConditions((ti.obj.cond||[]).concat(['Бессознательный']));
+      breakConcentration(ti.obj,'максимум хитов уменьшен до 0'); info+=' · СМЕРТЬ: максимум хитов равен 0';
+    }
+  }
+  if(a.zeroHpFromPoison&&ti.kind==='ally'&&(+ti.obj.hp||0)<=0&&before){
+    const parts=rolls.damageParts||[],poison=parts.filter(x=>dmgTypeCanon(x.type)==='яд').reduce((n,x)=>n+(+x.total||0),0);
+    const total=Math.max(0,+rolls.dmgTotal||0),other=Math.max(0,total-poison),effective=Math.max(0,+before.hp||0)+Math.max(0,+before.hpTemp||0);
+    if(poison>0&&effective>other&&effective<=total){
+      ti.obj.deaths={s:3,f:0};
+      const rounds=Math.max(1,+a.zeroHpFromPoison.durationRounds||600),entry={k:'foeaction',id:f.id+':'+a.id+':poisoned-zero',
+        label:f.n+' — яд усыпил цель',from:f.n,casterId:f.id,castId:castUid(),durationKind:'rounds',expiresAtRound:fxRound+rounds,durationLabel:'1 час',
+        fx:[{stat:'condition',mode:'set',value:'Отравленный'},{stat:'condition',mode:'set',value:'Парализованный'}]};
+      applyFxTo(ti.id,entry); info+=' · яд снизил цель до 0: она стабильна, Отравлена и Парализована на 1 час';
+    }
+  }
+  if(a.tracksDrain){
+    const attached=foeActionEffectOf(f,a,ti);
+    if(attached){
+      attached.drained=(+attached.drained||0)+Math.max(0,+rolls.dmgTotal||0);
+      info+=' · высосано после присасывания '+attached.drained+'/10 хитов';
+      if(attached.drained>=10||(+ti.obj.hp||0)<=0){
+        if(ti.kind==='ally') removeActiveFx(ti.id,attached.uid); else removeFoeActiveFx(ti.id,attached.uid);
+        info+=' · стирж отсоединился';
+      }
+    }
+  }
+  return info;
+}
 function endTriggeredFoeEffects(f,trigger){
   if(!f) return;
   const gone=(f.activeFx||[]).filter(x=>x.k==='spell'&&normSpellName(x.label)==='невидимость'&&(trigger==='attack'||trigger==='spell'));
   if(gone.length){ f.activeFx=(f.activeFx||[]).filter(x=>gone.indexOf(x)<0); fxInvalidate(); }
 }
-function foeActionApply(foeId,actionId,target,rolls){
+function foeActionApply(foeId,actionId,target,rolls,opts){
+  opts=opts||{};
   const f=foeOf(foeId), a=foeActionOf(f,actionId);
   if(!f||!a||!target) return false;
+  if(!foeActionReady(f,a)){ const msg='«'+a.n+'» сейчас недоступно: '+foeActionStateLabel(f,a)+'.'; setStatus('✕ '+msg,true); return false; }
   if(!combatCastPreflight()) return false;
+  const liveCost=castCtx&&castCtx.combatCost;
+  if(liveCost==='attack'&&!combatFoeAttackAllowed(f,a,liveCost,false,target)) return false;
   if((a.kind==='attack'||a.save)&&!rolls){ const msg='Сначала заполните формулу действия и подтвердите реальные броски.'; setStatus('✕ '+msg,true); return false; }
   if(!foeAlive(f)){ const msg='«'+f.n+'» повержен и не может действовать.'; setStatus('✕ '+msg,true); if(typeof castShowErr==='function') castShowErr(msg); return false; }
   const block=ACTION_BLOCK_CONDS.find(n=>effectiveFoeConditions(f).indexOf(n)>=0);
   if(block){ const msg='Состояние «'+block+'» не позволяет противнику действовать.'; setStatus('✕ '+msg,true); if(typeof castShowErr==='function') castShowErr(msg); return false; }
+  const ti=targetInfoOf(target),targetCheck=foeActionTargetCheck(f,a,ti);
+  if(!targetCheck.ok){ setStatus('✕ '+targetCheck.reason+'.',true); if(typeof castShowErr==='function') castShowErr(targetCheck.reason+'.'); return false; }
+  if(combatFoeOnceUsed(f,a)){ const msg='«'+a.n+'» уже применено в этот ход.'; setStatus('✕ '+msg,true); if(typeof castShowErr==='function') castShowErr(msg); return false; }
   if(!preflightOutcomeReactions(rolls)) return false;
   if(rolls&&rolls.consumeCasterFx&&rolls.consumeCasterFx.length){
     const gone=new Set(rolls.consumeCasterFx); f.activeFx=(f.activeFx||[]).filter(x=>!gone.has(x.uid));
   }
   consumeOutcomeRollFx(null,target,rolls);
   if(rolls&&rolls.attackMade) endTriggeredFoeEffects(f,'attack');
+  const before=ti.obj?{hp:+ti.obj.hp||0,hpTemp:+ti.obj.hpTemp||0}:null;
   let info=applyRollsToTarget(target,rolls,'☠ '+f.n+': '+a.n);
-  const ti=targetInfoOf(target);
   if(a.condition&&outcomeAllowsEffect(rolls)&&ti.obj){
-    if(holderConditionImmune(ti.obj,a.condition)) info+=' · состояние «'+a.condition+'» не наложено: иммунитет';
+    const excluded=foeActionEffectExclusion(a,ti);
+    if(excluded) info+=' · состояние «'+a.condition+'» не наложено: '+excluded;
+    else if(holderConditionImmune(ti.obj,a.condition)) info+=' · состояние «'+a.condition+'» не наложено: иммунитет';
     else {
       const entry={k:'foeaction',id:f.id+':'+a.id,label:f.n+' — '+a.n,from:f.n,casterId:f.id,castId:castUid(),
         stackKey:'foeaction:'+f.id+':'+a.id,power:0,fx:[{stat:'condition',mode:'set',value:a.condition}]};
-      if(a.durationRounds) entry.untilRound=fxRound+(+a.durationRounds||0);
+      if(a.id==='drain') entry.drained=0;
+      if(a.durationRounds){ entry.durationKind='rounds'; entry.expiresAtRound=fxRound+(+a.durationRounds||0); entry.durationLabel=a.durationRounds+' раунд(а)'; }
+      if(a.repeatSave) entry.repeatSave=Object.assign({},a.repeatSave);
       if(ti.kind==='ally') applyFxTo(ti.id,entry);
       else if(ti.kind==='foe') applyFxToFoe(ti.obj,entry);
       info+=' · состояние «'+a.condition+'» наложено';
     }
   }
+  info+=foeActionAftermath(f,a,ti,rolls,before);
+  if(!opts.deferCommit){
+    const committed=combatCommitCastAction('Действие: '+a.n);
+    if(!committed) return false;
+    foeConsumeActionState(f,a);
+    combatMarkFoeOnceUsed(f,a);
+    if(liveCost==='attack') combatRecordFoeAttack(f,a,target,rolls);
+  }
   fxInvalidate(); scheduleSave(); renderChars(); renderFoes();
   const line='☠ '+f.n+' → '+(ti.name||'цель')+': '+a.n+info;
   setStatus(line+'.'); castLogLine(line);
   if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
-  combatCommitCastAction('Действие: '+a.n);
   return true;
 }
+function foeActionBatchApply(foeId,actionId,targets,rollsByTarget){
+  const f=foeOf(foeId),a=foeActionOf(f,actionId),list=[...new Set((targets||[]).filter(Boolean))];
+  if(!f||!a||!list.length||!foeActionReady(f,a)||!combatCastPreflight()) return false;
+  const fail=msg=>{ setStatus('✕ '+msg,true); if(typeof castShowErr==='function') castShowErr(msg); return false; };
+  if(!foeAlive(f)) return fail('«'+f.n+'» повержен и не может действовать.');
+  const block=ACTION_BLOCK_CONDS.find(n=>effectiveFoeConditions(f).indexOf(n)>=0);
+  if(block) return fail('Состояние «'+block+'» не позволяет противнику действовать.');
+  if(combatFoeOnceUsed(f,a)) return fail('«'+a.n+'» уже применено в этот ход.');
+  const liveCost=castCtx&&castCtx.combatCost,reactionActors=new Set();
+  /* Всю область проверяем до первого изменения: отмененный/устаревший
+     бросок одной цели не должен оставлять урон на уже обработанных. */
+  for(const target of list){
+    const rolls=rollsByTarget&&rollsByTarget[target];
+    if(liveCost==='attack'&&!combatFoeAttackAllowed(f,a,liveCost,false,target)) return false;
+    if((a.kind==='attack'||a.save)&&!rolls) return fail('Нужно подтвердить реальные броски для каждой цели.');
+    const targetCheck=foeActionTargetCheck(f,a,targetInfoOf(target));
+    if(!targetCheck.ok) return fail(targetCheck.reason+'.');
+    const plan=outcomeReactionPlan(rolls);
+    if(!plan.ok) return fail(plan.reason);
+    for(const p of plan.plans){
+      if(reactionActors.has(p.u.actorKey)) return fail('Одна и та же реакция не может защитить от двух частей одного областного действия.');
+      reactionActors.add(p.u.actorKey);
+    }
+  }
+  for(const target of list){
+    if(!foeActionApply(foeId,actionId,target,rollsByTarget&&rollsByTarget[target],{deferCommit:true})) return false;
+  }
+  if(!combatCommitCastAction('Действие: '+a.n)) return false;
+  foeConsumeActionState(f,a); combatMarkFoeOnceUsed(f,a); scheduleSave(); renderFoes(); renderCombat(); return true;
+}
 function csvArr(s){ return String(s||'').split(/[,;]/).map(x=>x.trim()).filter(Boolean); }
+function bonusMapText(o){ return Object.keys(o||{}).map(k=>k+' '+fmtMod(+o[k]||0)).join(', '); }
+function parseBonusMap(s){
+  const out={};
+  csvArr(s).forEach(part=>{ const m=part.match(/^(.+?)\s*([+−-]\s*\d+)$/); if(m) out[m[1].trim()]=+m[2].replace('−','-').replace(/\s/g,''); });
+  return out;
+}
 let foeEditing=null, foeSearch='';
 function newFoe(){ const f=blankFoe(); f.n='Новый противник'; foesDB.push(f); foeEditing=f.id; scheduleSave(); renderFoes(); }
 function foeActionFx(foeId,actionId){
   const f=foeOf(foeId),a=foeActionOf(f,actionId); if(!f||!a) return;
+  if(a.kind==='utility'){
+    askShow({title:'☠ '+f.n+': '+a.n,body:a.note||foeActionFormula(a)||'Прием без броска.',note:'В бою этот прием расходует '+combatCostLabel(a.cost||'action')+'.'}); return;
+  }
+  if(!foeActionReady(f,a)){ setStatus('✕ «'+a.n+'» сейчас недоступно: '+foeActionStateLabel(f,a)+'.',true); return; }
   if(!foeAlive(f)){ setStatus('✕ «'+f.n+'» повержен и не может действовать.',true); return; }
   const block=ACTION_BLOCK_CONDS.find(n=>effectiveFoeConditions(f).indexOf(n)>=0);
   if(block){ setStatus('✕ Состояние «'+block+'» не позволяет противнику действовать.',true); return; }
   const first=chars.find(c=>(+c.hp||0)>0)||chars[0];
   if(!first){ setStatus('✕ В летописи нет персонажей — выбрать цель невозможно.',true); return; }
   const back=document.getElementById('castBack'); if(!back) return;
-  castCtx={kind:'foe',foeId:f.id,actionId:a.id,target:'ally:'+first.id};
+  castCtx={kind:'foe',foeId:f.id,actionId:a.id,target:'ally:'+first.id,primaryTarget:'ally:'+first.id,extraTargets:[],rollsByTarget:{},rollQueue:null,sharedCasterVals:null};
   setCastConfirmCaption('☠ Перейти к броскам');
   setCastTargetLabel('Цель действия противника');
   document.getElementById('castTitle').textContent='☠ '+f.n+': '+a.n;
   document.getElementById('castInfo').textContent=foeActionFormula(a)+(a.range?' · '+a.range:'')+(a.advHint?' · '+a.advHint:'');
   document.getElementById('castTarget').innerHTML=chars.map(c=>'<option value="ally:'+c.id+'"'+(c.id===first.id?' selected':'')+'>'
     +esc(c.name)+' — КД '+acTotal(c)+', хиты '+(+c.hp||0)+'/'+eHpMax(c)+'</option>').join('');
-  ['castSlotWrap','castWeaponWrap','castMultiWrap','castItemWrap'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  ['castSlotWrap','castWeaponWrap','castItemWrap'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  if(a.area) renderFoeMultiTargets(); else { const mw=document.getElementById('castMultiWrap'); if(mw) mw.style.display='none'; }
   document.getElementById('castStep1').style.display='block';
   document.getElementById('castStep2').style.display='none';
   document.getElementById('castStep3').style.display='none';
@@ -7832,39 +8313,91 @@ function delFoe(id){
   foesDB=foesDB.filter(x=>x.id!==id); if(foeEditing===id) foeEditing=null;
   scheduleSave(); renderFoes();
 }
+function cloneFoe(id){
+  const src=foeOf(id); if(!src) return null;
+  const f=JSON.parse(JSON.stringify(src));
+  f.id='foe_'+uid(); f.n=src.n+' — копия'; f.hp=+f.hpMax||1; f.hpTemp=0; f.cond=[]; f.activeFx=[]; f.builtin=false;
+  f.source=(src.source||'')+' · экземпляр кампании'; f.actionState={}; upgradeFoe(f); foeResetActionState(f);
+  foesDB.push(f); foeEditing=f.id; scheduleSave(); renderFoes(); return f;
+}
+const FOE_SMALLER_SIZE={'Огромный':'Большой','Большой':'Средний','Средний':'Маленький'};
+function splitFoe(f){
+  const rule=f&&f.splitReaction,smaller=f&&FOE_SMALLER_SIZE[f.size],hp=f&&Math.floor((+f.hp||0)/2);
+  if(!f||!rule||!smaller||hp<1||(+f.hp||0)<(+rule.minHp||10)) return null;
+  const key='foe:'+f.id,current=combatCurrentKey(),entry=combatEntryByKey(key);
+  if(combat.active&&entry&&!combatSpend('reaction','Разделение',key)) return null;
+  const twin=JSON.parse(JSON.stringify(f));
+  f.hp=hp; f.hpTemp=0; f.size=smaller; f.builtin=false;
+  twin.id='foe_'+uid(); twin.n=f.n+' — отделившаяся часть'; twin.hp=hp; twin.hpTemp=0; twin.size=smaller; twin.builtin=false;
+  twin.source=(f.source||'')+' · создано Разделением'; upgradeFoe(twin); foesDB.push(twin);
+  if(combat.active&&entry){
+    const idx=combat.order.findIndex(x=>combatEntryKey(x)===key);
+    const next={kind:'foe',id:twin.id,nat:entry.nat,mod:entry.mod,initiative:entry.initiative,reactionUsed:true,seq:(+entry.seq||0)+0.1};
+    combat.order.splice(idx+1,0,next); combat.setup['foe:'+twin.id]={selected:true,nat:String(entry.nat)};
+    combat.snapshots['foe:'+twin.id]=combatSnapshotOf(next);
+    combat.turnIndex=Math.max(0,combat.order.findIndex(x=>combatEntryKey(x)===current));
+    combatLog(f.n+': Разделение создало «'+twin.n+'»; обе части имеют по '+hp+' хитов и размер '+smaller+'.','change',key);
+  }
+  scheduleSave(); renderFoes(); renderCombat(); return twin;
+}
+function foeDamageReaction(f,rolls){
+  const rule=f&&f.splitReaction; if(!rule||!rolls||rolls.hit===false||(+f.hp||0)<(+rule.minHp||10)||!FOE_SMALLER_SIZE[f.size]) return '';
+  const wanted=(rule.damageTypes||[]).map(dmgTypeCanon);
+  const type=(rolls.damageParts||[]).find(x=>(+x.raw||0)>0&&wanted.indexOf(dmgTypeCanon(x.type))>=0);
+  if(!type) return '';
+  const key='foe:'+f.id,entry=combatEntryByKey(key);
+  if(combat.active&&entry&&!combatCanSpend('reaction',key,true)) return 'Разделение недоступно: реакция уже потрачена';
+  if(!window.confirm('☠ '+f.n+': применить реакцию «Разделение» после '+dmgTypeCanon(type.type)+' урона?')) return 'Разделение отклонено мастером';
+  const twin=splitFoe(f); return twin?'Разделение: две части по '+f.hp+' хитов, размер '+f.size:'Разделение не удалось';
+}
 function foeHpDelta(id,d){ const f=foeOf(id); if(!f) return;
   f.hp=Math.max(0,Math.min(+f.hpMax||0,(+f.hp||0)+d)); scheduleSave(); renderFoes(); }
-function foeFullHeal(id){ const f=foeOf(id); if(!f) return; f.hp=+f.hpMax||0; f.hpTemp=0; f.cond=[]; scheduleSave(); renderFoes(); }
+function foeFullHeal(id){ const f=foeOf(id); if(!f) return; f.hp=+f.hpMax||0; f.hpTemp=0; f.cond=[]; f.activeFx=[]; foeResetActionState(f); scheduleSave(); renderFoes(); }
 function saveFoeEd(){
   const f=foeOf(foeEditing); if(!f) return;
   const g=id=>document.getElementById(id);
   f.n=g('fnN').value.trim()||'Безымянный'; f.kind=g('fnK').value; f.cr=g('fnCr').value.trim();
+  f.size=g('fnSize').value.trim(); f.creatureType=g('fnType').value.trim(); f.subtype=g('fnSubtype').value.trim(); f.alignment=g('fnAlign').value.trim();
+  f.xp=Math.max(0,+g('fnXp').value||0);
   f.ac=+g('fnAc').value||10; f.hpMax=Math.max(1,+g('fnHm').value||1);
+  f.acSource=g('fnAcSrc').value.trim(); f.hpFormula=g('fnHpF').value.trim();
   f.hp=Math.max(0,Math.min(f.hpMax,+g('fnHp').value||0));
   f.speed=g('fnSp').value.trim(); f.profB=+g('fnPb').value||2;
-  AB_KEYS.forEach(k=>{ f.abil[k]=+g('fnA_'+k).value||10; f.saveP[k]=g('fnS_'+k).checked; });
+  f.saveBonuses={};
+  AB_KEYS.forEach(k=>{ f.abil[k]=+g('fnA_'+k).value||10; f.saveP[k]=g('fnS_'+k).checked; const raw=g('fnSB_'+k).value.trim(); if(raw!=='') f.saveBonuses[k]=+raw||0; });
+  f.skills=parseBonusMap(g('fnSkills').value); f.passive=Math.max(0,+g('fnPass').value||10);
   f.resist=csvArr(g('fnRes').value); f.vuln=csvArr(g('fnVul').value); f.immune=csvArr(g('fnImm').value);
   f.condImmune=csvArr(g('fnCim').value); f.magicRes=g('fnMr').checked;
   f.senses=g('fnSen').value.trim(); f.langs=g('fnLang').value.trim();
-  f.traits=g('fnTr').value; f.actions=g('fnAct').value; f.notes=g('fnNo').value;
+  f.traits=g('fnTr').value; f.actions=g('fnAct').value; f.notes=g('fnNo').value; f.source=g('fnSource').value.trim()||'Авторская запись мастера';
   foeEditing=null; scheduleSave(); renderFoes();
 }
 function foeEditorHTML(f){
   const abRow=AB_KEYS.map(k=>'<div><label>'+AB_FULL[k]+'</label><input type="number" id="fnA_'+k+'" value="'+(f.abil[k]||10)+'">'
-    +'<label style="font-size:12px;font-weight:400"><input type="checkbox" id="fnS_'+k+'"'+((f.saveP&&f.saveP[k])?' checked':'')+'> владение спасброском</label></div>').join('');
+    +'<label style="font-size:12px;font-weight:400"><input type="checkbox" id="fnS_'+k+'"'+((f.saveP&&f.saveP[k])?' checked':'')+'> владение спасброском</label>'
+    +'<input type="number" id="fnSB_'+k+'" placeholder="явный бонус" value="'+(f.saveBonuses&&f.saveBonuses[k]!=null?f.saveBonuses[k]:'')+'"></div>').join('');
   return '<div class="editor"><h3>Правка записи бестиария</h3>'
    +'<div class="f-grid">'
    +'<div><label>Имя</label><input type="text" id="fnN" value="'+esc(f.n)+'"></div>'
    +'<div><label>Кто это</label><select id="fnK"><option value="monster"'+(f.kind==='monster'?' selected':'')+'>Монстр</option><option value="npc"'+(f.kind==='npc'?' selected':'')+'>NPC</option></select></div>'
+   +'<div><label>Размер</label><input type="text" id="fnSize" value="'+esc(f.size||'')+'"></div>'
+   +'<div><label>Тип существа</label><input type="text" id="fnType" value="'+esc(f.creatureType||'')+'"></div>'
+   +'<div><label>Подтип</label><input type="text" id="fnSubtype" value="'+esc(f.subtype||'')+'"></div>'
+   +'<div><label>Мировоззрение</label><input type="text" id="fnAlign" value="'+esc(f.alignment||'')+'"></div>'
    +'<div><label>Опасность</label><input type="text" id="fnCr" value="'+esc(f.cr)+'"></div>'
+   +'<div><label>Опыт</label><input type="number" id="fnXp" value="'+(+f.xp||0)+'"></div>'
    +'<div><label>КД</label><input type="number" id="fnAc" value="'+(+f.ac||10)+'"></div>'
+   +'<div><label>Источник КД</label><input type="text" id="fnAcSrc" value="'+esc(f.acSource||'')+'"></div>'
    +'<div><label>Хиты — максимум</label><input type="number" id="fnHm" value="'+(+f.hpMax||1)+'"></div>'
+   +'<div><label>Формула хитов</label><input type="text" id="fnHpF" value="'+esc(f.hpFormula||'')+'"></div>'
    +'<div><label>Хиты — сейчас</label><input type="number" id="fnHp" value="'+(+f.hp||0)+'"></div>'
    +'<div><label>Скорость</label><input type="text" id="fnSp" value="'+esc(f.speed)+'"></div>'
    +'<div><label>Бонус мастерства</label><input type="number" id="fnPb" value="'+(+f.profB||2)+'"></div>'
    +'</div>'
    +'<h4 class="rubric" style="font-size:18px;margin:10px 0 4px">Характеристики</h4><div class="f-grid">'+abRow+'</div>'
    +'<div class="f-grid" style="margin-top:8px">'
+   +'<div><label>Навыки (имя +бонус)</label><input type="text" id="fnSkills" value="'+esc(bonusMapText(f.skills))+'"></div>'
+   +'<div><label>Пассивная Внимательность</label><input type="number" id="fnPass" value="'+(+f.passive||10)+'"></div>'
    +'<div><label>Сопротивления (через запятую)</label><input type="text" id="fnRes" value="'+esc((f.resist||[]).join(', '))+'"></div>'
    +'<div><label>Уязвимости</label><input type="text" id="fnVul" value="'+esc((f.vuln||[]).join(', '))+'"></div>'
    +'<div><label>Иммунитет к урону</label><input type="text" id="fnImm" value="'+esc((f.immune||[]).join(', '))+'"></div>'
@@ -7876,37 +8409,47 @@ function foeEditorHTML(f){
    +'<label>Черты</label><textarea id="fnTr" rows="3">'+esc(f.traits)+'</textarea>'
    +'<label>Действия</label><textarea id="fnAct" rows="3">'+esc(f.actions)+'</textarea>'
    +'<label>Заметки мастера</label><textarea id="fnNo" rows="2">'+esc(f.notes)+'</textarea>'
+   +'<label>Источник / лицензия</label><input type="text" id="fnSource" value="'+esc(f.source||'')+'">'
    +'<button class="btn rub" onclick="saveFoeEd()">Вписать в бестиарий</button> '
    +'<button class="btn ghost" onclick="foeEditing=null;renderFoes()">Отложить перо</button></div>';
 }
 function foeCardHTML(f){
-  const sv=AB_KEYS.filter(k=>f.saveP&&f.saveP[k]).map(k=>AB_FULL[k]+' '+fmtMod(foeSaveMod(f,k))).join(', ');
+  const sv=AB_KEYS.filter(k=>(f.saveP&&f.saveP[k])||(f.saveBonuses&&f.saveBonuses[k]!=null)).map(k=>AB_FULL[k]+' '+fmtMod(foeSaveMod(f,k))).join(', ');
+  const skills=Object.keys(f.skills||{}).map(k=>k+' '+fmtMod(+f.skills[k]||0)).join(', ');
   const bars=[];
   if((f.resist||[]).length) bars.push('сопротивление: '+esc(f.resist.join(', ')));
   if((f.vuln||[]).length) bars.push('уязвимость: '+esc(f.vuln.join(', ')));
   if((f.immune||[]).length) bars.push('иммунитет: '+esc(f.immune.join(', ')));
+  if((f.damageRules||[]).length) bars.push('условные защиты: '+esc(f.damageRules.map(r=>(r.mode==='immune'?'иммунитет':'сопротивление')+' '+(r.types||[]).join(', ')+' ('+(r.when==='nonmagicalNonsilvered'?'немагическое, не посеребренное':r.when==='nonmagical'?'немагическое':r.when||'всегда')+')').join('; ')));
+  if((f.condImmune||[]).length) bars.push('иммунитет к состояниям: '+esc(f.condImmune.join(', ')));
   const cond=effectiveFoeConditions(f);
   if(cond.length) bars.push('состояния: '+esc(cond.join(', ')));
   const effects=(f.activeFx||[]).map(a=>'<span class="uses-box">✦ '+esc(a.label||'Эффект')+' · '+esc(fxDurationLabel(a))
     +'<button class="del-x" title="Снять эффект" onclick="removeFoeActiveFx(\''+f.id+'\',\''+a.uid+'\')">✕</button></span>').join(' ');
-  const actionBtns=(f.combatActions||[]).map(a=>'<button class="btn '+(foeAlive(f)?'rub':'ghost')+' sm"'
-    +(foeAlive(f)?'':' disabled')+' onclick="foeActionFx(\''+f.id+'\',\''+a.id+'\')" title="'+esc(foeActionFormula(a))+'">'
-    +(a.kind==='attack'?'⚔ ':'⚡ ')+esc(a.n)+'</button><span class="note-ital" style="font-size:12px">'+esc(foeActionFormula(a))+'</span>').join(' ');
+  const actionBtns=(f.combatActions||[]).map(a=>{ const ready=foeActionReady(f,a); return '<button class="btn '+(foeAlive(f)&&ready?'rub':'ghost')+' sm"'
+    +(foeAlive(f)&&ready?'':' disabled')+' onclick="foeActionFx(\''+f.id+'\',\''+a.id+'\')" title="'+esc(foeActionFormula(a))+'">'
+    +(a.kind==='attack'?'⚔ ':a.kind==='utility'?'◇ ':'⚡ ')+esc(a.n)+'</button><span class="note-ital" style="font-size:12px">'+esc(foeActionFormula(a)+(foeActionStateLabel(f,a)?' · '+foeActionStateLabel(f,a):''))+'</span>'; }).join(' ');
   return '<div class="card"><div class="card-tools">'
    +'<button class="mini" title="Править" onclick="foeEditing=\''+f.id+'\';renderFoes();window.scrollTo({top:0,behavior:\'smooth\'})">✎</button>'
+   +'<button class="mini" title="Создать отдельный экземпляр" onclick="cloneFoe(\''+f.id+'\')">⧉</button>'
    +'<button class="mini" title="Вычеркнуть" onclick="delFoe(\''+f.id+'\')">✕</button></div>'
-   +'<h4>'+esc(f.n)+' <span style="font-size:12.5px;color:var(--ink-faint);font-weight:400">'+(f.kind==='npc'?'NPC':'монстр')+(f.cr?' · опасность '+esc(f.cr):'')+'</span></h4>'
+   +'<h4>'+esc(f.n)+' <span style="font-size:12.5px;color:var(--ink-faint);font-weight:400">'+esc([f.size,f.creatureType+(f.subtype?' ('+f.subtype+')':''),f.alignment].filter(Boolean).join(' · '))+'</span></h4>'
+   +'<div class="note-ital" style="font-size:12.5px">'+(f.kind==='npc'?'NPC':'монстр')+(f.cr?' · опасность '+esc(f.cr):'')+(f.xp?' · '+f.xp+' опыта':'')+'</div>'
    +'<div class="row-line" style="font-size:14px;gap:10px;flex-wrap:wrap">'
-   +'<span>КД <b>'+((+f.ac||10)+foeFxSum(f,'ac'))+'</b></span>'
-   +'<span class="uses-box"><button class="mini-btn" onclick="foeHpDelta(\''+f.id+'\',-1)">−</button>хиты '+(+f.hp||0)+' / '+(+f.hpMax||0)+'<button class="mini-btn" onclick="foeHpDelta(\''+f.id+'\',1)">+</button></span>'
+   +'<span>КД <b>'+((+f.ac||10)+foeFxSum(f,'ac'))+'</b>'+(f.acSource?' ('+esc(f.acSource)+')':'')+'</span>'
+   +'<span class="uses-box"><button class="mini-btn" onclick="foeHpDelta(\''+f.id+'\',-1)">−</button>хиты '+(+f.hp||0)+' / '+(+f.hpMax||0)+(f.hpFormula?' · формула '+esc(f.hpFormula):'')+'<button class="mini-btn" onclick="foeHpDelta(\''+f.id+'\',1)">+</button></span>'
    +'<button class="btn ghost sm" title="Полностью восстановить" onclick="foeFullHeal(\''+f.id+'\')">⟳</button>'
-   +'<span style="color:var(--ink-faint)">'+AB_KEYS.map(k=>AB_FULL[k].slice(0,3)+' '+fmtMod(foeAbMod(f,k))).join(' · ')+'</span></div>'
-   +(sv?'<p style="font-size:13.5px;margin:2px 0">Спасброски с владением: '+esc(sv)+'</p>':'')
+   +'<span>Скорость <b>'+esc(f.speed||'—')+'</b></span>'
+   +'<span style="color:var(--ink-faint)">'+AB_KEYS.map(k=>AB_FULL[k].slice(0,3)+' '+(f.abil[k]||10)+' ('+fmtMod(foeAbMod(f,k))+')').join(' · ')+'</span></div>'
+   +(sv?'<p style="font-size:13.5px;margin:2px 0"><b>Спасброски:</b> '+esc(sv)+'</p>':'')
+   +'<p style="font-size:13.5px;margin:2px 0"><b>Навыки:</b> '+(skills?esc(skills):'—')+' · пассивная Внимательность '+(+f.passive||10)+'</p>'
+   +((f.senses||f.langs)?'<p style="font-size:13.5px;margin:2px 0"><b>Чувства:</b> '+esc(f.senses||'—')+' · <b>Языки:</b> '+esc(f.langs||'—')+'</p>':'')
    +(bars.length?'<p style="font-size:13.5px;margin:2px 0;color:var(--gold)">'+bars.join(' · ')+'</p>':'')
    +(effects?'<div class="row-line" style="font-size:13px;gap:6px;flex-wrap:wrap">'+effects+'</div>':'')
    +(f.traits?'<p style="font-size:14px;white-space:pre-wrap">'+esc(f.traits)+'</p>':'')
    +(f.actions?'<p style="font-size:14px;white-space:pre-wrap"><b>Действия.</b> '+esc(f.actions)+'</p>':'')
    +(actionBtns?'<div class="row-line" style="font-size:13px;gap:7px;flex-wrap:wrap;align-items:center"><b>Провести действие:</b> '+actionBtns+'</div>':'')
+   +'<div class="note-ital" style="font-size:11.5px;margin-top:6px">Источник: '+esc(f.source||'Авторская запись мастера')+'</div>'
    +'</div>';
 }
 function renderFoes(){
@@ -7914,7 +8457,10 @@ function renderFoes(){
   let h='<div class="db-head"><h2 class="rubric">Бестиарий: противники, NPC и прочие цели</h2>'
    +'<button class="btn sm rub" onclick="newFoe()">+ Противник</button></div>';
   h+='<p class="note-ital" style="font-size:14px">Структурированные действия противника открывают точную формулу, принимают реальные результаты костей и атомарно отражают урон, временные хиты, падение, спасброски смерти и состояния на листах героев. '
-   +'Текстовые действия пользовательских записей остаются подсказкой мастеру.</p>';
+   +'Текстовые действия пользовательских записей остаются подсказкой мастеру. Кнопка ⧉ создает независимый экземпляр существа для боя.</p>';
+  h+='<details class="note-ital" style="font-size:12px;margin-bottom:10px"><summary>Источник открытых правил и лицензия</summary>'
+   +'<p>This work includes material taken from the System Reference Document 5.1 (“SRD 5.1”) by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode.</p>'
+   +'<p>Записи с пометкой «Авторская 5e-совместимая запись» созданы специально для dnd-world и не воспроизводят закрытые блоки существ из приключений.</p></details>';
   if(foeEditing){ const f=foeOf(foeEditing); if(f) h+=foeEditorHTML(f); else foeEditing=null; }
   h+='<div class="db-bar"><input type="text" placeholder="Поиск по бестиарию…" value="'+esc(foeSearch)+'" oninput="foeSearch=this.value;renderFoes();const f=document.querySelector(\'#tab-foes .db-bar input\');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}"></div>';
   const q=foeSearch.trim().toLowerCase();
@@ -7938,7 +8484,7 @@ function targetInfoOf(val){
     const f=foeOf(v.slice(4));
     if(!f) return {kind:'foe', name:'враг', known:false};
     return {kind:'foe', id:f.id, obj:f, name:f.n, known:true, ac:(+f.ac||10)+foeFxSum(f,'ac'), hp:+f.hp||0, hpMax:+f.hpMax||0,
-      saveMod:k=>foeSaveMod(f,k), abMod:k=>foeAbMod(f,k), skillMod:n=>foeAbMod(f,(SKILLS.find(x=>x[0]===n)||[0,'dex'])[1]),
+      saveMod:k=>foeSaveMod(f,k), abMod:k=>foeAbMod(f,k), skillMod:n=>foeSkillMod(f,n),
       resist:f.resist||[], vuln:f.vuln||[], immune:f.immune||[], conditions:effectiveFoeConditions(f), magicRes:!!f.magicRes};
   }
   if(v==='object') return {kind:'object', name:'неодушевленный объект', known:false};
@@ -8041,10 +8587,11 @@ function combatRepairRuntime(){
   combat.turnIndex=Math.max(0,Math.min(+combat.turnIndex||0,combat.order.length-1));
   if(combat.active){
     const key=combatCurrentKey(),prior=combat.turn||{};
-    combat.turn=Object.assign({actorKey:key,actionUsed:false,actionMax:1,actionsUsed:0,actionKind:'',attacksUsed:0,attackMax:combatAttackCount(key),attackActionTaken:false,loadingUsed:{},bonusUsed:false,objectUsed:false,movementUsed:0,dash:false,disengage:false,spellCasts:[],bonusSpellUsed:false,abilityUsed:{}},prior);
+    combat.turn=Object.assign({actorKey:key,actionUsed:false,actionMax:1,actionsUsed:0,actionKind:'',attacksUsed:0,attackMax:combatAttackCount(key),attackActionTaken:false,foeAttacks:[],loadingUsed:{},bonusUsed:false,objectUsed:false,movementUsed:0,dash:false,disengage:false,spellCasts:[],bonusSpellUsed:false,abilityUsed:{}},prior);
     combat.turn.spellCasts=Array.isArray(combat.turn.spellCasts)?combat.turn.spellCasts:[];
     combat.turn.abilityUsed=combat.turn.abilityUsed&&typeof combat.turn.abilityUsed==='object'?combat.turn.abilityUsed:{};
     combat.turn.loadingUsed=combat.turn.loadingUsed&&typeof combat.turn.loadingUsed==='object'?combat.turn.loadingUsed:{};
+    combat.turn.foeAttacks=Array.isArray(combat.turn.foeAttacks)?combat.turn.foeAttacks:[];
     combat.turn.actionMax=Math.max(1,+combat.turn.actionMax||1);
     if(prior.actionsUsed==null) combat.turn.actionsUsed=prior.actionUsed?1:0;
     combat.turn.actionsUsed=Math.max(0,Math.min(+combat.turn.actionsUsed||0,combat.turn.actionMax));
@@ -8149,6 +8696,7 @@ function combatStart(entries,name){
     setStatus('✕ Для боя выберите минимум одного героя и одного противника.',true); return false;
   }
   order.sort((a,b)=>(b.initiative-a.initiative)||(a.seq-b.seq));
+  order.filter(e=>e.kind==='foe').forEach(e=>foeResetActionState(foeOf(e.id)));
   const history=(combat.history||[]).slice();
   if((combat.log||[]).length) history.unshift({id:combat.id||'combat_'+uid(),name:combat.name||'Схватка',startedAt:combat.startedAt,endedAt:combat.endedAt,log:combat.log.slice()});
   if(history.length>20) history.length=20;
@@ -8186,7 +8734,7 @@ function combatBeginTurn(){
   const e=combatCurrentEntry(); if(!e) return false; const key=combatEntryKey(e);
   if(e.ready){ combatLog(combatActorName(key)+': срок подготовленного действия истек.','change',key); delete e.ready; }
   combatClearStartEffects(key); e.reactionUsed=false; combat.focusKey=key;
-  combat.turn={actorKey:key,actionUsed:false,actionMax:1,actionsUsed:0,actionKind:'',attacksUsed:0,attackMax:combatAttackCount(key),attackActionTaken:false,loadingUsed:{},bonusUsed:false,objectUsed:false,movementUsed:0,dash:false,disengage:false,spellCasts:[],bonusSpellUsed:false,abilityUsed:{},startedAt:new Date().toISOString()};
+  combat.turn={actorKey:key,actionUsed:false,actionMax:1,actionsUsed:0,actionKind:'',attacksUsed:0,attackMax:combatAttackCount(key),attackActionTaken:false,foeAttacks:[],foeUses:{},loadingUsed:{},bonusUsed:false,objectUsed:false,movementUsed:0,dash:false,disengage:false,spellCasts:[],bonusSpellUsed:false,abilityUsed:{},startedAt:new Date().toISOString()};
   if(e.kind==='ally') activeCharId=e.id;
   combatLog('Ход: '+combatActorName(key),'round',key); return true;
 }
@@ -8199,15 +8747,44 @@ function combatMoveOrder(index,delta){
   combatLog('Порядок инициативы уточнен: '+combatActorName(combatEntryKey(x))+' перемещен.','round');
   scheduleSave(); renderCombat(); return true;
 }
-function combatNextTurn(){
+function combatAdvanceTurn(){
   if(!combat.active||!combat.order.length) return false;
-  if(castCtx||rollSpec){ setStatus('✕ Сначала завершите или отмените текущую формулу.',true); return false; }
   const old=combat.turnIndex,oldKey=combatCurrentKey(); combatClearEndEffects(oldKey); combatLog('Ход завершен: '+combatActorName(oldKey),'round',oldKey);
   let idx=old,wrapped=false,found=-1;
   for(let i=0;i<combat.order.length;i++){ idx=(idx+1)%combat.order.length; if(idx===0) wrapped=true; if(combatActorHasTurn(combatEntryKey(combat.order[idx]))){ found=idx; break; } }
   if(found<0){ setStatus('✕ Нет дееспособных участников.',true); return false; }
   if(wrapped){ combat.round++; advanceFxRound(1); combatLog('Раунд '+combat.round+' начат.','round'); }
   combat.turnIndex=found; combatBeginTurn(); scheduleSave(); renderCombat(); return true;
+}
+function combatRepeatSaveQueue(key){
+  const o=combatActorByKey(key); if(!o) return [];
+  return (o.activeFx||[]).filter(x=>x.repeatSave&&x.repeatSave.when==='end').map(x=>({o,entry:x,rule:x.repeatSave}));
+}
+function combatPromptRepeatSave(key,queue,index){
+  if(index>=queue.length){ combatAdvanceTurn(); return true; }
+  const x=queue[index],ti=targetInfoOf(key),m=ti.known&&ti.saveMod?ti.saveMod(x.rule.key):0,scm=saveConditionMode(ti,x.rule.key,{magic:!!x.rule.magic});
+  if(scm.autoFail){
+    combatLog(combatActorName(key)+': повторный спасбросок '+AB_FULL[x.rule.key]+' против «'+(x.entry.label||'эффекта')+'» автоматически провален.','change',key);
+    return combatPromptRepeatSave(key,queue,index+1);
+  }
+  const adv=scm.adv===scm.dis?0:(scm.adv?1:(scm.dis?2:0)),rows=[{key:'d',label:'d20 '+AB_FULL[x.rule.key],min:1,max:20}];
+  if(adv) rows.push({key:'d2',label:'Второй d20 ('+(adv===1?'преимущество':'помеха')+')',min:1,max:20});
+  askRolls({title:'⚖ Повторный спасбросок — '+combatActorName(key),note:(x.entry.label||'Эффект')+': '+AB_FULL[x.rule.key]+' '+fmtMod(m)+' против СЛ '+x.rule.dc+'.',rows,
+    compute:v=>{ const nat=adv?(adv===1?Math.max(v.d,v.d2):Math.min(v.d,v.d2)):v.d; return nat+fmtMod(m)+' = '+(nat+m)+' против СЛ '+x.rule.dc; },
+    apply:v=>{
+      const vals=adv?[v.d,v.d2]:[v.d]; if(vals.some(n=>!Number.isInteger(n)||n<1||n>20)){ setStatus('✕ Каждый d20 должен быть целым от 1 до 20.',true); return; }
+      const nat=adv?(adv===1?Math.max(...vals):Math.min(...vals)):v.d,total=nat+m,ok=total>=x.rule.dc;
+      if(ok) x.o.activeFx=(x.o.activeFx||[]).filter(e=>e!==x.entry);
+      combatLog(combatActorName(key)+': повторный спасбросок против «'+(x.entry.label||'эффекта')+'» — '+total+' против СЛ '+x.rule.dc+' · '+(ok?'успех, эффект снят':'провал'),'change',key);
+      fxInvalidate(); scheduleSave(); renderChars(); renderFoes(); combatPromptRepeatSave(key,queue,index+1);
+    }});
+  return true;
+}
+function combatNextTurn(){
+  if(!combat.active||!combat.order.length) return false;
+  if(castCtx||rollSpec){ setStatus('✕ Сначала завершите или отмените текущую формулу.',true); return false; }
+  const key=combatCurrentKey(),queue=combatRepeatSaveQueue(key);
+  return queue.length?combatPromptRepeatSave(key,queue,0):combatAdvanceTurn();
 }
 function combatVictoryText(){
   if(!combat.active) return '';
@@ -8222,12 +8799,52 @@ function combatEnd(force){
   encounterEnd(); combat.active=false; combat.endedAt=new Date().toISOString(); combat.turn=null; scheduleSave(); renderCombat(); return true;
 }
 function combatAttackCount(key){
-  const e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||!o||e.kind!=='ally') return 1;
+  const e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||!o) return 1;
+  if(e.kind==='foe'){
+    const seq=o.multiattack&&Array.isArray(o.multiattack.sequences)?o.multiattack.sequences:[];
+    return Math.max(1,...seq.map(x=>Array.isArray(x)?x.length:1));
+  }
   const lv=+o.level||1,cl=String(o.cls||''); let n=1;
   if(/Воин/.test(cl)) n=lv>=20?4:(lv>=11?3:(lv>=5?2:1));
   else if(/(Варвар|Монах|Паладин|Следопыт)/.test(cl)&&lv>=5) n=2;
   (o.abilities||[]).forEach(x=>{ const a=abilityOf(x.abilityId); if(!a) return; const m=String(a.n||'').match(/Дополнительная атака(?:\s*\((\d+)\))?/i); if(m) n=Math.max(n,(m[1]?+m[1]+1:2)); });
   return n;
+}
+function combatFoeAttackHistory(f){
+  const key=f&&'foe:'+f.id;
+  return combat.active&&combatCurrentKey()===key&&combat.turn&&Array.isArray(combat.turn.foeAttacks)?combat.turn.foeAttacks:[];
+}
+function combatFoeOnceUsed(f,a){
+  return !!(f&&a&&a.oncePerTurn&&combat.active&&combat.turn&&combatCurrentKey()==='foe:'+f.id
+    &&combat.turn.foeUses&&combat.turn.foeUses[a.id]);
+}
+function combatMarkFoeOnceUsed(f,a){
+  if(!f||!a||!a.oncePerTurn||!combat.active||!combat.turn||combatCurrentKey()!=='foe:'+f.id) return;
+  combat.turn.foeUses=combat.turn.foeUses||{}; combat.turn.foeUses[a.id]=true;
+}
+function combatFoeAttackAllowed(f,a,cost,quiet,target){
+  if(!f||!a||cost==='reaction'||!combat.active||combatCurrentKey()!=='foe:'+f.id) return true;
+  const seqs=f.multiattack&&Array.isArray(f.multiattack.sequences)?f.multiattack.sequences:[];
+  if(!seqs.length) return true;
+  const history=combatFoeAttackHistory(f),ids=history.map(x=>x.id),next=ids.concat(a.id);
+  const candidates=seqs.filter(seq=>next.every((id,i)=>seq[i]===id));
+  let reason='этот удар не продолжает заявленную мультиатаку';
+  if(candidates.length&&a.requiresHit){
+    const prior=history.slice().reverse().find(x=>x.id===a.requiresHit);
+    if(!prior||prior.hit!==true){ candidates.length=0; reason='предыдущая атака «'+a.requiresHit+'» должна попасть'; }
+    else if(a.sameTarget&&target&&prior.target!==target){ candidates.length=0; reason='продолжение должно быть по той же цели'; }
+  }
+  if(!candidates.length&&!quiet) setStatus('✕ Недоступно: '+a.n+' — '+reason+'.',true);
+  return candidates.length>0;
+}
+function combatRecordFoeAttack(f,a,target,rolls){
+  if(!combat.active||combatCurrentKey()!=='foe:'+f.id||!combat.turn) return;
+  const h=combat.turn.foeAttacks=Array.isArray(combat.turn.foeAttacks)?combat.turn.foeAttacks:[];
+  h.push({id:a.id,target,hit:rolls&&rolls.hit});
+  const seqs=f.multiattack&&Array.isArray(f.multiattack.sequences)?f.multiattack.sequences:[];
+  const ids=h.map(x=>x.id),prefix=seqs.filter(seq=>ids.every((id,i)=>seq[i]===id));
+  const canContinue=prefix.some(seq=>seq.length>ids.length)&&!(a.id==='tentacles'&&rolls&&rolls.hit!==true);
+  if(!canContinue) combat.turn.attackMax=Math.max(1,+combat.turn.attacksUsed||ids.length);
 }
 function combatCostLabel(cost){ return {action:'действие',attack:'действие Атака',offhand:'бонусная атака второй рукой',bonus:'бонусное действие',reaction:'реакция',object:'взаимодействие',turnfree:'без затраты действия',free:'без затрат',long:'дольше одного хода'}[cost]||cost; }
 function combatSyncActionState(){
@@ -8362,14 +8979,57 @@ function combatAbilityAfterApply(ab,casterId,rolls){
 }
 function combatUseItem(id){ const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key),x=o&&invEntryOf(o,id),it=x&&itemOf(x.itemId); if(!e||e.kind!=='ally'||!it) return false; return combatPrimeCast(key,'action','Предмет «'+it.n+'»',()=>itemCastFx(id,e.id)); }
 function combatWeapon(id,mode,cost,offhand){ const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key),x=o&&invEntryOf(o,id),it=x&&itemOf(x.itemId); if(!e||e.kind!=='ally'||!it) return false; cost=cost||'attack'; const ok=combatPrimeCast(key,cost,(offhand?'Атака второй рукой: ':'Атака: ')+it.n,()=>weaponAttackFx(id,e.id,mode||'melee')); if(ok&&castCtx) castCtx.offhand=!!offhand; return ok; }
-function combatFoeAction(id,cost){ const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key),a=o&&foeActionOf(o,id); if(!e||e.kind!=='foe'||!a) return false; cost=cost||'action'; return combatPrimeCast(key,cost,(cost==='reaction'?'Провокационная атака: ':'Действие: ')+a.n,()=>foeActionFx(e.id,id)); }
+function combatFoeUtility(id){
+  const key=combatFocusedKey(),e=combatEntryByKey(key),f=combatActorByKey(key),a=f&&foeActionOf(f,id);
+  if(!e||e.kind!=='foe'||!a||a.kind!=='utility'||!foeActionReady(f,a)) return false;
+  const cost=a.cost||'action'; if(!combatCanSpend(cost,key)) return false;
+  const finish=detail=>{
+    if(!combatSpend(cost,a.n,key)) return false;
+    if(a.combatEffect==='dash'||a.combatEffect==='dashToward') combat.turn.dash=true;
+    if(a.combatEffect==='disengage') combat.turn.disengage=true;
+    if(a.combatEffect==='parry'){
+      applyFxToFoe(f,{k:'foeaction',id:f.id+':'+a.id,label:'Парирование: КД +2 против одной атаки',from:f.n,casterId:f.id,
+        stackKey:'foeaction:'+f.id+':parry',power:2,fx:[{stat:'ac',mode:'add',value:2,consume:'roll'}]});
+      detail='+2 КД против одного броска видимой рукопашной атаки';
+    }
+    foeConsumeActionState(f,a);
+    combatLog(f.n+': '+a.n+(detail?' · '+detail:'')+(a.note?' · '+a.note:''),'action',key);
+    scheduleSave(); renderCombat(); renderFoes(); return true;
+  };
+  if(a.combatEffect==='hide'){
+    const m=foeSkillMod(f,'Скрытность','dex');
+    askRolls({title:'☠ '+a.n+' — '+f.n,note:'Живой игрок бросает d20; мастер сравнивает итог с пассивной Внимательностью наблюдателей.',
+      rows:[{key:'d',label:'d20 Скрытности',min:1,max:20}],compute:v=>'Скрытность: '+v.d+fmtMod(m)+' = '+(v.d+m),
+      apply:v=>{ if(!Number.isInteger(v.d)||v.d<1||v.d>20){ setStatus('✕ Нужен целый результат d20 от 1 до 20.',true); return; } finish('Скрытность '+(v.d+m)); }});
+    return true;
+  }
+  return finish(a.combatEffect==='dashToward'?'дополнительное перемещение только к видимому врагу':'');
+}
+function combatFoeRecharge(id){
+  const key=combatFocusedKey(),e=combatEntryByKey(key),f=combatActorByKey(key),a=f&&foeActionOf(f,id),s=a&&foeActionStateOf(f,a);
+  if(!e||e.kind!=='foe'||!a||!a.recharge||key!==combatCurrentKey()||s.ready!==false) return false;
+  askRolls({title:'⚄ Перезарядка: '+a.n,note:'Бросьте реальный d6 в начале хода '+f.n+'. На '+a.recharge.min+'–'+a.recharge.max+' прием снова готов.',
+    rows:[{key:'d',label:'Результат d6',min:1,max:6}],compute:v=>'d6: '+v.d+' — '+(v.d>=a.recharge.min?'готово':'не перезарядилось'),
+    apply:v=>{ if(!Number.isInteger(v.d)||v.d<1||v.d>6){ setStatus('✕ Нужен целый результат d6 от 1 до 6.',true); return; }
+      s.ready=v.d>=a.recharge.min; combatLog(f.n+': перезарядка «'+a.n+'» — d6 '+v.d+' · '+(s.ready?'готово':'не готово'),'change',key); scheduleSave(); renderCombat(); renderFoes(); }});
+  return true;
+}
+function combatFoeAction(id,cost){
+  const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key),a=o&&foeActionOf(o,id); if(!e||e.kind!=='foe'||!a) return false;
+  cost=cost||a.cost||((a.kind==='attack')?'attack':'action');
+  if(a.kind==='utility') return combatFoeUtility(id);
+  if(!foeActionReady(o,a)){ setStatus('✕ «'+a.n+'» сейчас недоступно: '+foeActionStateLabel(o,a)+'.',true); return false; }
+  if(combatFoeOnceUsed(o,a)){ setStatus('✕ «'+a.n+'» уже применено в этот ход.',true); return false; }
+  if(cost==='attack'&&!combatFoeAttackAllowed(o,a,cost)) return false;
+  return combatPrimeCast(key,cost,(cost==='reaction'?'Провокационная атака: ':'Действие: ')+a.n,()=>foeActionFx(e.id,id));
+}
 function combatDodge(key){
   const e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||!o) return;
   const entry={k:'combat',id:'dodge',label:'Уклонение',from:o.name||o.n,combatUntilTurn:key,stackKey:'combat:dodge',power:0,
     fx:[{stat:'incoming.attack',mode:'dis',value:1},{stat:'save.dex',mode:'adv',value:1}]};
   if(e.kind==='ally') applyFxTo(e.id,entry); else applyFxToFoe(o,entry);
 }
-function combatSkillMod(key,skill,ab){ const e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||!o) return 0; if(e.kind==='foe') return foeAbMod(o,ab); const i=SKILLS.findIndex(x=>x[0]===skill); return i>=0?skillBonus(o,i).v:eMod(o,ab); }
+function combatSkillMod(key,skill,ab){ const e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||!o) return 0; if(e.kind==='foe') return foeSkillMod(o,skill,ab); const i=SKILLS.findIndex(x=>x[0]===skill); return i>=0?skillBonus(o,i).v:eMod(o,ab); }
 function combatOpponents(key){ const e=combatEntryByKey(key); return !e?[]:combat.order.filter(x=>x.kind!==e.kind&&combatActorAlive(combatEntryKey(x))); }
 function combatApplyConditionDirect(key,n,source){
   const o=combatActorByKey(key); if(!o) return false; n=canonicalCondition(n);
@@ -8378,7 +9038,7 @@ function combatApplyConditionDirect(key,n,source){
   combatLog(combatActorName(key)+': наложено состояние «'+n+'»'+(source?' ('+source+')':''),'change',key); return true;
 }
 function combatContestAction(kind){
-  const key=combatCurrentKey(); if(!combatCanSpend('attack',key)) return false;
+  const key=combatCurrentKey(),actorEntry=combatEntryByKey(key),cost=actorEntry&&actorEntry.kind==='foe'?'action':'attack'; if(!combatCanSpend(cost,key)) return false;
   const sel=document.getElementById('combatQuickTarget'),target=sel&&sel.value; if(!target||!combatEntryByKey(target)){ setStatus('✕ Выберите цель состязания.',true); return false; }
   const defense=(document.getElementById('combatContestDefense')||{}).value||'ath',am=combatSkillMod(key,'Атлетика','str');
   const dm=defense==='acr'?combatSkillMod(target,'Акробатика','dex'):combatSkillMod(target,'Атлетика','str');
@@ -8386,7 +9046,7 @@ function combatContestAction(kind){
   askRolls({title:'⚔ '+label,note:combatActorName(key)+': Атлетика '+fmtMod(am)+' против '+combatActorName(target)+': '+(defense==='acr'?'Акробатика':'Атлетика')+' '+fmtMod(dm)+'. Ничья остается защищающемуся; размер и свободную руку проверяет мастер.',
     rows:[{key:'a',label:combatActorName(key)+': d20 Атлетики',min:1,max:20},{key:'d',label:combatActorName(target)+': d20 '+(defense==='acr'?'Акробатики':'Атлетики'),min:1,max:20}],
     compute:v=>label+': '+(v.a+am)+' против '+(v.d+dm)+' — '+(v.a+am>v.d+dm?'успех':'защита устояла'),
-    apply:v=>{ if(!combatCanSpend('attack',key)) return; const win=v.a+am>v.d+dm; if(win) combatApplyConditionDirect(target,condition,label); combatLog(combatActorName(key)+' → '+combatActorName(target)+': '+label+' · '+(v.a+am)+' против '+(v.d+dm)+' — '+(win?'успех':'провал'),'action',key); combatSpend('attack',label,key); }});
+    apply:v=>{ if(!combatCanSpend(cost,key)) return; const win=v.a+am>v.d+dm; if(win) combatApplyConditionDirect(target,condition,label); combatLog(combatActorName(key)+' → '+combatActorName(target)+': '+label+' · '+(v.a+am)+' против '+(v.d+dm)+' — '+(win?'успех':'провал'),'action',key); combatSpend(cost,label,key); }});
   return true;
 }
 function combatCheckAction(code,label,skill,ab){
@@ -8477,7 +9137,7 @@ function combatMoveMax(){ if(!combat.turn) return 0; return combatSpeedNumber(co
 function combatAdjustHp(key,mode){
   const id=combatDomKey(key),el=document.getElementById('combatHpVal_'+id),n=Math.max(0,+(el&&el.value)||0); if(!n) return false;
   const o=combatActorByKey(key); if(!o) return false; let result=null,info='';
-  if(mode==='damage'){ const dt=(document.getElementById('combatDmgType_'+id)||{}).value||''; const d=dmgAfterTraits(o,n,dt); result=applyDamageTo(key,d.amount,dt,'ручная правка'); info='урон '+n+(d.note?' → '+d.amount+' ('+d.note+')':''); }
+  if(mode==='damage'){ const dt=(document.getElementById('combatDmgType_'+id)||{}).value||''; const d=dmgAfterTraits(o,n,dt); result=applyDamageTo(key,d.amount,dt,'ручная правка'); if(result&&result.undeadFortitude) promptUndeadFortitude(result); info='урон '+n+(d.note?' → '+d.amount+' ('+d.note+')':''); }
   else if(mode==='heal'){ result=applyHealTo(key,n,'ручная правка'); info='лечение +'+n; }
   else if(mode==='temp'){ result=applyTempHp(key,n); info='временные хиты '+n; }
   if(!result) return false; fxInvalidate(); scheduleSave(); renderChars(); renderFoes(); combatLog(combatActorName(key)+': '+info,'change',key); renderCombat(); return true;
@@ -8519,7 +9179,7 @@ function combatSetupHTML(){
   h+=combatArchiveHTML(); return h+'</div></div>';
 }
 function combatActorCardHTML(entry){
-  const key=combatEntryKey(entry),o=combatActorByKey(key); if(!o) return ''; const mx=combatActorMaxHp(key),hp=+o.hp||0,p=Math.max(0,Math.min(100,Math.round(hp/mx*100))),conds=combatActorConditions(key),fx=(o.activeFx||[]);
+  const key=combatEntryKey(entry),o=combatActorByKey(key); if(!o) return ''; const mx=combatActorMaxHp(key),hp=+o.hp||0,p=mx>0?Math.max(0,Math.min(100,Math.round(hp/mx*100))):0,conds=combatActorConditions(key),fx=(o.activeFx||[]);
   const opts=CONDITIONS.map(x=>'<option value="'+esc(x.n)+'">'+esc(x.n)+'</option>').join('');
   const types=['','дробящий','колющий','рубящий','огонь','холод','молния','кислота','яд','некротический','излучение','психический','силовое поле'].map(x=>'<option value="'+x+'">'+(x||'тип урона')+'</option>').join('');
   return '<div class="combatant '+(key===combatCurrentKey()?'current ':'')+(!combatActorAlive(key)?'down':'')+'" onclick="combatFocus(\''+key+'\')"><div class="head"><b>'+esc(o.name||o.n)+'</b><span>КД '+combatActorAc(key)+'</span></div><div class="combat-hp"><i style="width:'+p+'%"></i></div><div class="meta">'+hp+' / '+mx+' хитов'+((+o.hpTemp||0)?' · '+o.hpTemp+' врем.':'')+' · '+esc(combatActorSpeed(key))+'</div>'
@@ -8561,8 +9221,14 @@ function combatActionsHTML(key){
   } else if(g==='items'&&entry.kind==='ally'){
     (o.inventory||[]).forEach(x=>{ const it=itemOf(x.itemId); if(!it) return; const aa=itemActions(o,x,it); if(!aa.length&&!it.slot) h+=combatActionButton('▣',it.n,'×'+(+x.qty||0)+' · осмотр','combatInspectItem(\''+x.id+'\')','free',key,down); if(it.slot){ const cost=combatEquipCost(it),on=isEquipped(o,x.id); h+=combatActionButton(on?'◉':'○',it.n+': '+(on?'снять':'надеть'),(on?'экипировано · ':'')+combatCostLabel(cost),'combatToggleEquip(\''+x.id+'\')',cost,key,down); } aa.forEach((a,i)=>{ const cost=/^weaponAttackFx/.test(a.fn)?'attack':(/^itemCastFx/.test(a.fn)?'action':combatItemActionCost(a)); h+=combatActionButton(a.icon||'▣',it.n+': '+a.label,'×'+(+x.qty||0)+' · '+combatCostLabel(cost),'combatRunItemAction(\''+x.id+'\','+i+')',cost,key,down); }); });
   } else if(g==='foe'&&entry.kind==='foe'){
-    h+=combatActionButton('✥','Захват','Состязание Атлетики','combatContestAction(\'grapple\')','attack',key,down)+combatActionButton('↧','Толчок','Сбить с ног','combatContestAction(\'shove\')','attack',key,down);
-    (o.combatActions||[]).forEach(a=>{ h+=combatActionButton('☠',a.n,foeActionFormula(a),'combatFoeAction(\''+a.id+'\')','action',key,down); if(!current&&(a.mode||'')==='melee') h+=combatActionButton('↯',a.n+' — провокационная',foeActionFormula(a),'combatFoeAction(\''+a.id+'\',\'reaction\')','reaction',key,down||combatOpportunityBlocked(key)); });
+    h+=combatActionButton('✥','Захват','Отдельное действие Атака: состязание Атлетики','combatContestAction(\'grapple\')','action',key,down)+combatActionButton('↧','Толчок','Отдельное действие Атака: сбить с ног','combatContestAction(\'shove\')','action',key,down);
+    (o.combatActions||[]).forEach(a=>{
+      const cost=a.cost||((a.kind==='attack')?'attack':'action'),ready=foeActionReady(o,a)&&!combatFoeOnceUsed(o,a),seqOk=cost!=='attack'||combatFoeAttackAllowed(o,a,cost,true);
+      const icon=a.kind==='utility'?'◇':(a.kind==='attack'?'☠':'⚡');
+      h+=combatActionButton(icon,a.n,combatCostLabel(cost)+' · '+foeActionFormula(a)+(foeActionStateLabel(o,a)?' · '+foeActionStateLabel(o,a):''),'combatFoeAction(\''+a.id+'\')',cost,key,down||!ready||!seqOk);
+      if(current&&a.recharge&&!ready) h+=combatActionButton('⚄','Перезарядка: '+a.n,'Реальный d6 · успех на '+a.recharge.min+'–'+a.recharge.max,'combatFoeRecharge(\''+a.id+'\')','free',key,down);
+      if(!current&&a.kind==='attack'&&(a.mode||'')==='melee') h+=combatActionButton('↯',a.n+' — провокационная',foeActionFormula(a),'combatFoeAction(\''+a.id+'\',\'reaction\')','reaction',key,down||!ready||combatOpportunityBlocked(key));
+    });
   }
   return h||'<div class="combat-log-empty">В этой группе нет доступных действий.</div>';
 }
@@ -9096,6 +9762,7 @@ function upgradeChar3(c){
   if(!Array.isArray(c.resist)) c.resist=[];
   if(!Array.isArray(c.vuln)) c.vuln=[];
   if(!Array.isArray(c.immune)) c.immune=[];
+  if(Array.isArray(c.activeFx)) c.activeFx.forEach(x=>{ if(x&&x.expiresAtRound==null&&x.untilRound!=null){ x.expiresAtRound=+x.untilRound; delete x.untilRound; } });
   if(c._v3) return c;
   if(c.acOverride===undefined){
     const cur=+c.ac||0, auto=acAuto(c);
@@ -9704,7 +10371,7 @@ function longRest(){
      активированные способности завершаются, обратимые хиты корректно снимаются. */
   const keep=[];
   (c.activeFx||[]).forEach(a=>{
-    const rem=fxRemaining(a), end=(a.k==='ability'||a.k==='use'||(rem!=null&&rem<=4800));
+    const rem=fxRemaining(a), end=(a.k==='ability'||a.k==='use'||a.untilLongRest||(rem!=null&&rem<=4800));
     if(end) detachActiveFx(c,a); else keep.push(a);
   });
   c.activeFx=keep;
