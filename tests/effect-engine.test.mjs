@@ -23,13 +23,17 @@ function loadEngine(random = () => 0) {
       breakConcentration, longRest, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
       applyDamageTo, applyRollsToTarget, resolveUndeadFortitude, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
       rollSpecOf, resolveOutcome, targetInfoOf, weaponSpecOf, weaponAttackApply, useItemApply,
-      upgradeItem, itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemSpec, itemActions, combatItemActionCost, rollFxEntries,
+      upgradeSpell, upgradeAbility, upgradeItem, upgradeRace, upgradeClass, currentMechanics,
+      compileSpellMechanics, compileAbilityMechanics, compileItemMechanics, compileRaceMechanics, compileClassMechanics,
+      mechanicsErrors, referenceMechanicsErrors,
+      itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemSpec, itemActions, combatItemActionCost, rollFxEntries,
       dmgAfterTraits, effectiveFoeConditions, castDispel, rollbackLastCast,
       seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, seedFoesDB, gameDataAudit,
       upgradeFoe, mergeBuiltinFoe, foeSaveMod, foeSkillMod, foeActionReady, foeResetActionState,
       buildRoku, buildTorgar, buildSeptih, buildLegerem,
       foeActionOf, foeActionFormula, foeActionSpecOf, foeActionApply, foeActionBatchApply,
-      abilityIsActive, isPassiveAbility, abilityPoolOf, itemProfile, weaponBonusOf, ammoRemaining, ammoRecover, invQty,
+      abilityIsActive, isPassiveAbility, abilityPoolOf, itemProfile, weaponDamageOf, weaponBonusOf, ammoRemaining, ammoRecover, invQty,
+      foeActionsOf, foeDefensesOf, conditionRules,
       validateFormulaValues, saveConditionMode,
       combatStart, combatNextTurn, combatEnd, combatSpend, combatCanSpend, combatBasicAction, combatFocus,
       combatCastSpell, combatUseAbility, combatWeapon, combatFoeAction, combatSyncChanges, combatVictoryText,
@@ -40,6 +44,7 @@ function loadEngine(random = () => 0) {
       castConfirm, castFormulaShow, castFormulaConfirm, closeCastModal,
       castState() { return {ctx:castCtx, spec:castCtx&&castCtx.spec}; },
       makeBlank() { return buildBlank(); },
+      conditions() { return CONDITIONS; },
       renderWorld() {
         renderRaces(); renderClasses(); renderRules(); renderChars(); renderCombat();
         renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderFoes();
@@ -586,6 +591,8 @@ test('сопротивление от эффекта и уязвимость п�
     amount: 4,
     note: 'сопротивление «огонь» + уязвимость к «огонь»'
   });
+  assert.ok(target.activeFx[0].fx.some(x => x.stat === 'damage.rule'), 'старый текстовый эффект мигрирован в типизированное правило');
+  assert.equal(target.activeFx[0].effectSchemaVersion, 1);
 });
 
 test('Непоколебимая стойкость и зелье последовательно меняют один боевой лист', () => {
@@ -2301,4 +2308,98 @@ test('все девять вкладок и шесть панелей листа
     const html = e.renderSheetPanel(panel);
     labels.forEach(label => assert.ok(html.includes(label), `${panel}: нет индикатора «${label}»`));
   });
+});
+
+test('каждый встроенный игровой элемент имеет проверяемый структурированный контракт', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB(), items = e.seedItemsDB();
+  const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+
+  for (const [kind, rows] of [['spell', spells], ['ability', abilities], ['item', items]]) {
+    rows.forEach(row => assert.deepEqual(plain(e.mechanicsErrors(row.mechanics, kind)), [], kind + ': ' + row.n));
+  }
+  races.forEach(row => assert.deepEqual(plain(e.referenceMechanicsErrors(row.mechanics, 'race')), [], 'race: ' + row.n));
+  classes.forEach(row => assert.deepEqual(plain(e.referenceMechanicsErrors(row.mechanics, 'class')), [], 'class: ' + row.n));
+  foes.forEach(row => {
+    assert.equal(row.mechanics.mode, 'structured', 'foe: ' + row.n);
+    assert.ok(e.foeActionsOf(row).length, 'foe actions: ' + row.n);
+  });
+  e.conditions().forEach(row => {
+    assert.equal(row.mechanics.mode, 'structured', 'condition: ' + row.n);
+    assert.deepEqual(plain(e.conditionRules(row.n)), plain(row.mechanics.rules));
+  });
+
+  const audit = e.gameDataAudit({spells, abilities, items, races, classes, foes, chars: []});
+  assert.deepEqual(plain(audit.errors), []);
+});
+
+test('явные mechanics заклинания и способности не меняются от литературного текста', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
+  const fireball = spells.find(x => x.n === 'Огненный шар');
+  const parry = abilities.find(x => x.id === 'ab_lg_parry');
+  const dice = abilities.find(x => x.id === 'ab_lg_dice');
+  [fireball, parry, dice].forEach(x => { x.mechanics.origin = 'explicit'; });
+  const caster = hero('fighter', {abilities: [{abilityId: dice.id, cur: 3}, {abilityId: parry.id}]});
+  e.setState({chars: [caster], spells, abilities});
+
+  const spellMechanics = plain(fireball.mechanics);
+  const before = e.rollSpecOf(fireball, {caster, kind: 'spell', slotLvl: 3, target: {kind: 'none', known: false, name: 'цель'}});
+  fireball.x = 'Теперь это лечение 99d99 без спасброска.';
+  fireball.hi = 'Каждый круг добавляет 20d20.';
+  fireball.cm = '—';
+  fireball.d = 'Концентрация, 1 год';
+  fireball.r = 'Касание';
+  fireball.tags = ['healing'];
+  e.upgradeSpell(fireball);
+  const after = e.rollSpecOf(fireball, {caster, kind: 'spell', slotLvl: 3, target: {kind: 'none', known: false, name: 'цель'}});
+  assert.deepEqual(plain(fireball.mechanics), spellMechanics);
+  assert.deepEqual(plain(after.rows), plain(before.rows));
+  assert.equal(e.currentMechanics(fireball, 'spell').duration.kind, 'instant');
+
+  const poolView = pool => ({label: pool.label, sides: pool.sides, providerId: pool.ab.id, cur: pool.cur, max: pool.max, addTo: pool.addTo});
+  const poolBefore = poolView(e.abilityPoolOf(caster, parry));
+  const roleBefore = e.abilityIsActive(parry);
+  parry.x = 'Не тратит никакой ресурс и всегда является пассивной.';
+  parry.tags = ['passive'];
+  parry.mode = 'passive';
+  dice.x = 'Это не запас и не содержит костей.';
+  e.upgradeAbility(parry); e.upgradeAbility(dice);
+  assert.deepEqual(poolView(e.abilityPoolOf(caster, parry)), poolBefore);
+  assert.equal(e.abilityIsActive(parry), roleBefore);
+  assert.equal(parry.mechanics.combat.inlineResolution.kind, 'damageMitigation');
+});
+
+test('профили предметов, народов, классов и противников независимы от справочного текста', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const sword = items.find(x => x.n === 'Длинный меч');
+  sword.mechanics.origin = 'explicit';
+  const caster = hero('fighter', {level: 5, ab: {str: 16, dex: 12, con: 10, int: 10, wis: 10, cha: 10}});
+  e.setState({chars: [caster], items, races, classes, foes});
+  const profile = plain(e.itemProfile(sword));
+  const before = e.weaponSpecOf(caster, sword, {kind: 'none', known: false, name: 'цель'}, {});
+  sword.dmg = '99d99';
+  sword.dmgType = 'огонь';
+  sword.props = 'Дальнобойное, фехтовальное, магическое';
+  sword.desc = 'Посеребренное и адамантиновое.';
+  sword.tags = ['ranged', 'finesse', 'magical', 'silvered', 'adamantine'];
+  e.upgradeItem(sword);
+  const after = e.weaponSpecOf(caster, sword, {kind: 'none', known: false, name: 'цель'}, {});
+  assert.deepEqual(plain(e.itemProfile(sword)), profile);
+  assert.deepEqual(plain(after.rows), plain(before.rows));
+  assert.deepEqual(plain(after.meta.damageTags), plain(before.meta.damageTags));
+
+  const race = races[0], cls = classes[0], foe = foes[0];
+  race.mechanics.origin = 'explicit'; cls.mechanics.origin = 'explicit';
+  const raceMechanics = plain(race.mechanics), classMechanics = plain(cls.mechanics), foeActions = plain(e.foeActionsOf(foe));
+  race.ab = '+99 ко всем характеристикам'; race.sp = '0 м'; race.tr = ['Совсем другая черта'];
+  cls.armor = 'Нет'; cls.weap = 'Нет'; cls.lv = [[1, 'Сто дополнительных атак']];
+  foe.traits = 'Иммунитет ко всему и критическим попаданиям.';
+  foe.actions = 'Наносит 1000d1000 урона.';
+  e.upgradeRace(race); e.upgradeClass(cls); e.upgradeFoe(foe);
+  assert.deepEqual(plain(race.mechanics), raceMechanics);
+  assert.deepEqual(plain(cls.mechanics), classMechanics);
+  assert.deepEqual(plain(e.foeActionsOf(foe)), foeActions);
+  assert.equal(e.foeDefensesOf(foe).criticalHitImmune, false);
 });
