@@ -1656,6 +1656,7 @@ function seedItemsDB(){
     out.push({id:'it_'+slugify(a.n)+'_arm', n:a.n, type:'armor', rarity:'обычный', custom:false,
       tags:armorAutoTags(a), slot: a.g==='Щит'?'OFF_HAND':'CHEST',
       weight:a.w, cost:a.c, dmg:'', dmgType:'', ac:a.ac,
+      strReq:a.str==='—'?0:+((a.str.match(/\d+/)||[])[0]||0),
       desc:a.g+'.'+(a.str!=='—'?' Требование: '+a.str+'.':''), props:a.st==='Помеха'?'Помеха на Скрытность':''});
   });
   GEAR.forEach(g=>{
@@ -1705,7 +1706,7 @@ function seedItemsDB(){
       it.tags=tg;
     });
   }
-  out.forEach(o=>{ o.tags=uniqTags((o.tags||[]).concat(itemEnrichTags(o))); });
+  out.forEach(o=>{ o.tags=uniqTags((o.tags||[]).concat(itemEnrichTags(o))); upgradeItem(o); });
   return out;
 }
 /* заклинания старой летописи, вытесненные версиями из «D&D Нексус» */
@@ -2656,7 +2657,11 @@ const ITEM_NEW=[
  {id:'it_gem_10', n:'Драгоценный камень (10 зм)', type:'equipment', rarity:'обычный', custom:false,
   tags:['gem','valuable'], slot:'', weight:'0', cost:'10 зм', dmg:'', dmgType:'',
   desc:'Ограненный камень размером с ноготь: кварц дымчатый, малахит, лазурит или речной жемчуг. Оценщик даст за такой около десяти золотых, а скупщик краденого — вдвое меньше. Мелкие камни удобны тем, что не звенят и не тянут пояс, в отличие от монет.',
-  props:'Годится как материальный компонент там, где требуется камень стоимостью не менее 10 зм.'}
+  props:'Годится как материальный компонент там, где требуется камень стоимостью не менее 10 зм.'},
+ {id:'it_basic_poison', n:'Базовый яд (флакон)', type:'equipment', rarity:'обычный', custom:false,
+  tags:['poison','consumable'], slot:'', weight:'0,5 фунта', cost:'100 зм', dmg:'', dmgType:'яд',
+  desc:'Одним действием содержимое флакона наносится на одно рубящее или колющее оружие либо на три боеприпаса. Яд сохраняет силу 1 минуту. Существо, по которому попало обработанное оружие или боеприпас, совершает спасбросок Телосложения СЛ 10; при провале получает 1d4 урона ядом.',
+  props:'Один флакон расходуется при нанесении. Кости бросают игроки; движок отдельно проверяет попадание, спасбросок и защиту цели от яда.'}
 ];
 /* ── ярлыки, размеченные ошибочно ── */
 const ITEM_TAG_FIX={
@@ -2666,6 +2671,8 @@ const ITEM_TAG_FIX={
  'Игральные карты':{drop:['map']},
  'Игральная кость с секретом':{drop:['poison'],add:['tool']},
  'Набор целителя':{drop:['consumable']},
+ 'Сумка с реагентами':{drop:['consumable']},
+ 'Книга по истории':{drop:['consumable']},
  'Свиток с родословной Корлиннов':{drop:['scroll','enchanted']},
  'Мешочек с шариками':{drop:['ammunition'],add:['trap']},
  'Бутылочка чернил':{drop:['consumable','alchemy','camp','tool'],add:['writing']},
@@ -2677,7 +2684,7 @@ const ITEM_TAG_FIX={
 };
 async function ensureItemAudit(){
   const flag=await store.get('dndworld2:itemaudit');
-  if(flag==='2') return;
+  if(flag==='3') return;
   ITEM_NEW.forEach(rec=>{ if(!itemsDB.some(x=>x.id===rec.id)) itemsDB.push(rec); });
   const lore=Object.assign({}, ITEM_LORE_A, ITEM_LORE_B, ITEM_LORE_C);
   Object.keys(lore).forEach(id=>{
@@ -2704,7 +2711,8 @@ async function ensureItemAudit(){
     const it=itemOf(e.itemId);
     if(it&&Array.isArray(it.contents)&&it.contents.length) fillContainer(e,it);
   }));
-  await store.set('dndworld2:itemaudit','2');
+  itemsDB.forEach(upgradeItem);
+  await store.set('dndworld2:itemaudit','3');
   fxInvalidate(); scheduleSave();
 }
 async function ensureSpellAudit(){
@@ -2829,13 +2837,14 @@ async function ensureAbilityAudit(){
 
 /* ═══════════════ СОСТОЯНИЕ И ХРАНИЛИЩЕ ═══════════════ */
 function blankCombat(){
-  return {version:1,active:false,id:'',name:'Схватка',round:0,turnIndex:0,order:[],turn:null,
+  return {version:2,active:false,id:'',name:'Схватка',round:0,turnIndex:0,order:[],turn:null,zones:[],
     setup:{},log:[],history:[],snapshots:{},uiGroup:'basic',focusKey:'',startedAt:null,endedAt:null};
 }
 function normalizeCombatState(v){
   const c=Object.assign(blankCombat(),v||{});
   c.order=Array.isArray(c.order)?c.order:[]; c.log=Array.isArray(c.log)?c.log:[];
   c.history=Array.isArray(c.history)?c.history:[];
+  c.zones=Array.isArray(c.zones)?c.zones:[];
   c.setup=c.setup&&typeof c.setup==='object'?c.setup:{};
   c.snapshots=c.snapshots&&typeof c.snapshots==='object'?c.snapshots:{};
   c.turnIndex=Math.max(0,Math.min(+c.turnIndex||0,Math.max(0,c.order.length-1)));
@@ -2955,6 +2964,7 @@ async function loadAll(){
   classesDB = (await readJSON('dndworld2:classes'))   || seedClassesDB();
   rulesDB   = (await readJSON('dndworld2:rules'))     || [];
   foesDB    = (await readJSON('dndworld2:foes'))      || seedFoesDB();
+  itemsDB.forEach(upgradeItem);
   foesDB.forEach(upgradeFoe);
   fxRound   = Math.max(1,+(await readJSON('dndworld2:fxround'))||1);
   /* миграция разметки: дополняем уже сохраненные записи новыми тегами (однократно) */
@@ -3070,11 +3080,14 @@ function diceOutSet(text,color){
   const out=document.getElementById('diceOut'); if(!out) return;
   out.textContent=text; out.style.color=color||'var(--ink)';
 }
-function rollFxEntries(c,kind){
+function rollFxEntries(c,kind,tags){
   if(!c||!kind) return [];
   const keys=[kind];
+  if(kind.indexOf('attack.')===0) keys.push('attack');
+  if(kind.indexOf('check.')===0) keys.push('check');
   if(kind.indexOf('save.')===0) keys.push('save');
   if(kind.indexOf('skill.')===0) keys.push('check');
+  (tags||[]).forEach(t=>{ const k=kind.indexOf('save.')===0?'save.'+t:(kind+'.'+t); if(keys.indexOf(k)<0) keys.push(k); });
   return charFxAll(c).filter(f=>keys.indexOf(f.stat)>=0);
 }
 function rollCheck(label,m,kind){
@@ -3161,6 +3174,7 @@ function doImport(inp){
         chars.forEach(c=>{ if(typeof upgradeChar3==='function') upgradeChar3(c); });
         itemsDB=data.items||itemsDB; spellsDB=data.spells||spellsDB; abilitiesDB=data.abilities||abilitiesDB;
         racesDB=data.races||racesDB; classesDB=data.classes||classesDB; rulesDB=data.rules||rulesDB; foesDB=data.foes||foesDB;
+        itemsDB.forEach(upgradeItem);
         foesDB.forEach(upgradeFoe);
         if(typeof combatRepairRuntime==='function') combatRepairRuntime();
       } else if(data.app==='dndworld'){
@@ -3290,6 +3304,8 @@ function deriveFx(rec, kind){
     else if(k) fxPush(t,{stat:'note',mode:'text',value:'характеристика: +'+m[3]+' к '+m[1]+(m[2]?' или '+m[2]:'')+(choice?' (на выбор)':'')+(conditional?' при выполнении условия':'')});
   }
   /* качественные: преимущество/помеха/сопротивление/иммунитет */
+  if(/преимуществ[а-я]*\s+(?:(?:при|на)\s+)?спасброск[а-я]*\s+от\s+яд/.test(low))
+    fxPush(t,{stat:'save.poison',mode:'adv',value:1,note:'преимущество на спасброски от яда'});
   const qual=[
    [/преимуществ[а-я]*\s+(?:при|на|к)\s+(спасброск[а-я]*(?:\s+от|\s+против)?\s+[а-я ,и]+?)(?=,\s*(?:иммунитет|сопротив)|\s+и\s+сопротив|[.;)]|$)/g, (mm)=>'преимущество: '+mm[1].trim()],
    [/помех[а-я]*\s+(?:при|на)\s+(спасброск[а-я]*|броск[а-я]* атак[а-я]*|проверк[а-я]*)[^.;)]*/g, (mm)=>'помеха: '+mm[1].trim()],
@@ -3609,12 +3625,18 @@ function charFxSources(c){
     const worn=wornEntry.has(e.id);
     const wearable=!!it.slot;
     if((wearable&&worn)||(!wearable)){
-      let fx=recFx(it,'item');
+      let fx=itemPassiveFx(it).map(x=>Object.assign({},x));
+      const profile=itemProfile(it);
+      if(worn&&profile.armor){
+        if(profile.armor.stealthDis) fx.push({stat:'skill.Скрытность',mode:'dis',value:1,note:'помеха от доспеха'});
+        if(profile.armor.strReq&&(+c.ab.str||10)<profile.armor.strReq&&!/дварф/i.test(String(c.race||'')))
+          fx.push({stat:'speed',mode:'add',value:-3,unit:'м',note:'не выполнено требование Силы '+profile.armor.strReq});
+      }
       /* Автоматически извлеченный +N конкретного оружия применяется в
          weaponSpecOf только к этому оружию. Иначе он усиливал все атаки героя
          и затем учитывался второй раз в своей же формуле. Явно заданный fx
          мастера сохраняет прежний смысл. */
-      if(it.type==='weapon'&&!(Array.isArray(it.fx)&&it.fx.length)) fx=fx.filter(x=>x.stat!=='atk'&&x.stat!=='dmg');
+      if(it.type==='weapon'&&!(Array.isArray(it.passiveFx)&&it.passiveFx.length)&&!(Array.isArray(it.fx)&&it.fx.length)) fx=fx.filter(x=>x.stat!=='atk'&&x.stat!=='dmg');
       if(fx.length){
         const needAtt=itemNeedsAttune(it);
         const s={k:'item', id:it.id, label:it.n, why:(wearable?'надето':'в инвентаре')+(needAtt?(e.att?' · настроен':' · НЕ настроен'):''), fx, canOff:true};
@@ -3654,9 +3676,16 @@ function charFxSources(c){
   });
   /* ношение без владения — канонические последствия 5e */
   armorViolations(c).forEach(v=>{
+    const penalized=[
+      {stat:'attack.str',mode:'dis',value:1},{stat:'attack.dex',mode:'dis',value:1},
+      {stat:'check.str',mode:'dis',value:1},{stat:'check.dex',mode:'dis',value:1},
+      {stat:'save.str',mode:'dis',value:1},{stat:'save.dex',mode:'dis',value:1}
+    ];
+    SKILLS.filter(sk=>sk[1]==='str'||sk[1]==='dex').forEach(sk=>penalized.push({stat:'skill.'+sk[0],mode:'dis',value:1}));
     const s={k:'prof', id:v.it.id, label:'⛔ '+v.it.n, why:v.why, canOff:true,
-      fx:[{stat:'note',mode:'text',value:'помеха на проверки характеристик, спасброски и броски атаки, использующие Силу или Ловкость'},
-          {stat:'note',mode:'text',value:'наложение заклинаний невозможно'}]};
+      fx:penalized.concat([
+        {stat:'note',mode:'text',value:'помеха на проверки характеристик, спасброски и броски атаки, использующие Силу или Ловкость'},
+        {stat:'note',mode:'text',value:'наложение заклинаний невозможно'}])};
     s.off=off.includes(fxSrcKey(s)); out.push(s);
   });
   /* Одинаковые заклинания не складываются: действует самое сильное, при равной
@@ -3730,7 +3759,7 @@ function speedTotal(c){
     } else if(f.mode==='add'){
       const sm=String(f.value).replace(',','.').match(/-?\d+(?:\.\d+)?/);
       if(sm){
-        let d=+sm[0], su=/фут/i.test(String(f.value))?'фут':'м';
+        let d=+sm[0], su=f.unit==='фут'||/фут/i.test(String(f.value))?'фут':'м';
         if((unit.indexOf('фут')>=0)!==(su==='фут')) d=unit.indexOf('фут')>=0?d*(10/3):d*0.3;
         add+=d;
       }
@@ -4813,11 +4842,12 @@ function weaponOptionsOf(c){
     const wb=weaponBonusOf(it), duel=duelingBonusOf(c,it,{entryId:e.id});
     out.push({n:it.n+(hasProf?'':' (без владения)')+' · из сумки', entryId:e.id, itemId:it.id,
       atk:m+(hasProf?PROF[c.level]:0)+fxSum(c,'atk')+wb.atk, dmg:it.dmg||'', dt:it.dmgType||'',
-      m:m+fxSum(c,'dmg')+wb.dmg+duel, abn:useDex?'Лов':'Сил', mode:tags.indexOf('ranged')>=0?'ranged':'melee',
+      m:m+fxSum(c,'dmg')+wb.dmg+duel, abn:useDex?'Лов':'Сил', abKey:useDex?'dex':'str', mode:tags.indexOf('ranged')>=0?'ranged':'melee',
       within5:(tags.indexOf('ranged')>=0||tags.indexOf('reach')>=0)?null:true, fromBag:true});
   });
   out.forEach((w,i)=>{
     w.idx=i;
+    if(!w.abKey) w.abKey=/лов/i.test(String(w.abn||''))?'dex':'str';
     const entry=w.entryId&&invEntryOf(c,w.entryId),it=itemOf(w.itemId||(entry&&entry.itemId)),tags=(it&&it.tags)||[];
     w.damageTags={magical:tags.indexOf('magical')>=0||tags.indexOf('enchanted')>=0,
       silvered:tags.indexOf('silvered')>=0||tags.indexOf('silver')>=0,adamantine:tags.indexOf('adamantine')>=0};
@@ -4884,7 +4914,9 @@ function rollSpecOf(rec, opts){
     const attackMode=weapon&&weapon.mode?weapon.mode:(/рукопашн[а-я]*\s+атак/.test(all)?'melee':(/дальнобойн[а-я]*\s+атак/.test(all)?'ranged':''));
     const within5=opts.within5!==undefined?opts.within5:(weapon&&weapon.within5!==undefined?weapon.within5:
       (attackMode==='melee'&&/касани|^\s*5\s*фут|^\s*1[,.]5\s*м/.test(normRollTxt(rec.r||''))?true:null));
-    const atkFx=caster?rollFxEntries(caster,'attack'):[], condMode=caster?attackConditionMode(caster,ti,{mode:attackMode,within5}):{adv:[],dis:[],mode:0,consumeTargetFx:[]};
+    const attackKey=isSpell&&caster?spellAbOf(caster):(weapon?(weapon.abKey||(/лов/i.test(String(weapon.abn||''))?'dex':'str')):
+      (caster&&eMod(caster,'dex')>eMod(caster,'str')?'dex':'str'));
+    const atkFx=caster?rollFxEntries(caster,'attack.'+attackKey):[], condMode=caster?attackConditionMode(caster,ti,{mode:attackMode,within5}):{adv:[],dis:[],mode:0,consumeTargetFx:[]};
     meta.attackMode=attackMode; meta.within5=within5; meta.spatialRequired=!!condMode.requiresDistance; meta.autoCritOnHit=!!condMode.autoCrit;
     meta.consumeTargetFx=condMode.consumeTargetFx||[];
     const aA=atkFx.some(f=>f.mode==='adv')||condMode.adv.length>0, aD=atkFx.some(f=>f.mode==='dis')||condMode.dis.length>0;
@@ -4936,7 +4968,10 @@ function rollSpecOf(rec, opts){
     meta.half=/при успехе[^.]{0,60}половин|половин[а-я]*\s+урона|успешном спасброске[^.]{0,60}половин|или\s+половин|вдвое\s+меньш[а-я]*\s+урон|половинный\s+урон/.test(all);
     const known=ti.known&&typeof ti.saveMod==='function';
     const tmod=known?ti.saveMod(meta.saveKey):0;
-    const saveFx=ti.kind==='ally'&&ti.obj?rollFxEntries(ti.obj,'save.'+meta.saveKey)
+    const saveTags=[];
+    if(/яд|poison/.test(all)) saveTags.push('poison');
+    if(/вдыха|запах|inhal/.test(all)) saveTags.push('inhaled');
+    const saveFx=ti.kind==='ally'&&ti.obj?rollFxEntries(ti.obj,'save.'+meta.saveKey,saveTags)
       :(ti.kind==='foe'&&ti.obj?foeFxAll(ti.obj).filter(f=>f.stat==='save.'+meta.saveKey||f.stat==='save'):[]);
     const scm=saveConditionMode(ti,meta.saveKey,{magic:isSpell});
     const hasAdv=scm.adv||saveFx.some(f=>f.mode==='adv');
@@ -5308,11 +5343,19 @@ function applyDamageTo(targetVal, amount, dtype, srcLabel, ctx){
   if(!ti.obj||!(amount>0)) return null;
   let d=amount, absorbed=0;
   const o=ti.obj;
+  let oilExtra=0;
+  const fire=ctx&&ctx.fireDamage!=null?(+ctx.fireDamage>0):/огонь|огнен|fire/.test(String(dtype||'').toLowerCase());
+  const oil=fire&&(o.activeFx||[]).find(x=>x.itemTrigger==='oil');
+  if(oil){
+    const tr=dmgAfterTraits(o,5,'огонь',ctx||{}); oilExtra=tr.amount; d+=oilExtra; amount=d;
+    o.activeFx=(o.activeFx||[]).filter(x=>x.uid!==oil.uid); fxInvalidate();
+  }
   if((+o.hpTemp||0)>0){ absorbed=Math.min(+o.hpTemp, d); o.hpTemp-=absorbed; d-=absorbed; }
   const was=+o.hp||0;
   const over=d-was;
   o.hp=Math.max(0, was-d);
-  const res={name:ti.name, hp:o.hp, hpMax:ti.hpMax, absorbed, down:o.hp<=0, dead:false, deathFails:0};
+  const res={name:ti.name, hp:o.hp, hpMax:ti.hpMax, absorbed, down:o.hp<=0, dead:false, deathFails:0,
+    oilIgnited:!!oil,oilExtra};
   if(ti.kind==='ally'){
     if(o.hp<=0){
       /* Непоколебимая стойкость срабатывает в тот же атомарный переход: если
@@ -5423,10 +5466,14 @@ function applyRollsToTarget(targetVal, rolls, srcLabel){
     if(r) info+=' · временные хиты '+r.temp+(r.replaced?'':' (прежние были выше)');
   }
   if(rolls.dmgTotal!=null&&rolls.dmgTotal>0){
-    const r=applyDamageTo(targetVal, rolls.dmgTotal, rolls.dmgType, srcLabel,{crit:!!rolls.crit});
+    const damageCtx={crit:!!rolls.crit};
+    if(Array.isArray(rolls.damageParts)&&rolls.damageParts.length)
+      damageCtx.fireDamage=rolls.damageParts.filter(p=>dmgTypeCanon(p.type)==='огонь').reduce((n,p)=>n+(+p.total||0),0);
+    const r=applyDamageTo(targetVal, rolls.dmgTotal, rolls.dmgType, srcLabel,damageCtx);
     if(r){ if(r.undeadFortitude) promptUndeadFortitude(r);
       info+=' · урон '+rolls.dmgTotal+(rolls.dmgType?' ('+rolls.dmgType+')':'')+' → '+r.name+': '+r.hp+'/'+r.hpMax
         +(r.absorbed?' (временные хиты поглотили '+r.absorbed+')':'')
+        +(r.oilIgnited?' · масло вспыхнуло: дополнительно '+r.oilExtra+' огненного урона':'')
         +(r.deathFails?' · провалы спасбросков от смерти +'+r.deathFails:'')
         +(r.relentless?' · Непоколебимая стойкость: остался 1 хит'
           :(r.undeadFortitude&&!r.undeadFortitude.resolved?' · ожидается Стойкость нежити'
@@ -5504,6 +5551,8 @@ function castFormulaShow(){
     : castCtx.kind==='weapon'
     ? weaponSpecOf(caster, itemOf(castCtx.itemId), ti,
       Object.assign({two:castCtx.two,mode:castCtx.mode,entryId:castCtx.entryId,offhand:!!castCtx.offhand},distanceOpts))
+    : castCtx.kind==='item'
+    ? itemUseSpecOf(caster,itemOf(castCtx.itemId),itemUseOf(itemOf(castCtx.itemId),castCtx.itemUseId),ti,distanceOpts)
     : rollSpecOf(rec,Object.assign({caster, kind:castCtx.kind==='item'?'item':(isSpell?'spell':'ability'),
       slotLvl:lv, target:ti, weapon, pool, forceAttack:!!(castCtx.kind==='ability'&&rec.combatForceAttack)},distanceOpts));
   appendCombatReactionRows(spec,ti);
@@ -5574,7 +5623,9 @@ function validateFormulaValues(spec,v,res){
   (spec&&spec.rows||[]).forEach(r=>{
     if(r.autoFail) return;
     const val=v[r.key], second=v[r.key+'_2'];
-    if(r.required&&val==null&&(!r.requiredOnHit||res&&res.hit===true)){
+    const hitGate=!r.requiredOnHit||(res&&res.hit===true);
+    const saveGate=!r.requiredOnFailedSave||(res&&res.saveOk===false);
+    if(r.required&&val==null&&hitGate&&saveGate){
       errors.push(r.label+': впишите результат — без него ресурс и эффект приема не подтверждены.');
       return;
     }
@@ -5654,6 +5705,7 @@ function castFormulaConfirm(){
     consumeCasterFx:spec.rows.filter(r=>r.side!=='target'&&r.consume==='roll'&&r.sourceUid&&v[r.key]!=null).map(r=>r.sourceUid),
     consumeTargetFx:[...new Set(spec.rows.filter(r=>r.side==='target'&&r.consume==='roll'&&r.sourceUid&&v[r.key]!=null).map(r=>r.sourceUid)
       .concat(attackMade?(spec.meta.consumeTargetFx||[]):[]))]};
+  if(spec.meta.poisonCoatingUid){ rolls.poisonCoatingUid=spec.meta.poisonCoatingUid; rolls.poisonShots=spec.meta.poisonShots; }
   const resR=spec.rows.find(r=>r.type==='res');
   if(resR&&v.res!=null&&spec.meta.pool) rolls.poolSpend=spec.meta.pool.ab.id;
   if(castCtx.kind==='foe'){
@@ -5678,7 +5730,7 @@ function castFormulaConfirm(){
     return;
   }
   if(castCtx.kind==='item'){
-    if(useItemApply(castCtx.entryId, castCtx.casterId, castCtx.target, rolls)) closeCastModal();
+    if(useItemApply(castCtx.entryId, castCtx.casterId, castCtx.target, rolls,castCtx.itemUseId,{weaponEntryId:castCtx.itemWeaponEntryId})) closeCastModal();
     return;
   }
   if(castCtx.kind==='ability'){
@@ -5822,10 +5874,12 @@ function castConfirm(){
     const caster=getCh(castCtx.casterId);
     const e=(caster.inventory||[]).find(x=>x.id===castCtx.entryId), it=e?itemOf(e.itemId):null;
     if(!e||!it) return;
-    const chk=canUseItemCheck(caster,e,it);
+    const use=itemUseOf(it,castCtx.itemUseId),wsel=document.getElementById('castWeapon');
+    castCtx.itemWeaponEntryId=(use&&use.special==='coatWeapon'&&wsel)?wsel.value:null;
+    const chk=canUseItemCheck(caster,e,it,use,castCtx.target,{weaponEntryId:castCtx.itemWeaponEntryId});
     if(!chk.ok){ castShowErr(chk.reason); return; }
     if(castFormulaShow()) return;
-    if(useItemApply(castCtx.entryId, castCtx.casterId, castCtx.target)) closeCastModal();
+    if(useItemApply(castCtx.entryId, castCtx.casterId, castCtx.target,null,castCtx.itemUseId,{weaponEntryId:castCtx.itemWeaponEntryId})) closeCastModal();
     return;
   }
   if(castCtx.kind==='ability'){
@@ -6219,21 +6273,234 @@ function deriveHeal(it){
    цель → формула бросков → разбор по правилам 5e → применение.
    Заряды, настройка, расход и вес влияют на показатели напрямую. */
 const ATTUNE_LIMIT=3;
+const ITEM_SCHEMA_VERSION=3;
+const ITEM_USE_COSTS=['action','attack','bonus','reaction','object','turnfree','free','long'];
+const ITEM_USE_TARGETS=['self','ally','enemy','any','none'];
+const ITEM_USE_RESOURCES=['none','item','charges','kit'];
+const ITEM_USE_MODES=['structured','weapon','profile','passive','manual'];
+const ITEM_USE_ID_RE=/^[a-z][a-z0-9_-]*$/;
+function itemClone(v){ return v==null?v:JSON.parse(JSON.stringify(v)); }
+function itemResourceSchemaErrors(resource){
+  if(resource==null) return [];
+  if(typeof resource!=='object'||Array.isArray(resource)) return ['ресурс должен быть объектом или null'];
+  if(['charges','kit'].indexOf(resource.kind)<0) return ['неизвестный вид ресурса '+String(resource.kind)];
+  if(!Number.isInteger(+resource.max)||+resource.max<1) return ['максимум ресурса должен быть положительным целым числом'];
+  if(resource.kind==='charges'&&resource.recharge!=null){
+    const r=resource.recharge;
+    if(typeof r!=='object'||Array.isArray(r)||!Number.isInteger(+r.cnt)||+r.cnt<0||!Number.isInteger(+r.sides)||+r.sides<0
+      ||!Number.isFinite(r.plus==null?0:+r.plus)||(!(+r.sides>0)&&!(+r.plus>0))) return ['неверная формула восстановления зарядов'];
+    if(!String(resource.when||'').trim()) return ['для восстановления зарядов нужно указать when'];
+  }
+  if(resource.kind==='charges'&&resource.lastCharge!=null){
+    const r=resource.lastCharge;
+    if(typeof r!=='object'||Array.isArray(r)||!Number.isInteger(+r.sides)||+r.sides<2
+      ||!Number.isInteger(+r.destroyOn)||+r.destroyOn<1||+r.destroyOn>+r.sides) return ['неверная проверка последнего заряда'];
+  }
+  return [];
+}
+function itemUseSchemaErrors(uses,resource){
+  const out=[],seen=new Set();
+  const fxModes=['add','min','mul','set','grant','text','die','adv','dis'];
+  const specials=['stabilize','coatWeapon','oil','zone'];
+  if(!Array.isArray(uses)) return [{index:-1,message:'применения должны быть JSON-массивом'}];
+  uses.forEach((u,i)=>{
+    const id=String(u&&u.id||''),label=String(u&&u.label||'').trim(),co=u&&u.consume;
+    const add=message=>out.push({index:i,message});
+    if(!u||typeof u!=='object'||Array.isArray(u)){ add('применение должно быть объектом'); return; }
+    if(!id||!label) add('нужны id и label');
+    if(id&&!ITEM_USE_ID_RE.test(id)) add('id должен начинаться с латинской буквы и содержать только a-z, 0-9, _ или -');
+    if(id&&seen.has(id)) add('повтор id '+id); else if(id) seen.add(id);
+    if(ITEM_USE_COSTS.indexOf(u.cost)<0) add('неизвестная стоимость '+String(u.cost));
+    if(ITEM_USE_TARGETS.indexOf(u.target)<0) add('неизвестная цель '+String(u.target));
+    if(!co||ITEM_USE_RESOURCES.indexOf(co.kind)<0) add('расход должен явно задавать none/item/charges/kit');
+    else if(!Number.isFinite(+co.amount)||+co.amount<0||(co.kind!=='none'&&+co.amount<1)) add('неверная величина расхода');
+    if(co&&co.kind==='charges'){
+      const mx=+((resource||{}).max)||0;
+      if((resource||{}).kind!=='charges'||mx<+co.amount) add('расход зарядов превышает ресурс предмета');
+    }
+    if(u.attack&&(!u.attack.ability||['str','dex','con','int','wis','cha'].indexOf(u.attack.ability)<0)) add('атака без допустимой характеристики');
+    if(u.save&&((!u.save.key||!AB_FULL[u.save.key])||!(+u.save.dc>0))) add('неверный спасбросок');
+    (u.damage||[]).forEach((d,k)=>{ if(!(Number.isInteger(+d.cnt)&&+d.cnt>=0&&Number.isInteger(+d.sides)&&+d.sides>0&&Number.isFinite(d.mod==null?0:+d.mod))) add('неверная формула урона '+k); });
+    if(u.heal&&!(Number.isInteger(+u.heal.cnt)&&+u.heal.cnt>=0&&Number.isInteger(+u.heal.sides)&&+u.heal.sides>=0&&Number.isFinite(u.heal.mod==null?0:+u.heal.mod))) add('неверная формула лечения');
+    if(u.effects!=null&&!Array.isArray(u.effects)) add('effects должен быть массивом');
+    (u.effects||[]).forEach((f,k)=>{
+      if(!f||!String(f.stat||'').trim()) add('эффект '+k+' без показателя');
+      if(!f||fxModes.indexOf(f.mode)<0) add('эффект '+k+' с неизвестным режимом '+String(f&&f.mode));
+      if(f&&['add','min','mul','set','grant'].indexOf(f.mode)>=0&&f.value==null) add('эффект '+k+' без значения');
+    });
+    if(u.duration){ const d=u.duration;if(['rounds','targetStart','targetEnd','longRest','manual'].indexOf(d.kind)<0||(d.kind==='rounds'&&!(+d.rounds>0))) add('неверная длительность'); }
+    if(u.special&&specials.indexOf(u.special)<0) add('неизвестный special '+u.special);
+    if(u.effectWhen&&['hit','failedSave','always'].indexOf(u.effectWhen)<0) add('неизвестный effectWhen '+u.effectWhen);
+    if(u.requirements&&u.requirements.blockedTags!=null&&!Array.isArray(u.requirements.blockedTags)) add('blockedTags должен быть массивом');
+    if(u.special==='zone'&&(!u.zone||!u.zone.save||!AB_FULL[u.zone.save.key]||!(+u.zone.save.dc>0))) add('зона должна содержать корректный спасбросок');
+  });
+  return out;
+}
+function builtinItemContract(it){
+  if(!it) return null;
+  const n=String(it.n||'').toLowerCase();
+  if(it.id==='it_staff_def') return {
+    resource:{kind:'charges',max:10,recharge:{cnt:1,sides:6,plus:4},when:'на рассвете',lastCharge:{sides:20,destroyOn:1}},
+    passiveFx:[{stat:'ac',mode:'add',value:1,note:'пока посох находится в руке'}],
+    uses:[
+      {id:'mage_armor',label:'Магический доспех',cost:'action',target:'ally',consume:{kind:'charges',amount:1},
+        requirements:{unarmored:true,held:true},effects:[{stat:'acbase',mode:'set',value:13,note:'только без доспеха'}],
+        duration:{kind:'rounds',rounds:4800,label:'8 часов'}},
+      {id:'shield',label:'Щит',cost:'reaction',target:'self',consume:{kind:'charges',amount:2},trigger:'incomingAttack',requirements:{held:true},
+        effects:[{stat:'ac',mode:'add',value:5,note:'до начала следующего хода'}],
+        duration:{kind:'targetStart',label:'до начала следующего хода'}}
+    ]};
+  if(it.id==='it_healer_kit_t'||/^набор целителя(?:\s|$)/.test(n)) return {
+    resource:{kind:'kit',max:10},uses:[{id:'stabilize',label:'Стабилизировать',cost:'action',target:'ally',
+      consume:{kind:'kit',amount:1},requirements:{downed:true},special:'stabilize'}]};
+  if(n==='противоядие') return {
+    uses:[{id:'drink',label:'Выпить или дать',cost:'action',target:'any',consume:{kind:'item',amount:1},
+      requirements:{blockedTags:['undead','construct']},
+      effects:[{stat:'save.poison',mode:'adv',value:1,note:'преимущество на спасброски от яда'}],
+      duration:{kind:'rounds',rounds:600,label:'1 час'}}]};
+  if(it.id==='it_censer_gory') return {
+    uses:[{id:'clean_air',label:'Очищение воздуха',cost:'bonus',target:'self',consume:{kind:'none',amount:0},
+      effects:[{stat:'save.inhaled',mode:'adv',value:1,note:'запахи и вдыхаемые яды'}],
+      duration:{kind:'rounds',rounds:10,label:'1 минута'}}]};
+  if(n==='масло (фляга)') return {
+    uses:[{id:'throw',label:'Метнуть флягу',cost:'action',target:'enemy',consume:{kind:'item',amount:1},
+      attack:{ability:'dex',proficient:false,mode:'ranged',range:'6/18 м'},special:'oil',effectWhen:'hit',
+      duration:{kind:'rounds',rounds:10,label:'1 минута'}}]};
+  if(it.id==='it_ball_bearings_s'||/мешочек с шариками/.test(n)) return {
+    uses:[{id:'scatter',label:'Рассыпать шарики',cost:'action',target:'none',consume:{kind:'item',amount:1},special:'zone',
+      zone:{area:'квадрат 3 × 3 м',save:{key:'dex',dc:10},condition:'Сбитый с ног',duration:{kind:'manual',label:'пока шарики не собраны'}}}]};
+  if(it.id==='it_basic_poison'||/^базовый яд/.test(n)) return {
+    uses:[{id:'coat',label:'Нанести на оружие',cost:'action',target:'self',consume:{kind:'item',amount:1},special:'coatWeapon',
+      duration:{kind:'rounds',rounds:10,label:'1 минута'},save:{key:'con',dc:10,affectsDamage:false},
+      damage:[{cnt:1,sides:4,mod:0,type:'яд',saveMode:'zero'}]}]};
+  const heal=deriveInstantHeal(it,'item',null,null);
+  if(heal&&(it.type==='potion'||(it.tags||[]).indexOf('healingit')>=0)) return {
+    uses:[{id:'drink',label:'Выпить или дать',cost:'action',target:'any',consume:{kind:'item',amount:1},
+      heal:{cnt:+heal.cnt||0,sides:+heal.sides||0,mod:+heal.plus||0}}]};
+  return null;
+}
+function inferItemUseMode(it){
+  if(Array.isArray(it.uses)&&it.uses.length) return 'structured';
+  if(it.type==='weapon') return 'weapon';
+  const p=itemProfile(it);
+  if(['ammo','light','firestarter','tool','instrument','lore','valuable','food','water','camp','rope','container','focus','gamble','ritual','writing'].indexOf(p.kind)>=0) return 'profile';
+  if(it.slot||((it.passiveFx||[]).length)) return 'passive';
+  return 'manual';
+}
+function upgradeItem(it){
+  if(!it||typeof it!=='object') return it;
+  if(it.type==='armor'&&it.strReq==null&&typeof ARMORS!=='undefined'){
+    const base=ARMORS.find(a=>a.n===it.n),raw=base&&base.str;
+    if(raw) it.strReq=raw==='—'?0:+((raw.match(/\d+/)||[])[0]||0);
+  }
+  const patch=builtinItemContract(it);
+  if(patch){
+    if(!it.resource&&patch.resource) it.resource=itemClone(patch.resource);
+    if(!Array.isArray(it.passiveFx)&&patch.passiveFx) it.passiveFx=itemClone(patch.passiveFx);
+    if(!Array.isArray(it.uses)&&patch.uses) it.uses=itemClone(patch.uses);
+  }
+  if(!Array.isArray(it.passiveFx)){
+    if(Array.isArray(it.fx)&&it.fx.length) it.passiveFx=itemClone(it.fx);
+    else it.passiveFx=[];
+  }
+  if(!Array.isArray(it.uses)) it.uses=[];
+  it.schemaVersion=ITEM_SCHEMA_VERSION;
+  if(ITEM_USE_MODES.indexOf(it.useMode)<0) it.useMode=inferItemUseMode(it);
+  if(it.useMode==='manual'&&!String(it.manualNote||'').trim()) it.manualNote='Эффект требует решения мастера; автоматических боевых последствий нет.';
+  return it;
+}
+function itemUsesOf(it){ return it&&Array.isArray(it.uses)?it.uses:[]; }
+function itemUseOf(it,useId){
+  const list=itemUsesOf(it);
+  return (useId&&list.find(x=>x.id===useId))||list[0]||null;
+}
+function itemPassiveFx(it){
+  if(!it) return [];
+  if(Array.isArray(it.passiveFx)) return it.passiveFx;
+  return recFx(it,'item');
+}
 function itemSpec(it){
   const low=fxTextOf(it).toLowerCase();
   const spec={charges:0, recharge:null, when:'', attune:false, attuneNote:'', consumable:isConsumableItem(it)};
+  if(it&&it.resource&&it.resource.kind==='charges'){
+    spec.charges=Math.max(0,+it.resource.max||0);
+    spec.recharge=it.resource.recharge?itemClone(it.resource.recharge):null;
+    spec.when=it.resource.when||'';
+  }
   let m=low.match(/(\d+)\s*заряд/);
-  if(m) spec.charges=+m[1];
+  if(m&&!spec.charges) spec.charges=+m[1];
   m=low.match(/восстанавлива[а-я]*\s+(\d*)\s*d\s*(\d+)(?:\s*\+\s*(\d+))?\s*(?:потраченн[а-я]*\s+)?заряд/);
-  if(m) spec.recharge={cnt:+(m[1]||1), sides:+m[2], plus:+(m[3]||0)};
-  else if(/восстанавлива[а-я]*\s+(?:все|всех)\s+заряд/.test(low)) spec.recharge={cnt:0, sides:0, plus:spec.charges};
-  if(spec.charges) spec.when=/на закате/.test(low)?'на закате':(/длинн[а-я]*\s+отдых/.test(low)?'после длинного отдыха':'на рассвете');
+  if(!spec.recharge&&m) spec.recharge={cnt:+(m[1]||1), sides:+m[2], plus:+(m[3]||0)};
+  else if(!spec.recharge&&/восстанавлива[а-я]*\s+(?:все|всех)\s+заряд/.test(low)) spec.recharge={cnt:0, sides:0, plus:spec.charges};
+  if(spec.charges&&!spec.when) spec.when=/на закате/.test(low)?'на закате':(/длинн[а-я]*\s+отдых/.test(low)?'после длинного отдыха':'на рассвете');
   if(/требует настройки/.test(low)){
     spec.attune=true;
     const am=low.match(/требует настройки([^.)]{0,60})/);
     spec.attuneNote=((am&&am[1])||'').trim();
   }
   return spec;
+}
+function itemUseTags(use){
+  const tags=(use&&Array.isArray(use.tags)?use.tags.slice():[]);
+  if(use&&(use.damage||[]).some(d=>dmgTypeCanon(d.type)==='яд')&&tags.indexOf('poison')<0) tags.push('poison');
+  return tags;
+}
+function itemUseAttackBonus(caster,use){
+  const a=use&&use.attack||{},key=a.ability||'dex';
+  return eMod(caster,key)+(a.proficient?PROF[caster.level]:0)+fxSum(caster,'atk');
+}
+function itemUseSpecOf(caster,it,use,ti,opts){
+  opts=opts||{}; ti=ti||{kind:'none',name:'цель',known:false};
+  const rows=[], tags=itemUseTags(use), attack=use&&use.special!=='coatWeapon'&&use.attack,
+    save=use&&use.special!=='coatWeapon'&&use.save;
+  const meta={target:ti,kind:'item',itemId:it&&it.id,itemUseId:use&&use.id,recName:it&&it.n||'',half:!!(save&&save.half),
+    dc:save?(+save.dc||0):0,saveKey:save&&save.key||'',saveAb:save?(AB_FULL[save.key]||save.key):'',
+    saveAffectsDamage:!(save&&save.affectsDamage===false),dmgType:'',attackMode:attack&&attack.mode||'',within5:null,
+    damageTags:{magical:!!(use&&use.magical),silvered:false,adamantine:false},consumeTargetFx:[]};
+  if(attack){
+    const within5=opts.within5!==undefined?opts.within5:(attack.within5!==undefined?attack.within5:(attack.mode==='melee'?true:null));
+    const cond=attackConditionMode(caster,ti,{mode:attack.mode||'ranged',within5});
+    const fx=rollFxEntries(caster,'attack.'+(attack.ability||'dex')),hasAdv=fx.some(x=>x.mode==='adv')||cond.adv.length>0,hasDis=fx.some(x=>x.mode==='dis')||cond.dis.length>0;
+    const adv=(hasAdv===hasDis)?0:(hasAdv?1:2),mod=itemUseAttackBonus(caster,use);
+    meta.within5=within5; meta.spatialRequired=!!cond.requiresDistance; meta.autoCritOnHit=!!cond.autoCrit; meta.consumeTargetFx=cond.consumeTargetFx||[];
+    rows.push({key:'atk',type:'atk',side:'caster',natural:true,required:true,mod,adv,
+      label:'Бросок атаки предметом: d20',hint:fmtMod(mod)+' · '+(attack.proficient?'с владением':'импровизированная атака без бонуса мастерства')
+        +(attack.range?' · дистанция '+attack.range:'')+(ti.known&&ti.ac!=null?' · КД цели '+ti.ac:' · КД определяет мастер')});
+    fx.filter(x=>x.mode==='die').forEach((f,i)=>{
+      const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!dm) return;
+      rows.push({key:'itematkfx'+i,type:'other',side:'caster',cnt:Math.max(1,+dm[2]||1),sides:+dm[3],mod:0,addTo:'atk',sign:dm[1]?-1:1,
+        consume:f.consume||'',sourceUid:f.sourceUid||null,label:(f.label||'Эффект')+': '+(dm[1]?'-':'')+Math.max(1,+dm[2]||1)+'d'+dm[3],hint:'прибавляется к атаке'});
+    });
+  }
+  if(save&&ti.kind!=='object'){
+    const known=ti.known&&typeof ti.saveMod==='function',mod=known?ti.saveMod(save.key):0;
+    const fx=ti.kind==='ally'&&ti.obj?rollFxEntries(ti.obj,'save.'+save.key,tags)
+      :(ti.kind==='foe'&&ti.obj?foeFxAll(ti.obj).filter(f=>f.stat==='save.'+save.key||f.stat==='save'||tags.some(t=>f.stat==='save.'+t)):[]);
+    const scm=saveConditionMode(ti,save.key,{magic:!!(use&&use.magical)}),hasAdv=scm.adv||fx.some(x=>x.mode==='adv'),hasDis=scm.dis||fx.some(x=>x.mode==='dis');
+    const adv=(hasAdv===hasDis)?0:(hasAdv?1:2);
+    rows.push({key:'save',type:'save',side:'target',natural:known,required:true,requiredOnHit:!!attack,mod:known?mod:0,dc:+save.dc||0,adv,saveKey:save.key,autoFail:scm.autoFail,
+      label:known?'Спасбросок '+(AB_FULL[save.key]||save.key)+': d20 '+fmtMod(mod)+' — бросает '+ti.name:'Итог спасброска '+(AB_FULL[save.key]||save.key)+' цели',
+      hint:'СЛ '+save.dc+(attack?' · только после попадания':'')+(save.half?' · при успехе половина урона':'')+(adv?(adv===1?' · преимущество':' · помеха'):'')});
+    if(ti.kind==='ally'&&ti.obj) fx.filter(f=>f.mode==='die').forEach((f,i)=>{
+      const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!dm) return;
+      rows.push({key:'itemsavefx'+i,type:'other',side:'target',cnt:Math.max(1,+dm[2]||1),sides:+dm[3],mod:0,addTo:'save',sign:dm[1]?-1:1,
+        consume:f.consume||'',sourceUid:f.sourceUid||null,label:(f.label||'Эффект')+': '+(dm[1]?'-':'')+Math.max(1,+dm[2]||1)+'d'+dm[3],hint:'прибавляется к спасброску'});
+    });
+  }
+  if(use&&use.heal){
+    const h=use.heal;
+    rows.push({key:'heal',type:'heal',side:'caster',required:true,cnt:+h.cnt||0,sides:+h.sides||0,mod:+h.mod||0,fixed:!(+h.cnt&&+h.sides),
+      label:+h.cnt?('Лечение: сумма '+h.cnt+'d'+h.sides):'Фиксированное лечение',hint:(+h.cnt?'впишите сумму реальных костей':'без броска')+(h.mod?' · '+fmtMod(+h.mod):'')});
+  }
+  (use&&use.special!=='coatWeapon'&&use.damage||[]).forEach((d,i)=>{
+    const type=dmgTypeCanon(d.type); if(!meta.dmgType) meta.dmgType=type;
+    rows.push({key:'itemdmg'+i,type:'dmg',side:'caster',required:true,requiredOnHit:!!attack,
+      requiredOnFailedSave:!!(save&&d.saveMode==='zero'),cnt:+d.cnt||0,sides:+d.sides||0,mod:+d.mod||0,
+      fixed:!(+d.cnt&&+d.sides),dmgType:type,saveMode:d.saveMode||'',label:'Урон'+(type?' ('+type+')':'')+': сумма '+(+d.cnt||0)+'d'+(+d.sides||0),
+      hint:'впишите сумму реальных костей'+(d.mod?' · '+fmtMod(+d.mod):'')});
+  });
+  if(rows.length) rows.push({key:'extra',type:'extra',side:'caster',mod:0,label:'Прочий бросок (по решению мастера)',hint:'необязательно — уйдет в летопись'});
+  return {rows,meta};
 }
 function invCharges(e,it){
   const sp=itemSpec(it);
@@ -6288,26 +6555,48 @@ function rechargeItems(c, when){
     }});
 }
 /* ── применение предмета тем же окном, что заклинания и способности ── */
-function itemCastFx(entryId, casterId){
+function itemTargetOptionsHTML(caster,use){
+  const t=use&&use.target||'any';
+  if(t==='self'||t==='none') return '<option value="ally:'+caster.id+'" selected>'+esc(caster.name)+' — сам герой</option>';
+  let h='';
+  if(t==='ally'||t==='any') h+=chars.map(x=>'<option value="ally:'+x.id+'"'+(x.id===caster.id?' selected':'')+'>'+esc(x.name)+(x.id===caster.id?' — сам герой':' — союзник')+'</option>').join('');
+  if(t==='enemy'||t==='any'){
+    h+=foesDB.map(f=>'<option value="foe:'+f.id+'">'+esc(f.n)+' — КД '+(+f.ac||10)+', хиты '+(+f.hp||0)+'/'+(+f.hpMax||0)+'</option>').join('');
+    h+='<option value="enemy">Враг без записи — исход отмечает мастер</option>';
+  }
+  return h||'<option value="ally:'+caster.id+'" selected>'+esc(caster.name)+'</option>';
+}
+function itemCastFx(entryId, casterId, useId){
   const caster=getCh(casterId||activeCharId); if(!caster) return;
   const e=(caster.inventory||[]).find(x=>x.id===entryId); if(!e) return;
   const it=itemOf(e.itemId); if(!it) return;
+  upgradeItem(it);
+  const use=itemUseOf(it,useId); if(!use) return;
   const back=document.getElementById('castBack'); if(!back) return;
   const sp=itemSpec(it), ch=invCharges(e,it);
-  castCtx={kind:'item', entryId, itemId:it.id, casterId:caster.id, target:'ally:'+caster.id, weapon:null, extraTargets:[]};
+  castCtx={kind:'item', entryId, itemId:it.id, itemUseId:use.id, casterId:caster.id, target:'ally:'+caster.id, weapon:null, extraTargets:[]};
   setCastConfirmCaption('⚗ Перейти к броскам');
   setCastTargetLabel('Цель применения предмета');
-  document.getElementById('castTitle').textContent='⚗ Применить: '+it.n;
-  const info=[ITEM_TYPES[it.type]||it.type];
+  document.getElementById('castTitle').textContent='⚗ '+it.n+': '+use.label;
+  const info=[ITEM_TYPES[it.type]||it.type,combatCostLabel(use.cost)];
   if(ch) info.push('заряды: '+ch.cur+' из '+ch.max+(sp.when?' · восстановление '+sp.when:''));
   if(sp.attune) info.push(e.att?'настроен':'НЕ настроен — свойства не действуют');
   if(e.qty>1) info.push('в запасе: '+e.qty+' шт.');
-  if(sp.consumable) info.push('расходуется при применении');
+  if(use.consume&&use.consume.kind==='item') info.push('расходуется '+(+use.consume.amount||1)+' шт.');
+  if(use.consume&&use.consume.kind==='charges') info.push('стоимость: '+(+use.consume.amount||1)+' зар.');
   document.getElementById('castInfo').innerHTML=esc(info.join(' · '))
     +'<div class="note-ital" style="font-size:13px;margin-top:4px">'+esc(String(it.desc||'').split('\n')[0]).slice(0,300)+'</div>';
-  document.getElementById('castTarget').innerHTML=targetOptionsHTML(caster,null);
+  document.getElementById('castTarget').innerHTML=itemTargetOptionsHTML(caster,use);
   const sw=document.getElementById('castSlotWrap'); if(sw) sw.style.display='none';
-  const ww=document.getElementById('castWeaponWrap'); if(ww) ww.style.display='none';
+  const ww=document.getElementById('castWeaponWrap'),wsel=document.getElementById('castWeapon');
+  if(ww&&wsel&&use.special==='coatWeapon'){
+    const choices=(caster.inventory||[]).map(x=>({e:x,it:itemOf(x.itemId)})).filter(o=>{
+      if(!o.it||itemProfile(o.it).kind!=='weapon') return false;
+      const dt=dmgTypeCanon(o.it.dmgType); return dt==='рубящий'||dt==='колющий';
+    });
+    wsel.innerHTML=choices.map(o=>'<option value="'+o.e.id+'">'+esc(o.it.n)+' — '+esc(o.it.dmg||'—')+' '+esc(o.it.dmgType||'')+'</option>').join('');
+    ww.style.display='block';
+  } else if(ww&&wsel){ ww.style.display='none'; wsel.innerHTML=''; }
   const mw=document.getElementById('castMultiWrap'); if(mw) mw.style.display='none';
   document.getElementById('castItemWrap').style.display='none';
   document.getElementById('castStep1').style.display='block';
@@ -6316,66 +6605,177 @@ function itemCastFx(entryId, casterId){
   const er=document.getElementById('castErr'); er.style.display='none'; er.textContent='';
   back.style.display='flex';
 }
-function canUseItemCheck(caster, e, it){
+function itemUseTargetCheck(caster,use,target,opts){
+  opts=opts||{}; const ti=targetInfoOf(target),type=use.target||'any';
+  if(type==='self'&&(ti.kind!=='ally'||ti.id!==caster.id)) return {ok:false,reason:'Это применение действует только на владельца предмета.'};
+  if(type==='ally'&&ti.kind!=='ally') return {ok:false,reason:'Нужно выбрать существующего героя или союзника.'};
+  if(type==='enemy'&&ti.kind!=='foe') return {ok:false,reason:'Нужно выбрать противника.'};
+  if(type!=='none'&&type!=='any'&&!ti.obj&&target!=='enemy') return {ok:false,reason:'Выбранная цель больше не существует.'};
+  if(ti.obj&&use.requirements&&Array.isArray(use.requirements.blockedTags)){
+    const hay=[ti.obj.creatureType,ti.obj.kind,ti.obj.race].concat(ti.obj.tags||[]).join(' ').toLowerCase();
+    const blocked=use.requirements.blockedTags.find(t=>hay.indexOf(String(t).toLowerCase())>=0);
+    if(blocked) return {ok:false,reason:'«'+use.label+'» не действует на цель типа «'+blocked+'».'};
+  }
+  if(use.requirements&&use.requirements.downed&&(!ti.obj||ti.kind!=='ally'||(+ti.obj.hp||0)!==0||(+((ti.obj.deaths||{}).f)||0)>=3))
+    return {ok:false,reason:'Набор целителя стабилизирует живое существо ровно с 0 хитов; выбранная цель не подходит.'};
+  if(use.requirements&&use.requirements.unarmored&&ti.kind==='ally'){
+    const chest=invEntryOf(ti.obj,(ti.obj.equipment||{}).CHEST);
+    if(chest) return {ok:false,reason:'«Магический доспех» действует только на цель без надетого доспеха.'};
+  }
+  if(use.special==='coatWeapon'){
+    const we=invEntryOf(caster,opts.weaponEntryId),wi=we&&itemOf(we.itemId),dt=wi&&dmgTypeCanon(wi.dmgType);
+    if(!we||!wi||(dt!=='рубящий'&&dt!=='колющий')) return {ok:false,reason:'Выберите рубящее или колющее оружие из инвентаря.'};
+  }
+  if(use.trigger==='incomingAttack'&&combat.active&&combatCurrentKey()==='ally:'+caster.id)
+    return {ok:false,reason:'«Щит» — реакция на входящую атаку, а не действие в свой ход.'};
+  return {ok:true,ti};
+}
+function itemUseResourcePlan(caster,e,it,use){
+  const c=use.consume||{kind:'none',amount:0},kind=c.kind||'none',amount=Math.max(0,+c.amount||0),plan={ok:true,kind,amount,caster,e,it,use};
+  if(kind==='charges'){
+    const ch=invCharges(e,it); plan.ch=ch;
+    if(!ch||ch.cur<amount) return {ok:false,reason:'Для «'+use.label+'» нужно '+amount+' зар., доступно '+(ch?ch.cur:0)+'.'};
+  } else if(kind==='item'){
+    const qty=e.qty==null?1:(+e.qty||0);
+    if(qty<Math.max(1,amount)) return {ok:false,reason:'«'+it.n+'» закончился.'};
+    plan.amount=Math.max(1,amount);
+  } else if(kind==='kit'){
+    const max=Math.max(1,+((it.resource||{}).max)||10),cur=e.kit==null?max:(+e.kit||0); plan.max=max; plan.cur=cur;
+    if(cur<Math.max(1,amount)) return {ok:false,reason:'Набор целителя израсходован.'};
+    plan.amount=Math.max(1,amount);
+  } else if(kind!=='none') return {ok:false,reason:'Неизвестный ресурс применения «'+kind+'».'};
+  return plan;
+}
+function commitItemUseResource(plan){
+  if(!plan||!plan.ok) return '';
+  if(plan.kind==='charges'){ plan.ch.cur-=plan.amount; return ' · заряды −'+plan.amount+' (осталось '+plan.ch.cur+' из '+plan.ch.max+')'; }
+  if(plan.kind==='item'){
+    let info=''; for(let i=0;i<plan.amount;i++) info=itemSpendOne(plan.caster,plan.e,plan.it); return ' · предмет −'+plan.amount+info;
+  }
+  if(plan.kind==='kit'){ plan.e.kit=plan.cur-plan.amount; return ' · набор −'+plan.amount+' (осталось '+plan.e.kit+' из '+plan.max+')'; }
+  return '';
+}
+function promptItemLastCharge(plan){
+  const rule=plan&&plan.kind==='charges'&&plan.it&&plan.it.resource&&plan.it.resource.lastCharge;
+  if(!rule||!plan.ch||plan.ch.cur!==0||plan.e.lastChargePending) return false;
+  plan.e.lastChargePending=true;
+  const sides=+rule.sides,destroyOn=+rule.destroyOn,itemName=plan.it.n;
+  askRolls({title:'⚠ Последний заряд — '+itemName,
+    note:'Последний заряд потрачен. Бросьте реальный d'+sides+': при результате '+destroyOn+' предмет уничтожается после завершения эффекта.',
+    rows:[{key:'last',label:'d'+sides,min:1,max:sides}],
+    compute:v=>'d'+sides+': '+v.last+' — '+(v.last===destroyOn?'предмет уничтожается':'предмет сохраняется с 0 зарядов'),
+    apply:v=>{
+      const still=invEntryOf(plan.caster,plan.e.id); if(still) delete still.lastChargePending;
+      if(v.last===destroyOn&&still){
+        Object.keys(plan.caster.equipment||{}).forEach(k=>{ if(plan.caster.equipment[k]===still.id) delete plan.caster.equipment[k]; });
+        plan.caster.inventory=(plan.caster.inventory||[]).filter(x=>x.id!==still.id);
+        itemLog(plan.caster,'⚠ '+itemName+': последний заряд, d'+sides+' = '+v.last+' — предмет уничтожен');
+      } else itemLog(plan.caster,'⚠ '+itemName+': последний заряд, d'+sides+' = '+v.last+' — предмет сохранен с 0 зарядов');
+      fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderCombat==='function') renderCombat();
+    }});
+  return true;
+}
+function canUseItemCheck(caster, e, it, use, target, opts){
   const sp=itemSpec(it), ch=e.ch;
   const cond=effectiveConditions(caster);
   const block=ACTION_BLOCK_CONDS.filter(n=>cond.indexOf(n)>=0)[0];
   if(block) return {ok:false, reason:'Состояние «'+block+'» не позволяет совершать действия — предмет неприменим.'};
   if(sp.attune&&!e.att) return {ok:false, reason:'«'+it.n+'» требует настройки. Настройте предмет (✵), иначе его свойства не действуют.'};
+  if(use&&use.requirements&&use.requirements.held&&Object.values(caster.equipment||{}).indexOf(e.id)<0)
+    return {ok:false,reason:'Для этого применения «'+it.n+'» нужно держать в руке.'};
   if(ch&&ch.cur<=0) return {ok:false, reason:'Заряды «'+it.n+'» исчерпаны — восстановление '+(sp.when||'по решению мастера')+'.'};
-  if(!ch&&sp.consumable&&(e.qty||0)<=0) return {ok:false, reason:'«'+it.n+'» закончился.'};
+  if(!use) return {ok:false,reason:'У предмета нет структурированного применения; решение остается за мастером.'};
+  const tc=itemUseTargetCheck(caster,use,target||('ally:'+caster.id),opts); if(!tc.ok) return tc;
+  const rp=itemUseResourcePlan(caster,e,it,use); if(!rp.ok) return rp;
+  return {ok:true,target:tc,resource:rp};
+}
+function itemUseRollCheck(use,rolls){
+  if(['coatWeapon','zone','stabilize'].indexOf(use.special)>=0) return {ok:true};
+  if(use.attack&&(!rolls||rolls.hit==null)) return {ok:false,reason:'Нужен подтвержденный итог атаки по КД цели.'};
+  if(use.save&&(!use.attack||rolls&&rolls.hit===true)&&(!rolls||rolls.saveOk==null)) return {ok:false,reason:'Нужен подтвержденный спасбросок цели.'};
+  if(use.heal&&(!rolls||rolls.healTotal==null)) return {ok:false,reason:'Нужно вписать результат лечения.'};
+  const needsDamage=(use.damage||[]).some(d=>!use.save||d.saveMode!=='zero'||(rolls&&rolls.saveOk===false));
+  if(needsDamage&&(!use.attack||rolls&&rolls.hit===true)&&(!rolls||rolls.dmgRaw==null)) return {ok:false,reason:'Нужно вписать результат урона.'};
   return {ok:true};
 }
-function useItemApply(entryId, casterId, target, rolls){
+function itemUseEffectAllowed(use,rolls){
+  if(use.effectWhen==='hit') return !!rolls&&rolls.hit===true;
+  if(use.effectWhen==='failedSave') return !!rolls&&rolls.saveOk===false;
+  if(use.effectWhen==='always') return true;
+  return outcomeAllowsEffect(rolls);
+}
+function attachItemUseDuration(entry,duration,targetKey){
+  duration=duration||{kind:'manual',label:'до снятия'}; entry.appliedRound=fxRound; entry.durationKind=duration.kind; entry.durationLabel=duration.label||'до снятия';
+  if(duration.kind==='rounds') entry.expiresAtRound=fxRound+Math.max(1,+duration.rounds||1);
+  if(duration.kind==='targetStart') entry.combatUntilTurn=targetKey;
+  if(duration.kind==='targetEnd'){ entry.combatUntilEndTurn=targetKey; entry.combatSkipMatchingEnd=combat.active&&combatCurrentKey()===targetKey; }
+  return entry;
+}
+function applyItemUseEntry(caster,it,use,ti,extra){
+  if(!ti||!ti.obj) return false;
+  const entry=Object.assign({k:'use',id:it.id,label:it.n+' — '+use.label,fx:itemClone(use.effects||[]),from:caster.name,casterId:caster.id,
+    castId:castUid(),stackKey:'use:'+it.id+':'+use.id,power:0,why:'предмет применен: '+caster.name},extra||{});
+  attachItemUseDuration(entry,use.duration,ti.kind+':'+ti.id);
+  if(ti.kind==='ally') applyFxTo(ti.id,entry); else if(ti.kind==='foe') applyFxToFoe(ti.obj,entry); else return false;
+  return true;
+}
+function applyItemUseSpecial(caster,it,use,ti,rolls,opts){
+  opts=opts||{};
+  if(use.special==='stabilize'){
+    ti.obj.deaths={s:3,f:0}; ti.obj.cond=normalizeConditions(ti.obj.cond);
+    if(ti.obj.cond.indexOf('Бессознательный')<0) ti.obj.cond.push('Бессознательный');
+    return ' · '+ti.name+' стабилизирован (0 хитов, без спасбросков смерти)';
+  }
+  if(use.special==='coatWeapon'){
+    const we=invEntryOf(caster,opts.weaponEntryId),wi=we&&itemOf(we.itemId),wp=wi&&itemProfile(wi);
+    caster.activeFx=caster.activeFx||[];
+    caster.activeFx=caster.activeFx.filter(x=>!(x.itemTrigger==='basicPoison'&&x.weaponEntryId===we.id));
+    const ammo=!!(wp&&wp.weapon&&wp.weapon.ammo);
+    const entry={k:'use',id:it.id,uid:fxUid(),label:it.n+' — '+wi.n,fx:[],from:caster.name,casterId:caster.id,itemTrigger:'basicPoison',
+      weaponEntryId:we.id,poisonShots:ammo?3:null,appliedRound:fxRound,durationKind:'rounds',expiresAtRound:fxRound+10,durationLabel:'1 минута',
+      why:ammo?'обработаны 3 следующих боеприпаса':'оружие отравлено на 1 минуту'};
+    caster.activeFx.push(entry);
+    return ' · '+wi.n+' обработан'+(ammo?' (3 боеприпаса)':' на 1 минуту');
+  }
+  if(use.special==='oil'&&itemUseEffectAllowed(use,rolls)){
+    ti.obj.activeFx=(ti.obj.activeFx||[]).filter(x=>x.itemTrigger!=='oil');
+    applyItemUseEntry(caster,it,use,ti,{itemTrigger:'oil',fx:[{stat:'note',mode:'text',value:'покрыт маслом: следующий огненный урон +5'}]});
+    return ' · цель покрыта маслом на 1 минуту';
+  }
+  if(use.special==='zone'){
+    combat.zones=combat.zones||[]; const z=use.zone||{};
+    combat.zones.push({id:'zone_'+fxUid(),itemId:it.id,useId:use.id,label:it.n+' — '+use.label,sourceKey:'ally:'+caster.id,area:z.area||'',
+      save:itemClone(z.save||{}),condition:z.condition||'',duration:itemClone(z.duration||{kind:'manual',label:'до снятия'}),active:true,createdRound:+combat.round||0});
+    return ' · создана зона '+(z.area||'по описанию');
+  }
+  return '';
+}
+function useItemApply(entryId, casterId, target, rolls, useId, opts){
   const caster=getCh(casterId); if(!caster) return false;
   const e=(caster.inventory||[]).find(x=>x.id===entryId); if(!e) return false;
-  const it=itemOf(e.itemId); if(!it||!target) return false;
+  const it=itemOf(e.itemId); if(!it||!target) return false; upgradeItem(it);
+  const use=itemUseOf(it,useId); if(!use) return false;
   if(!combatCastPreflight()) return false;
-  const chk=canUseItemCheck(caster,e,it);
+  const chk=canUseItemCheck(caster,e,it,use,target,opts);
   if(!chk.ok){ setStatus('✕ '+chk.reason,true); castShowErr&&castShowErr(chk.reason); return false; }
+  const rc=itemUseRollCheck(use,rolls); if(!rc.ok){ setStatus('✕ '+rc.reason,true); castShowErr&&castShowErr(rc.reason); return false; }
   if(!preflightOutcomeReactions(rolls)) return false;
-  const sp=itemSpec(it), ch=invCharges(e,it);
-  let cost='';
-  if(ch){ ch.cur--; cost=' · заряд −1 (осталось '+ch.cur+' из '+ch.max+')'; }
-  else if(sp.consumable){
-    e.qty=(e.qty||1)-1; cost=' · списано 1 шт.';
-    if(e.qty<=0){
-      Object.keys(caster.equipment||{}).forEach(k=>{ if(caster.equipment[k]===e.id) delete caster.equipment[k]; });
-      caster.inventory=caster.inventory.filter(x=>x.id!==e.id);
-      cost+=' · запас исчерпан';
-    }
-  }
+  if(!combatCommitCastAction('Предмет «'+it.n+'»: '+use.label)) return false;
+  const cost=commitItemUseResource(chk.resource);
+  if(!commitOutcomeReactions(rolls)) return false;
   consumeOutcomeRollFx(caster,target,rolls);
   if(rolls&&rolls.attackMade) endTriggeredSpellEffects(caster,'attack');
   let info='';
   if(rolls) info+=applyRollsToTarget(target, rolls, '⚗ '+it.n);
-  else{
-    const ih=deriveInstantHeal(it,'item',caster,null);
-    if(ih&&ih.plus&&!ih.cnt){ applyHealTo(target, ih.plus, '⚗ '+it.n); info+=' · лечение +'+ih.plus+' хитов'; }
-  }
-  /* длящиеся свойства расходуемого — записью на цель, с длительностью из описания */
-  const tinfo=targetInfoOf(target);
-  const effectAllowed=outcomeAllowsEffect(rolls);
-  const lasting=recFx(it,'item').filter(f=>!(f.stat==='hp'&&(f.mode==='add'||f.mode==='grant')));
-  if(lasting.length&&sp.consumable&&tinfo.kind==='ally'&&effectAllowed){
-    const entry={k:'use', id:it.id, label:it.n+' (применено)', fx:lasting, from:caster.name, casterId:caster.id,
-      castId:castUid(), stackKey:'use:'+it.id, power:0, why:'применено: '+caster.name};
-    attachDuration(entry, {n:it.n, d:'', x:it.desc||''}, 0);
-    applyFxTo(tinfo.id, entry);
-    info+=' · свойство наложено';
-  } else if(lasting.length&&tinfo.kind==='foe'&&tinfo.obj&&effectAllowed){
-    const entry={k:'use',id:it.id,label:it.n+' (применено)',fx:lasting.map(x=>Object.assign({},x)),from:caster.name,casterId:caster.id,
-      castId:castUid(),stackKey:'use:'+it.id,power:0,why:'применено: '+caster.name};
-    attachDuration(entry,{n:it.n,d:'',x:it.desc||''},0);
-    applyFxToFoe(tinfo.obj,entry);
-    info+=' · свойство наложено на противника';
-  }
+  const tinfo=chk.target.ti;
+  info+=applyItemUseSpecial(caster,it,use,tinfo,rolls,opts);
+  if((use.effects||[]).length&&itemUseEffectAllowed(use,rolls)&&applyItemUseEntry(caster,it,use,tinfo)) info+=' · эффект наложен';
   const tl=tinfo.name||'—';
   fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
   setStatus('⚗ «'+it.n+'» применено (цель: '+tl+')'+cost+info+'.');
   castLogLine('⚗ '+caster.name+' → '+tl+': предмет «'+it.n+'»'+cost+info);
   if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
-  combatCommitCastAction('Предмет «'+it.n+'»');
+  promptItemLastCharge(chk.resource);
   return true;
 }
 /* временные хиты по правилам 5e: не складываются, остается большее */
@@ -6478,9 +6878,10 @@ function itemProfile(it){
       return p;
     }
     p.kind=has('shield')?'shield':'armor';
-    const sm=txt.match(/сил[аы]\s*(\d+)/);
-    p.armor={ac:it.ac||'', stealthDis:has('stealthdis')||/помеха на скрытност/.test(txt),
-      strReq:sm?+sm[1]:(has('strreq')?13:0),
+    const sm=txt.match(/сил(?:а|ы)?\s*(\d+)/);
+    const noStealthDis=/помеха на скрытност[^.\n]{0,32}(?:нет|отсутств)/.test(txt);
+    p.armor={ac:it.ac||'', stealthDis:!noStealthDis&&(has('stealthdis')||/помеха на скрытност/.test(txt)),
+      strReq:it.strReq!=null?(+it.strReq||0):(sm?+sm[1]:(has('strreq')?13:0)),
       weight:has('heavyarmor')?'тяжелый':(has('mediumarmor')?'средний':(has('lightarmor')?'легкий':'')),
       don:has('heavyarmor')?'10 минут':(has('mediumarmor')?'5 минут':(has('lightarmor')?'1 минута':'1 действие'))};
     return p;
@@ -6564,8 +6965,8 @@ const ITEM_KIND_RU={weapon:'оружие', armor:'доспех', shield:'щит'
    последствие. */
 function gameDataAudit(data){
   data=data||{};
-  const ss=data.spells||spellsDB, aa=data.abilities||abilitiesDB, ii=data.items||itemsDB;
-  const errors=[], modes={spell:{automatic:0,special:0,manual:0},ability:{active:0,passive:0,resource:0,triggered:0},item:{}};
+  const ss=data.spells||spellsDB, aa=data.abilities||abilitiesDB, ii=data.items||itemsDB, ff=data.foes||foesDB, party=data.chars||[];
+  const errors=[], modes={spell:{automatic:0,special:0,manual:0},ability:{active:0,passive:0,resource:0,triggered:0},item:{},foe:{structured:0}};
   const caster=buildBlank();
   caster.id='audit'; caster.name='Аудитор'; caster.level=20;
   caster.ab={str:18,dex:18,con:18,int:18,wis:18,cha:18}; caster.activeFx=[]; caster.fxOff=[];
@@ -6581,13 +6982,14 @@ function gameDataAudit(data){
       if(r&&ids.has(r.id)) errors.push(at+': повтор id '+r.id); else if(r) ids.add(r.id);
     });
   }
-  function checkFx(rec,kind,at){
-    recFx(rec,kind).forEach((f,i)=>{
+  function checkFxList(list,at){
+    (list||[]).forEach((f,i)=>{
       if(!f||!String(f.stat||'').trim()) errors.push(at+': эффект '+i+' без показателя');
       if(!f||fxModes.indexOf(f.mode)<0) errors.push(at+': эффект '+i+' с неизвестным режимом '+String(f&&f.mode));
       if(f&&['add','min','mul','set','grant'].indexOf(f.mode)>=0&&f.value==null) errors.push(at+': эффект '+i+' без значения');
     });
   }
+  function checkFx(rec,kind,at){ checkFxList(recFx(rec,kind),at); }
   function checkSpec(rec,kind,at,lv){
     let spec;
     try{ spec=rollSpecOf(rec,{caster,kind,slotLvl:lv,target}); variants++; }
@@ -6600,7 +7002,7 @@ function gameDataAudit(data){
     });
     return spec;
   }
-  base('spell',ss); base('ability',aa); base('item',ii);
+  base('spell',ss); base('ability',aa); base('item',ii); base('foe',ff);
   ss.forEach((sp,i)=>{
     const at='spell['+i+'] '+sp.n, lv=+sp.l;
     if(!Number.isInteger(lv)||lv<0||lv>9) errors.push(at+': круг вне диапазона 0–9');
@@ -6640,9 +7042,23 @@ function gameDataAudit(data){
   });
   ii.forEach((it,i)=>{
     const at='item['+i+'] '+it.n, p=itemProfile(it);
+    if(+it.schemaVersion!==ITEM_SCHEMA_VERSION) errors.push(at+': нужна миграция схемы предмета до версии '+ITEM_SCHEMA_VERSION);
+    if(ITEM_USE_MODES.indexOf(it.useMode)<0) errors.push(at+': неизвестный режим применения '+String(it.useMode));
+    itemResourceSchemaErrors(it.resource).forEach(msg=>errors.push(at+': '+msg));
+    if(it.useMode==='structured'&&!itemUsesOf(it).length) errors.push(at+': структурированный режим не содержит применений');
+    if(it.useMode==='manual'&&!String(it.manualNote||'').trim()) errors.push(at+': ручной режим не объясняет решение мастера');
     if(!p||!ITEM_KIND_RU[p.kind]) errors.push(at+': предмет не классифицирован');
     else modes.item[p.kind]=(modes.item[p.kind]||0)+1;
-    checkSpec(it,'item',at,0); checkFx(it,'item',at);
+    checkSpec(it,'item',at,0); checkFxList(itemPassiveFx(it),at+' passiveFx');
+    itemUseSchemaErrors(itemUsesOf(it),it.resource).forEach(er=>{
+      const u=itemUsesOf(it)[er.index],ua=at+' use['+er.index+'] '+String(u&&u.label||'без имени');
+      errors.push(ua+': '+er.message);
+    });
+    itemUsesOf(it).forEach((u,j)=>{
+      const ua=at+' use['+j+'] '+String(u&&u.label||'без имени');
+      try{ const us=itemUseSpecOf(caster,it,u,target,{}); variants++; const keys=new Set(); (us.rows||[]).forEach(r=>{ if(!r.key||keys.has(r.key)) errors.push(ua+': повтор/пустой ключ формулы'); keys.add(r.key); }); }
+      catch(e){ errors.push(ua+': формула применения выбросила '+e.message); }
+    });
     /* Карточка, кнопки и оружейная формула — разные пути выполнения. Проверяем
        каждый из них отдельно, чтобы корректный текст предмета не скрывал
        сломанную кнопку в реальном инвентаре. */
@@ -6655,6 +7071,7 @@ function gameDataAudit(data){
         const labels=new Set();
         actions.forEach((a,j)=>{
           if(!a||!String(a.label||'').trim()||!String(a.fn||'').trim()) errors.push(at+': действие '+j+' не имеет подписи или обработчика');
+          if(!a||ITEM_USE_COSTS.indexOf(a.cost)<0) errors.push(at+': действие '+j+' не имеет явной допустимой стоимости');
           if(a&&labels.has(a.label)) errors.push(at+': повтор действия «'+a.label+'»');
           else if(a) labels.add(a.label);
         });
@@ -6670,7 +7087,38 @@ function gameDataAudit(data){
     if(p&&p.kind==='weapon'&&!String(it.dmg||'').match(/\d+\s*[dкд]\s*\d+|^\s*\d+\s*$/i)&&normSpellName(it.n)!=='сеть') errors.push(at+': у оружия нет формулы урона');
     if(p&&(p.kind==='armor'||p.kind==='shield')&&!String(it.ac||'').match(/\d+/)) errors.push(at+': у доспеха нет КД');
   });
-  return {counts:{spells:ss.length,abilities:aa.length,items:ii.length,total:ss.length+aa.length+ii.length},
+  ff.forEach((f,i)=>{
+    const at='foe['+i+'] '+f.n,abil=f.abil||{};
+    ['str','dex','con','int','wis','cha'].forEach(k=>{ if(!Number.isInteger(+abil[k])||+abil[k]<1||+abil[k]>30) errors.push(at+': характеристика '+k+' вне диапазона 1–30'); });
+    if(!Number.isFinite(+f.ac)||+f.ac<1) errors.push(at+': отсутствует корректный КД');
+    if(!Number.isFinite(+f.hpMax)||+f.hpMax<1) errors.push(at+': отсутствует максимум хитов');
+    if(!String(f.speed||'').trim()) errors.push(at+': отсутствует скорость');
+    if(f.cr==null||String(f.cr).trim()==='') errors.push(at+': отсутствует показатель опасности');
+    if(!String(f.source||'').trim()) errors.push(at+': отсутствует источник статблока');
+    const actionIds=new Set(),actions=f.combatActions||[];
+    if(!Array.isArray(f.combatActions)||!actions.length) errors.push(at+': нет структурированных боевых действий');
+    actions.forEach((a,j)=>{
+      const aa2=at+' action['+j+'] '+String(a&&a.n||'без имени');
+      if(!a||!a.id||!a.n) errors.push(aa2+': нужны id и имя');
+      if(a&&actionIds.has(a.id)) errors.push(aa2+': повтор id '+a.id); else if(a) actionIds.add(a.id);
+      const cost=a&&a.cost||((a&&a.kind)==='attack'?'attack':'action');
+      if(ITEM_USE_COSTS.indexOf(cost)<0) errors.push(aa2+': неизвестная стоимость '+cost);
+      if(a&&a.kind==='attack'&&!Number.isFinite(+a.attackBonus)) errors.push(aa2+': нет бонуса атаки');
+      if(a&&a.save&&(!AB_FULL[a.save.key]||!(+a.save.dc>0))) errors.push(aa2+': неверный спасбросок');
+      (a&&a.damage||[]).forEach((d,k)=>{ if(!(Number.isInteger(+d.cnt)&&+d.cnt>=0&&Number.isInteger(+d.sides)&&+d.sides>0&&Number.isFinite(+d.mod))) errors.push(aa2+': неверная формула урона '+k); });
+      try{ foeActionSpecOf(f,a,target,{}); variants++; }catch(e){ errors.push(aa2+': формула выбросила '+e.message); }
+    });
+    modes.foe.structured++;
+  });
+  const itemIds=new Set(ii.map(x=>x.id)),spellIds=new Set(ss.map(x=>x.id)),abilityIds=new Set(aa.map(x=>x.id));
+  party.forEach((c,i)=>{
+    const at='char['+i+'] '+String(c.name||c.id||'без имени'),entries=new Set();
+    (c.inventory||[]).forEach((e,j)=>{ if(!e.id||entries.has(e.id)) errors.push(at+': повтор/пустой id инвентаря '+j); entries.add(e.id); if(!itemIds.has(e.itemId)) errors.push(at+': инвентарь ссылается на неизвестный предмет '+e.itemId); });
+    Object.keys(c.equipment||{}).forEach(slot=>{ if(!entries.has(c.equipment[slot])) errors.push(at+': слот '+slot+' ссылается на отсутствующую запись инвентаря'); });
+    (c.abilities||[]).forEach(e=>{ if(!abilityIds.has(e.abilityId)) errors.push(at+': неизвестная способность '+e.abilityId); });
+    (c.spellbook||[]).forEach(e=>{ if(!spellIds.has(e.spellId)) errors.push(at+': неизвестное заклинание '+e.spellId); });
+  });
+  return {counts:{spells:ss.length,abilities:aa.length,items:ii.length,foes:ff.length,total:ss.length+aa.length+ii.length+ff.length},
     variants,modes,itemActions:{automatic:actionableItems,manual:manualItems.length,manualNames:manualItems},errors};
 }
 /* ═══════════════ ДЕЙСТВИЯ ПРЕДМЕТА: у каждого вида свои ═══════════════ */
@@ -6736,7 +7184,7 @@ function weaponSpecOf(caster, it, ti, opts){
     damageTags:{magical:tags.indexOf('magical')>=0||tags.indexOf('enchanted')>=0||!!w.magic,
       silvered:tags.indexOf('silvered')>=0||tags.indexOf('silver')>=0,
       adamantine:tags.indexOf('adamantine')>=0}};
-  const atkFx=rollFxEntries(caster,'attack'), condMode=attackConditionMode(caster,ti,{mode:attackMode,within5});
+  const atkFx=rollFxEntries(caster,'attack.'+(useDex?'dex':'str')), condMode=attackConditionMode(caster,ti,{mode:attackMode,within5});
   meta.spatialRequired=!!condMode.requiresDistance;
   meta.autoCritOnHit=!!condMode.autoCrit;
   meta.consumeTargetFx=condMode.consumeTargetFx||[];
@@ -6757,6 +7205,22 @@ function weaponSpecOf(caster, it, ti, opts){
   else rows.push({key:'dmg', type:'dmg', side:'caster', cnt:0, sides:0, mod:dmgAb+flat+fxSum(caster,'dmg')+wb.dmg+duel,fixed:!!fixed,
     dmgType:dmgTypeCanon(it.dmgType), label:fixed?'Фиксированный урон':'Урон: впишите итог',
     hint:fixed?'база '+fixed+' + характеристика '+dmgAb+(fxSum(caster,'dmg')?' + эффекты '+fxSum(caster,'dmg'):''):'у оружия не указана кость урона'});
+  const coating=(caster.activeFx||[]).find(x=>x.itemTrigger==='basicPoison'&&x.weaponEntryId===opts.entryId
+    &&(x.expiresAtRound==null||x.expiresAtRound>fxRound));
+  if(coating&&ti.kind!=='object'){
+    const known=ti.known&&typeof ti.saveMod==='function',saveMod=known?ti.saveMod('con'):0;
+    const saveFx=ti.kind==='ally'&&ti.obj?rollFxEntries(ti.obj,'save.con',['poison'])
+      :(ti.kind==='foe'&&ti.obj?foeFxAll(ti.obj).filter(f=>f.stat==='save.con'||f.stat==='save'||f.stat==='save.poison'):[]);
+    const scm=saveConditionMode(ti,'con',{magic:false}),hasAdv=scm.adv||saveFx.some(f=>f.mode==='adv'),hasDis=scm.dis||saveFx.some(f=>f.mode==='dis');
+    const saveAdv=(hasAdv===hasDis)?0:(hasAdv?1:2);
+    meta.dc=10; meta.saveKey='con'; meta.saveAb='Телосложение'; meta.saveAffectsDamage=false;
+    meta.poisonCoatingUid=coating.uid; meta.poisonShots=coating.poisonShots;
+    rows.push({key:'save',type:'save',side:'target',natural:known,required:true,requiredOnHit:true,mod:known?saveMod:0,dc:10,adv:saveAdv,saveKey:'con',autoFail:scm.autoFail,
+      label:known?'Спасбросок Телосложения: d20 '+fmtMod(saveMod)+' — бросает '+ti.name:'Итог спасброска Телосложения цели',
+      hint:'СЛ 10 · только после попадания · при успехе яд не наносит урон'+(saveAdv?(saveAdv===1?' · преимущество':' · помеха'):'')});
+    rows.push({key:'poisonDmg',type:'dmg',side:'caster',cnt:1,sides:4,mod:0,dmgType:'яд',saveMode:'zero',required:true,requiredOnHit:true,requiredOnFailedSave:true,
+      label:'Базовый яд: сумма 1d4',hint:'только после попадания; успешный спасбросок отменяет этот компонент'});
+  }
   rows.push({key:'extra', type:'extra', side:'caster', mod:0, label:'Прочий бросок (по решению мастера)', hint:'необязательно'});
   return {rows, meta};
 }
@@ -6819,7 +7283,16 @@ function weaponAttackApply(entryId, casterId, target, rolls){
   const plan=weaponAttackResourcePlan(caster,entryId,castCtx&&castCtx.mode);
   if(!plan.ok){ setStatus('✕ '+plan.reason,true); castShowErr&&castShowErr(plan.reason); return false; }
   if(!preflightOutcomeReactions(rolls)) return false;
+  if(!combatCommitCastAction('Атака: '+it.n)) return false;
   const cost=commitWeaponAttackResource(plan);
+  if(!commitOutcomeReactions(rolls)) return false;
+  const coating=rolls&&rolls.poisonCoatingUid&&(caster.activeFx||[]).find(x=>x.uid===rolls.poisonCoatingUid&&x.weaponEntryId===entryId);
+  if(coating&&coating.poisonShots!=null){
+    coating.poisonShots=Math.max(0,(+coating.poisonShots||0)-1);
+    coating.why='обработанных боеприпасов осталось '+coating.poisonShots;
+    if(coating.poisonShots<=0) caster.activeFx=caster.activeFx.filter(x=>x.uid!==coating.uid);
+  }
+  if(coating&&plan.thrown) caster.activeFx=caster.activeFx.filter(x=>x.uid!==coating.uid);
   consumeOutcomeRollFx(caster,target,rolls);
   endTriggeredSpellEffects(caster,'attack');
   const info=applyRollsToTarget(target, rolls, '⚔ '+it.n);
@@ -6827,7 +7300,6 @@ function weaponAttackApply(entryId, casterId, target, rolls){
   fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
   itemLog(caster,'⚔ '+caster.name+' → '+tl+': '+it.n+cost+info);
   if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
-  combatCommitCastAction('Атака: '+it.n);
   return true;
 }
 function ammoRecover(entryId){
@@ -8074,7 +8546,10 @@ function foeActionSpecOf(f,a,ti,opts){
   if(a.save){
     const known=ti.known&&typeof ti.saveMod==='function';
     const tmod=known?ti.saveMod(a.save.key):0;
-    const saveFx=ti.kind==='ally'&&ti.obj?rollFxEntries(ti.obj,'save.'+a.save.key)
+    const saveTags=[];
+    if((a.damage||[]).some(d=>dmgTypeCanon(d.type)==='яд')||(a.tags||[]).indexOf('poison')>=0) saveTags.push('poison');
+    if((a.tags||[]).indexOf('inhaled')>=0) saveTags.push('inhaled');
+    const saveFx=ti.kind==='ally'&&ti.obj?rollFxEntries(ti.obj,'save.'+a.save.key,saveTags)
       :(ti.kind==='foe'&&ti.obj?foeFxAll(ti.obj).filter(x=>x.stat==='save.'+a.save.key||x.stat==='save'):[]);
     const scm=saveConditionMode(ti,a.save.key,{magic:!!a.magic});
     const hasAdv=scm.adv||saveFx.some(x=>x.mode==='adv'), hasDis=scm.dis||saveFx.some(x=>x.mode==='dis');
@@ -8977,7 +9452,7 @@ function combatAbilityAfterApply(ab,casterId,rolls){
     combatLog(combatActorName('ally:'+casterId)+': получено дополнительное действие ('+r.actionsUsed+'/'+r.actionMax+' израсходовано).','change','ally:'+casterId);
   }
 }
-function combatUseItem(id){ const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key),x=o&&invEntryOf(o,id),it=x&&itemOf(x.itemId); if(!e||e.kind!=='ally'||!it) return false; return combatPrimeCast(key,'action','Предмет «'+it.n+'»',()=>itemCastFx(id,e.id)); }
+function combatUseItem(id,useId,cost){ const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key),x=o&&invEntryOf(o,id),it=x&&itemOf(x.itemId),use=it&&itemUseOf(it,useId); if(!e||e.kind!=='ally'||!it||!use) return false; cost=cost||use.cost||'action'; return combatPrimeCast(key,cost,'Предмет «'+it.n+'»: '+use.label,()=>itemCastFx(id,e.id,use.id)); }
 function combatWeapon(id,mode,cost,offhand){ const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key),x=o&&invEntryOf(o,id),it=x&&itemOf(x.itemId); if(!e||e.kind!=='ally'||!it) return false; cost=cost||'attack'; const ok=combatPrimeCast(key,cost,(offhand?'Атака второй рукой: ':'Атака: ')+it.n,()=>weaponAttackFx(id,e.id,mode||'melee')); if(ok&&castCtx) castCtx.offhand=!!offhand; return ok; }
 function combatFoeUtility(id){
   const key=combatFocusedKey(),e=combatEntryByKey(key),f=combatActorByKey(key),a=f&&foeActionOf(f,id);
@@ -9114,12 +9589,18 @@ function combatToggleEquip(entryId){
   if(before===JSON.stringify(o.equipment||{})) return false;
   return combatSpend(cost,(was?'Снять / убрать: ':'Надеть / взять: ')+it.n,key);
 }
-function combatItemActionCost(a){ const l=String(a&&a.label||''); if(/Собрать после боя|Продать|Разбить лагерь/.test(l)) return 'long'; if(/Погасить|Зажечь|Открыть|Закрепить|Смотать|Прочитать/.test(l)) return 'object'; return 'action'; }
+function combatItemActionCost(a){
+  if(a&&ITEM_USE_COSTS.indexOf(a.cost)>=0) return a.cost;
+  return 'action';
+}
 function combatRunItemAction(entryId,index){
   const key=combatFocusedKey(),e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||e.kind!=='ally'||!o) return false;
   const inv=invEntryOf(o,entryId),it=inv&&itemOf(inv.itemId),a=it&&itemActions(o,inv,it)[index]; if(!a) return false;
   if(/^weaponAttackFx/.test(a.fn)){ const m=a.fn.match(/'(melee|throw)'\)$/); return combatWeapon(entryId,m?m[1]:'melee'); }
-  if(/^itemCastFx/.test(a.fn)) return combatUseItem(entryId);
+  if(/^itemCastFx/.test(a.fn)){
+    const um=String(a.fn).match(/itemCastFx\('[^']*','[^']*','([^']+)'\)/);
+    return combatUseItem(entryId,um&&um[1],combatItemActionCost(a));
+  }
   const cost=combatItemActionCost(a); if(!combatCanSpend(cost,key)) return false;
   const m=String(a.fn).match(/^([A-Za-z_$][\w$]*)\((.*)\)$/),args=[]; if(!m) return false;
   String(m[2]).replace(/'([^']*)'/g,(_,v)=>{ args.push(v); return _; });
@@ -9151,6 +9632,33 @@ function combatAddCondition(key){
 }
 function combatRemoveCondition(key,n){ const o=combatActorByKey(key); if(!o) return; o.cond=normalizeConditions(o.cond).filter(x=>x!==n); fxInvalidate(); scheduleSave(); renderChars(); renderFoes(); }
 function combatRemoveEffect(key,uid2){ const e=combatEntryByKey(key); if(!e) return; if(e.kind==='ally') removeActiveFx(e.id,uid2); else removeFoeActiveFx(e.id,uid2); renderCombat(); }
+function combatResolveItemZone(zoneId,target,rolls){
+  const z=(combat.zones||[]).find(x=>x.id===zoneId&&x.active),ti=targetInfoOf(target); if(!z||!ti.obj||!rolls||rolls.saveOk==null) return false;
+  let detail='успех — состояние не наложено';
+  if(rolls.saveOk===false){
+    if(holderConditionImmune(ti.obj,z.condition)) detail='провал, но действует иммунитет к состоянию «'+z.condition+'»';
+    else { ti.obj.cond=normalizeConditions((ti.obj.cond||[]).concat([z.condition])); detail='провал — состояние «'+z.condition+'» наложено'; }
+  }
+  combatLog(ti.name+': зона «'+z.label+'» — '+detail,'change',target); fxInvalidate(); scheduleSave(); renderChars(); renderFoes(); renderCombat(); return true;
+}
+function combatTriggerItemZone(zoneId){
+  const z=(combat.zones||[]).find(x=>x.id===zoneId&&x.active),sel=document.getElementById('combatZoneTarget_'+combatDomKey(zoneId));
+  const target=sel&&sel.value,ti=targetInfoOf(target); if(!z||!target||!ti.obj) return false;
+  const sk=(z.save&&z.save.key)||'dex',dc=+(z.save&&z.save.dc)||10,known=ti.known&&typeof ti.saveMod==='function',mod=known?ti.saveMod(sk):0;
+  const fx=ti.kind==='ally'?rollFxEntries(ti.obj,'save.'+sk):foeFxAll(ti.obj).filter(f=>f.stat==='save.'+sk||f.stat==='save');
+  const scm=saveConditionMode(ti,sk,{magic:false}),hasAdv=scm.adv||fx.some(f=>f.mode==='adv'),hasDis=scm.dis||fx.some(f=>f.mode==='dis'),adv=(hasAdv===hasDis)?0:(hasAdv?1:2);
+  const rows=[{key:'a',label:'d20 '+(AB_FULL[sk]||sk),min:1,max:20}]; if(adv) rows.push({key:'b',label:'Второй d20 ('+(adv===1?'преимущество':'помеха')+')',min:1,max:20});
+  askRolls({title:'⚠ '+z.label+' — '+ti.name,note:'Спасбросок '+(AB_FULL[sk]||sk)+' '+fmtMod(mod)+' против СЛ '+dc+'. Кость бросает живой игрок.',rows,
+    compute:v=>{ const nat=adv?(adv===1?Math.max(v.a,v.b):Math.min(v.a,v.b)):v.a; return 'Спасбросок: '+nat+fmtMod(mod)+' = '+(nat+mod)+' против СЛ '+dc; },
+    apply:v=>{ const nat=adv?(adv===1?Math.max(v.a,v.b):Math.min(v.a,v.b)):v.a; return combatResolveItemZone(zoneId,target,{saveOk:nat+mod>=dc,natural:nat,total:nat+mod}); }});
+  return true;
+}
+function combatRemoveItemZone(zoneId){ const z=(combat.zones||[]).find(x=>x.id===zoneId); if(!z) return false; z.active=false; combatLog('Зона «'+z.label+'» убрана.','change',z.sourceKey); scheduleSave(); renderCombat(); return true; }
+function combatZonesHTML(){
+  const zones=(combat.zones||[]).filter(z=>z.active); if(!zones.length) return '';
+  const options=(combat.order||[]).filter(e=>combatActorAlive(combatEntryKey(e))).map(e=>{ const k=combatEntryKey(e); return '<option value="'+k+'">'+esc(combatActorName(k))+'</option>'; }).join('');
+  return '<div class="combat-panel" style="margin:8px 0;padding:8px"><b>⚠ Активные зоны предметов</b>'+zones.map(z=>'<div class="row-line" style="margin-top:5px;gap:5px"><span class="grow">'+esc(z.label)+' · '+esc(z.area||'')+'</span><select id="combatZoneTarget_'+combatDomKey(z.id)+'">'+options+'</select><button class="btn ghost xs" onclick="combatTriggerItemZone(\''+z.id+'\')">Проверить вход</button><button class="btn ghost xs" onclick="combatRemoveItemZone(\''+z.id+'\')">Убрать</button></div>').join('')+'</div>';
+}
 function combatAddNote(){ const el=document.getElementById('combatNote'),v=String(el&&el.value||'').trim(); if(!v) return; combatLog('Запись мастера: '+v,'action',combatFocusedKey()); if(el) el.value=''; scheduleSave(); renderCombat(); }
 function combatDomKey(key){ return String(key||'').replace(/[^a-zA-Z0-9_-]/g,'_'); }
 function combatLogHTML(list){
@@ -9219,7 +9727,7 @@ function combatActionsHTML(key){
   } else if(g==='abilities'&&entry.kind==='ally'){
     (o.abilities||[]).forEach(x=>{ const ab=abilityOf(x.abilityId); if(!combatAbilityUsable(ab)) return; const cur=x.cur==null?ab.uses:x.cur,cost=combatAbilityCost(ab),uses=ab.uses!=null?' · '+cur+'/'+ab.uses:'',pool=abilityPoolOf(o,ab),poolInfo=pool?' · '+pool.label+' '+pool.cur+'/'+pool.max:''; h+=combatActionButton('✦',ab.n,combatCostLabel(cost)+uses+poolInfo,'combatUseAbility(\''+ab.id+'\')',cost,key,down||(ab.uses!=null&&cur<=0)||(pool&&pool.cur<=0)||combatAbilityUsedThisTurn(ab,key)); });
   } else if(g==='items'&&entry.kind==='ally'){
-    (o.inventory||[]).forEach(x=>{ const it=itemOf(x.itemId); if(!it) return; const aa=itemActions(o,x,it); if(!aa.length&&!it.slot) h+=combatActionButton('▣',it.n,'×'+(+x.qty||0)+' · осмотр','combatInspectItem(\''+x.id+'\')','free',key,down); if(it.slot){ const cost=combatEquipCost(it),on=isEquipped(o,x.id); h+=combatActionButton(on?'◉':'○',it.n+': '+(on?'снять':'надеть'),(on?'экипировано · ':'')+combatCostLabel(cost),'combatToggleEquip(\''+x.id+'\')',cost,key,down); } aa.forEach((a,i)=>{ const cost=/^weaponAttackFx/.test(a.fn)?'attack':(/^itemCastFx/.test(a.fn)?'action':combatItemActionCost(a)); h+=combatActionButton(a.icon||'▣',it.n+': '+a.label,'×'+(+x.qty||0)+' · '+combatCostLabel(cost),'combatRunItemAction(\''+x.id+'\','+i+')',cost,key,down); }); });
+    (o.inventory||[]).forEach(x=>{ const it=itemOf(x.itemId); if(!it) return; const aa=itemActions(o,x,it); if(!aa.length&&!it.slot) h+=combatActionButton('▣',it.n,'×'+(+x.qty||0)+' · осмотр','combatInspectItem(\''+x.id+'\')','free',key,down); if(it.slot){ const cost=combatEquipCost(it),on=isEquipped(o,x.id); h+=combatActionButton(on?'◉':'○',it.n+': '+(on?'снять':'надеть'),(on?'экипировано · ':'')+combatCostLabel(cost),'combatToggleEquip(\''+x.id+'\')',cost,key,down); } aa.forEach((a,i)=>{ const cost=combatItemActionCost(a); h+=combatActionButton(a.icon||'▣',it.n+': '+a.label,'×'+(+x.qty||0)+' · '+combatCostLabel(cost),'combatRunItemAction(\''+x.id+'\','+i+')',cost,key,down); }); });
   } else if(g==='foe'&&entry.kind==='foe'){
     h+=combatActionButton('✥','Захват','Отдельное действие Атака: состязание Атлетики','combatContestAction(\'grapple\')','action',key,down)+combatActionButton('↧','Толчок','Отдельное действие Атака: сбить с ног','combatContestAction(\'shove\')','action',key,down);
     (o.combatActions||[]).forEach(a=>{
@@ -9246,6 +9754,7 @@ function combatStageHTML(){
   const opponents=combatOpponents(key),targetCtl=opponents.length?'<div class="combat-move"><span>◎ Быстрая цель</span><select id="combatQuickTarget">'+opponents.map(x=>{ const k=combatEntryKey(x); return '<option value="'+k+'">'+esc(combatActorName(k))+' · КД '+combatActorAc(k)+'</option>'; }).join('')+'</select><select id="combatContestDefense" title="Чем цель защищается от захвата/толчка"><option value="ath">Защита: Атлетика</option><option value="acr">Защита: Акробатика</option></select></div>':'';
   return '<div class="combat-stage-head"><div class="who">'+esc(o.name||o.n)+'</div><div class="subline">'+(current?'Текущий ход':'Фокус вне хода: доступны только реакции')+' · КД '+combatActorAc(key)+' · '+(+o.hp||0)+'/'+combatActorMaxHp(key)+' хитов</div></div><div class="combat-resources">'+resources+'</div>'
     +targetCtl
+    +combatZonesHTML()
     +(current?'<div class="combat-move">⇥ Перемещение <input type="number" min="0" max="'+max+'" step="1.5" value="'+mv+'" onchange="combatMoveSet(this.value)"> / '+max+' '+(String(combatActorSpeed(key)).indexOf('фут')>=0?'футов':'м')+(r.dash?' (Рывок)':'')+'</div>':'')
     +'<div class="combat-groups">'+groups.map(x=>'<button class="combat-group '+(combat.uiGroup===x[0]?'active':'')+'" onclick="combatSetGroup(\''+x[0]+'\')">'+x[1]+'</button>').join('')+'</div><div class="combat-actions">'+combatActionsHTML(key)+'</div>'
     +(current?'<button class="btn rub combat-endturn" onclick="combatNextTurn()">Завершить ход ▶</button>':'');
@@ -9302,58 +9811,58 @@ function descBlock(text){
 }
 /* какие кнопки показать у предмета в инвентаре */
 function itemActions(c, e, it){
+  upgradeItem(it);
   const pr=itemProfile(it), sp=itemSpec(it), ch=invCharges(e,it), a=[];
-  const B=(icon,label,fn,title)=>a.push({icon,label,fn,title:title||label});
+  const B=(icon,label,fn,title,cost)=>a.push({icon,label,fn,title:title||label,cost:cost||'action'});
   switch(pr.kind){
     case 'weapon':
-      B('⚔','Атаковать',"weaponAttackFx('"+e.id+"','"+c.id+"','melee')",'Атака этим оружием: цель, формула, разбор итога');
-      if(pr.weapon.thrown) B('🎯','Метнуть',"weaponAttackFx('"+e.id+"','"+c.id+"','throw')",'Метнуть оружие в цель');
+      B('⚔','Атаковать',"weaponAttackFx('"+e.id+"','"+c.id+"','melee')",'Атака этим оружием: цель, формула, разбор итога','attack');
+      if(pr.weapon.thrown) B('🎯','Метнуть',"weaponAttackFx('"+e.id+"','"+c.id+"','throw')",'Метнуть оружие в цель','attack');
       break;
     case 'ammo':
-      B('↺','Собрать после боя',"ammoRecover('"+e.id+"')",'Вернуть половину истраченных боеприпасов');
+      B('↺','Собрать после боя',"ammoRecover('"+e.id+"')",'Вернуть половину истраченных боеприпасов','long');
       break;
     case 'light':
       const lit=(c.activeFx||[]).some(x=>x.k==='light'&&x.id===it.id);
       B(lit?'💨':'🔥', lit?'Погасить':'Зажечь', "lightToggle('"+e.id+"')",
-        lit?'Погасить источник света':'Зажечь: даст яркий и тусклый свет на время');
+        lit?'Погасить источник света':'Зажечь: даст яркий и тусклый свет на время','object');
       break;
     case 'oil':
-      B('🛢','Заправить фонарь',"oilUse('"+e.id+"','fuel')",'Залить масло в фонарь — 6 часов света');
-      B('🔥','Метнуть флягу',"oilUse('"+e.id+"','throw')",'Импровизированная дальняя атака');
+      B('🛢','Заправить фонарь',"oilUse('"+e.id+"','fuel')",'Залить масло в фонарь — 6 часов света','object');
       break;
     case 'firestarter':{
       const hasCamp=(c.activeFx||[]).some(x=>x.k==='light'&&x.id==='campfire');
       B('🔥', hasCamp?'Потушить костер':'Высечь огонь', "fireStart('"+e.id+"')",
-        'Зажечь факел или свечу из сумки, а если их нет — развести костер');
+        'Зажечь факел или свечу из сумки, а если их нет — развести костер','action');
       break;
     }
-    case 'trap':  B('⚠','Рассыпать',"trapScatter('"+e.id+"')",'Создать помеху на площади'); break;
-    case 'poison':B('☠','Нанести на оружие',"poisonApply('"+e.id+"')",'Отравить оружие до первого попадания'); break;
+    case 'trap':  if(!itemUsesOf(it).length) B('⚠','Рассыпать',"trapScatter('"+e.id+"')",'Создать помеху на площади','action'); break;
+    case 'poison':if(!itemUsesOf(it).length) B('☠','Нанести на оружие',"poisonApply('"+e.id+"')",'Отравить оружие','action'); break;
     case 'tool':
-      B('🛠','Проверка',"toolCheck('"+e.id+"')",(pr.tool&&pr.tool.what)||'Проверка с инструментом');
-      if(pr.tool&&pr.tool.kit) B('✚','Стабилизировать',"healerKitStabilize('"+e.id+"')",'Стабилизировать умирающего без проверки');
+      B('🛠','Проверка',"toolCheck('"+e.id+"')",(pr.tool&&pr.tool.what)||'Проверка с инструментом','action');
       break;
-    case 'instrument': B('🎵','Сыграть',"instrumentPlay('"+e.id+"')",'Проверка Выступления'); break;
-    case 'gamble':     B('🎲','Пустить в ход',"gamblePlay('"+e.id+"')",'Скрытно подменить бросок — проверка Обмана'); break;
-    case 'lore':       B('📖','Прочитать',"loreRead('"+e.id+"')",'Изучить записи'); break;
-    case 'valuable':   B('💰','Продать',"valuableSell('"+e.id+"')",'Обменять на золото'); break;
-    case 'food':       B('🍖','Съесть',"foodEat('"+e.id+"')",'Закрыть дневную норму пищи'); break;
-    case 'water':      B(e.full===false?'💧':'🥤', e.full===false?'Наполнить':'Испить', "waterDrink('"+e.id+"')",'Вода на день пути'); break;
-    case 'camp':       B('⛺','Разбить лагерь',"campSet('"+e.id+"')",'Долгий отдых'); break;
+    case 'instrument': B('🎵','Сыграть',"instrumentPlay('"+e.id+"')",'Проверка Выступления','action'); break;
+    case 'gamble':     B('🎲','Пустить в ход',"gamblePlay('"+e.id+"')",'Скрытно подменить бросок — проверка Обмана','action'); break;
+    case 'lore':       B('📖','Прочитать',"loreRead('"+e.id+"')",'Изучить записи','object'); break;
+    case 'valuable':   B('💰','Продать',"valuableSell('"+e.id+"')",'Обменять на золото','long'); break;
+    case 'food':       B('🍖','Съесть',"foodEat('"+e.id+"')",'Закрыть дневную норму пищи','action'); break;
+    case 'water':      B(e.full===false?'💧':'🥤', e.full===false?'Наполнить':'Испить', "waterDrink('"+e.id+"')",'Вода на день пути','object'); break;
+    case 'camp':       B('⛺','Разбить лагерь',"campSet('"+e.id+"')",'Долгий отдых','long'); break;
     case 'rope':
       const tied=(c.activeFx||[]).some(x=>x.k==='gear'&&x.id===it.id);
-      B('🧗', tied?'Смотать':'Закрепить', "ropeUse('"+e.id+"')",'Преимущество на Атлетику при лазании');
+      B('🧗', tied?'Смотать':'Закрепить', "ropeUse('"+e.id+"')",'Преимущество на Атлетику при лазании','object');
       break;
-    case 'writing':    B('✒','Записать',"writingUse('"+e.id+"')",'Сделать запись или переписать заклинание в книгу'); break;
-    case 'container':  B('📦','Открыть',"containerOpen('"+e.id+"')",'Посмотреть и переложить содержимое'); break;
-    case 'ritual':     B('🕯','Возжечь',"ritualBurn('"+e.id+"')",'Начать обряд'); break;
+    case 'writing':    B('✒','Записать',"writingUse('"+e.id+"')",'Сделать запись или переписать заклинание в книгу','long'); break;
+    case 'container':  B('📦','Открыть',"containerOpen('"+e.id+"')",'Посмотреть и переложить содержимое','object'); break;
+    case 'ritual':     B('🕯','Возжечь',"ritualBurn('"+e.id+"')",'Начать обряд','long'); break;
   }
-  /* заряды, снадобья и все, у чего есть настоящий эффект — общее окно применения */
+  const useIcon={action:'⚗',attack:'⚔',bonus:'◇',reaction:'↯',object:'▣',long:'⌛',free:'◌',turnfree:'◌'};
+  itemUsesOf(it).forEach(use=>{
+    if(a.some(x=>x.label===use.label)) return;
+    B(useIcon[use.cost]||'⚗',use.label,"itemCastFx('"+e.id+"','"+c.id+"','"+use.id+"')",'Структурированное применение: цель, ресурс, броски и последствия',use.cost);
+  });
   if(itemIsBox(it)&&!a.some(x=>x.label==='Открыть'))
-    B('📦','Открыть',"containerOpen('"+e.id+"')",'Посмотреть и переложить содержимое');
-  const hasFx=recFx(it,'item').some(f=>f.mode!=='text');
-  if((ch||sp.consumable||pr.kind==='potion'||(pr.kind==='magic'&&hasFx))&&pr.kind!=='writing')
-    B('⚗','Применить',"itemCastFx('"+e.id+"','"+c.id+"')",'Применить: цель, формула бросков, разбор итога');
+    B('📦','Открыть',"containerOpen('"+e.id+"')",'Посмотреть и переложить содержимое','object');
   return a;
 }
 function itemHintHTML(c, e, it){
@@ -9367,7 +9876,10 @@ function itemHintHTML(c, e, it){
     if(w.reach) bits.push('досягаемость 3 м');
   }
   if(pr.kind==='armor'||pr.kind==='shield'){
-    if(pr.armor.strReq) bits.push('нужна Сила '+pr.armor.strReq+(((+c.ab.str||10)<pr.armor.strReq)?' — не хватает, скорость −3 м':''));
+    if(pr.armor.strReq){
+      const lacks=(+c.ab.str||10)<pr.armor.strReq&&!/дварф/i.test(String(c.race||''));
+      bits.push('нужна Сила '+pr.armor.strReq+(lacks?' — не хватает, скорость −3 м':''));
+    }
     if(pr.armor.stealthDis) bits.push('помеха на Скрытность');
     if(pr.armor.don) bits.push('надевание: '+pr.armor.don);
   }
@@ -9384,6 +9896,7 @@ function itemHintHTML(c, e, it){
   return bits.filter(Boolean).join(' · ');
 }
 function itemCardHTML(it, extra){
+  upgradeItem(it);
   extra=extra||'';
   let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(it.n)+'</h4>'
     +'<span class="type-tag">'+esc(ITEM_TYPES[it.type]||it.type)+'</span>'
@@ -9398,6 +9911,17 @@ function itemCardHTML(it, extra){
   if(it.ac) meta.push('<b>КД:</b> '+esc(it.ac));
   if(it.slot) meta.push('<b>Слот:</b> '+esc(ITEM_SLOT_RU[it.slot]||it.slot));
   if(meta.length) h+='<div class="stat-line">'+meta.join(' &nbsp;·&nbsp; ')+'</div>';
+  if(itemUsesOf(it).length){
+    const tr={self:'на себя',ally:'союзник',enemy:'противник',any:'любая цель',none:'область/без цели'};
+    h+='<div class="props-block"><span class="pt">Структурированные применения:</span>'+itemUsesOf(it).map(u=>{
+      const c=u.consume||{},res=c.kind==='charges'?'заряды −'+(+c.amount||1):(c.kind==='item'?'предмет −'+(+c.amount||1):(c.kind==='kit'?'набор −'+(+c.amount||1):'без расхода'));
+      const parts=[combatCostLabel(u.cost),tr[u.target]||u.target,res];
+      if(u.attack) parts.push('атака '+(u.attack.proficient?'с владением':'без владения'));
+      if(u.save) parts.push('спас. '+(AB_FULL[u.save.key]||u.save.key)+' СЛ '+u.save.dc);
+      if(u.duration&&u.duration.label) parts.push(u.duration.label);
+      return '<div style="margin-top:4px"><b>'+esc(u.label)+'</b> — '+esc(parts.join(' · '))+'</div>';
+    }).join('')+'</div>';
+  } else if(it.useMode==='manual') h+='<div class="props-block note-ital"><span class="pt">Ручной режим:</span> '+esc(it.manualNote||'решение мастера')+'</div>';
   if(it.props) h+='<div class="props-block"><span class="pt">Свойства:</span><div class="entry-desc">'+esc(it.props)+'</div></div>';
   return h+'</div>';
 }
@@ -9436,6 +9960,7 @@ function abilityCardHTML(ab, extra){
 /* ═══════════════ БАЗА: ЗАКЛИНАНИЯ ═══════════════ */
 const dbFlt={ sp:{q:'',l:'',s:''}, it:{q:'',type:'',tag:''}, ab:{q:'',type:''} };
 let editing={sp:null,it:null,ab:null}; /* null=закрыт, ''=новая запись, id=правка */
+let itemAuditView=null;
 
 function renderSpellsDB(){
   const box=document.getElementById('tab-spellsdb'); const f=dbFlt.sp;
@@ -9503,6 +10028,20 @@ function delSpellDB(id){
 }
 
 /* ═══════════════ БАЗА: ПРЕДМЕТЫ ═══════════════ */
+function runItemAuditView(){
+  try{ itemAuditView=gameDataAudit({spells:spellsDB,abilities:abilitiesDB,items:itemsDB,foes:foesDB,chars}); }
+  catch(e){ itemAuditView={errors:['Аудит прерван: '+e.message],counts:{total:0},itemActions:{automatic:0,manual:0,manualNames:[]}}; }
+  renderItemsDB();
+}
+function itemAuditViewHTML(){
+  if(!itemAuditView) return '';
+  const r=itemAuditView,errors=r.errors||[],ia=r.itemActions||{},counts=r.counts||{};
+  let h='<div class="cast-info" style="margin:8px 0"><b>'+(errors.length?'✕ Аудит обнаружил ошибки':'✓ Аудит базы пройден')+'</b>'
+    +' · записей '+(+counts.total||0)+' · предметов с действиями '+(+ia.automatic||0)+' · явно ручных '+(+ia.manual||0);
+  if(errors.length) h+='<div style="margin-top:6px">'+errors.slice(0,30).map(x=>'• '+esc(x)).join('<br>')+(errors.length>30?'<br>… еще '+(errors.length-30):'')+'</div>';
+  else if((ia.manualNames||[]).length) h+='<div class="note-ital" style="font-size:13px;margin-top:5px">Ручной режим сохранен явно: '+esc(ia.manualNames.slice(0,12).join(', '))+((ia.manualNames||[]).length>12?'…':'')+'</div>';
+  return h+'</div>';
+}
 function renderItemsDB(){
   const box=document.getElementById('tab-itemsdb'); const f=dbFlt.it;
   let h='<h2 class="rubric">Арсенал мира — база предметов</h2>'
@@ -9512,7 +10051,9 @@ function renderItemsDB(){
    +Object.keys(ITEM_TYPES).map(t=>'<option value="'+t+'"'+(f.type===t?' selected':'')+'>'+ITEM_TYPES[t]+'</option>').join('')+'</select>'
    +'<select onchange="dbFlt.it.tag=this.value;renderItemsDB()"><option value="">Все ярлыки</option>'
    +Object.keys(ITEM_TAGS).map(t=>'<option value="'+t+'"'+(f.tag===t?' selected':'')+'>'+ITEM_TAGS[t].ru+'</option>').join('')+'</select>'
-   +'<button class="btn rub" onclick="openItemEd(\'\')">✚ Новый предмет</button></div>';
+   +'<button class="btn ghost" onclick="runItemAuditView()">✓ Аудит базы</button>'
+   +'<button class="btn rub" onclick="openItemEd(\'\')">✚ Новый предмет</button></div>'
+   +itemAuditViewHTML();
   if(editing.it!==null) h+=itemEditorHTML();
   const arr=itemsDB.filter(it=>
     (!f.q || it.n.toLowerCase().includes(f.q.toLowerCase()) || (it.desc||'').toLowerCase().includes(f.q.toLowerCase()))
@@ -9546,21 +10087,38 @@ function itemEditorHTML(){
    +'<label>Содержание — что написано внутри: текст книги, письма, карты или свитка</label><textarea id="edItText" style="min-height:80px">'+esc(it.text||'')+'</textarea>'
    +'<label>Свойства</label><textarea id="edItProps" style="min-height:60px">'+esc(it.props)+'</textarea>'
    +'<label>Ярлыки</label>'+tagPicker(ITEM_TAGS, it.tags||[], 'edItTags')
-   +'<label>Влияние на показатели — по строке (кд +2 · кд-мин 16 · хиты-макс +5 · иниц +1 · атака +1 · урон +2 · хар.мудр +1 · спас.все +1 · навык.Убеждение +1 · скорость +3 м · скорость ×2 · состояние: Опутанный · текст: сопротивление урону ядом). Пусто — вывести из описания автоматически.</label><textarea id="edItFx" rows="2">'+esc(fxToLines(it.fx))+'</textarea>'
+   +'<label>Постоянное влияние — только пока предмет надет/находится в инвентаре; активные эффекты задаются ниже. По строке: кд +2 · кд-мин 16 · спас.все +1 · скорость +3 м · состояние: Опутанный.</label><textarea id="edItFx" rows="2">'+esc(fxToLines(itemPassiveFx(it)))+'</textarea>'
+   +'<div class="f-grid"><div><label>Режим применения</label><select id="edItMode">'+ITEM_USE_MODES.map(m=>'<option value="'+m+'"'+((it.useMode||inferItemUseMode(it))===m?' selected':'')+'>'+m+'</option>').join('')+'</select></div>'
+   +'<div><label>Ресурс предмета (JSON или null)</label><textarea id="edItResource" rows="2">'+esc(JSON.stringify(it.resource||null,null,2))+'</textarea></div></div>'
+   +'<label>Структурированные применения (JSON-массив). Для каждого применения обязательны id, label, cost, target и consume; отдельно задаются attack/save/damage/heal/effects/duration/special.</label><textarea id="edItUses" rows="8">'+esc(JSON.stringify(itemUsesOf(it),null,2))+'</textarea>'
+   +'<label>Примечание ручного режима</label><input type="text" id="edItManual" value="'+esc(it.manualNote||'')+'">'
    +'<button class="btn rub" onclick="saveItemEd()">Вписать в арсенал</button> '
    +'<button class="btn ghost" onclick="editing.it=null;renderItemsDB()">Отменить</button></div>';
 }
 function saveItemEd(){
   const g=id=>document.getElementById(id);
   const n=g('edItN').value.trim(); if(!n){ alert('Предмету нужно имя.'); return; }
+  let uses,resource;
+  try{ uses=JSON.parse(g('edItUses').value||'[]'); if(!Array.isArray(uses)) throw new Error('нужен JSON-массив'); }
+  catch(e){ alert('Структурированные применения повреждены: '+e.message); return; }
+  try{ resource=JSON.parse(g('edItResource').value||'null'); if(resource!=null&&(typeof resource!=='object'||Array.isArray(resource))) throw new Error('нужен объект или null'); }
+  catch(e){ alert('Ресурс предмета поврежден: '+e.message); return; }
+  const resourceErrors=itemResourceSchemaErrors(resource);
+  if(resourceErrors.length){ alert('Ресурс предмета не прошел аудит:\n'+resourceErrors.join('\n')); return; }
+  const useErrors=itemUseSchemaErrors(uses,resource);
+  if(useErrors.length){ alert('Структурированные применения не прошли аудит:\n'+useErrors.map(e=>'use['+e.index+']: '+e.message).join('\n')); return; }
+  const useMode=g('edItMode').value,manualNote=g('edItManual').value.trim();
+  if(useMode==='structured'&&!uses.length){ alert('Структурированный режим требует хотя бы одно применение.'); return; }
+  if(useMode==='manual'&&!manualNote){ alert('Для ручного режима объясните, какое решение остается за мастером.'); return; }
   const data={n, type:g('edItT').value, rarity:g('edItRar').value, slot:g('edItSlot').value||null,
     weight:g('edItW').value.trim(), cost:g('edItC').value.trim(), dmg:g('edItDmg').value.trim(),
     dmgType:g('edItDT').value.trim(), ac:g('edItAC').value.trim(), desc:g('edItDesc').value,
     text:(g('edItText')?g('edItText').value:(it.text||'')),
-    props:g('edItProps').value, tags:pickedTags('edItTags'), fx:parseFxLines(g('edItFx').value)};
-  if(editing.it){ Object.assign(itemsDB.find(x=>x.id===editing.it), data); }
-  else itemsDB.push(Object.assign({id:'it_'+uid(), custom:true}, data));
-  editing.it=null; scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
+    props:g('edItProps').value, tags:pickedTags('edItTags'), fx:[], passiveFx:parseFxLines(g('edItFx').value),
+    schemaVersion:ITEM_SCHEMA_VERSION,useMode,resource,uses,manualNote};
+  if(editing.it){ const it=itemsDB.find(x=>x.id===editing.it); Object.assign(it, data); upgradeItem(it); }
+  else { const it=Object.assign({id:'it_'+uid(), custom:true}, data); upgradeItem(it); itemsDB.push(it); }
+  editing.it=null; itemAuditView=null; scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
 }
 function delItemDB(id){
   const it=itemsDB.find(x=>x.id===id); if(!it) return;
@@ -9573,7 +10131,7 @@ function delItemDB(id){
       if(!inv) delete c.equipment[s];
     });
   });
-  scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
+  itemAuditView=null; scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
 }
 
 /* ═══════════════ БАЗА: СПОСОБНОСТИ ═══════════════ */
@@ -10040,7 +10598,7 @@ function stStats(c){
   AB_KEYS.forEach(k=>{
     const fxab=fxSum(c,'ab.'+k);
     h+='<div class="ab-card"><div class="abn">'+AB_FULL[k]+'</div><div class="abv">'+(fxab?('<span class="fx-plus">'+eAb(c,k)+'</span>'):c.ab[k])+'</div>'
-     +'<button class="abm roll" title="Проверка характеристики" onclick="rollCheck(\''+AB_FULL[k]+'\','+eMod(c,k)+',\'check\')">⚁ '+fmtMod(eMod(c,k))+'</button>'
+     +'<button class="abm roll" title="Проверка характеристики" onclick="rollCheck(\''+AB_FULL[k]+'\','+eMod(c,k)+',\'check.'+k+'\')">⚁ '+fmtMod(eMod(c,k))+'</button>'
      +(fxab?'<div class="fx-line '+(fxab>0?'fx-plus':'fx-minus')+'">✦ '+(fxab>0?'+':'')+fxab+' · '+fxParts(c,'ab.'+k).map(p=>esc(p.label)).join(', ')+'</div>':'')
      +'<div class="mini"><button class="mini-btn" onclick="abDelta(\''+k+'\',-1)">−</button><button class="mini-btn" onclick="abDelta(\''+k+'\',1)">+</button></div></div>';
   });
@@ -10052,7 +10610,7 @@ function stStats(c){
     h+='<div class="atk-row"><b class="atk-n">'+esc(w.n)+'</b>'
      +'<span class="atk-ab">'+w.abn+'</span>'
      +(wEnt?'<button class="roll-sm" style="border-color:var(--rubric)" title="Полный удар: цель, атака, урон и разбор итога в одном окне" onclick="weaponAttackFx(\''+wEnt.id+'\',\''+c.id+'\',\'melee\')">⚔ удар</button>':'')
-     +'<button class="roll-sm" title="Только бросок атаки" onclick="rollCheck(\'Атака: '+safeName+'\','+w.atk+',\'attack\')">⚁ атака '+fmtMod(w.atk)+'</button>'
+     +'<button class="roll-sm" title="Только бросок атаки" onclick="rollCheck(\'Атака: '+safeName+'\','+w.atk+',\'attack.'+(/лов/i.test(String(w.abn||''))?'dex':'str')+'\')">⚁ атака '+fmtMod(w.atk)+'</button>'
      +'<button class="roll-sm" title="Бросок урона" onclick="rollDmgStr(\''+safeName+'\',\''+esc(w.dmg)+'\','+w.m+')">⚁ урон '+(w.dmg?esc(w.dmg)+' ':'')+fmtMod(w.m)+'</button>'
      +(w.dt?'<span class="atk-dt">'+esc(w.dt)+'</span>':'')+'</div>';
   });
@@ -10178,7 +10736,7 @@ function quickAddItem(){
   const it={id:'it_'+uid(), n, type:g('qiT').value, rarity:'обычный', custom:true, tags:[],
     slot:g('qiSlot').value||null, weight:'', cost:g('qiC').value.trim(), dmg:g('qiDmg').value.trim(),
     dmgType:'', desc:g('qiDesc').value, props:''};
-  itemsDB.push(it);
+  upgradeItem(it); itemsDB.push(it);
   cc().inventory.push({id:'inv_'+uid(), itemId:it.id, qty:1, notes:''});
   quickForm.inv=false; scheduleSave(); renderChars();
 }

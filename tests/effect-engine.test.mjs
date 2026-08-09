@@ -23,6 +23,7 @@ function loadEngine(random = () => 0) {
       breakConcentration, longRest, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
       applyDamageTo, applyRollsToTarget, resolveUndeadFortitude, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
       rollSpecOf, resolveOutcome, targetInfoOf, weaponSpecOf, weaponAttackApply, useItemApply,
+      upgradeItem, itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemSpec, itemActions, combatItemActionCost, rollFxEntries,
       dmgAfterTraits, effectiveFoeConditions, castDispel, rollbackLastCast,
       seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, seedFoesDB, gameDataAudit,
       upgradeFoe, mergeBuiltinFoe, foeSaveMod, foeSkillMod, foeActionReady, foeResetActionState,
@@ -32,6 +33,7 @@ function loadEngine(random = () => 0) {
       validateFormulaValues, saveConditionMode,
       combatStart, combatNextTurn, combatEnd, combatSpend, combatCanSpend, combatBasicAction, combatFocus,
       combatCastSpell, combatUseAbility, combatWeapon, combatFoeAction, combatSyncChanges, combatVictoryText,
+      combatUseItem, combatResolveItemZone,
       combatDeathSave, combatContestAction, combatTriggerReady, combatOpportunityBlocked, combatSetGroup, combatSpellTurnAllowed,
       combatAbilityCost, combatAbilityUsable, combatSpellCost, combatCunningAction,
       combatFoeRecharge, combatFoeAttackAllowed, combatRecordFoeAttack, combatAttackCount,
@@ -435,20 +437,83 @@ test('кости Благословения входят в итог атаки 
   assert.equal(e.resolveOutcome(saveSpec, {save: 7, savefx0: 2}, {}).saveOk, true);
 });
 
-test('контракт проверяет все 331 запись и каждый допустимый вариант круга без ошибок', () => {
+test('контракт проверяет всю мировую базу, предметные применения и статблоки без ошибок', () => {
   const e = loadEngine();
-  const spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB(), items = e.seedItemsDB();
-  e.setState({spells, abilities, items});
-  const audit = e.gameDataAudit({spells, abilities, items});
+  const spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB(), items = e.seedItemsDB(), foes = e.seedFoesDB();
+  e.setState({spells, abilities, items, foes});
+  const audit = e.gameDataAudit({spells, abilities, items, foes});
 
-  assert.deepEqual(plain(audit.counts), {spells: 121, abilities: 77, items: 133, total: 331});
-  assert.equal(audit.variants, 881);
+  assert.deepEqual(plain(audit.counts), {spells: 121, abilities: 77, items: 134, foes: 30, total: 362});
+  assert.ok(audit.variants > 900);
   assert.deepEqual(plain(audit.errors), []);
   assert.equal(Object.values(audit.modes.spell).reduce((a, b) => a + b, 0), 121);
   assert.equal(Object.values(audit.modes.ability).reduce((a, b) => a + b, 0), 77);
-  assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 133);
-  assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 133);
+  assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 134);
+  assert.equal(audit.modes.foe.structured, 30);
+  assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 134);
   assert.equal(new Set(audit.itemActions.manualNames).size, audit.itemActions.manual);
+});
+
+test('матрица всей базы не допускает урон при промахе и длительный эффект после успешного спасброска', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB(), foes = e.seedFoesDB();
+  const allSaves = {str: true, dex: true, con: true, int: true, wis: true, cha: true};
+  const maxAb = {str: 30, dex: 30, con: 30, int: 30, wis: 30, cha: 30};
+  const caster = hero('caster', {level: 20, ab: {str: 18, dex: 18, con: 18, int: 18, wis: 20, cha: 18}});
+  const defender = hero('defender', {level: 20, acOverride: 30, ab: maxAb, saves: allSaves, hp: 1000, hpMax: 1000});
+  const target = {id: 'matrix-target', n: 'Матричная цель', kind: 'monster', ac: 30, hp: 1000, hpMax: 1000, hpTemp: 0,
+    abil: maxAb, saveP: allSaves, profB: 6, resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: [], combatActions: []};
+  e.setState({chars: [caster, defender], spells, abilities, foes: foes.concat(target)});
+
+  const valuesFor = (spec, attackNatural, saveNatural) => {
+    const v = {};
+    spec.rows.forEach(row => {
+      if(row.type === 'atk'){
+        v[row.key] = attackNatural;
+        if(row.adv) v[row.key + '_2'] = attackNatural;
+      } else if(row.type === 'save'){
+        v[row.key] = saveNatural;
+        if(row.adv) v[row.key + '_2'] = saveNatural;
+      } else if(row.type === 'dmg') v[row.key] = row.fixed ? 0 : Math.max(0, (+row.cnt || 0) * (attackNatural === 20 ? 2 : 1));
+      else if(row.type === 'heal' || row.type === 'temp' || row.type === 'sleep') v[row.key] = row.fixed ? 0 : Math.max(0, +row.cnt || 0);
+      else if(row.type === 'extra') v[row.key] = null;
+      else if(row.natural){ v[row.key] = 10; if(row.adv) v[row.key + '_2'] = 10; }
+      else v[row.key] = row.cnt ? +row.cnt : null;
+    });
+    return v;
+  };
+  let attackCases = 0, saveCases = 0;
+  const verify = (label, spec) => {
+    const hasAttack = spec.rows.some(r => r.type === 'atk');
+    const hasSave = spec.rows.some(r => r.type === 'save');
+    const hasDamage = spec.rows.some(r => r.type === 'dmg');
+    if(hasAttack){
+      const out = e.resolveOutcome(spec, valuesFor(spec, 1, 20), {});
+      assert.equal(out.hit, false, `${label}: натуральная 1 должна быть промахом`);
+      if(hasDamage) assert.equal(out.dmgTotal, 0, `${label}: промах провел урон`);
+      assert.equal(out.effectAllowed, false, `${label}: промах разрешил длительный эффект`);
+      attackCases++;
+    }
+    if(hasSave && !spec.rows.some(r => r.type === 'threshold')){
+      const out = e.resolveOutcome(spec, valuesFor(spec, 20, 20), {});
+      assert.equal(out.saveOk, true, `${label}: сильная цель не прошла контрольный спасбросок`);
+      assert.equal(out.effectAllowed, false, `${label}: успешный спасбросок разрешил длительный эффект`);
+      (out.damageParts || []).forEach(part => {
+        if(part.saveMode === 'zero') assert.equal(part.total, 0, `${label}: отменяемый компонент пережил спасбросок`);
+        if(part.saveMode === 'half') assert.ok(part.total <= Math.floor(part.raw / 2), `${label}: половинный компонент не уменьшен`);
+      });
+      saveCases++;
+    }
+  };
+
+  spells.forEach(rec => verify(`заклинание ${rec.n}`, e.rollSpecOf(rec, {caster, kind: 'spell', slotLvl: +rec.l || 0,
+    target: e.targetInfoOf(`foe:${target.id}`), within5: false})));
+  abilities.forEach(rec => verify(`способность ${rec.n}`, e.rollSpecOf(rec, {caster, kind: 'ability',
+    target: e.targetInfoOf(`foe:${target.id}`), within5: false})));
+  foes.forEach(foe => (foe.combatActions || []).forEach(action => verify(`${foe.n}: ${action.n}`,
+    e.foeActionSpecOf(foe, action, e.targetInfoOf(`ally:${defender.id}`), {within5: false}))));
+  assert.ok(attackCases > 50, `проверено слишком мало атак: ${attackCases}`);
+  assert.ok(saveCases > 40, `проверено слишком мало спасбросков: ${saveCases}`);
 });
 
 test('парсер различает два вида урона, формулу зелья и фиксированный урон оружия', () => {
@@ -546,6 +611,280 @@ test('Непоколебимая стойкость и зелье последо
   }), true);
   assert.equal(target.hp, 7);
   assert.equal(target.inventory.length, 0);
+});
+
+test('структурированное зелье в бою тратит одно действие и один флакон, но не оставляет пассивный эффект', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const potion = items.find(x => /^Зелье лечения/.test(x.n)), enemy = foes.find(x => x.id === 'foe_goblin_scout');
+  const caster = hero('caster', {hp: 1, hpMax: 20, inventory: [{id: 'potion', itemId: potion.id}]});
+  e.setState({chars: [caster], items, foes});
+  assert.equal(e.itemUseOf(potion, 'drink').target, 'any', 'зелье можно дать любому существу, а не только герою');
+  assert.equal(e.combatStart([{kind: 'ally', id: caster.id, nat: 20}, {kind: 'foe', id: enemy.id, nat: 1}], 'Зелье'), true);
+
+  assert.equal(e.combatUseItem('potion', 'drink'), true);
+  assert.equal(e.useItemApply('potion', caster.id, `ally:${caster.id}`, {
+    healTotal: 6, dmgRaw: null, dmgTotal: null, hit: null, saveOk: null, effectAllowed: true, verdict: [], notes: []
+  }, 'drink'), true);
+  assert.equal(caster.hp, 7);
+  assert.equal(caster.inventory.length, 0);
+  assert.equal(e.state().combat.turn.actionsUsed, 1);
+  assert.equal(caster.activeFx.length, 0);
+});
+
+test('набор целителя проверяет точную цель до расхода и стабилизирует только выбранного умирающего', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const kit = items.find(x => x.id === 'it_healer_kit_t');
+  const medic = hero('medic', {inventory: [{id: 'kit', itemId: kit.id, qty: 1}]});
+  const healthy = hero('healthy'), down = hero('down', {hp: 0, deaths: {s: 0, f: 2}, cond: ['Бессознательный']});
+  e.setState({chars: [medic, healthy, down], items});
+
+  assert.equal(e.useItemApply('kit', medic.id, `ally:${healthy.id}`, null, 'stabilize'), false);
+  assert.equal(medic.inventory[0].kit, undefined);
+  assert.deepEqual(plain(down.deaths), {s: 0, f: 2});
+
+  assert.equal(e.useItemApply('kit', medic.id, `ally:${down.id}`, null, 'stabilize'), true);
+  assert.equal(medic.inventory[0].kit, 9);
+  assert.deepEqual(plain(down.deaths), {s: 3, f: 0});
+  assert.equal(down.hp, 0);
+  assert.equal(e.effectiveConditions(down).includes('Бессознательный'), true);
+});
+
+test('противоядие дает преимущество только спасброскам от яда и участвует в дыхании зеленого дракона', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const antitoxin = items.find(x => x.n === 'Противоядие');
+  const target = hero('target', {inventory: [{id: 'anti', itemId: antitoxin.id, qty: 1}]});
+  e.setState({chars: [target], items, foes});
+  assert.equal(e.itemUseOf(antitoxin, 'drink').target, 'any');
+  assert.equal(e.rollFxEntries(target, 'save.con', ['poison']).length, 0, 'флакон в рюкзаке не действует пассивно');
+  const zombie = foes.find(x => x.id === 'foe_zombie');
+  assert.equal(e.useItemApply('anti', target.id, `foe:${zombie.id}`, null, 'drink'), false, 'противоядие не помогает нежити');
+  assert.equal(target.inventory[0].qty, 1, 'неподходящая цель не расходует флакон');
+  assert.equal(e.useItemApply('anti', target.id, `ally:${target.id}`, null, 'drink'), true);
+  assert.equal(target.inventory.length, 0);
+  assert.equal(e.rollFxEntries(target, 'save.con', ['poison']).some(x => x.mode === 'adv'), true);
+  assert.equal(e.rollFxEntries(target, 'save.con').some(x => x.mode === 'adv'), false);
+
+  const dragon = foes.find(x => /Молодой зеленый дракон/.test(x.n));
+  const breath = dragon.combatActions.find(x => x.id === 'poison_breath');
+  const breathSpec = e.foeActionSpecOf(dragon, breath, e.targetInfoOf(`ally:${target.id}`), {});
+  assert.equal(breathSpec.rows.find(x => x.type === 'save').adv, 1);
+  const ordinary = e.rollSpecOf({n: 'Толчок', l: 0, x: 'Цель совершает спасбросок Телосложения.'},
+    {caster: target, kind: 'ability', target: e.targetInfoOf(`ally:${target.id}`)});
+  assert.equal(ordinary.rows.find(x => x.type === 'save').adv, 0);
+});
+
+test('масло сверяется с КД, расходуется и дает ровно один отдельный всплеск огненного урона', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const oil = items.find(x => x.n === 'Масло (фляга)'), target = foes.find(x => x.id === 'foe_goblin_scout');
+  target.hp = target.hpMax = 30; target.resist = ['огонь'];
+  const user = hero('user', {inventory: [{id: 'oil', itemId: oil.id, qty: 3}]});
+  e.setState({chars: [user], items, foes});
+
+  const miss = {hit: false, attackMade: true, saveOk: null, dmgRaw: null, dmgTotal: null, effectAllowed: false, verdict: [], notes: []};
+  assert.equal(e.useItemApply('oil', user.id, `foe:${target.id}`, miss, 'throw'), true);
+  assert.equal(user.inventory[0].qty, 2);
+  assert.equal(target.activeFx.some(x => x.itemTrigger === 'oil'), false);
+
+  const hit = {hit: true, attackMade: true, saveOk: null, dmgRaw: null, dmgTotal: null, effectAllowed: true, verdict: [], notes: []};
+  assert.equal(e.useItemApply('oil', user.id, `foe:${target.id}`, hit, 'throw'), true);
+  assert.equal(user.inventory[0].qty, 1);
+  assert.equal(target.activeFx.some(x => x.itemTrigger === 'oil'), true);
+  assert.equal(e.useItemApply('oil', user.id, `foe:${target.id}`, hit, 'throw'), true);
+  assert.equal(user.inventory.length, 0);
+  assert.equal(target.activeFx.filter(x => x.itemTrigger === 'oil').length, 1, 'повторное масло обновляет, а не складывает всплески +5');
+  const mixedWithoutFire = e.applyDamageTo(`foe:${target.id}`, 3, 'смешанный: огонь + рубящий', 'Иммунный компонент', {fireDamage: 0});
+  assert.equal(mixedWithoutFire.oilIgnited, false, 'нулевой огненный компонент смешанного урона не поджигает масло');
+  assert.equal(target.activeFx.some(x => x.itemTrigger === 'oil'), true);
+  const fire = e.applyDamageTo(`foe:${target.id}`, 5, 'огонь', 'Горящий факел', {});
+  assert.equal(fire.oilIgnited, true);
+  assert.equal(fire.oilExtra, 2, 'сопротивление огню отдельно уменьшает дополнительные 5 до 2');
+  assert.equal(target.hp, 20);
+  assert.equal(target.activeFx.some(x => x.itemTrigger === 'oil'), false);
+  assert.equal(e.applyDamageTo(`foe:${target.id}`, 5, 'огонь', 'Второй огонь', {}).oilIgnited, false);
+});
+
+test('базовый яд связывает предмет, оружие, попадание, спасбросок и срок действия без автокидания', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const poison = items.find(x => x.id === 'it_basic_poison'), sword = items.find(x => x.n === 'Короткий меч');
+  const target = foes.find(x => x.id === 'foe_goblin_scout'); target.hp = target.hpMax = 40;
+  const user = hero('user', {level: 5, ab: {str: 14, dex: 16, con: 10, int: 10, wis: 10, cha: 10},
+    inventory: [{id: 'poison', itemId: poison.id, qty: 1}, {id: 'sword', itemId: sword.id, qty: 1}], equipment: {MAIN_HAND: 'sword'}});
+  e.setState({chars: [user], items, foes});
+  assert.equal(e.useItemApply('poison', user.id, `ally:${user.id}`, null, 'coat', {weaponEntryId: 'sword'}), true);
+  assert.equal(user.inventory.some(x => x.id === 'poison'), false);
+  const coating = user.activeFx.find(x => x.itemTrigger === 'basicPoison'); assert.ok(coating);
+
+  let spec = e.weaponSpecOf(user, sword, e.targetInfoOf(`foe:${target.id}`), {entryId: 'sword', mode: 'melee'});
+  assert.ok(spec.rows.some(x => x.key === 'save') && spec.rows.some(x => x.key === 'poisonDmg'));
+  let out = e.resolveOutcome(spec, {atk: 1, dmg: 4}, {}); out.attackMade = true; out.poisonCoatingUid = spec.meta.poisonCoatingUid;
+  assert.equal(e.weaponAttackApply('sword', user.id, `foe:${target.id}`, out), true);
+  assert.ok(user.activeFx.find(x => x.uid === coating.uid), 'промах не высушивает яд на оружии');
+
+  spec = e.weaponSpecOf(user, sword, e.targetInfoOf(`foe:${target.id}`), {entryId: 'sword', mode: 'melee'});
+  out = e.resolveOutcome(spec, {atk: 10, dmg: 4, save: 1, poisonDmg: 3}, {}); out.attackMade = true; out.poisonCoatingUid = spec.meta.poisonCoatingUid;
+  assert.equal(out.hit, true); assert.equal(out.saveOk, false); assert.equal(out.dmgTotal, 10);
+  assert.equal(e.weaponAttackApply('sword', user.id, `foe:${target.id}`, out), true);
+  assert.equal(target.hp, 30);
+  assert.ok(user.activeFx.find(x => x.uid === coating.uid), 'яд на оружии действует всю минуту, как в 5e');
+
+  spec = e.weaponSpecOf(user, sword, e.targetInfoOf(`foe:${target.id}`), {entryId: 'sword', mode: 'melee'});
+  const savedValues = {atk: 10, dmg: 4, save: 20};
+  out = e.resolveOutcome(spec, savedValues, {});
+  assert.equal(e.validateFormulaValues(spec, savedValues, out).ok, true, 'при успешном спасброске кубик отмененного яда не требуется');
+  assert.equal(out.dmgTotal, 7, 'успешный спасбросок отменяет яд, но не урон оружия с модификатором');
+  e.advanceFxRound(10);
+  assert.equal(user.activeFx.some(x => x.uid === coating.uid), false);
+});
+
+test('Посох Защиты различает действие и реакцию, точные заряды и срок Щита', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const staff = items.find(x => x.id === 'it_staff_def'), enemy = foes.find(x => x.id === 'foe_goblin_scout');
+  const mage = hero('mage', {inventory: [{id: 'staff', itemId: staff.id, qty: 1, att: false}], equipment: {MAIN_HAND: 'staff'}});
+  e.setState({chars: [mage], items, foes});
+  assert.equal(e.combatStart([{kind: 'foe', id: enemy.id, nat: 20}, {kind: 'ally', id: mage.id, nat: 10}], 'Реакция'), true);
+  e.combatFocus(`ally:${mage.id}`);
+  assert.equal(e.combatUseItem('staff', 'shield'), true);
+  assert.equal(e.useItemApply('staff', mage.id, `ally:${mage.id}`, null, 'shield'), false);
+  assert.equal(mage.inventory[0].ch.cur, 10);
+  assert.equal(e.state().combat.order.find(x => x.kind === 'ally').reactionUsed, false);
+
+  mage.inventory[0].att = true;
+  e.advanceFxRound(1);
+  const before = e.acTotal(mage);
+  assert.equal(e.combatUseItem('staff', 'shield'), true);
+  assert.equal(e.useItemApply('staff', mage.id, `ally:${mage.id}`, null, 'shield'), true);
+  assert.equal(mage.inventory[0].ch.cur, 8);
+  assert.equal(e.state().combat.order.find(x => x.kind === 'ally').reactionUsed, true);
+  assert.equal(e.acTotal(mage), before + 5);
+  e.closeCastModal();
+  e.combatNextTurn();
+  assert.equal(e.acTotal(mage), before);
+
+  const doomed = hero('doomed', {inventory: [{id: 'last-staff', itemId: staff.id, qty: 1, att: true, ch: {cur: 1, max: 10}}],
+    equipment: {MAIN_HAND: 'last-staff'}});
+  e.setState({chars: [doomed], items});
+  e.setAutoRolls([1]);
+  assert.equal(e.useItemApply('last-staff', doomed.id, `ally:${doomed.id}`, null, 'mage_armor'), true);
+  assert.equal(doomed.inventory.length, 0, 'd20 = 1 после последнего заряда уничтожает посох');
+  assert.equal(doomed.equipment.MAIN_HAND, undefined);
+  assert.ok(doomed.activeFx.some(x => x.id === staff.id), 'уже наложенный Магический доспех остается после разрушения посоха');
+});
+
+test('шарики создают проверяемую зону, а явная стоимость предмета не зависит от подписи кнопки', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const balls = items.find(x => x.id === 'it_ball_bearings_s'), enemy = foes.find(x => x.id === 'foe_goblin_scout');
+  const user = hero('user', {inventory: [{id: 'balls', itemId: balls.id, qty: 1}]});
+  e.setState({chars: [user], items, foes});
+  assert.equal(e.combatStart([{kind: 'ally', id: user.id, nat: 20}, {kind: 'foe', id: enemy.id, nat: 1}], 'Зона'), true);
+  assert.equal(e.combatUseItem('balls', 'scatter'), true);
+  assert.equal(e.useItemApply('balls', user.id, `ally:${user.id}`, null, 'scatter'), true);
+  const zone = e.state().combat.zones[0]; assert.ok(zone);
+  assert.equal(e.combatResolveItemZone(zone.id, `foe:${enemy.id}`, {saveOk: false}), true);
+  assert.equal(e.effectiveFoeConditions(enemy).includes('Сбитый с ног'), true);
+  assert.equal(e.state().combat.turn.actionsUsed, 1);
+
+  const custom = {id: 'custom', n: 'Непредсказуемая подпись', type: 'equipment', tags: [], schemaVersion: 3, useMode: 'structured',
+    passiveFx: [], uses: [{id: 'odd', label: 'Совершенно иное слово', cost: 'bonus', target: 'self', consume: {kind: 'none', amount: 0}}]};
+  e.setState({chars: [user], items: [custom]});
+  const action = e.itemActions(user, {id: 'custom-entry', itemId: custom.id, qty: 1}, custom).find(x => x.label === 'Совершенно иное слово');
+  assert.equal(e.combatItemActionCost(action), 'bonus');
+});
+
+test('условный текст экипировки не становится постоянным бонусом, а требования доспеха работают механически', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const plate = items.find(x => x.n === 'Латы');
+  const shirt = items.find(x => x.id === 'it_chain_shirt_leg');
+  const seal = items.find(x => x.id === 'it_korlinn_seal');
+  const wearer = hero('wearer', {race: 'Человек', speed: '9 м', ab: {str: 10, dex: 14, con: 10, int: 10, wis: 10, cha: 10},
+    inventory: [{id: 'plate', itemId: plate.id, qty: 1}, {id: 'shirt', itemId: shirt.id, qty: 1}, {id: 'seal', itemId: seal.id, qty: 1}],
+    equipment: {CHEST: 'plate', RING: 'seal'}});
+  e.setState({chars: [wearer], items});
+
+  assert.equal(e.itemProfile(plate).armor.strReq, 15);
+  assert.equal(e.speedTotal(wearer), '6 м', 'недостаток Силы для тяжелого доспеха снижает скорость на 3 м');
+  assert.equal(e.rollFxEntries(wearer, 'skill.Скрытность').some(x => x.mode === 'dis'), true);
+  let fx = e.charFxAll(wearer);
+  ['skill.Атлетика', 'skill.Убеждение', 'skill.Запугивание', 'ab.str'].forEach(stat =>
+    assert.equal(fx.some(x => x.stat === stat && x.mode === 'add'), false, `${stat} не должен выводиться из условного описания`));
+
+  wearer.equipment.CHEST = 'shirt';
+  e.setState({chars: [wearer], items});
+  assert.equal(e.speedTotal(wearer), '9 м');
+  assert.equal(e.itemProfile(shirt).armor.stealthDis, false, 'фраза «помеха отсутствует» не должна включать помеху');
+  assert.equal(e.rollFxEntries(wearer, 'skill.Скрытность').some(x => x.mode === 'dis'), false);
+  fx = e.charFxAll(wearer);
+  assert.equal(fx.some(x => x.stat === 'skill.Атлетика' && x.mode === 'add'), false);
+
+  const dwarf = hero('dwarf', {race: 'Дварф', speed: '7,5 м', ab: {str: 10, dex: 10, con: 12, int: 10, wis: 10, cha: 10},
+    inventory: [{id: 'plate', itemId: plate.id, qty: 1}], equipment: {CHEST: 'plate'}});
+  e.setState({chars: [dwarf], items});
+  assert.equal(e.speedTotal(dwarf), '7,5 м', 'доспех не снижает скорость дварфа из-за недостатка Силы');
+});
+
+test('доспех без владения дает помеху всем броскам Силы и Ловкости и блокирует магию', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const plate = items.find(x => x.n === 'Латы'), sword = items.find(x => x.n === 'Длинный меч');
+  const lightProf = {id: 'light-prof', n: 'Владение легкими доспехами', type: 'class', source: 'Тест', mode: 'passive',
+    tags: ['passive'], uses: null, rest: '', x: 'Вы владеете легкими доспехами.'};
+  const caster = hero('caster', {race: 'Человек', speed: '9 м', ab: {str: 16, dex: 14, con: 10, int: 10, wis: 16, cha: 10},
+    inventory: [{id: 'plate', itemId: plate.id, qty: 1}, {id: 'sword', itemId: sword.id, qty: 1}],
+    equipment: {CHEST: 'plate', MAIN_HAND: 'sword'}, abilities: [{abilityId: lightProf.id}]});
+  const foe = {id: 'target', n: 'Цель', kind: 'monster', ac: 10, hp: 20, hpMax: 20, hpTemp: 0,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
+    resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: [], combatActions: []};
+  const spell = {id: 'spark', n: 'Искра', l: 0, cm: 'В, С', x: 'Совершите дальнобойную атаку заклинанием.'};
+  e.setState({chars: [caster], items, abilities: [lightProf], foes: [foe], spells: [spell]});
+
+  assert.equal(e.weaponSpecOf(caster, sword, e.targetInfoOf(`foe:${foe.id}`), {entryId: 'sword', mode: 'melee'}).rows.find(x => x.type === 'atk').adv, 2);
+  assert.equal(e.rollFxEntries(caster, 'check.str').some(x => x.mode === 'dis'), true);
+  assert.equal(e.rollFxEntries(caster, 'skill.Атлетика').some(x => x.mode === 'dis'), true);
+  assert.equal(e.rollFxEntries(caster, 'save.dex').some(x => x.mode === 'dis'), true);
+  assert.equal(e.rollFxEntries(caster, 'save.wis').some(x => x.mode === 'dis'), false);
+  assert.equal(e.canCastCheck(caster, spell).ok, false);
+});
+
+test('дварфская устойчивость структурирует преимущество от яда и сопротивление урону', () => {
+  const e = loadEngine(), abilities = e.seedAbilitiesDB();
+  const resilience = abilities.find(x => x.id === 'ab_dwarf_resilience');
+  const dwarf = hero('dwarf', {race: 'Дварф', abilities: [{abilityId: resilience.id}]});
+  e.setState({chars: [dwarf], abilities});
+
+  assert.equal(e.rollFxEntries(dwarf, 'save.con', ['poison']).some(x => x.mode === 'adv'), true);
+  assert.equal(e.rollFxEntries(dwarf, 'save.con').some(x => x.mode === 'adv'), false);
+  assert.equal(e.dmgAfterTraits(dwarf, 5, 'яд').amount, 2);
+});
+
+test('схема предмета заранее отклоняет опасные id, а явный ресурс сильнее текста описания', () => {
+  const e = loadEngine();
+  const bad = [{id: "bad'id", label: 'Плохое применение', cost: 'action', target: 'self', consume: {kind: 'none', amount: 0}}];
+  assert.match(e.itemUseSchemaErrors(bad, null).map(x => x.message).join('\n'), /id должен начинаться/);
+  assert.match(e.itemResourceSchemaErrors({kind: 'charges', max: 3, recharge: {cnt: 0, sides: 0, plus: 0}, when: ''}).join('\n'), /восстановления/);
+
+  const explicit = {id: 'explicit', n: 'Явные заряды', type: 'equipment', tags: [],
+    resource: {kind: 'charges', max: 5, recharge: {cnt: 1, sides: 4, plus: 1}, when: 'на закате'},
+    desc: 'Предмет имеет 10 зарядов и восстанавливает все заряды на рассвете.'};
+  const spec = e.itemSpec(explicit);
+  assert.deepEqual(plain([spec.charges, spec.recharge, spec.when]), [5, {cnt: 1, sides: 4, plus: 1}, 'на закате']);
+});
+
+test('аудит сообщает точные ошибки нового предмета, монстра и межтабличных ссылок', () => {
+  const e = loadEngine();
+  const spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB(), items = e.seedItemsDB(), foes = e.seedFoesDB();
+  items.push({id: 'broken-item', n: 'Сломанный предмет', type: 'equipment', tags: [], useMode: 'structured', uses: [], passiveFx: []});
+  const brokenFoe = plain(foes[0]); brokenFoe.id = 'broken-foe'; brokenFoe.n = 'Неполный монстр'; delete brokenFoe.ac; foes.push(brokenFoe);
+  const brokenHero = hero('broken', {inventory: [{id: 'missing-entry', itemId: 'does-not-exist', qty: 1}], equipment: {MAIN_HAND: 'ghost'},
+    abilities: [{abilityId: 'missing-ability'}], spellbook: [{spellId: 'missing-spell'}]});
+  e.setState({spells, abilities, items, foes, chars: [brokenHero]});
+  const errors = e.gameDataAudit({spells, abilities, items, foes, chars: [brokenHero]}).errors.join('\n');
+  assert.match(errors, /broken-item|Сломанный предмет/);
+  assert.match(errors, /миграция схемы предмета/);
+  assert.match(errors, /структурированный режим не содержит применений/);
+  assert.match(errors, /Неполный монстр: отсутствует корректный КД/);
+  assert.match(errors, /неизвестный предмет does-not-exist/);
+  assert.match(errors, /слот MAIN_HAND ссылается на отсутствующую запись/);
+  assert.match(errors, /неизвестная способность missing-ability/);
+  assert.match(errors, /неизвестное заклинание missing-spell/);
 });
 
 test('Магический сон расходует общий пул от цели с наименьшими хитами', () => {
