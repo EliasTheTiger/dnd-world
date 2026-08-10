@@ -10,7 +10,7 @@ function loadEngine(random = () => 0) {
   source += `
     globalThis.__engine = {
       setState(s) {
-        chars=s.chars||[]; journal=[]; itemsDB=s.items||[]; spellsDB=s.spells||[];
+        chars=s.chars||[]; journal=s.journal||[]; itemsDB=s.items||[]; spellsDB=s.spells||[];
         abilitiesDB=s.abilities||[]; racesDB=s.races||[]; classesDB=s.classes||[];
         rulesDB=s.rules||[]; foesDB=s.foes||[]; activeCharId=s.activeCharId||null; fxRound=s.fxRound||1;
         combat=normalizeCombatState(s.combat); lastCastEvent=null; castCtx=null; rollSpec=null; fxInvalidate();
@@ -36,7 +36,8 @@ function loadEngine(random = () => 0) {
       foeActionsOf, foeDefensesOf, conditionRules,
       validateFormulaValues, saveConditionMode,
       combatStart, combatNextTurn, combatEnd, combatSpend, combatCanSpend, combatBasicAction, combatFocus,
-      combatEnsureSetup, resetCombatAndParty,
+      combatEnsureSetup, restorePartyAndCombatState, resetCombatAndParty,
+      mergeStableEntries, structuredReleaseCampaignPayload,
       combatCastSpell, combatUseAbility, combatWeapon, combatFoeAction, combatSyncChanges, combatVictoryText,
       combatUseItem, combatResolveItemZone,
       combatDeathSave, combatContestAction, combatTriggerReady, combatOpportunityBlocked, combatSetGroup, combatSpellTurnAllowed,
@@ -2420,6 +2421,43 @@ test('единый сброс удаляет текущий бой и точно
     'новый бой не должен автоматически выбирать весь бестиарий');
   const html = e.renderWorld().combat;
   assert.ok(html.includes('Сбросить бой и группу'));
+});
+
+test('выпуск 4.1 объединяет локальную и облачную летопись без возврата незавершенного боя', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
+  const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const localCustom = hero('custom_shared', {name: 'Локальный герой', hp: 1, hpMax: 22});
+  const localOnly = hero('custom_local', {name: 'Только локальный', hp: 2, hpMax: 18});
+  const combat = e.blankCombat(); combat.active = true; combat.round = 4;
+  combat.log = [{id: 'unfinished', text: 'Не должен сохраниться'}];
+  combat.history = [{id: 'local_battle', name: 'Локальный архив', log: []}];
+  e.setState({chars: [e.buildRoku(), localCustom, localOnly], journal: [
+    {id: 'shared_page', date: '2026-08-01', title: 'Локальная старая версия', text: 'local'},
+    {id: 'local_page', date: '2026-08-02', title: 'Локальная страница', text: 'local only'}
+  ], items, spells, abilities, races, classes, foes, combat});
+
+  const remote = {
+    chars: [hero('custom_shared', {name: 'Облачный герой', hp: 3, hpMax: 30}), hero('custom_cloud', {name: 'Только облачный', hp: 4, hpMax: 26})],
+    journal: [
+      {id: 'shared_page', date: '2026-08-01', title: 'Облачная новая версия', text: 'cloud'},
+      {id: 'cloud_page', date: '2026-08-03', title: 'Облачная страница', text: 'cloud only'}
+    ],
+    combat: {history: [{id: 'cloud_battle', name: 'Облачный архив', log: []}]}
+  };
+  const payload = e.structuredReleaseCampaignPayload(remote);
+  assert.deepEqual(plain(payload.chars.slice(0, 4).map(x => x.id)), ['char_roku', 'char_torgar', 'char_septih', 'char_legerem']);
+  assert.deepEqual(plain(payload.chars.slice(4).map(x => x.id)), ['custom_shared', 'custom_cloud', 'custom_local']);
+  assert.equal(payload.chars.find(x => x.id === 'custom_shared').name, 'Облачный герой', 'облачная версия общего героя приоритетна');
+  assert.equal(payload.chars.find(x => x.id === 'custom_shared').hp, 30, 'пользовательский герой получает полный отдых');
+  assert.deepEqual(plain(payload.journal.map(x => x.id)), ['shared_page', 'cloud_page', 'local_page']);
+  assert.equal(payload.journal[0].text, 'cloud');
+  assert.equal(payload.combat.active, false); assert.equal(payload.combat.round, 0); assert.equal(payload.combat.log.length, 0);
+  assert.deepEqual(plain(payload.combat.history.map(x => x.id)), ['cloud_battle', 'local_battle']);
+
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /const CLOUD_PAUSED=false/);
+  assert.ok(html.includes('Движок 4.1 · структурированные механики'));
 });
 
 test('500 воспроизводимых боев сохраняют инварианты при смешении оружия, состояний, защит и действий противников', () => {

@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>D&D World — Развитие персонажей</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
@@ -436,6 +439,7 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 .sync-help code{background:var(--sheet);border:1px solid var(--frame);padding:1px 5px;font-size:.85em;word-break:break-all}
 .sync-note{margin-top:10px;font-style:italic;color:var(--rubric);font-size:.88rem}
 #cloudBtn.cloud-on{color:var(--ok);border-color:var(--ok)}
+.release-badge{display:inline-flex;align-items:center;gap:5px;margin-top:7px;padding:3px 9px;border:1px solid var(--gold);background:rgba(255,248,220,.55);color:var(--rubric);font-family:var(--fell);font-size:.76rem;letter-spacing:.05em}
 .db-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .card-tools{float:right;display:flex;gap:4px}
 .fold-tools{float:right;display:flex;gap:4px;margin-left:8px}
@@ -568,6 +572,7 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
   <span class="corner bl">✠</span><span class="corner br">✠</span>
   <h1 class="title">D&amp;D World</h1>
   <div class="subtitle">Летопись развития персонажей · настольная книга гейм-мастера · единое издание с «D&amp;D Нексус»</div>
+  <div class="release-badge" id="releaseBadge" title="Эта версия использует явные структуры mechanics вместо разбора описаний во время боя">Движок 4.1 · структурированные механики</div>
   <div class="rule-flourish">❦</div>
   <div class="toolrow">
     <div class="dicebox">
@@ -4465,8 +4470,7 @@ function resetCustomCharacterForCombat(c){
   c.hp=Math.max(1,eHpMax(c));
   return c;
 }
-function resetCombatAndParty(force){
-  if(!force&&!window.confirm('Сбросить текущий бой и восстановить группу?\n\nВстроенные герои вернутся к исходным листам; пользовательские герои получат полный отдых; противники восстановят хиты. Журнал и архив завершенных боев сохранятся.')) return false;
+function restorePartyAndCombatState(){
   const canonical={char_roku:buildRoku,char_torgar:buildTorgar,char_septih:buildSeptih,char_legerem:buildLegerem};
   const custom=(chars||[]).filter(c=>!canonical[c.id]).map(resetCustomCharacterForCombat);
   chars=[buildRoku(),buildTorgar(),buildSeptih(),buildLegerem()].concat(custom);
@@ -4478,8 +4482,14 @@ function resetCombatAndParty(force){
   const history=(combat&&combat.history||[]).slice();
   combat=blankCombat(); combat.history=history;
   activeCharId=chars.length?chars[0].id:null; fxRound=1; lastCastEvent=null;
+  fxInvalidate();
+  return true;
+}
+function resetCombatAndParty(force){
+  if(!force&&!window.confirm('Сбросить текущий бой и восстановить группу?\n\nВстроенные герои вернутся к исходным листам; пользовательские герои получат полный отдых; противники восстановят хиты. Журнал и архив завершенных боев сохранятся.')) return false;
+  restorePartyAndCombatState();
   rollCancel(); closeCastModal();
-  fxInvalidate(); scheduleSave(); renderChars(); renderFoes(); renderCombat();
+  scheduleSave(); renderChars(); renderFoes(); renderCombat();
   setStatus('↺ Бой сброшен: группа и противники восстановлены, журнал и архив сохранены ✓');
   return true;
 }
@@ -8646,11 +8656,12 @@ function fxPanelHTML(c){
    КАМПАНЕЙСКИЙ контур (узел campaigns/{ключ}) — персонажи и журнал конкретной кампании.
    Firebase Realtime Database через REST (запись) и Server-Sent Events (живой поток).
    Если в код вписан DEFAULT_DB_URL, облако включается само на любом устройстве. */
-const CLOUD_PAUSED=true;   /* по решению мастера: облако временно на паузе, весь материал сайта ведется локально; кнопка «Подключить» работает */
+const CLOUD_PAUSED=false;
 const DEFAULT_DB_URL='https://best-dnd-campaign-ever-default-rtdb.firebaseio.com';
 const DEFAULT_ROOM='SpeakFriendAndEnter2026';   /* кампания по умолчанию */
+const STRUCTURED_RELEASE='structured-engine-4.1-20260810';
 
-let syncCfg=null, syncOn=false, syncClientId=null;
+let syncCfg=null, syncOn=false, syncClientId=null, syncReleasePending=false;
 
 function lsGet(k){ try{ return window.localStorage.getItem(k); }catch(e){ return null; } }
 function lsSet(k,v){ try{ window.localStorage.setItem(k,v); }catch(e){} }
@@ -8658,6 +8669,14 @@ function lsSet(k,v){ try{ window.localStorage.setItem(k,v); }catch(e){} }
 function syncLoadCfg(){
   try{ syncCfg=JSON.parse(lsGet('dndworld2:synccfg')||'null'); }catch(e){ syncCfg=null; }
   if(!syncCfg && DEFAULT_DB_URL){ syncCfg={url:DEFAULT_DB_URL, room:DEFAULT_ROOM, on:true}; syncSaveCfg(); }
+  /* Однократный выход из прежней общей паузы. Пользовательские адреса и ключи
+     кампаний не трогаем; включаем только штатную SpeakFriendAndEnter2026. */
+  const defaultCfg=syncCfg&&String(syncCfg.url||'').replace(/\/+$/,'')===DEFAULT_DB_URL
+    &&String(syncCfg.room||'')===DEFAULT_ROOM;
+  if(defaultCfg&&lsGet('dndworld2:sync-rollout')!==STRUCTURED_RELEASE){
+    syncCfg.on=true; syncSaveCfg(); lsSet('dndworld2:sync-rollout',STRUCTURED_RELEASE);
+  }
+  syncReleasePending=defaultCfg&&lsGet('dndworld2:release-pending')===STRUCTURED_RELEASE;
   syncClientId=lsGet('dndworld2:clientid');
   if(!syncClientId){ syncClientId='cl_'+Math.random().toString(36).slice(2,10); lsSet('dndworld2:clientid',syncClientId); }
 }
@@ -8700,6 +8719,52 @@ const chCamp=makeChan('кампания','c',
   (d)=>{ chars=(d.chars||[]).map(x=>typeof upgradeChar3==='function'?upgradeChar3(x):x); journal=d.journal||[];
     combat=normalizeCombatState(d.combat); if(typeof combatRepairRuntime==='function') combatRepairRuntime(); renderChars(); renderCombat(); renderJournal(); });
 const syncChans=[chWorld, chCamp];
+
+function mergeStableEntries(primary,secondary){
+  const out=[],seen={};
+  (Array.isArray(primary)?primary:[]).concat(Array.isArray(secondary)?secondary:[]).forEach((x,i)=>{
+    if(!x||typeof x!=='object') return;
+    const key=x.id?'id:'+x.id:'sig:'+JSON.stringify([x.date||'',x.title||'',x.name||'',x.startedAt||'',x.text||'']);
+    if(seen[key]) return; seen[key]=1; out.push(x);
+  });
+  return out;
+}
+/* Во время выпуска облачная копия и прежнее локальное устройство могут
+   содержать разные страницы журнала или архивы. Облачные версии одноименных
+   записей имеют приоритет, уникальные локальные записи не теряются. */
+function structuredReleaseCampaignPayload(remote){
+  remote=remote&&typeof remote==='object'?remote:{};
+  const builtin={char_roku:1,char_torgar:1,char_septih:1,char_legerem:1};
+  const remoteCustom=(remote.chars||[]).filter(c=>c&&!builtin[c.id]);
+  const localCustom=(chars||[]).filter(c=>c&&!builtin[c.id]);
+  const custom=mergeStableEntries(remoteCustom,localCustom).map(resetCustomCharacterForCombat);
+  const nextChars=[buildRoku(),buildTorgar(),buildSeptih(),buildLegerem()].concat(custom);
+  if(typeof upgradeChar3==='function') nextChars.forEach(upgradeChar3);
+  const nextJournal=mergeStableEntries(remote.journal,journal);
+  const nextCombat=blankCombat();
+  nextCombat.history=mergeStableEntries(remote.combat&&remote.combat.history,combat&&combat.history).slice(0,20);
+  return {chars:nextChars,journal:nextJournal,combat:nextCombat};
+}
+/* Старая версия держала кампанию только в localStorage. Этот одноразовый
+   переход сбрасывает незавершенный локальный бой, но сохраняет журнал, архив
+   и пользовательских героев до безопасного объединения с облаком. */
+async function applyStructuredReleaseMigration(){
+  const key='dndworld2:structured-release';
+  if((await store.get(key))===STRUCTURED_RELEASE){
+    syncReleasePending=lsGet('dndworld2:release-pending')===STRUCTURED_RELEASE;
+    return false;
+  }
+  restorePartyAndCombatState();
+  await store.set('dndworld2:chars',JSON.stringify(chars));
+  await store.set('dndworld2:foes',JSON.stringify(foesDB));
+  await store.set('dndworld2:journal',JSON.stringify(journal));
+  await store.set('dndworld2:combat',JSON.stringify(combat));
+  await store.set('dndworld2:fxround',JSON.stringify(fxRound));
+  await store.set(key,STRUCTURED_RELEASE);
+  lsSet('dndworld2:release-pending',STRUCTURED_RELEASE);
+  syncReleasePending=true;
+  return true;
+}
 
 /* ─── применение чужих правок ─── */
 async function syncPersistLocal(){
@@ -8745,7 +8810,7 @@ function syncTouch(){
   });
 }
 async function syncPushNow(ch){
-  const u=ch.url(); if(!u||!syncOn) return;
+  const u=ch.url(); if(!u||!syncOn) return false;
   const p={ by:syncClientId, at:Date.now(), j:JSON.stringify(ch.payloadOf()) };
   try{
     syncStatus('Облако: отправляю ('+ch.name+')…');
@@ -8754,7 +8819,8 @@ async function syncPushNow(ch){
     ch.lastAt=p.at;
     lsSet('dndworld2:synclast:'+ch.key,String(p.at)); lsSet('dndworld2:dirty:'+ch.key,'');
     syncStatus('Облако: сохранено ('+ch.name+') ✓','ok');
-  }catch(e){ syncStatus('Облако: ошибка отправки ('+ch.name+') — '+e.message,'err'); }
+    return true;
+  }catch(e){ syncStatus('Облако: ошибка отправки ('+ch.name+') — '+e.message,'err'); return false; }
 }
 
 /* ─── живой поток ─── */
@@ -8788,7 +8854,7 @@ async function syncHandshake(ch, cloud, interactive){
   if(cloud && cloud.j && cloud.at){
     if(cloud.at>ch.lastAt){
       let take=true;
-      if(interactive || dirty){
+      if(interactive){
         take=window.confirm('В облаке уже есть данные («'+ch.name+'», запись от '+new Date(cloud.at).toLocaleString()+').\n\nОК — взять из облака (заменит данные на этом устройстве).\nОтмена — заменить облако данными этого устройства.');
       }
       if(take) syncApplyRemote(ch,cloud); else await syncPushNow(ch);
@@ -8797,6 +8863,22 @@ async function syncHandshake(ch, cloud, interactive){
     await syncPushNow(ch);       /* узел пуст — кладем свои данные */
   }
   syncOpenStream(ch);
+}
+
+async function syncStructuredReleaseCampaign(cloud){
+  let remote={};
+  try{ if(cloud&&cloud.j) remote=JSON.parse(cloud.j); }catch(e){
+    syncStatus('Облако: повреждена кампанийная копия, выпуск остановлен','err'); return false;
+  }
+  const merged=structuredReleaseCampaignPayload(remote);
+  chCamp.applyData(merged);
+  await syncPersistLocal();
+  const ok=await syncPushNow(chCamp);
+  if(!ok) return false;
+  lsSet('dndworld2:release-pending','');
+  syncReleasePending=false;
+  syncOpenStream(chCamp);
+  return true;
 }
 
 /* ─── подключение / отключение ─── */
@@ -8829,7 +8911,12 @@ async function syncConnect(interactive){
     }catch(e){}
   }
   await syncHandshake(chWorld, cloudW, interactive);
-  if(chCamp.url()) await syncHandshake(chCamp, cloudC, interactive);
+  if(chCamp.url()){
+    if(syncReleasePending){
+      const ok=await syncStructuredReleaseCampaign(cloudC);
+      if(!ok){ syncStatus('Облако: не удалось завершить перенос кампании','err'); return; }
+    } else await syncHandshake(chCamp, cloudC, interactive);
+  }
   syncStatus('Облако: подключено ✓ (мир — общий'+(chCamp.url()?', кампания «'+syncRoom()+'»':'; кампания не задана')+')','ok');
 }
 function syncDisconnect(){
@@ -12285,6 +12372,7 @@ function stNotes(c){
 /* ═══════════════ ЗАПУСК ═══════════════ */
 (async function init(){
   await loadAll();
+  if(typeof applyStructuredReleaseMigration==='function') await applyStructuredReleaseMigration();
   renderRaces(); renderClasses(); renderRules();
   renderChars(); renderCombat(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderFoes();
   if(typeof syncAutoStart==='function') syncAutoStart();
