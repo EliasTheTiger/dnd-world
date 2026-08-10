@@ -18,14 +18,14 @@ function loadEngine(random = () => 0) {
       loadAll, blankCombat,
       state() { return {chars,itemsDB,spellsDB,abilitiesDB,racesDB,classesDB,foesDB,activeCharId,fxRound,lastCastEvent,combat}; },
       applyFxTo, removeActiveFx, advanceFxRound, attachDuration, spellFxForCast,
-      castSpellApply, canCastCheck, parseComponents, materialPlanFor,
+      castSpellApply, canCastCheck, parseComponents, materialPlanFor, slotPlanFor,
       charFxAll, fxSum, eHpMax, acTotal, speedTotal, concEntriesOf,
       breakConcentration, longRest, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
       applyDamageTo, applyRollsToTarget, resolveUndeadFortitude, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
       rollSpecOf, resolveOutcome, targetInfoOf, weaponSpecOf, weaponAttackApply, useItemApply,
       upgradeSpell, upgradeAbility, upgradeItem, upgradeRace, upgradeClass, currentMechanics,
       compileSpellMechanics, compileAbilityMechanics, compileItemMechanics, compileRaceMechanics, compileClassMechanics,
-      mechanicsErrors, referenceMechanicsErrors,
+      mechanicsErrors, referenceMechanicsErrors, formulaContractErrors, finalizeRollSpec, normalizeResolutionContract,
       itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemSpec, itemActions, combatItemActionCost, rollFxEntries,
       dmgAfterTraits, effectiveFoeConditions, castDispel, rollbackLastCast,
       seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, seedFoesDB, gameDataAudit,
@@ -150,7 +150,7 @@ function manualFormulaValues(spec, variant = 0) {
   const highAttack = variant % 4 !== 0;
   const highSave = variant % 3 === 0;
   for (const row of spec.rows || []) {
-    if (row.type === 'extra' || row.autoFail) {
+    if (row.autoFail) {
       values[row.key] = null;
       continue;
     }
@@ -167,7 +167,7 @@ function manualFormulaValues(spec, variant = 0) {
     else if (row.type === 'check') value = highSave ? Math.max(1, min) : Math.min(20, max);
     else value = min + ((variant + (row.key || '').length) % Math.max(1, max - min + 1));
     values[row.key] = Math.max(min, Math.min(max, value));
-    if (row.natural) {
+    if (row.natural && row.adv) {
       const highSecond = row.type === 'atk' ? highAttack : highSave;
       values[row.key + '_2'] = highSecond ? Math.min(row.type === 'atk' ? 19 : 20, max) : Math.max(1, min);
     }
@@ -380,7 +380,7 @@ test('долгий отдых заклинателя разрывает эффе
 
 test('успешный спасбросок блокирует длящееся состояние заклинания', () => {
   const e = loadEngine();
-  const caster = hero('caster');
+  const caster = hero('caster', {slots: {2: {max: 1, cur: 1}}});
   const target = hero('target');
   const hold = {
     id: 'hold', n: 'Удержание личности', l: 2, cm: '—', d: 'Концентрация, 1 мин.', conc: true,
@@ -389,14 +389,14 @@ test('успешный спасбросок блокирует длящееся 
   e.setState({chars: [caster, target], spells: [hold]});
 
   const rolls = {saveOk: true, hit: null, contestWin: null, effectAllowed: false, dmgRaw: null, dmgTotal: null, verdict: []};
-  assert.equal(e.castSpellApply(hold.id, caster.id, `ally:${target.id}`, '', undefined, 'free', rolls), true);
+  assert.equal(e.castSpellApply(hold.id, caster.id, `ally:${target.id}`, '', undefined, '2', rolls), true);
   assert.equal(target.activeFx.length, 0);
   assert.equal(e.effectiveConditions(target).includes('Парализованный'), false);
 });
 
 test('многоцелевое лечение одним броском применяется ко всем выбранным целям', () => {
   const e = loadEngine();
-  const caster = hero('caster');
+  const caster = hero('caster', {slots: {5: {max: 1, cur: 1}}});
   const a = hero('a', {hp: 1, hpMax: 30});
   const b = hero('b', {hp: 2, hpMax: 30});
   const c = hero('c', {hp: 3, hpMax: 30});
@@ -404,7 +404,7 @@ test('многоцелевое лечение одним броском прим
   const rolls = {healTotal: 17, tempTotal: null, dmgRaw: null, dmgTotal: null, hit: null, saveOk: null, contestWin: null, effectAllowed: true, verdict: []};
   e.setState({chars: [caster, a, b, c], spells: [mass]});
 
-  assert.equal(e.castSpellApply(mass.id, caster.id, `ally:${a.id}`, '', undefined, 'free', rolls,
+  assert.equal(e.castSpellApply(mass.id, caster.id, `ally:${a.id}`, '', undefined, '5', rolls,
     [`ally:${b.id}`, `ally:${c.id}`]), true);
   assert.deepEqual([a.hp, b.hp, c.hp], [18, 19, 20]);
 });
@@ -441,14 +441,14 @@ test('урон по герою с 0 хитов ставит каноническ
   assert.equal(e.canCastCheck(target, spell).ok, false);
 });
 
-test('отмена расхода общего запаса не тратит собственный заряд способности', () => {
+test('исчерпанный общий запас нельзя обойти подтверждением и собственный заряд не тратится', () => {
   const e = loadEngine();
   const pool = {id: 'pool', n: 'Кости превосходства d8', uses: 1, rest: 'короткий отдых', x: 'Запас костей превосходства.'};
   const maneuver = {id: 'maneuver', n: 'Прием', uses: 1, rest: 'короткий отдых', x: 'Вы можете потратить кость превосходства и нанести дополнительный урон.'};
   const caster = hero('caster', {abilities: [{abilityId: maneuver.id, cur: 1}, {abilityId: pool.id, cur: 0}]});
   const target = hero('target');
   e.setState({chars: [caster, target], abilities: [maneuver, pool]});
-  e.setConfirmResults([false]);
+  e.setConfirmResults([true]);
 
   assert.equal(e.useAbilityApply(maneuver.id, caster.id, `ally:${target.id}`, {poolSpend: pool.id}), false);
   assert.equal(caster.abilities[0].cur, 1);
@@ -459,17 +459,18 @@ test('Контрзаклинание спрашивает круг цели од
   const e = loadEngine();
   const caster = hero('caster', {slots: {3: {max: 1, cur: 1}}});
   const counter = {id: 'counter', n: 'Контрзаклинание', l: 3, cm: 'В', d: 'Мгновенная', x: ''};
-  e.setState({chars: [caster], spells: [counter]});
+  const target = hero('target');
+  e.setState({chars: [caster, target], spells: [counter]});
   e.setPromptResults(['2']);
 
-  assert.equal(e.castSpellApply(counter.id, caster.id, 'enemy', '', undefined, '3'), true);
+  assert.equal(e.castSpellApply(counter.id, caster.id, `ally:${target.id}`, '', undefined, '3'), true);
   assert.equal(e.promptCount(), 1);
   assert.equal(caster.slots[3].cur, 0);
 });
 
 test('длительный эффект на противнике хранится, учитывается концентрацией и истекает', () => {
   const e = loadEngine();
-  const caster = hero('caster');
+  const caster = hero('caster', {slots: {2: {max: 1, cur: 1}}});
   const foe = {id: 'foe', n: 'Враг', kind: 'monster', ac: 12, hp: 20, hpMax: 20, hpTemp: 0,
     abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
     resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: []};
@@ -477,7 +478,7 @@ test('длительный эффект на противнике хранитс
     x: 'Гуманоид парализован (спасбросок Мудрости в конце каждого хода).'};
   e.setState({chars: [caster], foes: [foe], spells: [hold]});
 
-  assert.equal(e.castSpellApply(hold.id, caster.id, `foe:${foe.id}`, '', undefined, 'free',
+  assert.equal(e.castSpellApply(hold.id, caster.id, `foe:${foe.id}`, '', undefined, '2',
     {saveOk: false, effectAllowed: true, dmgRaw: null, dmgTotal: null, verdict: []}), true);
   assert.equal(foe.activeFx.length, 1);
   assert.equal(e.concEntriesOf(caster.id).length, 1);
@@ -553,7 +554,6 @@ test('матрица всей базы не допускает урон при �
         if(row.adv) v[row.key + '_2'] = saveNatural;
       } else if(row.type === 'dmg') v[row.key] = row.fixed ? 0 : Math.max(0, (+row.cnt || 0) * (attackNatural === 20 ? 2 : 1));
       else if(row.type === 'heal' || row.type === 'temp' || row.type === 'sleep') v[row.key] = row.fixed ? 0 : Math.max(0, +row.cnt || 0);
-      else if(row.type === 'extra') v[row.key] = null;
       else if(row.natural){ v[row.key] = 10; if(row.adv) v[row.key + '_2'] = 10; }
       else v[row.key] = row.cnt ? +row.cnt : null;
     });
@@ -604,7 +604,9 @@ test('парсер различает два вида урона, формулу
   assert.deepEqual(plain(meteorRows.map(r => [r.cnt, r.sides, r.dmgType])), [[20, 6, 'огонь'], [20, 6, 'дробящий']]);
 
   const potion = items.find(x => /^Зелье лечения/.test(x.n));
-  const heal = e.rollSpecOf(potion, {caster, kind: 'item'}).rows.find(r => r.type === 'heal');
+  assert.equal(e.rollSpecOf(potion, {caster, kind: 'item'}).rows.length, 0,
+    'карточка предмета не должна исполнять кости из описания');
+  const heal = e.itemUseSpecOf(caster, potion, e.itemUsesOf(potion)[0], {kind: 'ally', known: true, name: caster.name, obj: caster}).rows.find(r => r.type === 'heal');
   assert.deepEqual(plain([heal.cnt, heal.sides, heal.mod]), [2, 4, 2]);
 
   const blowgun = items.find(x => x.n === 'Духовая трубка');
@@ -629,7 +631,7 @@ test('пассивные черты не становятся действиям
 
 test('преимущество цели и одноразовая кость спасброска проходят через общую формулу', () => {
   const e = loadEngine();
-  const caster = hero('caster');
+  const caster = hero('caster', {slots: {1: {max: 1, cur: 1}}});
   const target = hero('target');
   const saveSpell = {id: 'save', n: 'Проверка пламени', l: 1, cm: '—', d: 'Мгновенная', x: 'Цель совершает спасбросок Ловкости.'};
   e.setState({chars: [caster, target], spells: [saveSpell]});
@@ -645,7 +647,7 @@ test('преимущество цели и одноразовая кость с�
   spec = e.rollSpecOf(saveSpell, {caster, kind: 'spell', slotLvl: 1, target: e.targetInfoOf(`ally:${target.id}`)});
   const out = e.resolveOutcome(spec, {save: 10, savefx0: 4}, {});
   assert.equal(out.saveOk, true);
-  assert.equal(e.castSpellApply(saveSpell.id, caster.id, `ally:${target.id}`, '', undefined, 'free', {
+  assert.equal(e.castSpellApply(saveSpell.id, caster.id, `ally:${target.id}`, '', undefined, '1', {
     saveOk: out.saveOk, effectAllowed: out.effectAllowed, dmgRaw: null, dmgTotal: null, verdict: out.verdict,
     consumeTargetFx: [uid]
   }), true);
@@ -978,7 +980,7 @@ test('Магический сон расходует общий пул от це
   const a = foe(4), b = foe(7), c = foe(12);
   e.setState({chars: [caster], foes: [a, b, c], spells});
 
-  assert.equal(e.castSpellApply(sleep.id, caster.id, `foe:${c.id}`, '', undefined, 'free', {
+  assert.equal(e.castSpellApply(sleep.id, caster.id, `foe:${c.id}`, '', undefined, '5', {
     sleepTotal: 11, dmgRaw: null, dmgTotal: null, hit: null, saveOk: null, contestWin: null,
     effectAllowed: true, verdict: []
   }, [`foe:${b.id}`, `foe:${a.id}`]), true);
@@ -990,29 +992,29 @@ test('Магический сон расходует общий пул от це
 test('Слово силы убивает цель на пороге 100 хитов и не затрагивает 101', () => {
   const e = loadEngine();
   const spells = e.seedSpellsDB(), word = spells.find(x => x.n === 'Слово силы: смерть');
-  const caster = hero('caster');
+  const caster = hero('caster', {slots: {9: {max: 2, cur: 2}}});
   const foe = (id, hp) => ({id, n: id, kind: 'monster', ac: 10, hp, hpMax: 150, hpTemp: 0,
     abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
     resist: [], vuln: [], immune: [], condImmune: [], cond: [], activeFx: []});
   const low = foe('low', 100), high = foe('high', 101);
   e.setState({chars: [caster], foes: [low, high], spells});
 
-  assert.equal(e.castSpellApply(word.id, caster.id, `foe:${low.id}`, '', undefined, 'free'), true);
+  assert.equal(e.castSpellApply(word.id, caster.id, `foe:${low.id}`, '', undefined, '9'), true);
   assert.equal(low.hp, 0);
-  assert.equal(e.castSpellApply(word.id, caster.id, `foe:${high.id}`, '', undefined, 'free'), true);
+  assert.equal(e.castSpellApply(word.id, caster.id, `foe:${high.id}`, '', undefined, '9'), true);
   assert.equal(high.hp, 101);
 });
 
 test('Контрзаклинание откатывает урон и эффекты именно последнего каста', () => {
   const e = loadEngine();
-  const mage = hero('mage');
+  const mage = hero('mage', {slots: {3: {max: 1, cur: 1}}});
   const counterer = hero('counterer', {slots: {3: {max: 1, cur: 1}}});
   const victim = hero('victim', {hp: 30, hpMax: 30});
   const blast = {id: 'blast', n: 'Взрыв', l: 3, cm: 'В', d: 'Мгновенная', x: 'Цель получает 8d6 урона огнем.'};
   const counter = {id: 'counter', n: 'Контрзаклинание', l: 3, cm: 'В', d: 'Мгновенная', x: ''};
   e.setState({chars: [mage, counterer, victim], spells: [blast, counter]});
 
-  assert.equal(e.castSpellApply(blast.id, mage.id, `ally:${victim.id}`, '', undefined, 'free', {
+  assert.equal(e.castSpellApply(blast.id, mage.id, `ally:${victim.id}`, '', undefined, '3', {
     dmgRaw: 10, dmgTotal: 10, dmgType: 'огонь', hit: null, saveOk: null, contestWin: null,
     effectAllowed: true, verdict: []
   }), true);
@@ -1044,7 +1046,7 @@ test('боевой раунд связывает Благословение, о�
   const e = loadEngine();
   const items = e.seedItemsDB();
   const sword = items.find(x => x.n === 'Длинный меч');
-  const cleric = hero('cleric');
+  const cleric = hero('cleric', {slots: {1: {max: 1, cur: 1}}});
   const fighter = hero('fighter', {
     cls: 'Воин', level: 5, ab: {str: 18, dex: 12, con: 16, int: 10, wis: 10, cha: 10},
     inventory: [{id: 'sword-entry', itemId: sword.id, qty: 1}], equipment: {MAIN_HAND: 'sword-entry'}
@@ -1055,7 +1057,7 @@ test('боевой раунд связывает Благословение, о�
   const bless = {id: 'bless', n: 'Благословение', l: 1, cm: 'В', d: 'Концентрация, 1 мин.', conc: true, x: ''};
   e.setState({chars: [cleric, fighter], foes: [foe], items, spells: [bless], classes: e.seedClassesDB()});
 
-  assert.equal(e.castSpellApply(bless.id, cleric.id, `ally:${fighter.id}`, '', undefined, 'free'), true);
+  assert.equal(e.castSpellApply(bless.id, cleric.id, `ally:${fighter.id}`, '', undefined, '1'), true);
   const spec = e.weaponSpecOf(fighter, sword, e.targetInfoOf(`foe:${foe.id}`), {});
   assert.equal(spec.rows.some(r => r.addTo === 'atk' && /Благословение/.test(r.label)), true);
   const rolls = e.resolveOutcome(spec, {atk: 8, wfx0: 4, dmg: 6}, {});
@@ -1102,7 +1104,7 @@ test('Огонь фей раскрывает невидимую цель тол�
   const faerie = spells.find(x => x.n === 'Огонь фей');
   const invis = spells.find(x => x.n === 'Невидимость');
   const sword = items.find(x => x.n === 'Длинный меч');
-  const caster = hero('caster');
+  const caster = hero('caster', {slots: {1: {max: 1, cur: 1}}});
   const attacker = hero('attacker', {cls: 'Воин', inventory: [{id: 'sword-entry', itemId: sword.id, qty: 1}]});
   const foe = {id: 'foe', n: 'Невидимка', kind: 'monster', ac: 12, hp: 20, hpMax: 20, hpTemp: 0,
     abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
@@ -1113,7 +1115,7 @@ test('Огонь фей раскрывает невидимую цель тол�
   const saveSpec = e.rollSpecOf(faerie, {caster, kind: 'spell', slotLvl: 1, target: e.targetInfoOf(`foe:${foe.id}`)});
   assert.ok(saveSpec.rows.some(r => r.type === 'save'));
   assert.ok(e.spellTargetLimit(faerie, 1) >= 2);
-  assert.equal(e.castSpellApply(faerie.id, caster.id, `foe:${foe.id}`, '', undefined, 'free', {
+  assert.equal(e.castSpellApply(faerie.id, caster.id, `foe:${foe.id}`, '', undefined, '1', {
     dmgRaw: null, dmgTotal: null, hit: null, saveOk: false, contestWin: null,
     effectAllowed: true, verdict: [], notes: []
   }), true);
@@ -1685,7 +1687,7 @@ test('маневр воина переходит к итогу бросков и
   e.castConfirm();
   const shown = e.castState();
   assert.equal(shown.ctx.combatCost, 'attack');
-  assert.deepEqual(plain(shown.spec.rows.filter(r => r.type !== 'extra').map(r => r.type)), ['atk', 'res', 'dmg', 'save']);
+  assert.deepEqual(plain(shown.spec.rows.map(r => r.type)), ['atk', 'res', 'dmg', 'save']);
 
   e.setElementValue('cf_atk', '10');
   e.setElementValue('cf_res', '4');
@@ -1767,10 +1769,10 @@ test('контракт отделяет боевые действия воина
   assert.equal(e.abilityPoolOf(fighter, byId('ab_lg_halfblow')), null, '«не тратя» не считается расходом');
   assert.equal(e.combatAbilityCost({tags: ['attack'], x: 'Если вы попадаете, примените эффект.'}), 'action');
   const precise = byId('ab_lg_precise'), pool = e.abilityPoolOf(fighter, precise);
-  const spec = e.rollSpecOf(precise, {caster: fighter, kind: 'ability', target: {kind: 'none', known: false, name: 'цель'},
+  const spec = e.rollSpecOf(precise, {caster: fighter, kind: 'ability', target: {kind: 'foe', known: true, ac: 12, name: 'цель'},
     weapon: {n: 'Топор', atk: 5, dmg: '1d8', dt: 'рубящий', m: 3, mode: 'melee', within5: true}, pool, forceAttack: true});
   const values = {atk: 10, wdmg: 5, res: null};
-  assert.equal(e.validateFormulaValues(spec, values, e.resolveOutcome(spec, values, {hitOverride: 'hit'})).ok, false,
+  assert.equal(e.validateFormulaValues(spec, values, e.resolveOutcome(spec, values)).ok, false,
     'выбранный прием нельзя подтвердить без броска кости');
 });
 
@@ -2457,7 +2459,99 @@ test('выпуск 4.1 объединяет локальную и облачну
 
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /const CLOUD_PAUSED=false/);
-  assert.ok(html.includes('Движок 4.1 · структурированные механики'));
+  assert.ok(html.includes('Движок 4.2 · строгие формулы v2'));
+});
+
+test('формулы v2 не содержат броска мастера, ручного попадания или изменяемого преимущества', () => {
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  ['Прочий бросок (по решению мастера)', 'castHitSet', 'hitOverride', 'castAdvSet', 'id="cfHit"', 'value="free"']
+    .forEach(token => assert.equal(html.includes(token), false, `удален запрещенный путь: ${token}`));
+
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
+  const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const party = [e.buildRoku(), e.buildTorgar(), e.buildSeptih(), e.buildLegerem()];
+  e.setState({chars: party, items, spells, abilities, races, classes, foes});
+  const caster = party[0], target = e.targetInfoOf(`foe:${foes[0].id}`), specs = [];
+  spells.forEach(sp => specs.push(e.rollSpecOf(sp, {caster, kind: 'spell', slotLvl: +sp.l || 0, target})));
+  abilities.forEach(ab => specs.push(e.rollSpecOf(ab, {caster, kind: 'ability', target})));
+  items.forEach(it => {
+    const generic = e.rollSpecOf(it, {caster, kind: 'item', target});
+    specs.push(generic);
+    assert.equal(generic.rows.length, 0, `карточка предмета не исполняет описание: ${it.n}`);
+    e.itemUsesOf(it).forEach(use => specs.push(e.itemUseSpecOf(caster, it, use, target, {})));
+    if(e.itemProfile(it).kind === 'weapon') specs.push(e.weaponSpecOf(caster, it, target, {}));
+  });
+  foes.forEach(foe => e.foeActionsOf(foe).forEach(action => specs.push(e.foeActionSpecOf(foe, action, e.targetInfoOf(`ally:${caster.id}`), {}))));
+
+  assert.ok(specs.length > 400, `проверено слишком мало формул: ${specs.length}`);
+  specs.forEach((spec, i) => {
+    assert.deepEqual(plain(e.formulaContractErrors(spec)), [], `контракт формулы ${i}`);
+    assert.equal(spec.contract.schemaVersion, 2);
+    assert.equal(spec.contract.inputPolicy, 'declared-results-only');
+    assert.equal(spec.rows.some(row => row.type === 'extra' || !row.inputContract || !row.inputContract.semantic), false);
+    assert.equal(spec.rows.some(row => row.type === 'other' && !['atk', 'save', 'dmg'].includes(row.addTo)), false);
+  });
+
+  const guidance = spells.find(sp => sp.id === 'sp_guidance_t');
+  assert.ok(guidance.mechanics.effects.some(fx => fx.stat === 'check' && fx.mode === 'die' && fx.value === '1d4'));
+  assert.equal(e.rollSpecOf(guidance, {caster, kind: 'spell', target: e.targetInfoOf(`ally:${caster.id}`)}).rows.length, 0,
+    '1d4 Наставления бросается при будущей проверке, а не при наложении');
+});
+
+test('неизвестную КД и исчерпанные ресурсы нельзя обойти ручным решением', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), sword = items.find(it => it.n === 'Длинный меч');
+  const caster = hero('caster', {cls: 'Жрец', inventory: [{id: 'sword', itemId: sword.id, qty: 1}], equipment: {MAIN_HAND: 'sword'}});
+  const target = hero('target');
+  const ability = {id: 'limited', n: 'Ограниченный прием', mode: 'active', uses: 1, rest: 'короткий отдых',
+    combatTarget: 'enemy', combatNoRoll: true, x: 'Выберите одну цель.'};
+  e.upgradeAbility(ability, true);
+  caster.abilities = [{abilityId: ability.id, cur: 0}];
+  e.setState({chars: [caster, target], items, abilities: [ability]});
+
+  const unknown = e.weaponSpecOf(caster, sword, e.targetInfoOf('enemy'), {entryId: 'sword'});
+  const values = {atk: 10, dmg: 5};
+  const outcome = e.resolveOutcome(unknown, values, {hitOverride: 'crit'});
+  assert.equal(outcome.hit, null, 'внешний флаг не может назначить попадание или крит');
+  assert.match(e.validateFormulaValues(unknown, values, outcome).errors.join(' '), /цель из бестиария/);
+
+  e.setConfirmResults([true, true]);
+  assert.equal(e.useAbilityApply(ability.id, caster.id, `ally:${target.id}`, {notes: [], verdict: []}), false);
+  assert.equal(caster.abilities[0].cur, 0);
+
+  const spell = {id: 'slot-test', n: 'Проверка ячейки', l: 1, cm: 'В', d: 'Мгновенная', x: ''};
+  caster.slots = {1: {max: 1, cur: 1}};
+  assert.equal(e.slotPlanFor(caster, spell, 'free').ok, false);
+  caster.spellbook = [{spellId: spell.id, prep: false}];
+  assert.equal(e.slotPlanFor(caster, spell, '1').ok, false, 'неподготовленное заклинание не тратит ячейку');
+  caster.spellbook[0].prep = true;
+  e.setState({chars: [caster, target], items, abilities: [ability], spells: [spell]});
+  assert.equal(e.castSpellApply(spell.id, caster.id, 'enemy', '', undefined, '1'), false);
+  assert.equal(caster.slots[1].cur, 1, 'неизвестная цель не тратит ячейку');
+});
+
+test('материальный компонент имеет точный расход, а аудит связывает всю штатную четверку', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
+  const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const diamond = {id: 'audit-diamond', n: 'Алмаз', type: 'wondrous', tags: [], cost: '100 зм', desc: ''};
+  e.upgradeItem(diamond);
+  items.push(diamond);
+  const caster = hero('material-caster', {inventory: [{id: 'gem', itemId: diamond.id, qty: 3}]});
+  const spell = {id: 'material-spell', n: 'Точный компонент', l: 1, cm: 'М (алмаз, расходуется)', d: 'Мгновенная', x: ''};
+  e.upgradeSpell(spell, true); spells.push(spell);
+  e.setState({chars: [caster], items, spells, abilities, races, classes, foes});
+  const comp = e.parseComponents(spell);
+  assert.equal(e.materialPlanFor(caster, spell, comp, {entryId: 'gem', use: 2}).ok, false);
+  assert.equal(e.materialPlanFor(caster, spell, comp, {entryId: 'gem', use: 1}).ok, true);
+
+  const party = [e.buildRoku(), e.buildTorgar(), e.buildSeptih(), e.buildLegerem()];
+  e.setState({chars: party, items, spells, abilities, races, classes, foes});
+  const audit = e.gameDataAudit({spells, abilities, items, races, classes, foes, chars: party});
+  assert.deepEqual(plain(audit.errors), []);
+  assert.deepEqual(plain(audit.formulaContract), {schemaVersion: 2, inputPolicy: 'declared-results-only', deterministic: true});
+  assert.ok(audit.coverage.formulaSemantics.length >= 8);
+  assert.ok(audit.coverage.damageTypes.length >= 8);
+  assert.ok(audit.coverage.effectStats.length >= 12);
+  assert.deepEqual(plain(party.map(c => c.id)), ['char_roku', 'char_torgar', 'char_septih', 'char_legerem']);
 });
 
 test('500 воспроизводимых боев сохраняют инварианты при смешении оружия, состояний, защит и действий противников', () => {

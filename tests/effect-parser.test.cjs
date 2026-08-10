@@ -218,7 +218,7 @@ test('мгновенное лечение меняет хиты, но не ос�
     id: 'caster', name: 'Жрец', cls: 'Жрец', level: 5, spellAb: 'wis',
     ab: { str: 10, dex: 10, con: 10, int: 10, wis: 16, cha: 10 },
     abilities: [], activeFx: [], inventory: [], equipment: {}, cond: [], fxOff: [],
-    slots: {}, spellbook: []
+    slots: {1: {max: 1, cur: 1}}, spellbook: []
   };
   const target = {
     id: 'target', name: 'Союзник', level: 5, hp: 5, hpMax: 40,
@@ -231,7 +231,7 @@ test('мгновенное лечение меняет хиты, но не ос�
   };
   engine.setState({ chars: [caster, target], spells: [spell], abilities: [] });
   engine.setAutoRolls([5]);   /* игрок выбросил 5 на d8 */
-  assert.equal(engine.castSpellApply('heal', 'caster', 'ally:target', '', null, 'free'), true);
+  assert.equal(engine.castSpellApply('heal', 'caster', 'ally:target', '', null, '1'), true);
   assert.ok(target.hp >= 9 && target.hp <= 16);
   assert.equal(target.activeFx.length, 0);
 });
@@ -241,7 +241,7 @@ test('извлеченное состояние участвует в прове
     id: 'caster', name: 'Маг', cls: 'Волшебник', level: 5,
     ab: { str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 10 },
     abilities: [], activeFx: [], inventory: [], equipment: {}, cond: [], fxOff: [],
-    slots: {}, spellbook: []
+    slots: {2: {max: 1, cur: 1}}, spellbook: []
   };
   const target = {
     id: 'target', name: 'Союзник', level: 5, hp: 20, hpMax: 20,
@@ -253,7 +253,7 @@ test('извлеченное состояние участвует в прове
     x: 'Гуманоид парализован до окончания заклинания.'
   };
   engine.setState({ chars: [caster, target], spells: [spell], abilities: [] });
-  assert.equal(engine.castSpellApply('hold', 'caster', 'ally:target', '', null, 'free'), true);
+  assert.equal(engine.castSpellApply('hold', 'caster', 'ally:target', '', null, '2'), true);
   assert.equal(target.activeFx.length, 1);
   assert.equal(engine.effectiveConditions(target).includes('Парализованный'), true);
   engine.removeActiveFx('target', target.activeFx[0].uid);
