@@ -16,7 +16,7 @@ function loadEngine(random = () => 0) {
         combat=normalizeCombatState(s.combat); lastCastEvent=null; castCtx=null; rollSpec=null; fxInvalidate();
       },
       loadAll, blankCombat,
-      state() { return {chars,itemsDB,spellsDB,foesDB,activeCharId,fxRound,lastCastEvent,combat}; },
+      state() { return {chars,itemsDB,spellsDB,abilitiesDB,racesDB,classesDB,foesDB,activeCharId,fxRound,lastCastEvent,combat}; },
       applyFxTo, removeActiveFx, advanceFxRound, attachDuration, spellFxForCast,
       castSpellApply, canCastCheck, parseComponents, materialPlanFor,
       charFxAll, fxSum, eHpMax, acTotal, speedTotal, concEntriesOf,
@@ -36,6 +36,7 @@ function loadEngine(random = () => 0) {
       foeActionsOf, foeDefensesOf, conditionRules,
       validateFormulaValues, saveConditionMode,
       combatStart, combatNextTurn, combatEnd, combatSpend, combatCanSpend, combatBasicAction, combatFocus,
+      combatEnsureSetup, resetCombatAndParty,
       combatCastSpell, combatUseAbility, combatWeapon, combatFoeAction, combatSyncChanges, combatVictoryText,
       combatUseItem, combatResolveItemZone,
       combatDeathSave, combatContestAction, combatTriggerReady, combatOpportunityBlocked, combatSetGroup, combatSpellTurnAllowed,
@@ -141,6 +142,76 @@ function hero(id, overrides = {}) {
 
 function plain(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function manualFormulaValues(spec, variant = 0) {
+  const values = {};
+  const highAttack = variant % 4 !== 0;
+  const highSave = variant % 3 === 0;
+  for (const row of spec.rows || []) {
+    if (row.type === 'extra' || row.autoFail) {
+      values[row.key] = null;
+      continue;
+    }
+    const natural = row.natural || ['atk', 'save', 'check', 'tcheck'].includes(row.type);
+    const diceMin = Math.max(0, +row.cnt || (natural ? 1 : 0));
+    const diceMax = (+row.cnt || 0) && (+row.sides || 0) ? (+row.cnt * +row.sides) : (natural ? 20 : diceMin);
+    const min = Number.isFinite(+row.min) ? +row.min : diceMin;
+    const max = Number.isFinite(+row.max) ? +row.max : Math.max(min, diceMax);
+    let value;
+    /* 19 дает надежное попадание без перехода к удвоенному диапазону костей
+       критического урона; критические сценарии проверяются отдельно. */
+    if (row.type === 'atk') value = highAttack ? Math.min(19, max) : Math.max(1, min);
+    else if (row.type === 'save' || row.type === 'tcheck') value = highSave ? Math.min(20, max) : Math.max(1, min);
+    else if (row.type === 'check') value = highSave ? Math.max(1, min) : Math.min(20, max);
+    else value = min + ((variant + (row.key || '').length) % Math.max(1, max - min + 1));
+    values[row.key] = Math.max(min, Math.min(max, value));
+    if (row.natural) {
+      const highSecond = row.type === 'atk' ? highAttack : highSave;
+      values[row.key + '_2'] = highSecond ? Math.min(row.type === 'atk' ? 19 : 20, max) : Math.max(1, min);
+    }
+  }
+  return values;
+}
+
+function resolveManualOutcome(e, spec, values, ctx = {}) {
+  let outcome = e.resolveOutcome(spec, values, ctx);
+  if (outcome.crit) {
+    /* При натуральной 20 или автоматическом крите из-за состояния игрок
+       действительно бросает вдвое больше костей урона. */
+    for (const row of spec.rows || []) {
+      if (row.type !== 'dmg' || values[row.key] == null || !(+row.cnt > 0) || !(+row.sides > 0)) continue;
+      values[row.key] = Math.max(+row.cnt * 2, Math.min(+row.cnt * +row.sides * 2, +values[row.key] * 2));
+    }
+    outcome = e.resolveOutcome(spec, values, ctx);
+  }
+  return outcome;
+}
+
+function assertBattleInvariants(e, label) {
+  const state = e.state();
+  const ids = state.combat.order.map(x => `${x.kind}:${x.id}`);
+  assert.equal(new Set(ids).size, ids.length, `${label}: участник продублирован в инициативе`);
+  for (const c of state.chars) {
+    const max = e.eHpMax(c);
+    assert.ok(Number.isFinite(c.hp) && c.hp >= 0 && c.hp <= max, `${label}: неверные хиты ${c.name}`);
+    assert.ok(Number.isFinite(+c.hpTemp || 0) && (+c.hpTemp || 0) >= 0, `${label}: неверные временные хиты ${c.name}`);
+    assert.ok((c.activeFx || []).every(x => x && Array.isArray(x.fx)), `${label}: поврежденный эффект ${c.name}`);
+    Object.values(c.slots || {}).forEach(s => assert.ok((+s.cur || 0) >= 0 && (+s.cur || 0) <= (+s.max || 0), `${label}: ячейка вне границ`));
+    const deaths = c.deaths || {};
+    assert.ok((+deaths.s || 0) >= 0 && (+deaths.s || 0) <= 3 && (+deaths.f || 0) >= 0 && (+deaths.f || 0) <= 3,
+      `${label}: спасброски смерти вне границ`);
+  }
+  for (const f of state.foesDB) {
+    const ti = e.targetInfoOf(`foe:${f.id}`);
+    assert.ok(Number.isFinite(f.hp) && f.hp >= 0 && f.hp <= ti.hpMax, `${label}: неверные хиты ${f.n}`);
+    assert.ok((f.activeFx || []).every(x => x && Array.isArray(x.fx)), `${label}: поврежденный эффект ${f.n}`);
+  }
+  const turn = state.combat.turn;
+  if (state.combat.active && turn) {
+    assert.ok(turn.actionsUsed >= 0 && turn.actionsUsed <= turn.actionMax, `${label}: действия вне границ`);
+    assert.ok(turn.attacksUsed >= 0 && turn.attacksUsed <= turn.attackMax, `${label}: атаки вне границ`);
+  }
 }
 
 test('неудачный префлайт не тратит ячейку и не рвет старую концентрацию', () => {
@@ -2308,6 +2379,159 @@ test('все девять вкладок и шесть панелей листа
     const html = e.renderSheetPanel(panel);
     labels.forEach(label => assert.ok(html.includes(label), `${panel}: нет индикатора «${label}»`));
   });
+});
+
+test('единый сброс удаляет текущий бой и точно восстанавливает исходную группу', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
+  const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const roku = e.buildRoku(), foe = foes[0];
+  const resourceAbility = abilities.find(x => x.uses != null);
+  assert.ok(resourceAbility, 'для проверки нужен ресурс способности');
+  roku.hp = 1; roku.hpTemp = 9; roku.cond = ['Отравленный']; roku.slots[1].cur = 0;
+  roku.inventory.find(x => x.id === 'inv_r10').qty = 1;
+  const custom = hero('custom', {name: 'Пользовательский герой', hp: 2, hpMax: 22, hpTemp: 4,
+    cond: ['Сбитый с ног'], deaths: {s: 1, f: 2}, exhaustion: 3, slots: {1: {cur: 0, max: 3}},
+    abilities: [{abilityId: resourceAbility.id, cur: 0}], activeFx: [{uid: 'old', fx: [], label: 'Старый эффект'}]});
+  foe.hp = 1; foe.hpTemp = 3; foe.cond = ['Ослепленный']; foe.activeFx = [{uid: 'foe-old', fx: [], label: 'Старый эффект'}];
+  const combat = e.blankCombat(); combat.history = [{id: 'archive', name: 'Старый бой', log: []}];
+  e.setState({chars: [roku, custom], items, spells, abilities, races, classes, foes: [foe], combat});
+  assert.equal(e.combatStart([{kind: 'ally', id: roku.id, nat: 20}, {kind: 'foe', id: foe.id, nat: 10}], 'Сбрасываемая схватка'), true);
+
+  assert.equal(e.resetCombatAndParty(true), true);
+  const state = e.state(), byId = Object.fromEntries(state.chars.map(x => [x.id, x]));
+  assert.equal(state.combat.active, false);
+  assert.equal(state.combat.log.length, 0, 'незавершенный тестовый бой не должен попасть в архив');
+  assert.equal(state.combat.history.length, 1);
+  assert.deepEqual(plain(state.chars.slice(0, 4).map(x => x.id)), ['char_roku', 'char_torgar', 'char_septih', 'char_legerem']);
+  assert.equal(byId.char_roku.hp, 30); assert.equal(byId.char_roku.hpTemp, 0);
+  assert.equal(byId.char_roku.slots[1].cur, 4); assert.equal(byId.char_roku.inventory.find(x => x.id === 'inv_r10').qty, 3);
+  assert.deepEqual(plain(byId.char_roku.cond), []);
+  assert.equal(byId.custom.name, 'Пользовательский герой', 'пользовательский герой не удаляется');
+  assert.equal(byId.custom.hp, 22); assert.equal(byId.custom.hpTemp, 0); assert.deepEqual(plain(byId.custom.cond), []);
+  assert.deepEqual(plain(byId.custom.deaths), {s: 0, f: 0}); assert.equal(byId.custom.exhaustion, 0);
+  assert.equal(byId.custom.slots[1].cur, 3); assert.equal(byId.custom.abilities[0].cur, resourceAbility.uses);
+  assert.equal(state.foesDB[0].hp, state.foesDB[0].hpMax); assert.equal(state.foesDB[0].hpTemp, 0);
+  assert.deepEqual(plain(state.foesDB[0].cond), []); assert.deepEqual(plain(state.foesDB[0].activeFx), []);
+
+  e.combatEnsureSetup();
+  assert.equal(state.combat.setup['ally:char_roku'].selected, true);
+  assert.equal(state.combat.setup[`foe:${state.foesDB[0].id}`].selected, false,
+    'новый бой не должен автоматически выбирать весь бестиарий');
+  const html = e.renderWorld().combat;
+  assert.ok(html.includes('Сбросить бой и группу'));
+});
+
+test('500 воспроизводимых боев сохраняют инварианты при смешении оружия, состояний, защит и действий противников', () => {
+  let seed = 0x5e2026;
+  const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 0x100000000);
+  const e = loadEngine(random);
+  const items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
+  const races = e.seedRacesDB(), classes = e.seedClassesDB(), foeSeeds = e.seedFoesDB();
+  const builders = [e.buildRoku, e.buildTorgar, e.buildSeptih, e.buildLegerem];
+  const conditions = e.conditions().map(x => x.n);
+  const weapons = items.filter(it => {
+    const p = e.itemProfile(it);
+    return p.kind === 'weapon' && p.weapon && !p.weapon.ammo;
+  });
+  const actionCases = [];
+  foeSeeds.forEach(f => e.foeActionsOf(f)
+    .filter(a => a.kind !== 'utility' && !a.requiresTargetEffect && !a.notWhileEffectActive && !a.requiresHit
+      && !['reaction', 'long'].includes(a.cost || ''))
+    .forEach(a => actionCases.push({foe: f, actionId: a.id})));
+  assert.ok(weapons.length > 8, 'стресс-прогон должен менять оружие');
+  assert.ok(actionCases.length > 20 && actionCases.length <= 500, 'стресс-прогон должен пройти все обычные действия противников');
+
+  const covered = {heroes: new Set(), foes: new Set(), weapons: new Set(), actions: new Set(), conditions: new Set(),
+    defenseModes: new Set(), hit: 0, miss: 0, save: 0, fail: 0, resets: 0};
+  for (let battle = 0; battle < 500; battle++) {
+    const actionCase = actionCases[battle % actionCases.length];
+    const foe = plain(actionCase.foe), action = e.foeActionOf(foe, actionCase.actionId);
+    const actor = builders[battle % builders.length]();
+    actor.hpMax = Math.max(200, actor.hpMax); actor.hp = actor.hpMax; actor.hpTemp = 100;
+    const condition = conditions[battle % conditions.length];
+    const witness = hero(`witness_${battle}`, {name: `Свидетель ${battle}`, hp: 120, hpMax: 120, hpTemp: battle % 2 ? 9 : 0,
+      cond: [condition]});
+    const damageType = (action.damage && action.damage[0] && action.damage[0].type) || 'рубящий';
+    const defenseMode = ['resist', 'immune', 'vuln'][battle % 3];
+    witness.activeFx.push({uid: `defense_${battle}`, k: 'test', id: `defense_${battle}`, label: defenseMode,
+      fx: [{stat: 'damage.rule', mode: 'grant', value: {mode: defenseMode, types: [damageType], when: ''}}]});
+    if (battle % 5 === 0) witness.activeFx.push({uid: `conc_${battle}`, k: 'spell', id: `conc_${battle}`,
+      label: 'Тестовая концентрация', casterId: actor.id, conc: true, fx: [{stat: 'ac', mode: 'add', value: 1}]});
+
+    const weapon = weapons[battle % weapons.length], profile = e.itemProfile(weapon);
+    const entry = {id: `stress_weapon_${battle}`, itemId: weapon.id, qty: 10};
+    actor.inventory.push(entry);
+    actor.equipment = profile.weapon.twoHanded ? {TWO_HAND: entry.id} : {MAIN_HAND: entry.id};
+    e.setState({chars: [actor, witness], items, spells, abilities, races, classes, foes: [foe]});
+    assert.equal(e.combatStart([{kind: 'foe', id: foe.id, nat: 20}, {kind: 'ally', id: actor.id, nat: 10}], `Стресс-бой ${battle + 1}`), true);
+
+    covered.heroes.add(actor.id); covered.foes.add(foe.id); covered.conditions.add(condition); covered.defenseModes.add(defenseMode);
+    e.setAutoRolls([20, 20, 20, 20]);
+    const foeTarget = battle % 5 === 0 ? `ally:${actor.id}` : `ally:${witness.id}`;
+    const foeSpec = e.foeActionSpecOf(foe, action, e.targetInfoOf(foeTarget), {within5: action.mode === 'melee'});
+    const foeValues = manualFormulaValues(foeSpec, battle);
+    const foeRolls = resolveManualOutcome(e, foeSpec, foeValues, {});
+    const foeValid = e.validateFormulaValues(foeSpec, foeValues, foeRolls);
+    assert.equal(foeValid.ok, true, `бой ${battle + 1}, ${foe.n}: ${foeValid.errors.join(' | ')}`);
+    const foeCost = action.cost || (action.kind === 'attack' ? 'attack' : 'action');
+    assert.equal(e.combatSpend(foeCost, action.n, `foe:${foe.id}`), true, `бой ${battle + 1}: затрата противника`);
+    assert.equal(e.foeActionApply(foe.id, action.id, foeTarget, foeRolls), true, `бой ${battle + 1}: действие ${action.n}`);
+    covered.actions.add(`${foe.id}:${action.id}`);
+    if (foeRolls.saveOk === true) covered.save++; else if (foeRolls.saveOk === false) covered.fail++;
+    e.closeCastModal();
+    assertBattleInvariants(e, `бой ${battle + 1} после противника`);
+
+    e.setAutoRolls([20, 20, 20, 20]);
+    assert.equal(e.combatNextTurn(), true, `бой ${battle + 1}: переход к герою`);
+    assert.equal(e.state().combat.turn.actorKey, `ally:${actor.id}`);
+    const weaponSpec = e.weaponSpecOf(actor, weapon, e.targetInfoOf(`foe:${foe.id}`),
+      {entryId: entry.id, mode: 'melee', within5: true});
+    const weaponValues = manualFormulaValues(weaponSpec, battle + 1);
+    const weaponRolls = resolveManualOutcome(e, weaponSpec, weaponValues, {});
+    const weaponValid = e.validateFormulaValues(weaponSpec, weaponValues, weaponRolls);
+    assert.equal(weaponValid.ok, true, `бой ${battle + 1}, ${weapon.n}: ${weaponValid.errors.join(' | ')}`);
+    const hpBefore = foe.hp;
+    const canAttack = e.combatCanSpend('attack', `ally:${actor.id}`, true);
+    if (canAttack) {
+      assert.equal(e.combatSpend('attack', weapon.n, `ally:${actor.id}`), true, `бой ${battle + 1}: затрата атаки`);
+      assert.equal(e.weaponAttackApply(entry.id, actor.id, `foe:${foe.id}`, weaponRolls), true, `бой ${battle + 1}: атака оружием`);
+      covered.weapons.add(weapon.id);
+      if (weaponRolls.hit === true) covered.hit++; else if (weaponRolls.hit === false) covered.miss++;
+      if (weaponRolls.hit === false) assert.equal(foe.hp, hpBefore, `бой ${battle + 1}: промах нанес урон`);
+      else assert.ok(foe.hp <= hpBefore, `бой ${battle + 1}: попадание вылечило противника`);
+    } else {
+      assert.equal(e.combatSpend('attack', weapon.n, `ally:${actor.id}`), false,
+        `бой ${battle + 1}: недееспособность должна блокировать атаку`);
+      assert.equal(foe.hp, hpBefore, `бой ${battle + 1}: заблокированная атака изменила цель`);
+    }
+    e.closeCastModal();
+    assertBattleInvariants(e, `бой ${battle + 1} после героя`);
+
+    e.setAutoRolls([20, 20, 20, 20]);
+    if (e.state().combat.active) {
+      e.combatNextTurn();
+      const current = e.state().combat.turn && e.state().combat.turn.actorKey;
+      if (current && e.combatCanSpend('action', current, true)) e.combatBasicAction('dodge');
+    }
+    assertBattleInvariants(e, `бой ${battle + 1} после смены последовательности`);
+    if (e.state().combat.active) assert.equal(e.combatEnd(true), true);
+    assert.equal(e.resetCombatAndParty(true), true);
+    covered.resets++;
+    const resetState = e.state();
+    assert.equal(resetState.combat.active, false); assert.equal(resetState.fxRound, 1);
+    assert.deepEqual(plain(resetState.chars.slice(0, 4).map(x => x.id)), ['char_roku', 'char_torgar', 'char_septih', 'char_legerem']);
+  }
+
+  assert.equal(covered.resets, 500);
+  assert.equal(covered.heroes.size, 4);
+  assert.equal(covered.foes.size, new Set(actionCases.map(x => x.foe.id)).size);
+  assert.equal(covered.weapons.size, weapons.length);
+  assert.equal(covered.actions.size, actionCases.length);
+  assert.equal(covered.conditions.size, conditions.length);
+  assert.deepEqual([...covered.defenseModes].sort(), ['immune', 'resist', 'vuln']);
+  assert.ok(covered.hit > 0 && covered.miss > 0, 'нужны и попадания, и промахи');
+  assert.ok(covered.save > 0 && covered.fail > 0, 'нужны успешные и проваленные спасброски');
 });
 
 test('каждый встроенный игровой элемент имеет проверяемый структурированный контракт', () => {

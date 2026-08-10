@@ -4449,6 +4449,41 @@ function encounterEnd(){
   if(typeof castLogLine==='function') castLogLine('— бой окончен: способности «раз за бой» восстановлены ('+n+') —');
 }
 
+/* Полный и воспроизводимый возврат кампании к точке перед боем.
+   Встроенные герои собираются заново из канонических листов, поэтому здесь
+   восстанавливаются не только хиты, но и ячейки, заряды, расходники,
+   экипировка и все остальные исходные значения. Пользовательские герои не
+   удаляются: для них выполняется максимально полный отдых без догадок об
+   исходном составе инвентаря. Журнал и архив завершенных боев сохраняются. */
+function resetCustomCharacterForCombat(c){
+  if(!c) return c;
+  c.activeFx=[]; c.fxOff=[]; c.cond=[]; c.hpTemp=0; c.deaths={s:0,f:0};
+  c.exhaustion=0; c.hdUsed=0; c.spentRest=0; c.hpPend=false;
+  Object.keys(c.slots||{}).forEach(k=>{ const s=c.slots[k]||{}; s.cur=Math.max(0,+s.max||0); });
+  (c.abilities||[]).forEach(e=>{ const ab=abilityOf(e.abilityId); if(ab&&ab.uses!=null) e.cur=ab.uses; });
+  (c.inventory||[]).forEach(e=>{ e.ammoSpent=0; });
+  c.hp=Math.max(1,eHpMax(c));
+  return c;
+}
+function resetCombatAndParty(force){
+  if(!force&&!window.confirm('Сбросить текущий бой и восстановить группу?\n\nВстроенные герои вернутся к исходным листам; пользовательские герои получат полный отдых; противники восстановят хиты. Журнал и архив завершенных боев сохранятся.')) return false;
+  const canonical={char_roku:buildRoku,char_torgar:buildTorgar,char_septih:buildSeptih,char_legerem:buildLegerem};
+  const custom=(chars||[]).filter(c=>!canonical[c.id]).map(resetCustomCharacterForCombat);
+  chars=[buildRoku(),buildTorgar(),buildSeptih(),buildLegerem()].concat(custom);
+  if(typeof upgradeChar3==='function') chars.forEach(upgradeChar3);
+  foesDB.forEach(f=>{
+    const stats=foeStatsOf(f); f.hp=Math.max(0,+stats.hpMax||0); f.hpTemp=0; f.cond=[]; f.activeFx=[];
+    foeResetActionState(f);
+  });
+  const history=(combat&&combat.history||[]).slice();
+  combat=blankCombat(); combat.history=history;
+  activeCharId=chars.length?chars[0].id:null; fxRound=1; lastCastEvent=null;
+  rollCancel(); closeCastModal();
+  fxInvalidate(); scheduleSave(); renderChars(); renderFoes(); renderCombat();
+  setStatus('↺ Бой сброшен: группа и противники восстановлены, журнал и архив сохранены ✓');
+  return true;
+}
+
 /* ── концентрация: единый учет, разрыв, проверка при уроне ── */
 function concEntriesOf(casterId){
   const out=[];
@@ -10156,7 +10191,9 @@ function combatSyncChanges(){
 function combatEnsureSetup(){
   combat.setup=combat.setup||{};
   chars.forEach(c=>{ const k='ally:'+c.id; if(!combat.setup[k]) combat.setup[k]={selected:(+c.hp||0)>0,nat:''}; });
-  foesDB.forEach(f=>{ const k='foe:'+f.id; if(!combat.setup[k]) combat.setup[k]={selected:foeAlive(f),nat:''}; });
+  /* Бестиарий — каталог, а не готовая встреча. Автовыбор каждого живого
+     монстра создавал бой сразу со всем сводом и делал форму почти непригодной. */
+  foesDB.forEach(f=>{ const k='foe:'+f.id; if(!combat.setup[k]) combat.setup[k]={selected:false,nat:''}; });
 }
 function combatSetupToggle(key,on){ combatEnsureSetup(); combat.setup[key].selected=!!on; }
 function combatSetupRoll(key,v){
@@ -10706,7 +10743,7 @@ function combatSetupRows(kind,list){
   }).join('');
 }
 function combatSetupHTML(){
-  combatEnsureSetup(); let h='<div class="combat-shell"><div class="combat-setup"><div class="combat-top"><div class="combat-title">⚔ Новый бой</div><span class="spacer"></span><span>Броски вводит мастер</span></div>';
+  combatEnsureSetup(); let h='<div class="combat-shell"><div class="combat-setup"><div class="combat-top"><div class="combat-title">⚔ Новый бой</div><span class="spacer"></span><span>Броски вводит мастер</span><button class="btn ghost sm" onclick="resetCombatAndParty()">↺ Сбросить бой и группу</button></div>';
   h+='<div class="combat-callout">Выберите участников и впишите фактический результат d20. Модификаторы и итог рассчитываются реактивно; при ничьей порядок уточняет мастер.</div>';
   h+='<label style="display:block;margin-bottom:10px">Название схватки <input id="combatName" style="width:100%;margin-top:4px" value="'+esc(combat.name||'Схватка')+'"></label>';
   h+='<div class="combat-setup-grid"><div class="combat-setup-card"><h3>⚔ Герои <small>· d20 + инициа</small></h3>'+combatSetupRows('ally',chars)+'</div><div class="combat-setup-card"><h3>☠ Противники <small>· d20 + Ловк.</small></h3>'+combatSetupRows('foe',foesDB)+'</div></div>';
@@ -10789,7 +10826,7 @@ function combatStageHTML(){
 }
 function renderCombat(){
   const box=document.getElementById('tab-combat'); if(!box) return; if(!combat.active){ box.innerHTML=combatSetupHTML(); return; }
-  const victory=combatVictoryText(); let h='<div class="combat-shell"><div class="combat-top"><div class="combat-title">⚔ '+esc(combat.name)+'</div><div class="combat-round">Раунд '+combat.round+'</div><span class="spacer"></span><button class="btn ghost sm" onclick="combatEnd()">Завершить бой</button></div>';
+  const victory=combatVictoryText(); let h='<div class="combat-shell"><div class="combat-top"><div class="combat-title">⚔ '+esc(combat.name)+'</div><div class="combat-round">Раунд '+combat.round+'</div><span class="spacer"></span><button class="btn ghost sm" onclick="combatEnd()">Завершить бой</button><button class="btn ghost sm" onclick="resetCombatAndParty()">↺ Сбросить бой и группу</button></div>';
   h+='<div class="combat-initiative">'+combat.order.map((e,i)=>{ const key=combatEntryKey(e),canL=i>0&&combat.order[i-1].initiative===e.initiative,canR=i<combat.order.length-1&&combat.order[i+1].initiative===e.initiative; return '<div class="combat-init-card '+(i===combat.turnIndex?'active ':'')+(!combatActorAlive(key)?'down':'')+'" onclick="combatFocus(\''+key+'\')"><span class="init">'+e.initiative+'</span><div class="side">'+(e.kind==='ally'?'герой':'противник')+'</div><div class="name">'+esc(combatActorName(key))+'</div><div style="margin-top:3px"><button class="combat-group" style="padding:0 5px" '+(canL?'':'disabled')+' onclick="event.stopPropagation();combatMoveOrder('+i+',-1)">←</button> <button class="combat-group" style="padding:0 5px" '+(canR?'':'disabled')+' onclick="event.stopPropagation();combatMoveOrder('+i+',1)">→</button></div></div>'; }).join('')+'</div>';
   if(victory) h+='<div class="combat-winner">'+esc(victory)+' Проверьте последствия и завершите бой.</div>';
   h+='<div class="combat-layout"><div class="combat-panel"><h3>Участники и последствия</h3>'+combat.order.map(combatActorCardHTML).join('')+'</div><div class="combat-panel">'+combatStageHTML()+'</div><div class="combat-panel"><h3>Журнал боя</h3><div class="combat-log" id="combatLogBox">'+combatLogHTML(combat.log)+'</div><div class="combat-note"><input id="combatNote" placeholder="Запись мастера…" onkeydown="if(event.key===\'Enter\')combatAddNote()"><button class="btn ghost sm" onclick="combatAddNote()">+</button></div>'+combatArchiveHTML()+'</div></div></div>';
