@@ -3395,9 +3395,48 @@ function applyAbilityCombatPatch(ab){
   if(p) Object.assign(ab,p);
   return ab;
 }
+const RACE_FEATURE_ABILITY_ALIASES={
+  'чейнджлинг|изменениевнешности':'ab_sx_shapechange'
+};
+function raceFeatureReferenceKey(v){
+  return String(v||'').toLowerCase().replace(/ё/g,'е').replace(/\s*\([^)]*\)\s*$/,'').replace(/[^a-zа-я0-9]+/g,'');
+}
+function reconcileRaceAbilityReferences(races,abilities){
+  const rr=Array.isArray(races)?races:racesDB,aa=Array.isArray(abilities)?abilities:abilitiesDB;
+  const byId=new Map(aa.filter(Boolean).map(a=>[a.id,a]));
+  let linked=0,added=0;
+  rr.forEach(r=>{
+    upgradeRace(r);
+    const raceKey=raceFeatureReferenceKey(r.n);
+    (r.mechanics&&r.mechanics.features||[]).forEach(f=>{
+      if(f.abilityId&&byId.has(f.abilityId)) return;
+      const featureKey=raceFeatureReferenceKey(f.name),alias=RACE_FEATURE_ABILITY_ALIASES[raceKey+'|'+featureKey];
+      let match=alias&&byId.get(alias);
+      if(!match) match=aa.find(a=>raceFeatureReferenceKey(a.source)===raceKey&&raceFeatureReferenceKey(a.n)===featureKey);
+      if(!match){
+        const raw=(r.tr||[])[f.textIndex]||f.name,canonicalRace=String(r.n||'').replace(/ё/g,'е');
+        const id='ab_'+slugify(canonicalRace+'_'+f.name);
+        match=byId.get(id);
+        if(!match){
+          const active=AB_ACTIVE_RE.test(normRollTxt(f.name+' '+raw));
+          match={id,n:f.name+' ('+canonicalRace+')',type:'racial',source:r.n,custom:false,
+            tags:active?['racial']:['racial','passive'],uses:null,rest:'',mode:active?'active':'passive',x:String(raw)};
+          const usePatch=ABILITY_USES_PATCHES_BY_NAME[match.n];
+          if(usePatch) Object.assign(match,usePatch);
+          applyAbilityCombatPatch(match);
+          match.tags=uniqTags(match.tags.concat(abilityEnrichTags(match)));
+          upgradeAbility(match); aa.push(match); byId.set(id,match); added++;
+        }
+      }
+      if(f.abilityId!==match.id){ f.abilityId=match.id; linked++; }
+    });
+  });
+  return {changed:linked+added>0,linked,added};
+}
 async function ensureAbilityAudit(){
   const flag=await store.get('dndworld2:abaudit');
-  if(flag==='5') return;   /* версия 5: явная экономика действий боевых способностей */
+  const raceRefs=reconcileRaceAbilityReferences(racesDB,abilitiesDB);
+  if(flag==='6'&&!raceRefs.changed) return;   /* версия 6: целостные ссылки расовых черт */
   const clericArmor=abilitiesDB.find(a=>a.n==='Владение доспехами: Жрец (Домен Жизни)');
   if(clericArmor && clericArmor.x && clericArmor.x.indexOf('легкими и средними')<0)
     clericArmor.x+=' Вы также владеете легкими и средними доспехами и щитами.';
@@ -3418,7 +3457,7 @@ async function ensureAbilityAudit(){
     const db=abilitiesDB.find(a=>a.id===e.abilityId);
     if(db&&db.uses!=null&&e.cur==null) e.cur=db.uses;
   }));
-  await store.set('dndworld2:abaudit','5');
+  await store.set('dndworld2:abaudit','6');
   scheduleSave();
 }
 

@@ -38,6 +38,7 @@ function loadEngine(random = () => 0) {
       itemUseResourcePlan, commitItemUseResource,
       dmgAfterTraits, effectiveFoeConditions, castDispel, rollbackLastCast,
       seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, seedFoesDB, gameDataAudit,
+      reconcileRaceAbilityReferences,
       upgradeFoe, mergeBuiltinFoe, foeSaveMod, foeSkillMod, foeActionReady, foeResetActionState,
       buildRoku, buildTorgar, buildSeptih, buildLegerem,
       foeActionOf, foeActionFormula, foeActionSpecOf, foeActionApply, foeActionBatchApply,
@@ -1189,6 +1190,41 @@ test('аудит сообщает точные ошибки нового пре�
   assert.match(errors, /слот MAIN_HAND ссылается на отсутствующую запись/);
   assert.match(errors, /неизвестная способность missing-ability/);
   assert.match(errors, /неизвестное заклинание missing-spell/);
+});
+
+test('миграция расовых черт чинит старое ё в ссылках и дополняет способности чейнджлинга', () => {
+  const e = loadEngine();
+  const abilities = e.seedAbilitiesDB(), races = e.seedRacesDB();
+  const dragon = races.find(r => r.n === 'Драконорожденный');
+  dragon.n = 'Драконорождённый';
+  dragon.mechanics.features.forEach(f => { f.abilityId = f.abilityId.replace('драконорожденный', 'драконорожд_нный'); });
+  const changeling = {
+    id: 'race_changeling', n: 'Чейнджлинг', ab: '+2 Харизма, +1 к другой характеристике', sz: 'Средний', sp: '9 м',
+    tr: [
+      'Изменение внешности: действием вы можете изменить свой внешний вид и голос',
+      'Инстинкты чейнджлинга: владение двумя навыками на выбор',
+      'Языки: Общий и два любых языка на выбор'
+    ], subs: []
+  };
+  e.upgradeRace(changeling); races.push(changeling);
+
+  const before = abilities.length;
+  const result = e.reconcileRaceAbilityReferences(races, abilities);
+  assert.deepEqual(plain(result), {changed: true, linked: 4, added: 2});
+  assert.equal(abilities.length, before + 2);
+  assert.deepEqual(plain(changeling.mechanics.features.map(f => f.abilityId)), [
+    'ab_sx_shapechange',
+    'ab_чейнджлинг_инстинкты_чейнджлинга',
+    'ab_чейнджлинг_языки'
+  ]);
+  assert.deepEqual(plain(dragon.mechanics.features.map(f => f.abilityId)), [
+    'ab_драконорожденный_драконье_наследие',
+    'ab_драконорожденный_оружие_дыхания',
+    'ab_драконорожденный_сопротивление_урону_стихии_предка'
+  ]);
+  const items = e.seedItemsDB(), spells = e.seedSpellsDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const errors = e.gameDataAudit({spells, abilities, items, races, classes, foes, chars: []}).errors;
+  assert.equal(errors.some(msg => /race\[.*неизвестная способность/.test(msg)), false, errors.join('\n'));
 });
 
 test('Магический сон расходует общий пул от цели с наименьшими хитами', () => {
