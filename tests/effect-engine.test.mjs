@@ -1198,6 +1198,7 @@ test('миграция расовых черт чинит старое ё в с�
   const dragon = races.find(r => r.n === 'Драконорожденный');
   dragon.n = 'Драконорождённый';
   dragon.mechanics.features.forEach(f => { f.abilityId = f.abilityId.replace('драконорожденный', 'драконорожд_нный'); });
+  dragon.mechanics = Object.freeze({...dragon.mechanics, origin: 'explicit', features: Object.freeze(dragon.mechanics.features.map(Object.freeze))});
   const changeling = {
     id: 'race_changeling', n: 'Чейнджлинг', ab: '+2 Харизма, +1 к другой характеристике', sz: 'Средний', sp: '9 м',
     tr: [
@@ -1206,11 +1207,13 @@ test('миграция расовых черт чинит старое ё в с�
       'Языки: Общий и два любых языка на выбор'
     ], subs: []
   };
-  e.upgradeRace(changeling); races.push(changeling);
+  e.upgradeRace(changeling);
+  changeling.mechanics = Object.freeze({...changeling.mechanics, origin: 'explicit', features: Object.freeze(changeling.mechanics.features.map(Object.freeze))});
+  races.push(changeling);
 
   const before = abilities.length;
   const result = e.reconcileRaceAbilityReferences(races, abilities);
-  assert.deepEqual(plain(result), {changed: true, linked: 4, added: 2});
+  assert.deepEqual(plain(result), {changed: true, linked: 3, added: 2});
   assert.equal(abilities.length, before + 2);
   assert.deepEqual(plain(changeling.mechanics.features.map(f => f.abilityId)), [
     'ab_sx_shapechange',
@@ -1222,6 +1225,10 @@ test('миграция расовых черт чинит старое ё в с�
     'ab_драконорожденный_оружие_дыхания',
     'ab_драконорожденный_сопротивление_урону_стихии_предка'
   ]);
+  const recompiled = e.compileRaceMechanics({n: 'Драконорождённый', ab: '', sz: 'Средний', sp: '9 м', tr: ['Оружие дыхания: выдох стихии'], subs: []});
+  assert.equal(recompiled.features[0].abilityId, 'ab_драконорожденный_оружие_дыхания');
+  assert.equal(e.compileRaceMechanics(changeling).features[0].abilityId, 'ab_sx_shapechange');
+  races.forEach(e.upgradeRace);
   const items = e.seedItemsDB(), spells = e.seedSpellsDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
   const errors = e.gameDataAudit({spells, abilities, items, races, classes, foes, chars: []}).errors;
   assert.equal(errors.some(msg => /race\[.*неизвестная способность/.test(msg)), false, errors.join('\n'));

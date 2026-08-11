@@ -3401,6 +3401,10 @@ const RACE_FEATURE_ABILITY_ALIASES={
 function raceFeatureReferenceKey(v){
   return String(v||'').toLowerCase().replace(/ё/g,'е').replace(/\s*\([^)]*\)\s*$/,'').replace(/[^a-zа-я0-9]+/g,'');
 }
+function canonicalRaceFeatureAbilityId(raceName,featureName){
+  const alias=RACE_FEATURE_ABILITY_ALIASES[raceFeatureReferenceKey(raceName)+'|'+raceFeatureReferenceKey(featureName)];
+  return alias||('ab_'+slugify(String(raceName||'').replace(/ё/g,'е').replace(/Ё/g,'Е')+'_'+featureName));
+}
 function reconcileRaceAbilityReferences(races,abilities){
   const rr=Array.isArray(races)?races:racesDB,aa=Array.isArray(abilities)?abilities:abilitiesDB;
   const byId=new Map(aa.filter(Boolean).map(a=>[a.id,a]));
@@ -3408,14 +3412,15 @@ function reconcileRaceAbilityReferences(races,abilities){
   rr.forEach(r=>{
     upgradeRace(r);
     const raceKey=raceFeatureReferenceKey(r.n);
-    (r.mechanics&&r.mechanics.features||[]).forEach(f=>{
-      if(f.abilityId&&byId.has(f.abilityId)) return;
+    let raceLinked=0;
+    const features=(r.mechanics&&r.mechanics.features||[]).map(f=>{
+      if(f.abilityId&&byId.has(f.abilityId)) return f;
       const featureKey=raceFeatureReferenceKey(f.name),alias=RACE_FEATURE_ABILITY_ALIASES[raceKey+'|'+featureKey];
       let match=alias&&byId.get(alias);
       if(!match) match=aa.find(a=>raceFeatureReferenceKey(a.source)===raceKey&&raceFeatureReferenceKey(a.n)===featureKey);
       if(!match){
-        const raw=(r.tr||[])[f.textIndex]||f.name,canonicalRace=String(r.n||'').replace(/ё/g,'е');
-        const id='ab_'+slugify(canonicalRace+'_'+f.name);
+        const raw=(r.tr||[])[f.textIndex]||f.name,canonicalRace=String(r.n||'').replace(/ё/g,'е').replace(/Ё/g,'Е');
+        const id=canonicalRaceFeatureAbilityId(r.n,f.name);
         match=byId.get(id);
         if(!match){
           const active=AB_ACTIVE_RE.test(normRollTxt(f.name+' '+raw));
@@ -3428,8 +3433,12 @@ function reconcileRaceAbilityReferences(races,abilities){
           upgradeAbility(match); aa.push(match); byId.set(id,match); added++;
         }
       }
-      if(f.abilityId!==match.id){ f.abilityId=match.id; linked++; }
+      if(f.abilityId!==match.id){ linked++; raceLinked++; return Object.assign({},f,{abilityId:match.id}); }
+      return f;
     });
+    /* Некоторые внешние хранилища возвращают неизменяемые вложенные снимки.
+       Заменяем весь mechanics-контракт, а не полагаемся на запись в feature. */
+    if(raceLinked) r.mechanics=Object.assign({},r.mechanics,{features});
   });
   return {changed:linked+added>0,linked,added};
 }
@@ -3504,7 +3513,7 @@ function parseReferenceSpeed(raw){
 function compileRaceMechanics(r){
   return {schemaVersion:GAME_MECHANICS_SCHEMA_VERSION,mode:'structured',origin:'migration',sourceHash:referenceSourceHash(r,'race'),
     abilityAdjustments:parseRaceAbilityAdjustments(r.ab),size:r.sz||'Средний',speed:parseReferenceSpeed(r.sp),
-    features:(r.tr||[]).map((text,i)=>{const name=String(text).split(':')[0].trim();return {id:'racial_'+slugify(r.n+'_'+name),abilityId:'ab_'+slugify(r.n+'_'+name),name,textIndex:i};}),
+    features:(r.tr||[]).map((text,i)=>{const name=String(text).split(':')[0].trim();return {id:'racial_'+slugify(r.n+'_'+name),abilityId:canonicalRaceFeatureAbilityId(r.n,name),name,textIndex:i};}),
     subraces:(r.subs||[]).map((s,i)=>({id:'subrace_'+slugify(r.n+'_'+s.n),name:s.n,textIndex:i,
       abilityAdjustments:parseRaceAbilityAdjustments(s.d),mode:'manual',manualNote:'Остальные черты подрасы описаны мастером явно.'}))};
 }
