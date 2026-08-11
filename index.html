@@ -572,7 +572,7 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
   <span class="corner bl">✠</span><span class="corner br">✠</span>
   <h1 class="title">D&amp;D World</h1>
   <div class="subtitle">Летопись развития персонажей · настольная книга гейм-мастера · единое издание с «D&amp;D Нексус»</div>
-  <div class="release-badge" id="releaseBadge" title="Формулы v2 принимают только объявленные реальные броски; ручных поправок попадания нет">Движок 4.2 · строгие формулы v2</div>
+  <div class="release-badge" id="releaseBadge" title="Формулы v2 принимают только объявленные реальные броски; встроен изолированный аудит 250 редких боев">Движок 4.3 · редкие сценарии 250</div>
   <div class="rule-flourish">❦</div>
   <div class="toolrow">
     <div class="dicebox">
@@ -2409,9 +2409,14 @@ const SPELL_X_PATCHES = {
 
 /* Классы-заклинатели: аббревиатура в поле «c» заклинаний и тип прогрессии */
 const CASTER_META = {
- 'Волшебник':{abbr:'Влш', kind:'full'}, 'Жрец':{abbr:'Жрц', kind:'full'}, 'Друид':{abbr:'Дрд', kind:'full'},
- 'Бард':{abbr:'Брд', kind:'full'}, 'Чародей':{abbr:'Чрд', kind:'full'}, 'Колдун':{abbr:'Клд', kind:'full'},
- 'Паладин':{abbr:'Пал', kind:'half'}, 'Следопыт':{abbr:'Слд', kind:'half'}
+ 'Волшебник':{abbr:'Влш',kind:'full',ability:'int',preparation:'book',slotRecovery:'long',ritualCasting:true},
+ 'Жрец':{abbr:'Жрц',kind:'full',ability:'wis',preparation:'prepared',slotRecovery:'long',ritualCasting:true},
+ 'Друид':{abbr:'Дрд',kind:'full',ability:'wis',preparation:'prepared',slotRecovery:'long',ritualCasting:true},
+ 'Бард':{abbr:'Брд',kind:'full',ability:'cha',preparation:'known',slotRecovery:'long',ritualCasting:true},
+ 'Чародей':{abbr:'Чрд',kind:'full',ability:'cha',preparation:'known',slotRecovery:'long',ritualCasting:false},
+ 'Колдун':{abbr:'Клд',kind:'pact',ability:'cha',preparation:'known',slotRecovery:'short',ritualCasting:false},
+ 'Паладин':{abbr:'Пал',kind:'half',ability:'cha',preparation:'prepared',slotRecovery:'long',ritualCasting:false},
+ 'Следопыт':{abbr:'Слд',kind:'half',ability:'wis',preparation:'known',slotRecovery:'long',ritualCasting:false}
 };
 /* Ячейки полукастеров (паладин, следопыт) по уровню, PHB */
 const HALF_SLOTS = {
@@ -2419,24 +2424,55 @@ const HALF_SLOTS = {
  11:[4,3,3], 12:[4,3,3], 13:[4,3,3,1], 14:[4,3,3,1], 15:[4,3,3,2], 16:[4,3,3,2],
  17:[4,3,3,3,1], 18:[4,3,3,3,1], 19:[4,3,3,3,2], 20:[4,3,3,3,2]
 };
+/* Магия договора, PHB 2014: все ячейки колдуна имеют один и тот же круг и
+   восстанавливаются после короткого или долгого отдыха. */
+const PACT_SLOTS = {
+ 1:[1,1],2:[1,2],3:[2,2],4:[2,2],5:[3,2],6:[3,2],7:[4,2],8:[4,2],9:[5,2],10:[5,2],
+ 11:[5,3],12:[5,3],13:[5,3],14:[5,3],15:[5,3],16:[5,3],17:[5,4],18:[5,4],19:[5,4],20:[5,4]
+};
 
 function casterMeta(c){
   const cls=classesDB.find(x=>x.n===c.cls),rule=cls&&cls.mechanics&&cls.mechanics.spellcasting;
-  if(rule&&rule.kind!=='none') return {abbr:rule.abbreviation,kind:rule.kind,ability:rule.ability};
+  const fallback=CASTER_META[c.cls]||null;
+  if(rule&&rule.kind!=='none') return {
+    abbr:rule.abbreviation||(fallback&&fallback.abbr)||'',kind:rule.kind,ability:rule.ability||(fallback&&fallback.ability)||'',
+    preparation:rule.preparation||(fallback&&fallback.preparation)||'prepared',
+    slotRecovery:rule.slotRecovery||(fallback&&fallback.slotRecovery)||'long',
+    ritualCasting:rule.ritualCasting!=null?!!rule.ritualCasting:!!(fallback&&fallback.ritualCasting)
+  };
   return CASTER_META[c.cls]||null;
 }
 function maxCircleFor(c){
   const m=casterMeta(c); if(!m) return 0;
+  if(m.kind==='pact'){ const p=PACT_SLOTS[c.level]; return p?p[0]:0; }
   if(m.kind==='half') return c.level>=2? Math.ceil(c.level/4) : 0;
   return Math.min(9, Math.ceil(c.level/2));
 }
 function slotsRowFor(c){
   const m=casterMeta(c); if(!m) return [];
+  if(m.kind==='pact'){
+    const p=PACT_SLOTS[c.level]; if(!p) return [];
+    return Array(Math.max(0,p[0]-1)).fill(0).concat(p[1]);
+  }
   return (m.kind==='half'? HALF_SLOTS[c.level] : FULL_SLOTS[c.level])||[];
+}
+function casterPreparationMode(c){ const m=casterMeta(c); return m?m.preparation:'none'; }
+function spellEntryReady(c,e,sp){
+  if(!sp||+sp.l===0||!casterMeta(c)||!e) return true;
+  return casterPreparationMode(c)==='known'||!!e.prep;
+}
+function spellRitualAllowed(c,sp,e){
+  if(!sp||!sp.ritual) return false;
+  const meta=casterMeta(c),mode=casterPreparationMode(c);
+  const feature=charAbilityRuleEntries(c).some(x=>x.rules&&x.rules.ritualCasting);
+  if(meta&&!meta.ritualCasting&&!feature) return false;
+  if(mode==='book'||mode==='known'||mode==='none') return !meta||!!e;
+  return !!(e&&e.prep);
 }
 /* лимит подготовленных: характеристика + уровень (полукастеры — половина уровня), минимум 1 */
 function prepMax(c){
   const m=casterMeta(c); if(!m) return 0;
+  if(m.preparation==='known') return 0;
   const lvlPart=m.kind==='half'? Math.max(1,Math.floor(c.level/2)) : c.level;
   return Math.max(1, lvlPart + eMod(c, spellAbOf(c)));
 }
@@ -2447,6 +2483,10 @@ function prepCount(c){
 /* Автокниги: при смене уровня заклинания открывшихся кругов входят в книгу, при откате — авто-добавленные уходят */
 function autoLevelSpells(c, oldLevel){
   const m=casterMeta(c); if(!m) return {added:[], removed:[]};
+  /* Известные заклинания выбираются игроком по таблице класса. Автоматическое
+     добавление всего классового списка превращало барда, следопыта, чародея и
+     колдуна в подготовленных заклинателей. */
+  if(m.preparation==='known') return {added:[],removed:[]};
   const oldC=maxCircleFor(Object.assign({},c,{level:oldLevel}));
   const newC=maxCircleFor(c);
   const added=[], removed=[];
@@ -2473,6 +2513,15 @@ function autoLevelSpells(c, oldLevel){
 function applyClassSlots(c){
   const row=slotsRowFor(c);
   const old=c.slots||{};
+  const meta=casterMeta(c);
+  if(meta&&meta.kind==='pact'){
+    const pact=row.map((mx,i)=>({lv:i+1,mx})).find(x=>x.mx>0);
+    if(!pact){ c.slots={}; return; }
+    const prev=Object.keys(old).map(Number).sort((a,b)=>b-a).map(lv=>old[lv]).find(s=>s&&+s.max>0);
+    const spent=prev?Math.max(0,(+prev.max||0)-(+prev.cur||0)):0;
+    c.slots={}; c.slots[pact.lv]={max:pact.mx,cur:Math.max(0,pact.mx-spent)};
+    return;
+  }
   const next={};
   row.forEach((mx,i)=>{
     if(mx<=0) return;
@@ -2941,9 +2990,14 @@ function parseClassProficiencies(c){
   return {armor:armorRules,weapons,skills:{choose:+count||0,from:list,any:/любые/i.test(skills)},savingThrows:(c.saves||[]).slice()};
 }
 function classSpellcastingRule(c){
-  const map={'Волшебник':['full','int','Влш'],'Жрец':['full','wis','Жрц'],'Друид':['full','wis','Дрд'],'Бард':['full','cha','Брд'],
-    'Чародей':['full','cha','Чрд'],'Колдун':['pact','cha','Клд'],'Паладин':['half','cha','Пал'],'Следопыт':['half','wis','Слд']};
-  const x=map[c.n]; return x?{kind:x[0],ability:x[1],abbreviation:x[2]}:{kind:'none',ability:'',abbreviation:''};
+  const map={
+    'Волшебник':['full','int','Влш','book','long',true],'Жрец':['full','wis','Жрц','prepared','long',true],
+    'Друид':['full','wis','Дрд','prepared','long',true],'Бард':['full','cha','Брд','known','long',true],
+    'Чародей':['full','cha','Чрд','known','long',false],'Колдун':['pact','cha','Клд','known','short',false],
+    'Паладин':['half','cha','Пал','prepared','long',false],'Следопыт':['half','wis','Слд','known','long',false]
+  };
+  const x=map[c.n]; return x?{kind:x[0],ability:x[1],abbreviation:x[2],preparation:x[3],slotRecovery:x[4],ritualCasting:x[5]}
+    :{kind:'none',ability:'',abbreviation:'',preparation:'none',slotRecovery:'none',ritualCasting:false};
 }
 function compileClassMechanics(c){
   const progression=(c.lv||[]).map((x,i)=>({level:+x[0]||1,id:'class_'+slugify(c.n+'_'+x[1]+'_'+i),name:x[1]}));
@@ -2955,7 +3009,16 @@ function compileClassMechanics(c){
 }
 function upgradeClass(c,force){
   if(!c||typeof c!=='object') return c; const m=c.mechanics,hash=referenceSourceHash(c,'class');
-  if(force||!m||m.schemaVersion!==GAME_MECHANICS_SCHEMA_VERSION||(m.origin!=='explicit'&&m.sourceHash!==hash)) c.mechanics=compileClassMechanics(c);
+  const sr=m&&m.spellcasting,missingRule=sr&&sr.kind!=='none'&&(!['book','prepared','known'].includes(sr.preparation)||!['long','short'].includes(sr.slotRecovery)||typeof sr.ritualCasting!=='boolean');
+  if(force||!m||m.schemaVersion!==GAME_MECHANICS_SCHEMA_VERSION||(m.origin!=='explicit'&&(m.sourceHash!==hash||missingRule))) c.mechanics=compileClassMechanics(c);
+  else if(missingRule){
+    /* Явную пользовательскую механику не перезаписываем: дополняем только
+       отсутствующие поля жизненного цикла заклинаний. */
+    const d=classSpellcastingRule(c);
+    if(!sr.preparation) sr.preparation=d.preparation;
+    if(!sr.slotRecovery) sr.slotRecovery=d.slotRecovery;
+    if(typeof sr.ritualCasting!=='boolean') sr.ritualCasting=d.ritualCasting;
+  }
   return c;
 }
 function referenceMechanicsErrors(m,kind){
@@ -2971,6 +3034,11 @@ function referenceMechanicsErrors(m,kind){
     if(!Number.isInteger(+m.hitDie)||+m.hitDie<4) out.push('hitDie должен быть допустимой костью хитов');
     if(!m.proficiencies||!m.proficiencies.armor||!m.proficiencies.weapons) out.push('proficiencies не структурированы');
     if(!m.spellcasting||!['none','full','half','pact'].includes(m.spellcasting.kind)) out.push('spellcasting не структурирован');
+    else if(m.spellcasting.kind!=='none'){
+      if(!['book','prepared','known'].includes(m.spellcasting.preparation)) out.push('spellcasting.preparation должен быть book, prepared или known');
+      if(!['long','short'].includes(m.spellcasting.slotRecovery)) out.push('spellcasting.slotRecovery должен быть long или short');
+      if(typeof m.spellcasting.ritualCasting!=='boolean') out.push('spellcasting.ritualCasting должен быть boolean');
+    }
     if(!m.progression||!Array.isArray(m.progression.features)||!Array.isArray(m.progression.attacks)) out.push('progression не структурирован');
     if(!Array.isArray(m.subclasses)) out.push('subclasses должен быть массивом');
   }
@@ -4330,7 +4398,7 @@ function useAbilityApply(abilityId, casterId, target, rolls){
     }
   }
   const weaponPlan=(castCtx&&castCtx.kind==='ability'&&combatRule.forceAttack&&castCtx.weapon&&castCtx.weapon.entryId)
-    ?weaponAttackResourcePlan(caster,castCtx.weapon.entryId,castCtx.weapon.mode):{ok:true};
+    ?weaponAttackResourcePlan(caster,castCtx.weapon.entryId,castCtx.weapon.mode,{two:!!castCtx.weapon.two,rangeBand:castCtx.rangeBand,cover:castCtx.cover}):{ok:true};
   if(!weaponPlan.ok){ setStatus('✕ '+weaponPlan.reason,true); castShowErr&&castShowErr(weaponPlan.reason); return false; }
   /* 2. Атомарный коммит ресурсов после успешного префлайта. */
   if(resourceTriggered&&ownEntry){
@@ -4535,25 +4603,30 @@ function breakConcentration(caster, reason){
   if(typeof castLogLine==='function') castLogLine(casterName+': концентрация на «'+names.join('», «')+'» прервана ('+reason+')');
   return true;
 }
-function concAdvantage(c){
-  if(holderFxRules(c,'save.concentration').some(f=>f.mode==='adv')) return true;
-  return charAbilityRuleEntries(c).some(x=>x.rules&&x.rules.concentrationAdvantage);
+function concRollMode(c){
+  const fx=rollFxEntries(c,'save.con',['concentration']);
+  const hasAdv=fx.some(f=>f.mode==='adv')
+    ||charAbilityRuleEntries(c).some(x=>x.rules&&x.rules.concentrationAdvantage);
+  const hasDis=fx.some(f=>f.mode==='dis')||(+c.exhaustion||0)>=3;
+  return hasAdv===hasDis?0:(hasAdv?1:2);
 }
+function concAdvantage(c){ return concRollMode(c)===1; }
 function concDamageCheck(c, dmg){
   if(!concEntriesOf(c.id).length) return;
   const dc=Math.max(10, Math.floor(dmg/2));
   const conMod=eMod(c,'con')+(c.saves&&c.saves.con?PROF[c.level]:0)+fxSaveBonus(c,'con');
-  const adv=concAdvantage(c);
-  const rows=adv? [{key:'a',label:'d20 — первый',sub:'преимущество на концентрацию: берется больший',min:1,max:20},{key:'b',label:'d20 — второй',min:1,max:20}]
+  const rollMode=concRollMode(c),adv=rollMode===1,dis=rollMode===2;
+  const rows=rollMode? [{key:'a',label:'d20 — первый',sub:(adv?'преимущество':'помеха')+' на концентрацию: берется '+(adv?'больший':'меньший'),min:1,max:20},{key:'b',label:'d20 — второй',min:1,max:20}]
                 : [{key:'a',label:'d20',min:1,max:20}];
   askRolls({title:'⚂ Концентрация — '+c.name,
-    note:'Урон '+dmg+' → спасбросок Телосложения, СЛ '+dc+'. Модификатор: '+(conMod>0?'+':'')+conMod+'.',
+    note:'Урон '+dmg+' → спасбросок Телосложения, СЛ '+dc+'. Модификатор: '+(conMod>0?'+':'')+conMod+'.'
+      +(rollMode?' '+(adv?'Преимущество':'Помеха')+' учитывается автоматически.':''),
     rows,
-    compute:v=>{ const r=adv?Math.max(v.a,v.b):v.a; const t=r+conMod; return 'd20 '+r+(conMod?(conMod>0?' + '+conMod:' − '+Math.abs(conMod)):'')+' = '+t+' против СЛ '+dc+' — '+(t>=dc?'удержана ✓':'ПРОВАЛ ✕'); },
+    compute:v=>{ const r=adv?Math.max(v.a,v.b):(dis?Math.min(v.a,v.b):v.a); const t=r+conMod; return 'd20 '+r+(conMod?(conMod>0?' + '+conMod:' − '+Math.abs(conMod)):'')+' = '+t+' против СЛ '+dc+' — '+(t>=dc?'удержана ✓':'ПРОВАЛ ✕'); },
     apply:v=>{
-      const r=adv?Math.max(v.a,v.b):v.a;
+      const r=adv?Math.max(v.a,v.b):(dis?Math.min(v.a,v.b):v.a);
       const tot=r+conMod, ok=tot>=dc;
-      diceOutSet('Концентрация ('+c.name+'): урон '+dmg+' → спасбросок Тел СЛ '+dc+': d20 '+r+(adv?' ▲['+v.a+'|'+v.b+']':'')+(conMod?(conMod>0?' + '+conMod:' − '+Math.abs(conMod)):'')+' = '+tot+' — '+(ok?'удержана ✓':'ПРОВАЛ ✕'), ok?'var(--ok)':'var(--rubric)');
+      diceOutSet('Концентрация ('+c.name+'): урон '+dmg+' → спасбросок Тел СЛ '+dc+': d20 '+r+(rollMode?(adv?' ▲[':' ▼[')+v.a+'|'+v.b+']':'')+(conMod?(conMod>0?' + '+conMod:' − '+Math.abs(conMod)):'')+' = '+tot+' — '+(ok?'удержана ✓':'ПРОВАЛ ✕'), ok?'var(--ok)':'var(--rubric)');
       if(!ok) breakConcentration(c, 'провален спасбросок Телосложения от урона (СЛ '+dc+')');
       else setStatus('🧠 '+c.name+' удерживает концентрацию (СЛ '+dc+' пройдена).');
     }});
@@ -4798,6 +4871,11 @@ function handOccupants(c){
 function freeHandInfo(c){
   const eq=c.equipment||{};
   if(!eq.MAIN_HAND||!eq.OFF_HAND) return {free:true,focus:false};
+  if(eq.MAIN_HAND===eq.OFF_HAND){
+    const e=invEntry(c,eq.MAIN_HAND),it=e&&itemOf(e.itemId),w=it&&itemProfile(it).weapon;
+    if(it&&(it.slot==='TWO_HAND'||w&&w.two))
+      return {free:true,focus:isFocusItem(it),releasedTwoHand:true};
+  }
   const focus=[eq.MAIN_HAND,eq.OFF_HAND].some(id=>{
     const e=invEntry(c,id); const it=e&&itemOf(e.itemId);
     return !!it&&isFocusItem(it);
@@ -5574,6 +5652,16 @@ function abilityAfterHit(ab){
   return /если вы попадаете|когда вы попадаете|при попадании|если вы наносите урон/.test(x)
       && !/до или после совершения броска атаки|добавить ее к броску(?!\s+урона)/.test(x);
 }
+function attackRangeBands(raw){
+  const m=String(raw||'').replace(/,/g,'.').match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)\s*(м|фут)/i);
+  if(!m) return null;
+  return {normal:+m[1],maximum:+m[2],unit:/фут/i.test(m[3])?'ft':'m'};
+}
+function coverRuleOf(value){
+  const key=['half','threeQuarters','total'].includes(value)?value:'none';
+  return {key,bonus:key==='half'?2:(key==='threeQuarters'?5:0),total:key==='total',
+    label:key==='half'?'укрытие наполовину':(key==='threeQuarters'?'укрытие на три четверти':(key==='total'?'полное укрытие':'без укрытия'))};
+}
 function attackConditionMode(caster,ti,opts){
   opts=opts||{};
   const casterIsFoe=!!caster&&foesDB.indexOf(caster)>=0;
@@ -5596,9 +5684,10 @@ function attackConditionMode(caster,ti,opts){
   });
   const targetIncapacitated=targetRules.some(c=>c.rules.incapacitated);
   const hostileTarget=!!ti&&((casterIsFoe&&ti.kind==='ally')||(!casterIsFoe&&ti.kind==='foe'));
-  if(opts.mode==='ranged'&&opts.within5===true&&hostileTarget&&!targetIncapacitated
+  if(opts.mode==='ranged'&&(opts.within5===true&&hostileTarget||opts.threatenedWithin5===true)&&!targetIncapacitated
     &&!targetRules.some(c=>c.rules.vision===false)&&!mineRules.some(c=>c.rules.visibility==='hidden'))
     dis.push('дальнобойная атака рядом с видящим дееспособным противником');
+  if(opts.mode==='ranged'&&opts.rangeBand==='long') dis.push('дальняя дистанция оружия');
   targetRules.forEach(c=>{
     const byDistance=c.rules.incomingAttackByDistance;
     if(!byDistance) return;
@@ -5697,6 +5786,7 @@ function legacyRollSpecOf(rec, opts){
     damageTags:Object.assign({magical:!!(isSpell||opts.magical),silvered:!!opts.silvered,adamantine:!!opts.adamantine},weapon&&weapon.damageTags||{}),
     contestBonus:rec.combatContestBonus||'',threshold:rec.combatThreshold||'',
     thresholdCondition:rec.combatThresholdCondition||''};
+  const cover=coverRuleOf(opts.cover);meta.cover=cover.key;meta.coverBonus=cover.bonus;meta.totalCover=cover.total;
 
   /* 1. бросок атаки — свой d20 */
   const autoHit=/автоматически\s+попада/.test(all);
@@ -5715,15 +5805,17 @@ function legacyRollSpecOf(rec, opts){
     const attackMode=weapon&&weapon.mode?weapon.mode:(/рукопашн[а-я]*\s+атак/.test(all)?'melee':(/дальнобойн[а-я]*\s+атак/.test(all)?'ranged':''));
     const within5=opts.within5!==undefined?opts.within5:(weapon&&weapon.within5!==undefined?weapon.within5:
       (attackMode==='melee'&&/касани|^\s*5\s*фут|^\s*1[,.]5\s*м/.test(normRollTxt(rec.r||''))?true:null));
+    const rangeBands=attackRangeBands((weapon&&weapon.range)||opts.range||''),rangeBand=opts.rangeBand||'';
     const attackKey=isSpell&&caster?spellAbOf(caster):(weapon?(weapon.abKey||(/лов/i.test(String(weapon.abn||''))?'dex':'str')):
       (caster&&eMod(caster,'dex')>eMod(caster,'str')?'dex':'str'));
-    const atkFx=caster?rollFxEntries(caster,'attack.'+attackKey):[], condMode=caster?attackConditionMode(caster,ti,{mode:attackMode,within5}):{adv:[],dis:[],mode:0,consumeTargetFx:[]};
-    meta.attackMode=attackMode; meta.within5=within5; meta.spatialRequired=!!condMode.requiresDistance; meta.autoCritOnHit=!!condMode.autoCrit;
+    const atkFx=caster?rollFxEntries(caster,'attack.'+attackKey):[], condMode=caster?attackConditionMode(caster,ti,{mode:attackMode,within5,rangeBand,threatenedWithin5:opts.threatenedWithin5}):{adv:[],dis:[],mode:0,consumeTargetFx:[]};
+    meta.attackMode=attackMode; meta.within5=within5; meta.rangeBands=rangeBands; meta.rangeBand=rangeBand; meta.threatenedWithin5=!!opts.threatenedWithin5;
+    meta.spatialRequired=!!condMode.requiresDistance; meta.autoCritOnHit=!!condMode.autoCrit;
     meta.consumeTargetFx=condMode.consumeTargetFx||[];
     const aA=atkFx.some(f=>f.mode==='adv')||condMode.adv.length>0, aD=atkFx.some(f=>f.mode==='dis')||condMode.dis.length>0;
     const atkAdv=(aA===aD)?0:(aA?1:2);
     rows.push({key:'atk', type:'atk', side:'caster', natural:true, mod, adv:atkAdv,
-      label:'Бросок атаки: d20', hint:hint+(ti.known&&ti.ac!=null?' · КД цели '+ti.ac:' · цель без структурированной КД')
+      label:'Бросок атаки: d20', hint:hint+(ti.known&&ti.ac!=null?' · КД цели '+(+ti.ac+cover.bonus)+(cover.bonus?' (укрытие +'+cover.bonus+')':''):' · цель без структурированной КД')
         +(atkAdv?(atkAdv===1?' · преимущество':' · помеха'):'')
         +((condMode.adv.length||condMode.dis.length)?' · состояния: '+condMode.adv.concat(condMode.dis).join(', '):'')});
     atkFx.filter(f=>f.mode==='die').forEach((f,i)=>{
@@ -5768,7 +5860,7 @@ function legacyRollSpecOf(rec, opts){
       :(dcm?+dcm[1]:(caster?8+PROF[caster.level]+Math.max(eMod(caster,'str'),eMod(caster,'dex'),eMod(caster,'wis'),eMod(caster,'cha')):10));
     meta.half=/при успехе[^.]{0,60}половин|половин[а-я]*\s+урона|успешном спасброске[^.]{0,60}половин|или\s+половин|вдвое\s+меньш[а-я]*\s+урон|половинный\s+урон/.test(all);
     const known=ti.known&&typeof ti.saveMod==='function';
-    const tmod=known?ti.saveMod(meta.saveKey):0;
+    const coverSave=meta.saveKey==='dex'?cover.bonus:0,tmod=(known?ti.saveMod(meta.saveKey):0)+coverSave;
     const saveTags=[];
     if(/яд|poison/.test(all)) saveTags.push('poison');
     if(/вдыха|запах|inhal/.test(all)) saveTags.push('inhaled');
@@ -5781,7 +5873,7 @@ function legacyRollSpecOf(rec, opts){
     rows.push({key:'save', type:'save', side:'target', natural:known, mod:known?tmod:0, dc:meta.dc, adv:saveAdv, saveKey:meta.saveKey,autoFail:scm.autoFail,
       label:known?('Спасбросок цели ('+sm[1]+'): d20 '+fmtMod(tmod)+' — бросает '+ti.name)
                  :('Спасбросок цели ('+sm[1]+'): итог броска цели'),
-      hint:'СЛ '+meta.dc+(known?'':' · у цели нет записи — впишите итог с ее модификатором')
+      hint:'СЛ '+meta.dc+(coverSave?' · укрытие +'+coverSave:'')+(known?'':' · у цели нет записи — впишите итог с ее модификатором')
         +(meta.half?' · при успехе урон вдвое меньше (посчитаю сам)':'')
         +(scm.autoFail?' · автоматический провал из-за состояния':'')
         +(saveAdv?(saveAdv===1?' · ▲ преимущество от свойств цели':' · ▼ помеха от свойств цели'):'')});
@@ -5905,6 +5997,7 @@ function structuredRollSpecOf(rec,opts){
     autoHit:!!(model.attack&&model.attack.autoHit),afterHit:!!(model.attack&&model.attack.afterHit)&&!opts.forceAttack,kind,recName:rec.n||'',
     damageTags:Object.assign({magical:!!(isSpell||opts.magical),silvered:!!opts.silvered,adamantine:!!opts.adamantine},weapon&&weapon.damageTags||{}),
     contestBonus:m.combat&&m.combat.contestBonus||'',threshold:model.threshold||'',thresholdCondition:model.thresholdCondition||''};
+  const cover=coverRuleOf(opts.cover);meta.cover=cover.key;meta.coverBonus=cover.bonus;meta.totalCover=cover.total;
   const attack=model.attack||null,wantsAttack=!!(opts.forceAttack&&weapon)||!!(attack&&!attack.autoHit);
   if(wantsAttack&&!meta.afterHit){
     let mod=0,hint='';
@@ -5914,13 +6007,15 @@ function structuredRollSpecOf(rec,opts){
     const attackMode=weapon&&weapon.mode?weapon.mode:(attack&&attack.mode||'');
     const within5=opts.within5!==undefined?opts.within5:(weapon&&weapon.within5!==undefined?weapon.within5:
       (attack&&Object.prototype.hasOwnProperty.call(attack,'within5')?attack.within5:null));
+    const rangeBands=attackRangeBands((weapon&&weapon.range)||opts.range||''),rangeBand=opts.rangeBand||'';
     const attackKey=isSpell&&caster?spellAbOf(caster):(weapon?(weapon.abKey||(/лов/i.test(String(weapon.abn||''))?'dex':'str')):
       (caster&&eMod(caster,'dex')>eMod(caster,'str')?'dex':'str'));
-    const atkFx=caster?rollFxEntries(caster,'attack.'+attackKey):[],cond=caster?attackConditionMode(caster,ti,{mode:attackMode,within5}):{adv:[],dis:[],mode:0,consumeTargetFx:[]};
-    meta.attackMode=attackMode;meta.within5=within5;meta.spatialRequired=!!cond.requiresDistance;meta.autoCritOnHit=!!cond.autoCrit;meta.consumeTargetFx=cond.consumeTargetFx||[];
-    const hasAdv=atkFx.some(f=>f.mode==='adv')||cond.adv.length,hasDis=atkFx.some(f=>f.mode==='dis')||cond.dis.length,adv=(hasAdv===hasDis)?0:(hasAdv?1:2);
+    const atkFx=caster?rollFxEntries(caster,'attack.'+attackKey):[],cond=caster?attackConditionMode(caster,ti,{mode:attackMode,within5,rangeBand,threatenedWithin5:opts.threatenedWithin5}):{adv:[],dis:[],mode:0,consumeTargetFx:[]};
+    meta.attackMode=attackMode;meta.within5=within5;meta.rangeBands=rangeBands;meta.rangeBand=rangeBand;meta.threatenedWithin5=!!opts.threatenedWithin5;
+    meta.spatialRequired=!!cond.requiresDistance;meta.autoCritOnHit=!!cond.autoCrit;meta.consumeTargetFx=cond.consumeTargetFx||[];
+    const hasAdv=atkFx.some(f=>f.mode==='adv')||cond.adv.length>0,hasDis=atkFx.some(f=>f.mode==='dis')||cond.dis.length>0,adv=(hasAdv===hasDis)?0:(hasAdv?1:2);
     rows.push({key:'atk',type:'atk',side:'caster',natural:true,mod,adv,label:'Бросок атаки: d20',
-      hint:hint+(ti.known&&ti.ac!=null?' · КД цели '+ti.ac:' · цель без структурированной КД')+(adv?(adv===1?' · преимущество':' · помеха'):'')});
+      hint:hint+(ti.known&&ti.ac!=null?' · КД цели '+(+ti.ac+cover.bonus)+(cover.bonus?' (укрытие +'+cover.bonus+')':''):' · цель без структурированной КД')+(adv?(adv===1?' · преимущество':' · помеха'):'')});
     atkFx.filter(f=>f.mode==='die').forEach((f,i)=>{
       const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/);if(!dm)return;
       const cnt=Math.max(1,+dm[2]||1);rows.push({key:'atkfx'+i,type:'other',side:'caster',cnt,sides:+dm[3],mod:0,addTo:'atk',sign:dm[1]?-1:1,
@@ -5944,14 +6039,14 @@ function structuredRollSpecOf(rec,opts){
     if(save.dc&&save.dc.source==='fixed') meta.dc=+save.dc.value||0;
     else if(save.dc&&save.dc.source==='spell') meta.dc=caster?spellDC(caster):10;
     else meta.dc=caster?8+PROF[caster.level]+Math.max(eMod(caster,'str'),eMod(caster,'dex'),eMod(caster,'con'),eMod(caster,'wis'),eMod(caster,'cha')):10;
-    const known=!!save.key&&ti.known&&typeof ti.saveMod==='function',tmod=known?ti.saveMod(save.key):0;
+    const known=!!save.key&&ti.known&&typeof ti.saveMod==='function',coverSave=save.key==='dex'?cover.bonus:0,tmod=(known?ti.saveMod(save.key):0)+coverSave;
     const saveFx=save.key?(ti.kind==='ally'&&ti.obj?rollFxEntries(ti.obj,'save.'+save.key,save.tags||[]):
       (ti.kind==='foe'&&ti.obj?foeFxAll(ti.obj).filter(f=>f.stat==='save.'+save.key||f.stat==='save'||(save.tags||[]).some(t=>f.stat==='save.'+t)):[])):[];
     const scm=save.key?saveConditionMode(ti,save.key,{magic:isSpell}):{autoFail:false,adv:false,dis:false};
     const hasAdv=scm.adv||saveFx.some(f=>f.mode==='adv'),hasDis=scm.dis||saveFx.some(f=>f.mode==='dis'),adv=(hasAdv===hasDis)?0:(hasAdv?1:2);
     rows.push({key:'save',type:'save',side:'target',natural:known,mod:known?tmod:0,dc:meta.dc,adv,saveKey:save.key||'',autoFail:scm.autoFail,
       label:known?'Спасбросок цели ('+meta.saveAb+'): d20 '+fmtMod(tmod)+' — бросает '+ti.name:'Спасбросок цели'+(meta.saveAb?' ('+meta.saveAb+')':'')+': итог броска',
-      hint:'СЛ '+meta.dc+(meta.half?' · при успехе половина урона':'')+(adv?(adv===1?' · преимущество':' · помеха'):'')});
+      hint:'СЛ '+meta.dc+(coverSave?' · укрытие +'+coverSave:'')+(meta.half?' · при успехе половина урона':'')+(adv?(adv===1?' · преимущество':' · помеха'):'')});
     if(ti.kind==='ally'&&ti.obj) saveFx.filter(f=>f.mode==='die').forEach((f,i)=>{
       const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/);if(!dm)return;
       const cnt=Math.max(1,+dm[2]||1);rows.push({key:'savefx'+i,type:'other',side:'target',cnt,sides:+dm[3],mod:0,addTo:'save',sign:dm[1]?-1:1,
@@ -5999,6 +6094,11 @@ function rollSpecOf(rec,opts){
 }
 
 /* ═══ Разбор итога по правилам 5e ═══ */
+function targetCriticalHitImmune(ti){
+  if(!ti||!ti.known||!ti.obj) return false;
+  const foeCrit=ti.kind==='foe'&&foeDefensesOf(ti.obj).criticalHitImmune;
+  return !!(holderFxFlag(ti.obj,'critical.immunity')||foeCrit);
+}
 function resolveOutcome(spec, v){
   const meta=spec.meta, ti=meta.target||{kind:'none',known:false,name:''};
   const out={verdict:[], notes:[], hit:null, crit:false, fumble:false, saveOk:null, contestWin:null,
@@ -6015,26 +6115,34 @@ function resolveOutcome(spec, v){
         .reduce((a,r)=>a+(v[r.key]+(r.mod||0))*(r.sign||1),0);
       const bonus=(resR&&resR.addTo==='atk')?resVal:0;
       const total=nat+ar.mod+bonus+fxBonus;
-      const foeCrit=ti.obj&&ti.kind==='foe'&&foeDefensesOf(ti.obj).criticalHitImmune;
-      const critImmune=!!(ti.known&&ti.obj&&(holderFxFlag(ti.obj,'critical.immunity')||foeCrit));
+      const targetAc=ti.ac==null?null:(+ti.ac||0)+(+meta.coverBonus||0);
+      const critImmune=targetCriticalHitImmune(ti);
       out.crit=(nat===20)&&!critImmune; out.fumble=(nat===1);
       if(nat===20&&critImmune) out.verdict.push('У цели иммунитет к критическим ударам — двадцатка засчитана как обычное попадание.');
       if(nat===20) out.hit=true;
       else if(nat===1) out.hit=false;
-      else if(ti.known&&ti.ac!=null) out.hit=(total>=ti.ac);
+      else if(ti.known&&targetAc!=null) out.hit=(total>=targetAc);
       out.verdict.push('Атака: d20 '+nat+(ar.mod?' '+fmtMod(ar.mod):'')+(bonus?' + '+bonus+' (кость запаса)':'')
         +(fxBonus?' '+(fxBonus>0?'+ ':'− ')+Math.abs(fxBonus)+' (действующие эффекты)':'')+' = '+total
-        +(ti.known&&ti.ac!=null?(' против КД '+ti.ac+' — '+(out.hit?'ПОПАДАНИЕ':'промах')):' — КД цели отсутствует в структурированных данных')
+        +(ti.known&&targetAc!=null?(' против КД '+targetAc+(meta.coverBonus?' (база '+ti.ac+' + укрытие '+meta.coverBonus+')':'')+' — '+(out.hit?'ПОПАДАНИЕ':'промах')):' — КД цели отсутствует в структурированных данных')
         +(out.crit?' · КРИТИЧЕСКОЕ ПОПАДАНИЕ (кости урона бросаются дважды)':'')
         +(out.fumble?' · критический промах':''));
-      out.notes.push('атака '+total+(ti.known&&ti.ac!=null?' против КД '+ti.ac+' — '+(out.hit?'попадание':'промах'):''));
+      out.notes.push('атака '+total+(ti.known&&targetAc!=null?' против КД '+targetAc+' — '+(out.hit?'попадание':'промах'):''));
     }
   }
+  if(ar&&(meta.rangeBand==='out'||meta.totalCover)){
+    out.hit=false;out.crit=false;out.fumble=false;
+    out.verdict=out.verdict.filter(x=>x.indexOf('Атака:')!==0);
+    out.notes=out.notes.filter(x=>x.indexOf('атака ')!==0);
+    out.verdict.push(meta.totalCover?'Цель за полным укрытием — прямая атака невозможна.':'Цель находится дальше максимальной дистанции оружия — атака невозможна.');
+  }
   if(meta.autoHit&&out.hit==null){ out.hit=true; out.verdict.push('Заклинание попадает автоматически.'); }
-  if(out.hit===true&&meta.autoCritOnHit&&!out.crit){
+  if(out.hit===true&&meta.autoCritOnHit&&!out.crit&&!targetCriticalHitImmune(ti)){
     out.crit=true;
     out.verdict.push('Цель парализована или без сознания и атакована в пределах 1,5 м — попадание автоматически критическое.');
   }
+  else if(out.hit===true&&meta.autoCritOnHit&&!out.crit&&targetCriticalHitImmune(ti))
+    out.verdict.push('Автоматический крит от состояния отменен иммунитетом цели — попадание остается обычным.');
   /* спасбросок цели */
   const sr=row('save');
   if(sr){
@@ -6268,6 +6376,10 @@ function applyDamageTo(targetVal, amount, dtype, srcLabel, ctx){
       o.deaths=o.deaths||{s:0,f:0};
       if(over>=ti.hpMax){ res.dead=true; o.deaths={s:0,f:3}; }
       else if(was<=0){
+        /* Стабилизация (3 успеха) прекращается при любом новом уроне. У уже
+           нестабильного героя прежние 1–2 успеха сохраняются до лечения или
+           новой стабилизации, как и обычные спасброски от смерти. */
+        if((+o.deaths.s||0)>=3) o.deaths.s=0;
         res.deathFails=(ctx&&ctx.crit)?2:1;
         o.deaths.f=Math.min(3,(+o.deaths.f||0)+res.deathFails);
         if(o.deaths.f>=3) res.dead=true;
@@ -6398,13 +6510,25 @@ function castRollRec(){
 }
 function castDistanceSet(val){
   if(!castCtx) return;
-  if(val==='near'||val==='far'){
+  if(['near','far','long','out'].includes(val)){
     castCtx.distanceExplicit=true;
     castCtx.within5=(val==='near');
+    castCtx.rangeBand=val==='long'?'long':(val==='out'?'out':'normal');
   } else {
     castCtx.distanceExplicit=false;
     delete castCtx.within5;
+    delete castCtx.rangeBand;
   }
+  castFormulaShow();
+}
+function castThreatSet(val){
+  if(!castCtx) return;
+  castCtx.threatenedWithin5=val==='yes';
+  castFormulaShow();
+}
+function castCoverSet(val){
+  if(!castCtx) return;
+  castCtx.cover=['half','threeQuarters','total'].includes(val)?val:'none';
   castFormulaShow();
 }
 const CF_ADV=[[0,'\u2696 обычный'],[1,'\u25b2 преимущество'],[2,'\u25bc помеха']];
@@ -6431,7 +6555,8 @@ function castFormulaShow(){
   const ti=targetInfoOf(castCtx.target);
   const pool=(castCtx.kind==='ability')?abilityPoolOf(caster, rec):null;
   const weapon=(!isSpell&&castCtx.weapon)?castCtx.weapon:null;
-  const distanceOpts=castCtx.distanceExplicit?{within5:castCtx.within5}:{};
+  const distanceOpts=castCtx.distanceExplicit?{within5:castCtx.within5,rangeBand:castCtx.rangeBand||'normal',threatenedWithin5:!!castCtx.threatenedWithin5,cover:castCtx.cover||'none'}
+    :{threatenedWithin5:!!castCtx.threatenedWithin5,cover:castCtx.cover||'none'};
   const spec=isFoe
     ? foeActionSpecOf(actor,foeActionOf(actor,castCtx.actionId),ti,distanceOpts)
     : castCtx.kind==='weapon'
@@ -6450,14 +6575,27 @@ function castFormulaShow(){
     +' — впишите только объявленные результаты реальных бросков. КД, модификаторы, преимущество и последствия определяет движок.</div>';
   const hasAttack=spec.rows.some(r=>r.type==='atk');
   if(hasAttack&&(spec.meta.within5==null||spec.meta.attackMode==='ranged'||castCtx.distanceExplicit)){
-    const distanceVal=castCtx.distanceExplicit?(castCtx.within5?'near':'far')
+    const distanceVal=castCtx.distanceExplicit?(castCtx.rangeBand==='long'?'long':(castCtx.rangeBand==='out'?'out':(castCtx.within5?'near':'far')))
       :(spec.meta.within5===true?'near':(spec.meta.within5===false?'far':''));
+    const bands=spec.meta.rangeBands;
     h+='<div class="formula-row"><label>Фактическая дистанция до цели</label>'
       +'<select id="castDistance" onchange="castDistanceSet(this.value)">'
       +'<option value=""'+(distanceVal===''?' selected':'')+'>— укажите дистанцию —</option>'
       +'<option value="near"'+(distanceVal==='near'?' selected':'')+'>не дальше 1,5 м (5 футов)</option>'
-      +'<option value="far"'+(distanceVal==='far'?' selected':'')+'>дальше 1,5 м (5 футов)</option></select>'
-      +'<span class="formula-part">влияет на дальнобойную атаку в ближнем бою, лежащую цель и автоматический критический удар</span></div>';
+      +'<option value="far"'+(distanceVal==='far'?' selected':'')+'>'+(bands?'до обычной дистанции '+bands.normal+' '+(bands.unit==='ft'?'футов':'м'):'дальше 1,5 м (5 футов)')+'</option>'
+      +(bands?'<option value="long"'+(distanceVal==='long'?' selected':'')+'>дальняя дистанция: до '+bands.maximum+' '+(bands.unit==='ft'?'футов':'м')+' — помеха</option><option value="out"'+(distanceVal==='out'?' selected':'')+'>дальше '+bands.maximum+' '+(bands.unit==='ft'?'футов':'м')+' — вне дистанции</option>':'')+'</select>'
+      +'<span class="formula-part">влияет на ближний бой, лежащую цель, автоматический крит и дальнюю дистанцию оружия</span></div>';
+    if(spec.meta.attackMode==='ranged'&&distanceVal!=='near') h+='<div class="formula-row"><label>Другой видящий дееспособный враг в 1,5 м от атакующего</label>'
+      +'<select id="castThreat" onchange="castThreatSet(this.value)"><option value="no"'+(!castCtx.threatenedWithin5?' selected':'')+'>нет</option><option value="yes"'+(castCtx.threatenedWithin5?' selected':'')+'>да — помеха дальнобойной атаке</option></select>'
+      +'<span class="formula-part">учитывается даже когда выбранная цель находится далеко</span></div>';
+  }
+  if(hasAttack||spec.rows.some(r=>r.type==='save'&&r.saveKey==='dex')){
+    const cv=castCtx.cover||'none';
+    h+='<div class="formula-row"><label>Укрытие цели от источника атаки или эффекта</label><select id="castCover" onchange="castCoverSet(this.value)">'
+      +'<option value="none"'+(cv==='none'?' selected':'')+'>нет</option><option value="half"'+(cv==='half'?' selected':'')+'>наполовину: +2 КД и спасбросок Ловкости</option>'
+      +'<option value="threeQuarters"'+(cv==='threeQuarters'?' selected':'')+'>на три четверти: +5 КД и спасбросок Ловкости</option>'
+      +'<option value="total"'+(cv==='total'?' selected':'')+'>полное: прямая атака невозможна</option></select>'
+      +'<span class="formula-part">поправка входит в формулу автоматически</span></div>';
   }
   const mine=spec.rows.filter(r=>r.side!=='target'), theirs=spec.rows.filter(r=>r.side==='target');
   if(mine.length){
@@ -6505,6 +6643,10 @@ function validateFormulaValues(spec,v,res){
     errors.push('Для автоматического расчета выберите героя или цель из бестиария с КД, хитами и характеристиками.');
   if(spec&&spec.meta&&spec.meta.spatialRequired&&spec.meta.within5==null)
     errors.push('Укажите фактическую дистанцию до цели: до 1,5 м или дальше.');
+  if(spec&&spec.meta&&spec.meta.rangeBand==='out')
+    errors.push('Цель находится дальше максимальной дистанции оружия — атака невозможна.');
+  if(spec&&spec.meta&&spec.meta.totalCover&&(spec.rows||[]).some(r=>r.type==='atk'))
+    errors.push('Цель за полным укрытием — прямая атака невозможна.');
   (spec&&spec.rows||[]).forEach(r=>{
     if(r.autoFail) return;
     const val=v[r.key], second=v[r.key+'_2'];
@@ -6603,7 +6745,7 @@ function castFormulaConfirm(){
     }
     if(!Array.isArray(castCtx.rollQueue)) castCtx.rollQueue=(castCtx.extraTargets||[]).slice();
     while(castCtx.rollQueue.length){
-      castCtx.target=castCtx.rollQueue.shift(); castCtx.spec=null; castCtx.distanceExplicit=false; delete castCtx.within5;
+      castCtx.target=castCtx.rollQueue.shift(); castCtx.spec=null; castCtx.distanceExplicit=false; delete castCtx.within5;delete castCtx.rangeBand;delete castCtx.threatenedWithin5;delete castCtx.cover;
       if(castFormulaShow()) return;
     }
     const targets=[castCtx.primaryTarget||current].concat(castCtx.extraTargets||[]);
@@ -6634,7 +6776,7 @@ function castFormulaConfirm(){
   }
   while(castCtx.rollQueue.length){
     castCtx.target=castCtx.rollQueue.shift();
-    castCtx.spec=null; castCtx.distanceExplicit=false; delete castCtx.within5;
+    castCtx.spec=null; castCtx.distanceExplicit=false; delete castCtx.within5;delete castCtx.rangeBand;delete castCtx.threatenedWithin5;delete castCtx.cover;
     if(castFormulaShow()) return;   /* следующий отдельный спасбросок/атака */
   }
   const primary=castCtx.primaryTarget||current;
@@ -6646,7 +6788,7 @@ function castFormulaBack(){
   if(!castCtx) return;
   castCtx.target=castCtx.primaryTarget||castCtx.target;
   castCtx.rollsByTarget={}; castCtx.rollQueue=null; castCtx.sharedCasterVals=null;
-  castCtx.distanceExplicit=false; delete castCtx.within5;
+  castCtx.distanceExplicit=false; delete castCtx.within5;delete castCtx.rangeBand;delete castCtx.threatenedWithin5;delete castCtx.cover;
   document.getElementById('castStep3').style.display='none';
   document.getElementById('castStep1').style.display='block';
 }
@@ -6679,7 +6821,8 @@ function castSpellFx(spellId, casterId){
   const curConc=concLabelOf(caster);
   if(isConc&&curConc) info.push('⚠ уже концентрируется на «'+curConc+'» — наложение ПРЕРВЕТ ее');
   const be=(caster.spellbook||[]).find(e=>e.spellId===sp.id);
-  if(sp.l>0&&casterMeta(caster)&&be&&!be.prep) info.push('⚠ не подготовлено');
+  if(sp.l>0&&be&&!spellEntryReady(caster,be,sp)) info.push('⚠ не подготовлено');
+  else if(sp.l>0&&casterPreparationMode(caster)==='known') info.push('известное заклинание — подготовка не требуется');
   info.push('СЛ спасброска: '+spellDC(caster));
   document.getElementById('castInfo').textContent=info.join(' · ');
   document.getElementById('castTarget').innerHTML=targetOptionsHTML(caster,null)
@@ -6696,13 +6839,14 @@ function castSpellFx(spellId, casterId){
       if(lv>=sp.l&&caster.slots[lv].max>0)
         opts.push('<option value="'+lv+'"'+(caster.slots[lv].cur<=0?' disabled':'')+'>Круг '+lv+(lv>sp.l?' (усиление)':'')+' — осталось '+caster.slots[lv].cur+' из '+caster.slots[lv].max+(caster.slots[lv].cur<=0?' · исчерпан':'')+'</option>');
     });
-    if(sp.ritual) opts.push('<option value="ritual">Ритуалом — без ячейки, время +10 минут</option>');
+    const ritualOk=spellRitualAllowed(caster,sp,be);
+    if(ritualOk) opts.push('<option value="ritual">Ритуалом — без ячейки, время +10 минут</option>');
     if(!opts.length) opts.push('<option value="" disabled selected>Нет доступной ячейки</option>');
     const sel=document.getElementById('castSlot');
     sel.innerHTML=opts.join('');
     /* по умолчанию — наименьший доступный круг */
     const first=Object.keys(caster.slots||{}).map(Number).sort((a,b)=>a-b).find(lv=>lv>=sp.l&&caster.slots[lv].cur>0);
-    sel.value=first!==undefined?String(first):(sp.ritual?'ritual':'');
+    sel.value=first!==undefined?String(first):(ritualOk?'ritual':'');
     sw.style.display='block';
     castSlotChanged();
   } else if(sw){ sw.style.display='none'; }
@@ -6840,21 +6984,26 @@ function castLogLine(txt){
 }
 function slotPlanFor(caster,sp,slotSel){
   if(sp.l===0) return {ok:true,mode:'cantrip',lv:0,info:''};
-  const bookEntry=(caster.spellbook||[]).find(e=>e.spellId===sp.id),unprepared=!!(casterMeta(caster)&&bookEntry&&!bookEntry.prep);
+  const bookEntry=(caster.spellbook||[]).find(e=>e.spellId===sp.id),unprepared=!!(bookEntry&&!spellEntryReady(caster,bookEntry,sp));
+  const prepWord=casterPreparationMode(caster)==='book'?'в книге, но не подготовлено':'не подготовлено';
   if(slotSel===undefined||slotSel===null){
-    if(unprepared) return {ok:false,reason:'«'+sp.n+'» не подготовлено. Подготовьте его в книге.'};
+    if(unprepared) return {ok:false,reason:'«'+sp.n+'» '+prepWord+'. Подготовьте его перед наложением.'};
     const lv=Object.keys(caster.slots||{}).map(Number).sort((a,b)=>a-b).find(k=>k>=sp.l&&caster.slots[k].cur>0);
     if(lv===undefined) return {ok:false,reason:'Нет доступной ячейки '+sp.l+' круга или выше.'};
     return {ok:true,mode:'slot',lv,info:' · ячейка '+lv+' круга'+(lv>sp.l?' (усиление)':'')};
   }
   if(slotSel==='ritual'){
     if(!sp.ritual) return {ok:false,reason:'Это заклинание не является ритуалом.'};
+    if(!spellRitualAllowed(caster,sp,bookEntry)) return {ok:false,reason:'«'+sp.n+'» нельзя наложить ритуалом: этот класс должен сначала подготовить заклинание.'};
     return {ok:true,mode:'ritual',lv:sp.l,info:' · ритуалом (без ячейки, +10 минут)'};
   }
-  if(unprepared) return {ok:false,reason:'«'+sp.n+'» не подготовлено. Подготовьте его в книге или наложите допустимым ритуалом.'};
+  if(unprepared) return {ok:false,reason:'«'+sp.n+'» '+prepWord+'. Подготовьте его или наложите допустимым для класса ритуалом.'};
   const lv=parseInt(slotSel,10), s=caster.slots&&caster.slots[lv];
   if(!s||lv<sp.l) return {ok:false,reason:'Выбранная ячейка не подходит для этого круга.'};
-  if(s.cur<=0) return {ok:false,reason:'Ячейки '+lv+' круга исчерпаны — восстановятся после долгого отдыха'+(caster.cls==='Волшебник'?' или арканного восстановления':'')+'.'};
+  if(s.cur<=0){
+    const meta=casterMeta(caster),rest=meta&&meta.slotRecovery==='short'?'короткого или долгого отдыха':'долгого отдыха';
+    return {ok:false,reason:'Ячейки '+lv+' круга исчерпаны — восстановятся после '+rest+(caster.cls==='Волшебник'?' или арканного восстановления':'')+'.'};
+  }
   return {ok:true,mode:'slot',lv,info:' · ячейка '+lv+' круга'+(lv>sp.l?' (усиление)':'')};
 }
 function commitSlotPlan(caster,p){
@@ -7425,21 +7574,24 @@ function itemUseAttackBonus(caster,use){
 }
 function itemUseSpecOf(caster,it,use,ti,opts){
   opts=opts||{}; ti=ti||{kind:'none',name:'цель',known:false};
+  const cover=coverRuleOf(opts.cover);
   const rows=[], tags=itemUseTags(use), attack=use&&use.special!=='coatWeapon'&&use.attack,
     save=use&&use.special!=='coatWeapon'&&use.save;
   const meta={target:ti,kind:'item',itemId:it&&it.id,itemUseId:use&&use.id,recName:it&&it.n||'',half:!!(save&&save.half),
     dc:save?(+save.dc||0):0,saveKey:save&&save.key||'',saveAb:save?(AB_FULL[save.key]||save.key):'',
     saveAffectsDamage:!(save&&save.affectsDamage===false),dmgType:'',attackMode:attack&&attack.mode||'',within5:null,
-    damageTags:{magical:!!(use&&use.magical),silvered:false,adamantine:false},consumeTargetFx:[]};
+    damageTags:{magical:!!(use&&use.magical),silvered:false,adamantine:false},consumeTargetFx:[],cover:cover.key,coverBonus:cover.bonus,totalCover:cover.total};
   if(attack){
     const within5=opts.within5!==undefined?opts.within5:(attack.within5!==undefined?attack.within5:(attack.mode==='melee'?true:null));
-    const cond=attackConditionMode(caster,ti,{mode:attack.mode||'ranged',within5});
+    const rangeBands=attackRangeBands(attack.range),rangeBand=opts.rangeBand||'';
+    const cond=attackConditionMode(caster,ti,{mode:attack.mode||'ranged',within5,rangeBand,threatenedWithin5:opts.threatenedWithin5});
     const fx=rollFxEntries(caster,'attack.'+(attack.ability||'dex')),hasAdv=fx.some(x=>x.mode==='adv')||cond.adv.length>0,hasDis=fx.some(x=>x.mode==='dis')||cond.dis.length>0;
     const adv=(hasAdv===hasDis)?0:(hasAdv?1:2),mod=itemUseAttackBonus(caster,use);
-    meta.within5=within5; meta.spatialRequired=!!cond.requiresDistance; meta.autoCritOnHit=!!cond.autoCrit; meta.consumeTargetFx=cond.consumeTargetFx||[];
+    meta.within5=within5;meta.rangeBands=rangeBands;meta.rangeBand=rangeBand;meta.threatenedWithin5=!!opts.threatenedWithin5;
+    meta.spatialRequired=!!cond.requiresDistance; meta.autoCritOnHit=!!cond.autoCrit; meta.consumeTargetFx=cond.consumeTargetFx||[];
     rows.push({key:'atk',type:'atk',side:'caster',natural:true,required:true,mod,adv,
       label:'Бросок атаки предметом: d20',hint:fmtMod(mod)+' · '+(attack.proficient?'с владением':'импровизированная атака без бонуса мастерства')
-        +(attack.range?' · дистанция '+attack.range:'')+(ti.known&&ti.ac!=null?' · КД цели '+ti.ac:' · цель без структурированной КД')});
+        +(attack.range?' · дистанция '+attack.range:'')+(ti.known&&ti.ac!=null?' · КД цели '+(+ti.ac+cover.bonus)+(cover.bonus?' (укрытие +'+cover.bonus+')':''):' · цель без структурированной КД')});
     fx.filter(x=>x.mode==='die').forEach((f,i)=>{
       const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!dm) return;
       rows.push({key:'itematkfx'+i,type:'other',side:'caster',cnt:Math.max(1,+dm[2]||1),sides:+dm[3],mod:0,addTo:'atk',sign:dm[1]?-1:1,
@@ -7447,14 +7599,14 @@ function itemUseSpecOf(caster,it,use,ti,opts){
     });
   }
   if(save&&ti.kind!=='object'){
-    const known=ti.known&&typeof ti.saveMod==='function',mod=known?ti.saveMod(save.key):0;
+    const known=ti.known&&typeof ti.saveMod==='function',coverSave=save.key==='dex'?cover.bonus:0,mod=(known?ti.saveMod(save.key):0)+coverSave;
     const fx=ti.kind==='ally'&&ti.obj?rollFxEntries(ti.obj,'save.'+save.key,tags)
       :(ti.kind==='foe'&&ti.obj?foeFxAll(ti.obj).filter(f=>f.stat==='save.'+save.key||f.stat==='save'||tags.some(t=>f.stat==='save.'+t)):[]);
     const scm=saveConditionMode(ti,save.key,{magic:!!(use&&use.magical)}),hasAdv=scm.adv||fx.some(x=>x.mode==='adv'),hasDis=scm.dis||fx.some(x=>x.mode==='dis');
     const adv=(hasAdv===hasDis)?0:(hasAdv?1:2);
     rows.push({key:'save',type:'save',side:'target',natural:known,required:true,requiredOnHit:!!attack,mod:known?mod:0,dc:+save.dc||0,adv,saveKey:save.key,autoFail:scm.autoFail,
       label:known?'Спасбросок '+(AB_FULL[save.key]||save.key)+': d20 '+fmtMod(mod)+' — бросает '+ti.name:'Итог спасброска '+(AB_FULL[save.key]||save.key)+' цели',
-      hint:'СЛ '+save.dc+(attack?' · только после попадания':'')+(save.half?' · при успехе половина урона':'')+(adv?(adv===1?' · преимущество':' · помеха'):'')});
+      hint:'СЛ '+save.dc+(coverSave?' · укрытие +'+coverSave:'')+(attack?' · только после попадания':'')+(save.half?' · при успехе половина урона':'')+(adv?(adv===1?' · преимущество':' · помеха'):'')});
     if(ti.kind==='ally'&&ti.obj) fx.filter(f=>f.mode==='die').forEach((f,i)=>{
       const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!dm) return;
       rows.push({key:'itemsavefx'+i,type:'other',side:'target',cnt:Math.max(1,+dm[2]||1),sides:+dm[3],mod:0,addTo:'save',sign:dm[1]?-1:1,
@@ -7498,7 +7650,7 @@ function toggleAttune(entryId){
   }
   fxInvalidate(); scheduleSave(); renderChars();
 }
-/* восстановление зарядов: кости бросает мастер */
+/* восстановление зарядов: движок принимает объявленный реальный бросок */
 function rechargeItems(c, when){
   const list=[];
   (c.inventory||[]).forEach(e=>{
@@ -8213,6 +8365,11 @@ function itemSpendOne(c,e,it){
   return ' · осталось '+e.qty+' шт.';
 }
 /* ── оружие: атака через общее окно ── */
+function weaponCanUseTwoHands(c,entryId){
+  if(!c||!entryId) return false;
+  const eq=c.equipment||{},occupied=[eq.MAIN_HAND,eq.OFF_HAND,eq.TWO_HAND].filter(Boolean);
+  return occupied.length>0&&occupied.every(id=>id===entryId);
+}
 function weaponAttackFx(entryId, casterId, mode){
   const caster=getCh(casterId||activeCharId); if(!caster) return;
   const block=ACTION_BLOCK_CONDS.find(n=>effectiveConditions(caster).indexOf(n)>=0);
@@ -8233,8 +8390,10 @@ function weaponAttackFx(entryId, casterId, mode){
   if(w.loading) bits.push('перезарядка: одна атака за действие');
   if(w.reach) bits.push('досягаемость');
   if(w.special) bits.push('особое: '+w.special);
+  const twoOk=!w.versatile||weaponCanUseTwoHands(caster,entryId);
   document.getElementById('castInfo').innerHTML=esc(bits.join(' · '))
-    +(w.versatile?'<div style="margin-top:6px"><label style="font-size:13.5px"><input type="checkbox" id="castTwoHand" onchange="castCtx.two=this.checked"> держать двумя руками ('+w.versatile.cnt+'d'+w.versatile.sides+')</label></div>':'');
+    +(w.versatile?'<div style="margin-top:6px"><label style="font-size:13.5px"><input type="checkbox" id="castTwoHand" '+(twoOk?'onchange="castCtx.two=this.checked"':'disabled')+'> держать двумя руками ('+w.versatile.cnt+'d'+w.versatile.sides+')</label>'
+      +(twoOk?'':'<div class="note-ital" style="font-size:12px">Недоступно: вторая рука занята щитом, оружием или предметом.</div>')+'</div>':'');
   document.getElementById('castTarget').innerHTML=targetOptionsHTML(caster,'enemy');
   ['castSlotWrap','castWeaponWrap','castMultiWrap','castItemWrap'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   document.getElementById('castStep1').style.display='block';
@@ -8250,23 +8409,25 @@ function weaponSpecOf(caster, it, ti, opts){
   const abm=useDex?eMod(caster,'dex'):eMod(caster,'str');
   const dmgAb=opts.offhand?Math.min(0,abm):abm; /* 5e: вторая рука не добавляет положительный модификатор к урону */
   const hasProf=(typeof weaponProfHas==='function')?weaponProfHas(caster,it):true;
-  const wb=weaponBonusOf(it), duel=duelingBonusOf(caster,it,opts);
+  const legalTwo=!!(opts.two&&w.versatile&&(!opts.entryId||weaponCanUseTwoHands(caster,opts.entryId)));
+  const wb=weaponBonusOf(it), duel=duelingBonusOf(caster,it,Object.assign({},opts,{two:legalTwo}));
   const atk=abm+(hasProf?PROF[caster.level]:0)+fxSum(caster,'atk')+wb.atk;
   const fixed=!damage.sides?(+damage.mod||0):0;
   let cnt=+damage.cnt||0, sides=+damage.sides||0, flat=+damage.mod||0;
-  if(opts.two&&w.versatile){ cnt=w.versatile.cnt; sides=w.versatile.sides; }
+  if(legalTwo){ cnt=w.versatile.cnt; sides=w.versatile.sides; }
   const attackMode=(opts.mode==='throw'||w.ranged)?'ranged':'melee';
   const within5=opts.within5!==undefined?opts.within5:((attackMode==='ranged'||w.reach)?null:true);
+  const rangeBands=attackRangeBands(w.range),rangeBand=opts.rangeBand||'',cover=coverRuleOf(opts.cover);
   const rows=[], meta={target:ti, kind:'weapon', dmgType:dmgTypeCanon(damage.type), half:false, dc:0, weapon:it.n,attackMode,within5,
-    damageTags:damageTraits};
-  const atkFx=rollFxEntries(caster,'attack.'+(useDex?'dex':'str')), condMode=attackConditionMode(caster,ti,{mode:attackMode,within5});
+    rangeBands,rangeBand,threatenedWithin5:!!opts.threatenedWithin5,cover:cover.key,coverBonus:cover.bonus,totalCover:cover.total,damageTags:damageTraits};
+  const atkFx=rollFxEntries(caster,'attack.'+(useDex?'dex':'str')), condMode=attackConditionMode(caster,ti,{mode:attackMode,within5,rangeBand,threatenedWithin5:opts.threatenedWithin5});
   meta.spatialRequired=!!condMode.requiresDistance;
   meta.autoCritOnHit=!!condMode.autoCrit;
   meta.consumeTargetFx=condMode.consumeTargetFx||[];
   const aA=atkFx.some(f=>f.mode==='adv')||condMode.adv.length>0, aD=atkFx.some(f=>f.mode==='dis')||condMode.dis.length>0;
   rows.push({key:'atk', type:'atk', side:'caster', natural:true, mod:atk, adv:(aA===aD)?0:(aA?1:2),
     label:'Бросок атаки: d20', hint:'+ '+atk+' ('+(hasProf?'мастерство + ':'без владения, только ')+(useDex?'Ловкость':'Сила')+')'
-      +(ti.known&&ti.ac!=null?' · КД цели '+ti.ac:' · цель без структурированной КД')
+      +(ti.known&&ti.ac!=null?' · КД цели '+(+ti.ac+cover.bonus)+(cover.bonus?' (укрытие +'+cover.bonus+')':''):' · цель без структурированной КД')
       +((condMode.adv.length||condMode.dis.length)?' · состояния: '+condMode.adv.concat(condMode.dis).join(', '):'')});
   atkFx.filter(f=>f.mode==='die').forEach((f,i)=>{
     const d=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!d) return;
@@ -8313,11 +8474,15 @@ function ammoEntryFor(c, it){
       &&(!want||((itemProfile(o.it).ammo||{}).forWeapon===want)))
     .map(o=>o.e)[0]||null;
 }
-function weaponAttackResourcePlan(caster,entryId,mode){
+function weaponAttackResourcePlan(caster,entryId,mode,opts){
   if(!entryId) return {ok:true};
   const e=invEntryOf(caster,entryId),it=e&&itemOf(e.itemId);
   if(!e||!it) return {ok:false,reason:'Выбранное оружие больше не находится в инвентаре.'};
   const pr=itemProfile(it),plan={ok:true,caster,e,it,pr,mode:mode||'melee',ammo:null,ammoItem:null,thrown:false};
+  if(opts&&opts.rangeBand==='out') return {ok:false,reason:'Цель находится дальше максимальной дистанции оружия.'};
+  if(opts&&opts.cover==='total') return {ok:false,reason:'Цель за полным укрытием — прямая атака невозможна.'};
+  if(opts&&opts.two&&pr.weapon&&pr.weapon.versatile&&!weaponCanUseTwoHands(caster,entryId))
+    return {ok:false,reason:'«'+it.n+'» нельзя использовать двумя руками: вторая рука занята.'};
   if(pr.weapon&&pr.weapon.ammo){
     plan.ammo=ammoEntryFor(caster,it); plan.ammoItem=plan.ammo&&itemOf(plan.ammo.itemId);
     if(!plan.ammo||!plan.ammoItem) return {ok:false,reason:'Нет подходящих боеприпасов для «'+it.n+'» — выстрел невозможен.'};
@@ -8355,7 +8520,7 @@ function weaponAttackApply(entryId, casterId, target, rolls){
   if(block){ const msg='Состояние «'+block+'» не позволяет совершить атаку.'; setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false; }
   const e=invEntryOf(caster,entryId); if(!e) return false;
   const it=itemOf(e.itemId); if(!it) return false;
-  const plan=weaponAttackResourcePlan(caster,entryId,castCtx&&castCtx.mode);
+  const plan=weaponAttackResourcePlan(caster,entryId,castCtx&&castCtx.mode,{two:!!(castCtx&&castCtx.two),rangeBand:castCtx&&castCtx.rangeBand,cover:castCtx&&castCtx.cover});
   if(!plan.ok){ setStatus('✕ '+plan.reason,true); castShowErr&&castShowErr(plan.reason); return false; }
   if(!preflightOutcomeReactions(rolls)) return false;
   if(!combatCommitCastAction('Атака: '+it.n)) return false;
@@ -8437,7 +8602,7 @@ function lightToggle(entryId){
   if(lit){ removeActiveFx(c.id, lit.uid); itemLog(c,'💨 '+c.name+' гасит: '+it.n); return; }
   const fire=(c.inventory||[]).some(x=>{ const t=itemOf(x.itemId); return t&&itemProfile(t).kind==='firestarter'; })
     ||(c.activeFx||[]).some(a=>a.k==='light');
-  if(!fire&&!window.confirm('Ни трутницы, ни огнива в инвентаре нет, и рядом нет открытого огня.\n\nОК — мастер разрешает зажечь.')) return;
+  if(!fire){ setStatus('✕ Нельзя зажечь «'+it.n+'»: нет трутницы, огнива или уже горящего источника огня.',true); return; }
   const entry={k:'light', id:it.id, label:it.n+' (горит)', from:c.name, casterId:c.id, appliedRound:fxRound,
     stackKey:'light:'+it.id, power:L.bright,
     why:'горит · яркий свет '+L.bright+' м, тусклый еще '+L.dim+' м',
@@ -9748,14 +9913,16 @@ function foeActionSpecOf(f,a,ti,opts){
   if(!f||!a) return {rows:[],meta:{target:ti||{kind:'none'}}};
   opts=opts||{};
   ti=ti||{kind:'none',known:false,name:'цель'};
-  const rows=[];
+  const rows=[],cover=coverRuleOf(opts.cover);
   const within5=opts.within5!==undefined?opts.within5:(a.within5!==undefined?a.within5:null);
+  const rangeBands=attackRangeBands(a.range),rangeBand=opts.rangeBand||'';
   const meta={target:ti,kind:'foe',recName:a.n||'',dmgType:'',half:!!(a.save&&a.save.half),dc:a.save?+a.save.dc||0:0,
     saveAb:a.save?(AB_FULL[a.save.key]||a.save.key):'',saveKey:a.save?a.save.key:'',
-    saveAffectsDamage:!(a.save&&a.save.affectsDamage===false),attackMode:a.mode||'',within5,
+    saveAffectsDamage:!(a.save&&a.save.affectsDamage===false),attackMode:a.mode||'',within5,rangeBands,rangeBand,threatenedWithin5:!!opts.threatenedWithin5,
+    cover:cover.key,coverBonus:cover.bonus,totalCover:cover.total,
     damageTags:{magical:!!a.magic,silvered:!!a.silvered,adamantine:!!a.adamantine}};
   if(a.kind==='attack'){
-    const condMode=attackConditionMode(f,ti,{mode:a.mode||'',within5});
+    const condMode=attackConditionMode(f,ti,{mode:a.mode||'',within5,rangeBand,threatenedWithin5:opts.threatenedWithin5});
     const atkFx=foeFxAll(f).filter(x=>x.stat==='attack');
     const hasAdv=condMode.adv.length>0||atkFx.some(x=>x.mode==='adv');
     const hasDis=condMode.dis.length>0||atkFx.some(x=>x.mode==='dis');
@@ -9765,7 +9932,7 @@ function foeActionSpecOf(f,a,ti,opts){
     meta.autoCritOnHit=!!condMode.autoCrit;
     rows.push({key:'atk',type:'atk',side:'caster',natural:true,mod:+a.attackBonus||0,adv,
       label:'Бросок атаки: d20',hint:fmtMod(+a.attackBonus||0)+' · '+(a.range||'дистанцию определяет мастер')
-        +(ti.known&&ti.ac!=null?' · КД цели '+ti.ac:' · цель без структурированной КД')
+        +(ti.known&&ti.ac!=null?' · КД цели '+(+ti.ac+cover.bonus)+(cover.bonus?' (укрытие +'+cover.bonus+')':''):' · цель без структурированной КД')
         +(adv?(adv===1?' · преимущество':' · помеха'):'')
         +((condMode.adv.length||condMode.dis.length)?' · состояния: '+condMode.adv.concat(condMode.dis).join(', '):'')
         +(a.advHint?' · '+a.advHint:'')+(a.rangeHint?' · '+a.rangeHint:'')});
@@ -9777,7 +9944,7 @@ function foeActionSpecOf(f,a,ti,opts){
   }
   if(a.save){
     const known=ti.known&&typeof ti.saveMod==='function';
-    const tmod=known?ti.saveMod(a.save.key):0;
+    const coverSave=a.save.key==='dex'?cover.bonus:0,tmod=(known?ti.saveMod(a.save.key):0)+coverSave;
     const saveTags=(a.save.tags||[]).slice();
     const saveFx=ti.kind==='ally'&&ti.obj?rollFxEntries(ti.obj,'save.'+a.save.key,saveTags)
       :(ti.kind==='foe'&&ti.obj?foeFxAll(ti.obj).filter(x=>x.stat==='save.'+a.save.key||x.stat==='save'):[]);
@@ -9787,7 +9954,7 @@ function foeActionSpecOf(f,a,ti,opts){
     rows.push({key:'save',type:'save',side:'target',natural:known,mod:known?tmod:0,dc:+a.save.dc||0,adv,saveKey:a.save.key,autoFail:scm.autoFail,
       label:known?'Спасбросок '+(AB_FULL[a.save.key]||a.save.key)+': d20 '+fmtMod(tmod)+' — бросает '+ti.name
         :'Итог спасброска '+(AB_FULL[a.save.key]||a.save.key)+' цели',
-      hint:'СЛ '+a.save.dc+(a.kind==='attack'?' · требуется только при попадании':'')
+      hint:'СЛ '+a.save.dc+(coverSave?' · укрытие +'+coverSave:'')+(a.kind==='attack'?' · требуется только при попадании':'')
         +(a.save.half?' · при успехе половина урона':'')+(a.save.affectsDamage===false?' · этот спасбросок не отменяет урон от попадания':'')
         +(scm.autoFail?' · автоматический провал из-за состояния':'')+(adv?(adv===1?' · преимущество':' · помеха'):'')});
     if(ti.kind==='ally'&&ti.obj){
@@ -10960,8 +11127,176 @@ function combatSetupRows(kind,list){
     return '<div class="combat-setup-row"><input type="checkbox" '+(s.selected?'checked':'')+' onchange="combatSetupToggle(\''+key+'\',this.checked)"><span><b>'+esc(o.name||o.n)+'</b><small style="display:block;color:#aaa">'+(kind==='ally'?esc((o.cls||'')+' '+(o.level||1)+' ур.'):'КД '+(+o.ac||10)+' · '+(+o.hp||0)+'/'+(+o.hpMax||0))+'</small></span><input type="number" min="1" max="20" placeholder="d20" value="'+esc(s.nat)+'" oninput="combatSetupRoll(\''+key+'\',this.value)"><b id="combatInitTotal_'+combatDomKey(key)+'">'+total+'</b></div>';
   }).join('');
 }
+/* Воспроизводимый браузерный стенд редких боев. Он намеренно не использует
+   Math.random и не сохраняет тестовое состояние: 25 семейств × 10 вариантов
+   запускаются на временных копиях, после чего все ссылки мира возвращаются. */
+function runRareBattleAudit(){
+  const saved={chars,journal,itemsDB,spellsDB,abilitiesDB,racesDB,classesDB,rulesDB,foesDB,activeCharId,fxRound,combat,castCtx,lastCastEvent};
+  const report={total:250,passed:0,failed:0,categories:{},failures:[],formulaContract:{schemaVersion:ROLL_FORMULA_SCHEMA_VERSION,inputPolicy:ROLL_INPUT_POLICY}};
+  const categories=['КД на границе','натуральная 1','натуральная 20','иммунитет к критам','автокрит и иммунитет',
+    'преимущество','помеха','взаимная отмена атаки','крайние спасброски','сопротивление',
+    'уязвимость','иммунитет к урону','смешанный урон','временные хиты','стабилизация и урон',
+    'мгновенная смерть','концентрация','отмена на спасброске','магия договора','короткий отдых колдуна',
+    'известные заклинания','подготовленные заклинания','ритуалы классов','универсальное оружие','ресурсы и компоненты'];
+  const clone=x=>JSON.parse(JSON.stringify(x));
+  const hero=(id,o)=>Object.assign({id,name:id,cls:'Жрец',level:5,ab:{str:10,dex:10,con:10,int:16,wis:16,cha:16},
+    saves:{str:false,dex:false,con:false,int:false,wis:false,cha:false},skills:{},hp:20,hpMax:20,hpTemp:0,
+    inventory:[],equipment:{},spellbook:[],slots:{},abilities:[],activeFx:[],fxOff:[],cond:[],deaths:{s:0,f:0},
+    resist:[],vuln:[],immune:[],exhaustion:0,spentRest:0,hdUsed:0,acOverride:10,speed:'30 футов'},o||{});
+  const foe=(id,o)=>Object.assign({id,n:id,kind:'monster',ac:10,hp:30,hpMax:30,hpTemp:0,abil:{str:10,dex:10,con:10,int:10,wis:10,cha:10},
+    saveP:{},saveBonuses:{},skills:{},profB:2,resist:[],vuln:[],immune:[],damageRules:[],condImmune:[],effectImmunities:[],
+    magicRes:false,criticalHitImmune:false,activeFx:[],cond:[],actionState:{},combatActions:[],movement:{walk:9}},o||{});
+  const world=(cs,fs)=>{ chars=cs||[]; foesDB=fs||[]; activeCharId=chars[0]&&chars[0].id||null; combat=blankCombat(); castCtx=null; fxRound=1; fxInvalidate(); };
+  const attackSpec=(ti,opt)=>{opt=opt||{};const cover=coverRuleOf(opt.cover);return {meta:{target:ti,dmgType:'рубящий',autoCritOnHit:!!opt.autoCrit,cover:cover.key,coverBonus:cover.bonus,totalCover:cover.total},rows:[
+    {key:'atk',type:'atk',natural:true,mod:+opt.mod||0,adv:+opt.adv||0},{key:'dmg',type:'dmg',cnt:1,sides:12,mod:0,dmgType:'рубящий'}]};};
+  const damageSpec=(ti,rows)=>({meta:{target:ti,dmgType:(rows[0]&&rows[0].dmgType)||''},rows});
+  const ensure=(ok,msg)=>{ if(!ok) throw new Error(msg); };
+  const run=(index,fn)=>{
+    const category=categories[Math.floor(index/10)]; report.categories[category]=(report.categories[category]||0)+1;
+    try{ fn(index%10); report.passed++; }
+    catch(err){ report.failed++; report.failures.push({battle:index+1,category,message:String(err&&err.message||err)}); }
+  };
+  try{
+    itemsDB=seedItemsDB(); spellsDB=seedSpellsDB(); abilitiesDB=seedAbilitiesDB(); racesDB=seedRacesDB(); classesDB=seedClassesDB(); rulesDB=[]; journal=[];
+    const rangedSpell=spellsDB.find(sp=>{const m=currentMechanics(sp,'spell'),a=m&&m.resolution&&m.resolution.attack;return a&&a.mode==='ranged';});
+    const saveSpell=spellsDB.find(sp=>{const m=currentMechanics(sp,'spell');return m&&m.resolution&&m.resolution.save&&m.resolution.save.key==='dex';});
+    for(let index=0;index<250;index++) run(index,v=>{
+      const family=Math.floor(index/10);
+      if(family===0){
+        const cv=v%3===1?'half':(v%3===2?'threeQuarters':'none'),bonus=coverRuleOf(cv).bonus,f=foe('ac',{ac:7+v}); world([], [f]);
+        const nat=2+v,mod=5+bonus,out=resolveOutcome(attackSpec(targetInfoOf('foe:ac'),{mod,cover:cv}),{atk:nat,dmg:1});
+        ensure(out.hit===true&&nat+mod===f.ac+bonus,'равенство итога атаки и КД с укрытием должно попадать');
+      } else if(family===1){
+        const f=foe('nat1',{ac:1}); world([], [f]); const out=resolveOutcome(attackSpec(targetInfoOf('foe:nat1'),{mod:50+v}),{atk:1,dmg:12});
+        ensure(out.hit===false&&out.fumble===true&&out.dmgTotal===0,'натуральная 1 обязана промахнуться без урона');
+      } else if(family===2){
+        const f=foe('nat20',{ac:40+v}); world([], [f]); const out=resolveOutcome(attackSpec(targetInfoOf('foe:nat20'),{mod:-10}),{atk:20,dmg:2+v});
+        ensure(out.hit===true&&out.crit===true,'натуральная 20 обязана попасть и стать критом');
+      } else if(family===3){
+        const f=foe('critless',{ac:50,criticalHitImmune:true}); world([], [f]); const out=resolveOutcome(attackSpec(targetInfoOf('foe:critless'),{mod:-20}),{atk:20,dmg:2+v});
+        ensure(out.hit===true&&out.crit===false,'иммунитет должен превратить крит в обычное попадание');
+      } else if(family===4){
+        const f=foe('autoimmune',{ac:5,criticalHitImmune:true,cond:[v%2?'Парализованный':'Бессознательный']}); world([], [f]);
+        const out=resolveOutcome(attackSpec(targetInfoOf('foe:autoimmune'),{autoCrit:true}),{atk:10+v,dmg:2});
+        ensure(out.hit===true&&out.crit===false,'автокрит от состояния не должен обходить иммунитет');
+      } else if(family===5){
+        const f=foe('adv'); world([], [f]); const a=1+v,b=20-v,hi=Math.max(a,b); f.ac=hi;
+        const out=resolveOutcome(attackSpec(targetInfoOf('foe:adv'),{adv:1}),{atk:a,atk_2:b,dmg:1}); ensure(out.hit===true,'преимущество должно выбрать больший d20');
+      } else if(family===6){
+        const weapon=itemsDB.find(it=>{const w=itemProfile(it).weapon;return w&&w.ranged&&attackRangeBands(w.range);});ensure(weapon,'нет оружия с двумя диапазонами');
+        const c=hero('longrange',{cls:'Воин',inventory:[{id:'w',itemId:weapon.id,qty:1}],equipment:{MAIN_HAND:'w'}}),f=foe('dis');world([c],[f]);
+        const spec=weaponSpecOf(c,weapon,targetInfoOf('foe:dis'),{entryId:'w',mode:'ranged',within5:false,rangeBand:'long'});
+        ensure(spec.rows.find(r=>r.type==='atk').adv===2,'дальняя дистанция оружия должна давать помеху');
+      } else if(family===7){
+        const weapon=itemsDB.find(it=>{const w=itemProfile(it).weapon;return w&&w.ranged&&attackRangeBands(w.range);});
+        ensure(!!rangedSpell&&!!weapon,'нет структурированной дальней атаки');
+        const useWeapon=v%2===1,c=hero('cancel',{cls:useWeapon?'Воин':'Волшебник',activeFx:[{uid:'adv'+v,k:'audit',id:'adv'+v,label:'Преимущество',fx:[{stat:useWeapon?'attack.dex':'attack.int',mode:'adv',value:1}]}]});
+        const f=foe('prone',{cond:useWeapon?[]:['Сбитый с ног']});if(useWeapon){c.inventory=[{id:'w',itemId:weapon.id,qty:1}];c.equipment={MAIN_HAND:'w'};}world([c],[f]);
+        const spec=useWeapon?weaponSpecOf(c,weapon,targetInfoOf('foe:prone'),{entryId:'w',mode:'ranged',within5:false,rangeBand:'long'})
+          :rollSpecOf(rangedSpell,{caster:c,kind:'spell',slotLvl:+rangedSpell.l||0,target:targetInfoOf('foe:prone'),within5:false});
+        ensure(spec.rows.find(r=>r.type==='atk').adv===0,'преимущество и помеха атаки должны взаимно погаситься');
+      } else if(family===8){
+        const f=foe('save'); world([], [f]); const good=v%2===0,nat=good?1:20,modi=good?20:-20,dc=good?15:5;
+        const spec={meta:{target:targetInfoOf('foe:save'),saveAb:'Ловкость'},rows:[{key:'save',type:'save',natural:true,mod:modi,dc,adv:0}]};
+        ensure(resolveOutcome(spec,{save:nat}).saveOk===good,'натуральные 1/20 не являются автоисходом спасброска');
+      } else if(family===9){
+        const raw=5+v,f=foe('res',{resist:['огонь']}); world([], [f]); const out=resolveOutcome(damageSpec(targetInfoOf('foe:res'),[{key:'d',type:'dmg',dmgType:'огонь'}]),{d:raw});
+        ensure(out.dmgTotal===Math.floor(raw/2),'сопротивление должно округлять половину вниз');
+      } else if(family===10){
+        const raw=3+v,f=foe('vuln',{vuln:['холод']}); world([], [f]); const out=resolveOutcome(damageSpec(targetInfoOf('foe:vuln'),[{key:'d',type:'dmg',dmgType:'холод'}]),{d:raw});
+        ensure(out.dmgTotal===raw*2,'уязвимость должна удваивать компонент');
+      } else if(family===11){
+        const f=foe('immune',{immune:['яд']}); world([], [f]); const out=resolveOutcome(damageSpec(targetInfoOf('foe:immune'),[{key:'d',type:'dmg',dmgType:'яд'}]),{d:1+v});
+        ensure(out.dmgTotal===0,'иммунитет обязан обнулить компонент урона');
+      } else if(family===12){
+        const fire=4+v,slash=3+v,f=foe('mixed',{resist:['огонь'],vuln:['рубящий']}); world([], [f]);
+        const out=resolveOutcome(damageSpec(targetInfoOf('foe:mixed'),[{key:'fire',type:'dmg',dmgType:'огонь'},{key:'slash',type:'dmg',dmgType:'рубящий'}]),{fire,slash});
+        ensure(out.dmgTotal===Math.floor(fire/2)+slash*2,'защиты смешанного урона должны считаться по компонентам');
+      } else if(family===13){
+        const t=hero('temp',{hp:20,hpMax:20,hpTemp:1+v}); world([t],[]); const dmg=3+v,abs=Math.min(t.hpTemp,dmg),r=applyDamageTo('ally:temp',dmg,'силовое поле','аудит',{});
+        ensure(r.absorbed===abs&&t.hp===20-Math.max(0,dmg-(1+v)),'временные хиты должны поглощаться раньше обычных');
+      } else if(family===14){
+        const crit=v%2===1,t=hero('stable',{hp:0,deaths:{s:3,f:0},cond:['Бессознательный']}); world([t],[]); applyDamageTo('ally:stable',1+v,'рубящий','аудит',{crit});
+        ensure(t.deaths.s===0&&t.deaths.f===(crit?2:1),'новый урон должен снять стабилизацию и поставить провалы');
+      } else if(family===15){
+        const t=hero('massive',{hp:10+v,hpMax:10+v,hpTemp:v}); world([t],[]); const r=applyDamageTo('ally:massive',20+3*v,'силовое поле','аудит',{});
+        ensure(r.dead===true&&t.deaths.f===3,'остаток урона не меньше максимума должен мгновенно убить');
+      } else if(family===16){
+        const stat=v%2?'save.con':'save.concentration',c=hero('conc',{exhaustion:3,activeFx:[{uid:'concadv'+v,k:'audit',id:'concadv'+v,label:'Стойкость',fx:[{stat,mode:'adv',value:1}]}]}); world([c],[]);
+        ensure(concRollMode(c)===0,'преимущество и помеха концентрации должны погаситься');
+      } else if(family===17){
+        ensure(!!saveSpell,'нет структурированного спасброска Ловкости');
+        const c=hero('saver',{exhaustion:3,activeFx:[{uid:'saveadv'+v,k:'audit',id:'saveadv'+v,label:'Защита',fx:[{stat:'save.dex',mode:'adv',value:1}]}]}),a=hero('spellcaster',{cls:'Волшебник'}); world([a,c],[]);
+        const spec=rollSpecOf(saveSpell,{caster:a,kind:'spell',slotLvl:Math.max(+saveSpell.l||1,1),target:targetInfoOf('ally:saver')});
+        ensure(spec.rows.find(r=>r.type==='save').adv===0,'встречные режимы спасброска должны погаситься');
+      } else if(family===18){
+        const levels=[1,2,3,5,9,10,11,16,17,20],expected=[[1,1],[1,2],[2,2],[3,2],[5,2],[5,2],[5,3],[5,3],[5,4],[5,4]][v];
+        const c=hero('pact',{cls:'Колдун',level:levels[v]}); world([c],[]); applyClassSlots(c); const keys=Object.keys(c.slots).map(Number);
+        ensure(keys.length===1&&keys[0]===expected[0]&&c.slots[keys[0]].max===expected[1]&&maxCircleFor(c)===expected[0],'таблица магии договора неверна');
+      } else if(family===19){
+        const levels=[1,2,3,5,9,10,11,16,17,20],c=hero('restpact',{cls:'Колдун',level:levels[v]}); world([c],[]); applyClassSlots(c); const lv=+Object.keys(c.slots)[0]; c.slots[lv].cur=0;c.spentRest=4;
+        refreshShortRestResources(c); ensure(c.slots[lv].cur===c.slots[lv].max&&c.spentRest===0,'короткий отдых обязан вернуть ячейки договора');
+      } else if(family===20){
+        const names=['Бард','Чародей','Колдун','Следопыт','Бард','Чародей','Колдун','Следопыт','Бард','Колдун'],sp={id:'known',n:'Известное',l:1,ritual:false},c=hero('known',{cls:names[v],level:5,spellbook:[{spellId:'known',prep:false}],slots:{1:{max:2,cur:2}}}); world([c],[]);
+        ensure(slotPlanFor(c,sp,'1').ok===true&&spellEntryReady(c,c.spellbook[0],sp),'известное заклинание не должно требовать подготовки');
+      } else if(family===21){
+        const names=['Волшебник','Жрец','Друид','Паладин','Волшебник','Жрец','Друид','Паладин','Жрец','Волшебник'],sp={id:'prepared',n:'Неподготовленное',l:1,ritual:false},c=hero('prepared',{cls:names[v],spellbook:[{spellId:'prepared',prep:false}],slots:{1:{max:2,cur:2}}}); world([c],[]);
+        ensure(slotPlanFor(c,sp,'1').ok===false,'подготавливающий класс не должен обходить список подготовки');
+      } else if(family===22){
+        const names=['Волшебник','Жрец','Друид','Паладин','Бард','Чародей','Колдун','Следопыт','Волшебник','Жрец'],allowed=[true,false,false,false,true,false,false,false,true,false][v];
+        const sp={id:'ritual',n:'Ритуал',l:1,ritual:true},c=hero('ritualist',{cls:names[v],spellbook:[{spellId:'ritual',prep:false}],slots:{1:{max:1,cur:0}}}); world([c],[]);
+        ensure(slotPlanFor(c,sp,'ritual').ok===allowed,'ритуальное правило класса применено неверно');
+      } else if(family===23){
+        const weapon=itemsDB.find(it=>{const w=itemProfile(it).weapon;return w&&w.versatile;}),shield=itemsDB.find(it=>itemArmorKind(it)==='shield'); ensure(weapon&&shield,'нет универсального оружия или щита');
+        const c=hero('hands',{cls:'Воин',inventory:[{id:'w',itemId:weapon.id,qty:1},{id:'s',itemId:shield.id,qty:1}],equipment:{MAIN_HAND:'w'}}); if(v%2===0)c.equipment.OFF_HAND='s'; world([c],[]);
+        const plan=weaponAttackResourcePlan(c,'w','melee',{two:true}),spec=weaponSpecOf(c,weapon,{kind:'none',known:false,name:'цель'},{entryId:'w',two:true});
+        ensure(plan.ok===(v%2===1)&&spec.rows.find(r=>r.type==='dmg').sides===(v%2===1?itemProfile(weapon).weapon.versatile.sides:weaponDamageOf(weapon).sides),'занятые руки должны блокировать универсальный урон');
+      } else {
+        if(v<2){
+          const weapon=itemsDB.find(it=>{const w=itemProfile(it).weapon;return w&&w.ammo;}),c=hero('ammo',{inventory:[{id:'w',itemId:weapon.id,qty:1}],equipment:{MAIN_HAND:'w'}}); world([c],[]);
+          if(v===1){const want=itemProfile(weapon).weapon.ammoType,ammo=itemsDB.find(it=>itemProfile(it).kind==='ammo'&&(!want||(itemProfile(it).ammo||{}).forWeapon===want));c.inventory.push({id:'ammo',itemId:ammo.id,qty:1});}
+          ensure(weaponAttackResourcePlan(c,'w','ranged').ok===(v===1),'боеприпасы должны быть обязательным ресурсом выстрела');
+        } else if(v<4){
+          const it=itemsDB.find(x=>itemSpec(x).charges&&itemUsesOf(x).some(u=>u.consume&&u.consume.kind==='charges')); ensure(it,'нет предмета с зарядами');
+          const use=itemUsesOf(it).find(u=>u.consume&&u.consume.kind==='charges'),need=+use.consume.amount||1,e={id:'charged',itemId:it.id,qty:1,ch:{cur:v===2?Math.max(0,need-1):need,max:itemSpec(it).charges}},c=hero('charged',{inventory:[e]}); world([c],[]);
+          ensure(itemUseResourcePlan(c,e,it,use).ok===(v===3),'стоимость зарядов должна проверяться до применения');
+        } else if(v<6){
+          const gem={id:'audit_gem',n:'Алмаз',type:'wondrous',cost:'100 зм',tags:[],desc:''}; upgradeItem(gem,true);itemsDB.push(gem);
+          const sp={id:'audit_mat',n:'Расходуемый компонент',l:1,cm:'М (алмаз, расходуется)',d:'Мгновенная',x:''},c=hero('material',{inventory:[{id:'gem',itemId:gem.id,qty:2}]}); world([c],[]);
+          ensure(materialPlanFor(c,sp,parseComponents(sp),{entryId:'gem',use:v===4?2:1}).ok===(v===5),'расходуемый материал должен списываться ровно один раз');
+        } else if(v<8){
+          const sword={id:'audit_sword',n:'Меч',type:'weapon',tags:[]},focus={id:'audit_focus',n:'Священный фокус',type:'armor',tags:['focus']};itemsDB.push(sword,focus);
+          const c=hero('handscomp',{inventory:[{id:'sword',itemId:sword.id,qty:1},{id:'focus',itemId:focus.id,qty:1}],equipment:{MAIN_HAND:'sword',OFF_HAND:'focus'}});world([c],[]);
+          const sp=v===6?{n:'Только жесты',cm:'В, С'}:{n:'Жесты с фокусом',cm:'В, С, М (символ)'};
+          ensure(canCastCheck(c,sp).ok===(v===7),'соматические и материальные компоненты с занятыми руками перепутаны');
+        } else if(v===8){
+          const torch=itemsDB.find(it=>itemProfile(it).kind==='light');ensure(torch,'нет источника света');const c=hero('dark',{inventory:[{id:'torch',itemId:torch.id,qty:1}]});world([c],[]);lightToggle('torch');
+          ensure(c.activeFx.length===0&&c.inventory[0].qty===1,'огонь нельзя создавать без структурированного источника');
+        } else {
+          const it=itemsDB.find(x=>itemSpec(x).charges&&itemUsesOf(x).some(u=>u.consume&&u.consume.kind==='charges'));const use=itemUsesOf(it).find(u=>u.consume&&u.consume.kind==='charges'),need=+use.consume.amount||1;
+          const e={id:'once',itemId:it.id,qty:1,ch:{cur:need+1,max:itemSpec(it).charges}},c=hero('once',{inventory:[e]});world([c],[]);const p=itemUseResourcePlan(c,e,it,use);commitItemUseResource(p);
+          ensure(e.ch.cur===1,'коммит должен списывать стоимость ровно один раз');
+        }
+      }
+    });
+  } finally {
+    chars=saved.chars;journal=saved.journal;itemsDB=saved.itemsDB;spellsDB=saved.spellsDB;abilitiesDB=saved.abilitiesDB;racesDB=saved.racesDB;
+    classesDB=saved.classesDB;rulesDB=saved.rulesDB;foesDB=saved.foesDB;activeCharId=saved.activeCharId;fxRound=saved.fxRound;
+    combat=saved.combat;castCtx=saved.castCtx;lastCastEvent=saved.lastCastEvent;fxInvalidate();
+  }
+  const out=document.getElementById('rareAuditOut');
+  if(out){
+    out.style.display='block';out.style.color=report.failed?'#ff9d91':'#9fe3ad';
+    out.textContent=report.failed?('✕ '+report.passed+' / '+report.total+'; первый сбой: бой '+report.failures[0].battle+' — '+report.failures[0].message)
+      :('✓ '+report.passed+' / '+report.total+' редких боёв пройдено · '+Object.keys(report.categories).length+' семейств · состояние кампании не изменено');
+  }
+  setStatus(report.failed?'✕ Редкий боевой аудит: '+report.failed+' сбоев из '+report.total+'.':'◇ Редкий боевой аудит: 250 из 250, ошибок нет; кампания не изменена.',report.failed>0);
+  window.__lastRareBattleAudit=report;
+  return report;
+}
 function combatSetupHTML(){
-  combatEnsureSetup(); let h='<div class="combat-shell"><div class="combat-setup"><div class="combat-top"><div class="combat-title">⚔ Новый бой</div><span class="spacer"></span><span>Броски вводит мастер</span><button class="btn ghost sm" onclick="resetCombatAndParty()">↺ Сбросить бой и группу</button></div>';
+  combatEnsureSetup(); let h='<div class="combat-shell"><div class="combat-setup"><div class="combat-top"><div class="combat-title">⚔ Новый бой</div><span class="spacer"></span><span>Броски вводит мастер</span><button class="btn ghost sm" id="rareAuditBtn" onclick="runRareBattleAudit()">◇ 250 редких боёв</button><button class="btn ghost sm" onclick="resetCombatAndParty()">↺ Сбросить бой и группу</button></div>';
+  h+='<div id="rareAuditOut" style="display:none;margin:8px 0;padding:8px;border:1px solid #4f5f4e;background:#182019;font-size:13px"></div>';
   h+='<div class="combat-callout">Выберите участников и впишите фактический результат d20. Модификаторы и итог рассчитываются реактивно; при ничьей порядок уточняет мастер.</div>';
   h+='<label style="display:block;margin-bottom:10px">Название схватки <input id="combatName" style="width:100%;margin-top:4px" value="'+esc(combat.name||'Схватка')+'"></label>';
   h+='<div class="combat-setup-grid"><div class="combat-setup-card"><h3>⚔ Герои <small>· d20 + инициа</small></h3>'+combatSetupRows('ally',chars)+'</div><div class="combat-setup-card"><h3>☠ Противники <small>· d20 + Ловк.</small></h3>'+combatSetupRows('foe',foesDB)+'</div></div>';
@@ -11006,7 +11341,8 @@ function combatActionsHTML(key){
       if(off) h+=combatActionButton('◇',it.n+' — вторая рука','После действия Атака · без положительного мод. к урону','combatWeapon(\''+x.id+'\',\''+mode+'\',\'offhand\',true)','offhand',key,down);
     });
   } else if(g==='spells'&&entry.kind==='ally'){
-    (o.spellbook||[]).forEach(x=>{ const sp=spellOf(x.spellId); if(!sp) return; const cost=combatSpellCost(sp),prep=sp.l===0||x.prep; h+=combatActionButton('✦',sp.n,(sp.l?sp.l+' круг':'заговор')+' · '+(prep?'подготовлено':'не подготовлено')+' · '+combatCostLabel(cost),'combatCastSpell(\''+sp.id+'\')',cost,key,down||!prep); });
+    (o.spellbook||[]).forEach(x=>{ const sp=spellOf(x.spellId); if(!sp) return; const cost=combatSpellCost(sp),ready=spellEntryReady(o,x,sp),known=casterPreparationMode(o)==='known';
+      h+=combatActionButton('✦',sp.n,(sp.l?sp.l+' круг':'заговор')+' · '+(sp.l?(known?'известно':(ready?'подготовлено':'не подготовлено')):'всегда готово')+' · '+combatCostLabel(cost),'combatCastSpell(\''+sp.id+'\')',cost,key,down||!ready); });
   } else if(g==='abilities'&&entry.kind==='ally'){
     (o.abilities||[]).forEach(x=>{ const ab=abilityOf(x.abilityId); if(!combatAbilityUsable(ab)) return; const cur=x.cur==null?ab.uses:x.cur,cost=combatAbilityCost(ab),uses=ab.uses!=null?' · '+cur+'/'+ab.uses:'',pool=abilityPoolOf(o,ab),poolInfo=pool?' · '+pool.label+' '+pool.cur+'/'+pool.max:''; h+=combatActionButton('✦',ab.n,combatCostLabel(cost)+uses+poolInfo,'combatUseAbility(\''+ab.id+'\')',cost,key,down||(ab.uses!=null&&cur<=0)||(pool&&pool.cur<=0)||combatAbilityUsedThisTurn(ab,key)); });
   } else if(g==='items'&&entry.kind==='ally'){
@@ -11621,22 +11957,29 @@ function spendHitDie(){
     }});
 }
 function returnHitDie(){ const c=cc(); if(!c) return; c.hdUsed=Math.max(0,(+c.hdUsed||0)-1); scheduleSave(); renderChars(); }
+function refreshShortRestResources(c){
+  if(!c) return {pact:false};
+  c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null&&db.rest==='короткий отдых') a.cur=db.uses; });
+  const meta=casterMeta(c),pact=!!(meta&&meta.slotRecovery==='short');
+  if(pact){ Object.keys(c.slots||{}).forEach(l=>{ c.slots[l].cur=c.slots[l].max; }); c.spentRest=0; }
+  return {pact};
+}
 function shortRest(){
   const c=cc(); if(!c) return;
-  c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null&&db.rest==='короткий отдых') a.cur=db.uses; });
+  const refreshed=refreshShortRestResources(c),pact=refreshed.pact;
   /* Арканное восстановление волшебника: раз в день, суммарный круг ячеек до половины уровня */
   if(c.cls==='Волшебник' && !c.arcUsed && casterMeta(c)){
     let budget=Math.ceil(c.level/2);
     const lvls=Object.keys(c.slots||{}).map(Number).sort((a,b)=>a-b).filter(lv=>lv<=5);
     const miss=lvls.some(lv=>c.slots[lv].cur<c.slots[lv].max);
-    if(miss && confirm('⚕ Арканное восстановление (раз в день): вернуть потраченные ячейки суммарным кругом до '+budget+' (ячейки не выше 6 круга)?')){
+    if(miss && confirm('⚕ Арканное восстановление (раз в день): вернуть потраченные ячейки суммарным кругом до '+budget+' (ячейки не выше 5 круга)?')){
       const got=[];
       lvls.forEach(lv=>{ while(budget>=lv && c.slots[lv].cur<c.slots[lv].max){ c.slots[lv].cur++; budget-=lv; got.push(lv); } });
       c.arcUsed=true;
       if(got.length) setStatus('⚕ Арканное восстановление: возвращены ячейки кругов '+got.join(', ')+'.');
     }
   }
-  setStatus('☕ Короткий отдых: способности короткого отдыха восстановлены; кости хитов тратьте кнопкой ⚁ в ячейке «Кости хитов».');
+  setStatus('☕ Короткий отдых: способности короткого отдыха восстановлены'+(pact?'; все ячейки магии договора восстановлены':'')+'; кости хитов тратьте кнопкой ⚁ в ячейке «Кости хитов».');
   scheduleSave(); renderChars();
 }
 function upgradeChar3(c){
@@ -12209,6 +12552,9 @@ function addSpellFromDB(spellId){
 function delBookSpell(spellId){ const c=cc(); if(!c) return;
   c.spellbook=c.spellbook.filter(x=>x.spellId!==spellId); scheduleSave(); renderChars(); }
 function togglePrep(spellId){ const c=cc(); const e=c.spellbook.find(x=>x.spellId===spellId); if(!e) return;
+  if(casterPreparationMode(c)==='known'){
+    const sp=spellOf(spellId); setStatus('«'+(sp?sp.n:'Заклинание')+'» уже известно: '+c.cls+' не готовит отдельный список заклинаний.'); return;
+  }
   if(!e.prep && casterMeta(c) && prepCount(c)>=prepMax(c)){
     setStatus('✕ Лимит подготовки достигнут: '+prepCount(c)+' из '+prepMax(c)+'. Сначала снимите подготовку с другого заклинания.',true); return;
   }
@@ -12243,7 +12589,8 @@ function suggestSlots(){
   const c=cc(); if(!c) return;
   if(!casterMeta(c)){ setStatus('«'+c.cls+'» не владеет ячейками заклинаний по таблицам заклинателей.'); return; }
   applyClassSlots(c);
-  setStatus('Ячейки выставлены по таблице: '+(casterMeta(c).kind==='half'?'полузаклинатель':'полный заклинатель')+', уровень '+c.level+' (потраченные сохранены).');
+  const kind=casterMeta(c).kind,label=kind==='pact'?'магия договора':(kind==='half'?'полузаклинатель':'полный заклинатель');
+  setStatus('Ячейки выставлены по таблице: '+label+', уровень '+c.level+' (потраченные сохранены).');
   scheduleSave(); renderChars();
 }
 function longRest(){
@@ -12286,24 +12633,26 @@ function spellDashHTML(c){
   }
   /* подготовка и доступность */
   if(meta){
-    const pc=prepCount(c), pm=prepMax(c);
+    const mode=meta.preparation,pc=prepCount(c),pm=prepMax(c);
     const cantrips=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&sp.l===0; }).length;
-    const prepped=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return e.prep&&sp&&sp.l>0; });
-    const castable=prepped.filter(e=>{ const sp=spellOf(e.spellId);
+    const ready=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&sp.l>0&&spellEntryReady(c,e,sp); });
+    const castable=ready.filter(e=>{ const sp=spellOf(e.spellId);
       return lvls.some(lv=>lv>=sp.l && c.slots[lv].cur>0); }).length;
-    const ritual=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&sp.ritual; }).length;
+    const ritual=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return spellRitualAllowed(c,sp,e); }).length;
     const spent=+c.spentRest||0;
-    h+='<div class="sd-line'+(pc>pm?' sd-over':'')+'">Подготовлено: <b>'+pc+' из '+pm+'</b> (уровень + модификатор характеристики)'+(pc>pm?' — превышение решением мастера':'')+'; смена списка — на долгом отдыхе.</div>';
-    h+='<div class="sd-line">Сейчас можно наложить: <b>'+castable+'</b> из '+prepped.length+' подготовленных (по свободным ячейкам подходящих кругов) · заговоров без ячеек: '+cantrips+(ritual?' · ритуалов без ячеек: '+ritual:'')+'.</div>';
-    h+='<div class="sd-line'+(spent>=3?' sd-hot':'')+'">Потрачено ячеек с последнего долгого отдыха: <b>'+spent+'</b>'+(spent>=3?' — бой заметно истощает запас!':'')+'.</div>';
+    if(mode==='known') h+='<div class="sd-line">Известно заклинаний: <b>'+ready.length+'</b>; отдельная подготовка для '+esc(c.cls)+' не требуется.</div>';
+    else h+='<div class="sd-line'+(pc>pm?' sd-over':'')+'">Подготовлено: <b>'+pc+' из '+pm+'</b> (уровень + модификатор характеристики)'+(pc>pm?' — превышение требует исправления списка':'')+'; смена списка — на долгом отдыхе.</div>';
+    h+='<div class="sd-line">Сейчас можно наложить: <b>'+castable+'</b> из '+ready.length+' '+(mode==='known'?'известных':'подготовленных')+' (по свободным ячейкам подходящих кругов) · заговоров без ячеек: '+cantrips+(ritual?' · доступных ритуалов без ячеек: '+ritual:'')+'.</div>';
+    h+='<div class="sd-line'+(spent>=3?' sd-hot':'')+'">Потрачено ячеек с последнего '+(meta.slotRecovery==='short'?'короткого':'долгого')+' отдыха: <b>'+spent+'</b>'+(spent>=3?' — бой заметно истощает запас!':'')+'.</div>';
     const total=lvls.reduce((a,lv)=>a+c.slots[lv].cur,0);
     const totalMax=lvls.reduce((a,lv)=>a+c.slots[lv].max,0);
-    h+='<div class="sd-line">После долгого отдыха: восстановятся все ячейки ('+(totalMax-total)+' шт.) и способности, список подготовки можно сменить'
+    h+='<div class="sd-line">После '+(meta.slotRecovery==='short'?'короткого или долгого':'долгого')+' отдыха: восстановятся все ячейки ('+(totalMax-total)+' шт.) и способности'+(mode==='known'?'':', список подготовки можно сменить')
       +(c.cls==='Волшебник'?(c.arcUsed?'; арканное восстановление уже использовано сегодня':'; на коротком отдыхе доступно ⚕ арканное восстановление (суммарно кругов: до '+Math.ceil(c.level/2)+')'):'')+'.</div>';
   }
   return h+'</div>';
 }
 function stSpells(c){
+  const prepMode=casterPreparationMode(c),knownMode=prepMode==='known';
   let h='<div class="panel">';
   /* ячейки */
   h+='<div class="row-line"><h3 class="rubric" style="font-size:22px;margin:0">Ячейки заклинаний</h3><span class="grow"></span>'
@@ -12356,14 +12705,12 @@ function stSpells(c){
    +'<input type="text" placeholder="Поиск в книге героя…" value="'+esc(bookFlt.q)+'" oninput="bookFlt.q=this.value;renderChars();const fs=document.querySelectorAll(\'#tab-chars .db-bar input\');const f=fs[fs.length-1];if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}">'
    +'<select onchange="bookFlt.l=this.value;renderChars()"><option value="">Все круги</option><option value="0"'+(bookFlt.l==='0'?' selected':'')+'>Заговоры</option>'
    +[1,2,3,4,5,6,7,8,9].map(l=>'<option value="'+l+'"'+(bookFlt.l===String(l)?' selected':'')+'>'+l+' круг</option>').join('')+'</select>'
-   +'<select onchange="bookFlt.prep=this.value;renderChars()"><option value="">Все</option>'
-   +'<option value="1"'+(bookFlt.prep==='1'?' selected':'')+'>Подготовленные</option>'
-   +'<option value="0"'+(bookFlt.prep==='0'?' selected':'')+'>Неподготовленные</option></select></div>';
+   +(knownMode?'<span class="note-ital" style="font-size:13px">Все записи считаются известными</span>':'<select onchange="bookFlt.prep=this.value;renderChars()"><option value="">Все</option><option value="1"'+(bookFlt.prep==='1'?' selected':'')+'>Подготовленные</option><option value="0"'+(bookFlt.prep==='0'?' selected':'')+'>Неподготовленные</option></select>')+'</div>';
   /* книга по кругам */
   const entries=c.spellbook.map(e=>({e, sp:spellOf(e.spellId)})).filter(x=>x.sp)
     .filter(x=>(!bookFlt.q||x.sp.n.toLowerCase().includes(bookFlt.q.toLowerCase()))
       &&(bookFlt.l===''||x.sp.l===+bookFlt.l)
-      &&(bookFlt.prep===''||(bookFlt.prep==='1')===(x.sp.l===0?true:!!x.e.prep)))
+      &&(knownMode||bookFlt.prep===''||(bookFlt.prep==='1')===(x.sp.l===0?true:!!x.e.prep)))
     .sort((a,b)=>a.sp.l-b.sp.l||a.sp.n.localeCompare(b.sp.n,'ru'));
   if(!entries.length){ h+='<div class="empty-scroll"><span class="big">❦</span>Книга заклинаний пуста.</div>'; return h+'</div>'; }
   let lastL=-1;
@@ -12371,7 +12718,7 @@ function stSpells(c){
     if(x.sp.l!==lastL){ lastL=x.sp.l;
       h+='<h3 class="rubric" style="font-size:21px;margin-top:12px">'+(lastL===0?'Заговоры':lastL+' круг')+'</h3>'; }
     const extra='<button class="btn ghost sm fx-cast" title="Наложить эффект на героя или союзника" onclick="castSpellFx(\''+x.sp.id+'\',\''+c.id+'\')">⚡ Наложить</button>'
-     +(x.sp.l>0?'<button class="btn ghost sm prep-btn'+(x.e.prep?' on':'')+'" onclick="togglePrep(\''+x.sp.id+'\')">'+(x.e.prep?'Подготовлено ✓':'Подготовить')+'</button>':'')
+     +(x.sp.l>0?(knownMode?'<span class="type-tag">известно</span>':'<button class="btn ghost sm prep-btn'+(x.e.prep?' on':'')+'" onclick="togglePrep(\''+x.sp.id+'\')">'+(x.e.prep?'Подготовлено ✓':'Подготовить')+'</button>'):'')
      +'<button class="btn ghost sm" title="Править в гримуаре мира" onclick="switchTab(\'spellsdb\');openSpellEd(\''+x.sp.id+'\')">✎</button>'
      +'<button class="del-x" title="Вычеркнуть из книги героя" onclick="delBookSpell(\''+x.sp.id+'\')">✕</button>';
     h+=spellCardHTML(x.sp, extra);

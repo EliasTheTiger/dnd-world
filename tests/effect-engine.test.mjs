@@ -19,14 +19,16 @@ function loadEngine(random = () => 0) {
       state() { return {chars,itemsDB,spellsDB,abilitiesDB,racesDB,classesDB,foesDB,activeCharId,fxRound,lastCastEvent,combat}; },
       applyFxTo, removeActiveFx, advanceFxRound, attachDuration, spellFxForCast,
       castSpellApply, canCastCheck, parseComponents, materialPlanFor, slotPlanFor,
+      casterMeta, maxCircleFor, slotsRowFor, applyClassSlots, casterPreparationMode, spellEntryReady, spellRitualAllowed,
       charFxAll, fxSum, eHpMax, acTotal, speedTotal, concEntriesOf,
-      breakConcentration, longRest, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
+      breakConcentration, concRollMode, longRest, shortRest, refreshShortRestResources, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
       applyDamageTo, applyRollsToTarget, resolveUndeadFortitude, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
-      rollSpecOf, resolveOutcome, targetInfoOf, weaponSpecOf, weaponAttackApply, useItemApply,
+      rollSpecOf, resolveOutcome, targetInfoOf, targetCriticalHitImmune, weaponSpecOf, weaponAttackApply, weaponCanUseTwoHands, weaponAttackResourcePlan, useItemApply,
       upgradeSpell, upgradeAbility, upgradeItem, upgradeRace, upgradeClass, currentMechanics,
       compileSpellMechanics, compileAbilityMechanics, compileItemMechanics, compileRaceMechanics, compileClassMechanics,
       mechanicsErrors, referenceMechanicsErrors, formulaContractErrors, finalizeRollSpec, normalizeResolutionContract,
       itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemSpec, itemActions, combatItemActionCost, rollFxEntries,
+      itemUseResourcePlan, commitItemUseResource,
       dmgAfterTraits, effectiveFoeConditions, castDispel, rollbackLastCast,
       seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, seedFoesDB, gameDataAudit,
       upgradeFoe, mergeBuiltinFoe, foeSaveMod, foeSkillMod, foeActionReady, foeResetActionState,
@@ -34,7 +36,7 @@ function loadEngine(random = () => 0) {
       foeActionOf, foeActionFormula, foeActionSpecOf, foeActionApply, foeActionBatchApply,
       abilityIsActive, isPassiveAbility, abilityPoolOf, itemProfile, weaponDamageOf, weaponBonusOf, ammoRemaining, ammoRecover, invQty,
       foeActionsOf, foeDefensesOf, conditionRules,
-      validateFormulaValues, saveConditionMode,
+      validateFormulaValues, saveConditionMode, attackConditionMode, attackRangeBands, coverRuleOf,
       combatStart, combatNextTurn, combatEnd, combatSpend, combatCanSpend, combatBasicAction, combatFocus,
       combatEnsureSetup, restorePartyAndCombatState, resetCombatAndParty,
       mergeStableEntries, structuredReleaseCampaignPayload,
@@ -43,7 +45,7 @@ function loadEngine(random = () => 0) {
       combatDeathSave, combatContestAction, combatTriggerReady, combatOpportunityBlocked, combatSetGroup, combatSpellTurnAllowed,
       combatAbilityCost, combatAbilityUsable, combatSpellCost, combatCunningAction,
       combatFoeRecharge, combatFoeAttackAllowed, combatRecordFoeAttack, combatAttackCount,
-      castConfirm, castFormulaShow, castFormulaConfirm, closeCastModal,
+      castConfirm, castFormulaShow, castFormulaConfirm, closeCastModal, runRareBattleAudit,
       castState() { return {ctx:castCtx, spec:castCtx&&castCtx.spec}; },
       makeBlank() { return buildBlank(); },
       conditions() { return CONDITIONS; },
@@ -354,6 +356,20 @@ test('соматический компонент с занятыми рукам
   assert.equal(e.canCastCheck(caster, withMaterial).ok, true);
   const comp = e.parseComponents(withMaterial);
   assert.equal(e.materialPlanFor(caster, withMaterial, comp, {substitute: true}).ok, true);
+});
+
+test('двуручное оружие можно удерживать одной рукой во время компонентов заклинания', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const twoHanded = items.find(it => {
+    const w = e.itemProfile(it).weapon;
+    return w && w.two;
+  });
+  const caster = hero('caster', {inventory: [{id: 'two', itemId: twoHanded.id, qty: 1}], equipment: {MAIN_HAND: 'two', OFF_HAND: 'two'}});
+  const somatic = {id: 'somatic', n: 'Жест', l: 1, cm: 'В, С', d: 'Мгновенная', x: ''};
+  const material = {id: 'material', n: 'Компонент', l: 1, cm: 'В, С, М (щепотка песка)', d: 'Мгновенная', x: ''};
+  e.setState({chars: [caster], items, spells: [somatic, material]});
+  assert.equal(e.canCastCheck(caster, somatic).ok, true);
+  assert.equal(e.canCastCheck(caster, material).ok, true);
 });
 
 test('модификаторы скорости суммируются до умножения и не зависят от порядка эффектов', () => {
@@ -2459,7 +2475,7 @@ test('выпуск 4.1 объединяет локальную и облачну
 
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /const CLOUD_PAUSED=false/);
-  assert.ok(html.includes('Движок 4.2 · строгие формулы v2'));
+  assert.ok(html.includes('Движок 4.3 · редкие сценарии 250'));
 });
 
 test('формулы v2 не содержат броска мастера, ручного попадания или изменяемого преимущества', () => {
@@ -2552,6 +2568,175 @@ test('материальный компонент имеет точный рас
   assert.ok(audit.coverage.damageTypes.length >= 8);
   assert.ok(audit.coverage.effectStats.length >= 12);
   assert.deepEqual(plain(party.map(c => c.id)), ['char_roku', 'char_torgar', 'char_septih', 'char_legerem']);
+});
+
+test('встречные преимущество и помеха отменяются независимо от типа источника', () => {
+  const e = loadEngine(), spells = e.seedSpellsDB(), classes = e.seedClassesDB();
+  const ray = spells.find(sp => {
+    const m = e.currentMechanics(sp, 'spell'), attack = m && m.resolution && m.resolution.attack;
+    return attack && attack.mode === 'ranged';
+  });
+  const caster = hero('caster', {cls: 'Волшебник', activeFx: [{uid: 'adv', k: 'audit', id: 'adv', label: 'Преимущество',
+    fx: [{stat: 'attack.int', mode: 'adv', value: 1}]}]});
+  const target = {id: 'target', n: 'Лежащая цель', kind: 'monster', ac: 12, hp: 20, hpMax: 20,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, saveBonuses: {}, skills: {}, profB: 2,
+    resist: [], vuln: [], immune: [], damageRules: [], condImmune: [], effectImmunities: [], activeFx: [], cond: ['Сбитый с ног'], combatActions: []};
+  e.setState({chars: [caster], spells, classes, foes: [target]});
+  const spec = e.rollSpecOf(ray, {caster, kind: 'spell', slotLvl: ray.l, target: e.targetInfoOf('foe:target'), within5: false});
+  assert.equal(spec.rows.find(r => r.type === 'atk').adv, 0);
+});
+
+test('иммунитет к критам блокирует и натуральный, и автоматический крит состояния', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const sword = items.find(it => e.itemProfile(it).kind === 'weapon' && !e.itemProfile(it).weapon.ranged);
+  const caster = hero('caster', {cls: 'Воин', ab: {str: 18, dex: 10, con: 10, int: 10, wis: 10, cha: 10}});
+  const target = {id: 'target', n: 'Защищенная цель', kind: 'monster', ac: 5, hp: 30, hpMax: 30, criticalHitImmune: true,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, saveBonuses: {}, skills: {}, profB: 2,
+    resist: [], vuln: [], immune: [], damageRules: [], condImmune: [], effectImmunities: [], activeFx: [], cond: ['Парализованный'], combatActions: []};
+  e.setState({chars: [caster], items, foes: [target]});
+  const spec = e.weaponSpecOf(caster, sword, e.targetInfoOf('foe:target'), {within5: true, mode: 'melee'});
+  assert.equal(e.resolveOutcome(spec, {atk: 20, dmg: 4}).crit, false, 'натуральная 20 не обходит иммунитет');
+  assert.equal(e.resolveOutcome(spec, {atk: 10, dmg: 4}).crit, false, 'автокрит паралича не обходит иммунитет');
+});
+
+test('урон по стабилизированному герою снимает стабилизацию и ставит один или два провала', () => {
+  for (const [crit, failures] of [[false, 1], [true, 2]]) {
+    const e = loadEngine(), target = hero('stable', {hp: 0, deaths: {s: 3, f: 0}, cond: ['Бессознательный']});
+    e.setState({chars: [target]});
+    e.applyDamageTo('ally:stable', 1, 'рубящий', 'Тест', {crit});
+    assert.deepEqual(plain(target.deaths), {s: 0, f: failures});
+  }
+});
+
+test('концентрация учитывает помеху и канонически гасит ее преимуществом', () => {
+  const e = loadEngine(), caster = hero('caster', {exhaustion: 3, activeFx: [{uid: 'war-caster', k: 'audit', id: 'war-caster',
+    label: 'Боевой заклинатель', fx: [{stat: 'save.concentration', mode: 'adv', value: 1}]}]});
+  e.setState({chars: [caster]});
+  assert.equal(e.concRollMode(caster), 0);
+  caster.activeFx = []; caster.__fxC = null;
+  assert.equal(e.concRollMode(caster), 2);
+});
+
+test('магия договора использует отдельную таблицу и возвращается после короткого отдыха', () => {
+  const e = loadEngine(), classes = e.seedClassesDB();
+  const cases = [[1, 1, 1], [2, 1, 2], [3, 2, 2], [9, 5, 2], [11, 5, 3], [17, 5, 4], [20, 5, 4]];
+  for (const [level, circle, count] of cases) {
+    const caster = hero(`pact-${level}`, {cls: 'Колдун', level, abilities: []});
+    e.setState({chars: [caster], classes, activeCharId: caster.id});
+    e.applyClassSlots(caster);
+    assert.deepEqual(plain(caster.slots), {[circle]: {max: count, cur: count}});
+    caster.slots[circle].cur = 0; caster.spentRest = count;
+    e.refreshShortRestResources(caster);
+    assert.equal(caster.slots[circle].cur, count);
+    assert.equal(caster.spentRest, 0);
+  }
+});
+
+test('известные, подготовленные и ритуальные заклинания различаются по классу', () => {
+  const e = loadEngine(), classes = e.seedClassesDB(), spell = {id: 'spell', n: 'Проверка', l: 1, ritual: true};
+  for (const cls of ['Бард', 'Чародей', 'Колдун', 'Следопыт']) {
+    const caster = hero(cls, {cls, spellbook: [{spellId: spell.id, prep: false}], slots: {1: {max: 2, cur: 2}}});
+    e.setState({chars: [caster], classes});
+    assert.equal(e.slotPlanFor(caster, spell, '1').ok, true, cls);
+    assert.equal(e.slotPlanFor(caster, spell, 'ritual').ok, cls === 'Бард', `${cls}: ритуальное колдовство`);
+  }
+  for (const cls of ['Жрец', 'Друид', 'Паладин']) {
+    const caster = hero(cls, {cls, spellbook: [{spellId: spell.id, prep: false}], slots: {1: {max: 2, cur: 2}}});
+    e.setState({chars: [caster], classes});
+    assert.equal(e.slotPlanFor(caster, spell, '1').ok, false, cls);
+    assert.equal(e.slotPlanFor(caster, spell, 'ritual').ok, false, `${cls}: неподготовленный ритуал`);
+  }
+  const wizard = hero('wizard', {cls: 'Волшебник', spellbook: [{spellId: spell.id, prep: false}], slots: {1: {max: 2, cur: 0}}});
+  e.setState({chars: [wizard], classes});
+  assert.equal(e.slotPlanFor(wizard, spell, '1').ok, false);
+  assert.equal(e.slotPlanFor(wizard, spell, 'ritual').ok, true, 'волшебник читает ритуал из книги без подготовки');
+});
+
+test('универсальное оружие не переходит на большую кость при занятой щитом руке', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const weapon = items.find(it => e.itemProfile(it).weapon && e.itemProfile(it).weapon.versatile);
+  const shield = items.find(it => (e.itemProfile(it).armor || {}).acRule && (e.itemProfile(it).armor || {}).acRule.shield);
+  const caster = hero('fighter', {cls: 'Воин', inventory: [{id: 'weapon', itemId: weapon.id, qty: 1}, {id: 'shield', itemId: shield.id, qty: 1}],
+    equipment: {MAIN_HAND: 'weapon', OFF_HAND: 'shield'}});
+  e.setState({chars: [caster], items});
+  assert.equal(e.weaponAttackResourcePlan(caster, 'weapon', 'melee', {two: true}).ok, false);
+  assert.equal(e.weaponSpecOf(caster, weapon, {kind: 'none', known: false, name: 'цель'}, {entryId: 'weapon', two: true}).rows.find(r => r.type === 'dmg').sides,
+    e.weaponDamageOf(weapon).sides);
+  delete caster.equipment.OFF_HAND;
+  assert.equal(e.weaponAttackResourcePlan(caster, 'weapon', 'melee', {two: true}).ok, true);
+  assert.equal(e.weaponSpecOf(caster, weapon, {kind: 'none', known: false, name: 'цель'}, {entryId: 'weapon', two: true}).rows.find(r => r.type === 'dmg').sides,
+    e.itemProfile(weapon).weapon.versatile.sides);
+});
+
+test('дальняя дистанция и соседний враг структурно дают помеху дальнобойной атаке', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const bow = items.find(it => {
+    const w = e.itemProfile(it).weapon;
+    return w && w.ranged && e.attackRangeBands(w.range);
+  });
+  const caster = hero('archer', {cls: 'Воин', inventory: [{id: 'bow', itemId: bow.id, qty: 1}], equipment: {MAIN_HAND: 'bow'}});
+  const target = {id: 'target', n: 'Далекая цель', kind: 'monster', ac: 12, hp: 20, hpMax: 20,
+    abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, saveBonuses: {}, skills: {}, profB: 2,
+    resist: [], vuln: [], immune: [], damageRules: [], condImmune: [], effectImmunities: [], activeFx: [], cond: [], combatActions: []};
+  e.setState({chars: [caster], items, foes: [target]});
+
+  const long = e.weaponSpecOf(caster, bow, e.targetInfoOf('foe:target'), {entryId: 'bow', mode: 'ranged', within5: false, rangeBand: 'long'});
+  assert.equal(long.rows.find(r => r.type === 'atk').adv, 2);
+  const threatened = e.weaponSpecOf(caster, bow, e.targetInfoOf('foe:target'), {entryId: 'bow', mode: 'ranged', within5: false, threatenedWithin5: true});
+  assert.equal(threatened.rows.find(r => r.type === 'atk').adv, 2, 'соседний враг может быть не выбранной далекой целью');
+
+  caster.activeFx.push({uid: 'adv', k: 'audit', id: 'adv', label: 'Преимущество', fx: [{stat: 'attack.dex', mode: 'adv', value: 1}]});
+  e.setState({chars: [caster], items, foes: [target]});
+  const cancelled = e.weaponSpecOf(caster, bow, e.targetInfoOf('foe:target'), {entryId: 'bow', mode: 'ranged', within5: false, rangeBand: 'long'});
+  assert.equal(cancelled.rows.find(r => r.type === 'atk').adv, 0);
+
+  const out = e.weaponSpecOf(caster, bow, e.targetInfoOf('foe:target'), {entryId: 'bow', mode: 'ranged', within5: false, rangeBand: 'out'});
+  const result = e.resolveOutcome(out, {atk: 20, dmg: 8});
+  assert.equal(result.hit, false); assert.equal(result.crit, false); assert.equal(result.dmgTotal, 0);
+  assert.equal(e.validateFormulaValues(out, {atk: 20, dmg: 8}, result).ok, false);
+  assert.equal(e.weaponAttackResourcePlan(caster, 'bow', 'ranged', {rangeBand: 'out'}).ok, false);
+});
+
+test('укрытие входит в КД, спасбросок Ловкости и атомарный префлайт', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB();
+  const weapon = items.find(it => e.itemProfile(it).weapon && !e.itemProfile(it).weapon.ranged);
+  const caster = hero('attacker', {cls: 'Воин', inventory: [{id: 'weapon', itemId: weapon.id, qty: 1}], equipment: {MAIN_HAND: 'weapon'}});
+  const target = {id: 'target', n: 'Цель в укрытии', kind: 'monster', ac: 15, hp: 30, hpMax: 30,
+    abil: {str: 10, dex: 14, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, saveBonuses: {}, skills: {}, profB: 2,
+    resist: [], vuln: [], immune: [], damageRules: [], condImmune: [], effectImmunities: [], activeFx: [], cond: [], combatActions: []};
+  e.setState({chars: [caster], items, spells, foes: [target]});
+
+  const half = e.weaponSpecOf(caster, weapon, e.targetInfoOf('foe:target'), {entryId: 'weapon', cover: 'half'});
+  const attackMod = half.rows.find(r => r.type === 'atk').mod;
+  assert.equal(e.resolveOutcome(half, {atk: 17 - attackMod, dmg: 4}).hit, true, 'итог 17 равен КД 15 + 2');
+  assert.equal(e.resolveOutcome(half, {atk: 16 - attackMod, dmg: 4}).hit, false);
+
+  const total = e.weaponSpecOf(caster, weapon, e.targetInfoOf('foe:target'), {entryId: 'weapon', cover: 'total'});
+  const totalResult = e.resolveOutcome(total, {atk: 20, dmg: 8});
+  assert.equal(totalResult.hit, false); assert.equal(totalResult.dmgTotal, 0);
+  assert.equal(e.validateFormulaValues(total, {atk: 20, dmg: 8}, totalResult).ok, false);
+  assert.equal(e.weaponAttackResourcePlan(caster, 'weapon', 'melee', {cover: 'total'}).ok, false);
+
+  const dexSpell = spells.find(sp => {
+    const m = e.currentMechanics(sp, 'spell');
+    return m && m.resolution && m.resolution.save && m.resolution.save.key === 'dex';
+  });
+  const plainSpec = e.rollSpecOf(dexSpell, {caster, kind: 'spell', slotLvl: dexSpell.l, target: e.targetInfoOf('foe:target')});
+  const coveredSpec = e.rollSpecOf(dexSpell, {caster, kind: 'spell', slotLvl: dexSpell.l, target: e.targetInfoOf('foe:target'), cover: 'threeQuarters'});
+  assert.equal(coveredSpec.rows.find(r => r.type === 'save').mod, plainSpec.rows.find(r => r.type === 'save').mod + 5);
+});
+
+test('встроенный стенд проводит ровно 250 редких боев и полностью возвращает кампанию', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
+  const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB(), party = [e.buildRoku(), e.buildTorgar(), e.buildSeptih(), e.buildLegerem()];
+  e.setState({chars: party, items, spells, abilities, races, classes, foes, activeCharId: party[0].id});
+  const before = plain(e.state());
+  const report = e.runRareBattleAudit();
+  assert.equal(report.total, 250);
+  assert.equal(report.passed, 250, plain(report.failures));
+  assert.equal(report.failed, 0);
+  assert.equal(Object.keys(report.categories).length, 25);
+  assert.deepEqual(plain(e.state()), before, 'стенд не должен менять героев, бестиарий или бой');
 });
 
 test('500 воспроизводимых боев сохраняют инварианты при смешении оружия, состояний, защит и действий противников', () => {
