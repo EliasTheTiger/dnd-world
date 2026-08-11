@@ -572,7 +572,7 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
   <span class="corner bl">✠</span><span class="corner br">✠</span>
   <h1 class="title">D&amp;D World</h1>
   <div class="subtitle">Летопись развития персонажей · настольная книга гейм-мастера · единое издание с «D&amp;D Нексус»</div>
-  <div class="release-badge" id="releaseBadge" title="Формулы v2 принимают только объявленные реальные броски; подготовка заклинаний проверяется по D&amp;D 5e 2014 для всех восьми классов">Движок 4.4 · подготовка заклинаний 2014</div>
+  <div class="release-badge" id="releaseBadge" title="Формулы v2 принимают только объявленные реальные броски; предметы, компоненты, инструменты и ремесло имеют структурированные контракты">Движок 4.5 · предметы и ремесло</div>
   <div class="rule-flourish">❦</div>
   <div class="toolrow">
     <div class="dicebox">
@@ -647,6 +647,10 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
         <label class="lbl">Оружие, которым идет прием</label>
         <select id="castWeapon" style="width:100%"></select>
       </div>
+      <div id="castChoiceWrap" style="display:none;margin-top:8px">
+        <label id="castChoiceLabel" class="lbl">Выбор эффекта</label>
+        <select id="castChoice" style="width:100%"></select>
+      </div>
       <div id="castItemWrap" style="display:none;margin-top:8px">
         <label class="lbl">Предмет инвентаря заклинателя</label>
         <select id="castItem" style="width:100%"></select>
@@ -702,6 +706,14 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
       <button class="btn rub" onclick="rollDone()">Рассчитать и применить</button>
       <button class="btn ghost" onclick="rollCancel()">Отмена</button>
     </div>
+  </div>
+</div>
+<div id="craftBack" class="cast-back" style="display:none;z-index:71" onclick="if(event.target===this)craftClose()">
+  <div class="cast-modal" style="max-width:620px">
+    <h3 id="craftTitle" style="margin:0 0 6px">🛠 Ремесло</h3>
+    <div id="craftInfo" class="cast-info"></div>
+    <div id="craftBody" style="max-height:58vh;overflow:auto"></div>
+    <div class="cast-actions" style="margin-top:12px"><button class="btn ghost" onclick="craftClose()">Закрыть</button></div>
   </div>
 </div>
 <script>
@@ -1158,6 +1170,10 @@ const ITEM_TAGS = {
  container:{ru:'Контейнер',c:'#1b5e20'}, travelgear:{ru:'Дорожная утварь',c:'#546e7a'},
  writing:{ru:'Письменные принадлежности',c:'#3f51b5'}, map:{ru:'Карта',c:'#00838f'}, jewelry:{ru:'Украшение',c:'#e91e63'}, quest:{ru:'Квестовый предмет',c:'#5d1049'},
  valuable:{ru:'Ценное',c:'#2e7d32'},
+ crafting:{ru:'Ремесло',c:'#5d4037'}, exploration:{ru:'Исследование',c:'#00695c'}, harvestable:{ru:'Собираемое',c:'#558b2f'}, materialit:{ru:'Материал',c:'#6d4c41'},
+ herb:{ru:'Трава',c:'#2e7d32'}, mineral:{ru:'Минерал',c:'#546e7a'}, ore:{ru:'Руда',c:'#455a64'}, refined:{ru:'Обработанное',c:'#795548'},
+ reagent:{ru:'Реагент',c:'#7cb342'}, spellcomponent:{ru:'Компонент заклинания',c:'#37474f'}, creaturepart:{ru:'Часть существа',c:'#6a1b9a'},
+ herbalism:{ru:'Травничество',c:'#388e3c'}, smithing:{ru:'Кузнечное дело',c:'#424242'}, poisoncraft:{ru:'Ядоведение',c:'#33691e'},
  /* — волшебство — */
  magical:{ru:'Магическое',c:'#6a1b9a'}, enchanted:{ru:'Зачарованное',c:'#8e24aa'}, cursed:{ru:'Проклятое',c:'#4a148c'},
  legendary:{ru:'Легендарное',c:'#e65100'}, artifact:{ru:'Артефакт',c:'#880e4f'}, attuned:{ru:'Требует настройки',c:'#0097a7'},
@@ -1732,6 +1748,7 @@ function seedItemsDB(){
   /* Новый мир сразу получает канонический полный набор. Миграция ниже нужна
      только для уже сохраненных миров старых версий. */
   if(typeof ITEM_NEW!=='undefined') ITEM_NEW.forEach(rec=>{ if(!out.some(x=>x.id===rec.id)) out.push(JSON.parse(JSON.stringify(rec))); });
+  if(typeof ITEM_EXPANSION_V45!=='undefined') ITEM_EXPANSION_V45.forEach(rec=>{ if(!out.some(x=>x.id===rec.id)) out.push(JSON.parse(JSON.stringify(rec))); });
   if(typeof ITEM_LORE_A!=='undefined'){
     const lore=Object.assign({},ITEM_LORE_A,ITEM_LORE_B,ITEM_LORE_C);
     Object.keys(lore).forEach(id=>{
@@ -2924,6 +2941,303 @@ const ITEM_NEW=[
   desc:'Одним действием содержимое флакона наносится на одно рубящее или колющее оружие либо на три боеприпаса. Яд сохраняет силу 1 минуту. Существо, по которому попало обработанное оружие или боеприпас, совершает спасбросок Телосложения СЛ 10; при провале получает 1d4 урона ядом.',
   props:'Один флакон расходуется при нанесении. Кости бросают игроки; движок отдельно проверяет попадание, спасбросок и защиту цели от яда.'}
 ];
+function catalogItem(rec){
+  return Object.assign({type:'equipment',rarity:'обычный',custom:false,tags:[],slot:null,weight:'',cost:'',dmg:'',dmgType:'',desc:'',props:'',passiveFx:[]},rec);
+}
+/* 61 запись первого расширения предметов. Литературное описание остается
+   только представлением: применения, материалы, инструменты и свитки ниже
+   имеют отдельные машинные поля и не зависят от разбора этих абзацев. */
+const ITEM_EXPANSION_V45=[
+ /* ── зелья и алхимические расходники (12) ── */
+ catalogItem({id:'it_potion_healing_superior',n:'Зелье превосходного лечения',type:'potion',rarity:'редкий',
+  tags:['potion','consumable','magical','healingit','alchemy'],weight:'0,5 фунта',cost:'500 зм',
+  desc:'Густая рубиновая жидкость в укрепленном флаконе светится теплым пульсом. Ее выпивают или осторожно дают другому существу; после подтвержденного броска зелье восстанавливает 8d4 + 8 хитов и исчезает из инвентаря ровно один раз.',
+  props:'Действие; одна цель в пределах досягаемости. Не поднимает мертвого персонажа и не заменяет отдых.',
+  uses:[{id:'drink',label:'Выпить или дать',cost:'action',target:'any',consume:{kind:'item',amount:1},heal:{cnt:8,sides:4,mod:8}}]}),
+ catalogItem({id:'it_potion_healing_supreme',n:'Зелье высшего лечения',type:'potion',rarity:'очень редкий',
+  tags:['potion','consumable','magical','healingit','alchemy'],weight:'0,5 фунта',cost:'1350 зм',
+  desc:'Почти непрозрачное багряное зелье удерживает в стекле золотистые искры. При употреблении оно восстанавливает 10d4 + 20 хитов; движок запрашивает сумму настоящих костей, применяет предел максимума хитов и атомарно расходует флакон.',
+  props:'Действие; можно выпить самому или дать существу рядом. Обычное лечение не действует на погибшего героя.',
+  uses:[{id:'drink',label:'Выпить или дать',cost:'action',target:'any',consume:{kind:'item',amount:1},heal:{cnt:10,sides:4,mod:20}}]}),
+ catalogItem({id:'it_potion_climbing',n:'Зелье лазания',type:'potion',rarity:'обычный',
+  tags:['potion','consumable','magical','alchemy','exploration'],weight:'0,5 фунта',cost:'75 зм',
+  desc:'Серый раствор разделен на слои, похожие на уступы скалы; при встряхивании в нем плавают нити мха. На 1 час выпивший получает скорость лазания, равную скорости ходьбы, и преимущество на проверки Силы (Атлетика), связанные с лазанием.',
+  props:'Эффект не дает возможности держаться на гладком потолке без опоры и не отменяет опасности падения.',
+  uses:[{id:'drink',label:'Выпить',cost:'action',target:'self',consume:{kind:'item',amount:1},
+    effects:[{stat:'speed.climb',mode:'set',value:'равна скорости ходьбы'},{stat:'skill.Атлетика',mode:'adv',value:1,note:'только лазание'},{stat:'note',mode:'text',value:'скорость лазания равна скорости ходьбы'}],duration:{kind:'rounds',rounds:600,label:'1 час'}}]}),
+ catalogItem({id:'it_potion_heroism',n:'Зелье героизма',type:'potion',rarity:'редкий',
+  tags:['potion','consumable','magical','protection','alchemy'],weight:'0,5 фунта',cost:'450 зм',
+  desc:'Синее зелье кипит, будто внутри него бушует крошечная буря. Выпивший получает 10 временных хитов и на 1 час прибавляет 1d4 к броскам атаки и спасброскам; эффект не требует концентрации.',
+  props:'Временные хиты не складываются с другими: остается большее значение. Дополнительную d4 бросает живой игрок при каждой подходящей проверке.',
+  uses:[{id:'drink',label:'Выпить',cost:'action',target:'self',consume:{kind:'item',amount:1},temp:{cnt:0,sides:0,mod:10},
+    effects:[{stat:'attack',mode:'die',value:'1d4'},{stat:'save',mode:'die',value:'1d4'}],duration:{kind:'rounds',rounds:600,label:'1 час'}}]}),
+ catalogItem({id:'it_potion_fire_resistance',n:'Зелье сопротивления огню',type:'potion',rarity:'необычный',
+  tags:['potion','consumable','magical','alchemy','fire','protection'],weight:'0,5 фунта',cost:'300 зм',
+  desc:'Оранжевая жидкость остается прохладной даже рядом с пламенем, а по стенкам флакона ползут искры. На 1 час она дает сопротивление урону огнем; каждое значение такого урона движок уменьшает вдвое с округлением вниз.',
+  props:'Сопротивление не складывается само с собой и не превращается в иммунитет.',
+  uses:[{id:'drink',label:'Выпить',cost:'action',target:'self',consume:{kind:'item',amount:1},effects:[{stat:'damage.rule',mode:'grant',value:{mode:'resist',types:['огонь'],when:''}}],duration:{kind:'rounds',rounds:600,label:'1 час'}}]}),
+ catalogItem({id:'it_potion_cold_resistance',n:'Зелье сопротивления холоду',type:'potion',rarity:'необычный',
+  tags:['potion','consumable','magical','alchemy','cold','protection'],weight:'0,5 фунта',cost:'300 зм',
+  desc:'Бледно-голубой настой покрывает стекло инеем, но не замерзает. На 1 час он дает сопротивление урону холодом, которое учитывается после спасброска и до изменения хитов цели.',
+  props:'Сопротивление применяется к каждому отдельному компоненту урона холодом и не влияет на огонь или обычный мороз окружающей среды.',
+  uses:[{id:'drink',label:'Выпить',cost:'action',target:'self',consume:{kind:'item',amount:1},effects:[{stat:'damage.rule',mode:'grant',value:{mode:'resist',types:['холод'],when:''}}],duration:{kind:'rounds',rounds:600,label:'1 час'}}]}),
+ catalogItem({id:'it_potion_water_breathing',n:'Зелье подводного дыхания',type:'potion',rarity:'необычный',
+  tags:['potion','consumable','magical','alchemy','exploration'],weight:'0,5 фунта',cost:'180 зм',
+  desc:'Зеленоватая жидкость пахнет морской солью, а внутри плавает пузырек, который невозможно вытряхнуть. В течение 1 часа выпивший может дышать под водой, но не получает скорость плавания и не становится невосприимчивым к давлению или холоду.',
+  props:'Структурированный флаг дыхания виден среди действующих эффектов и снимается по истечении срока.',
+  uses:[{id:'drink',label:'Выпить',cost:'action',target:'self',consume:{kind:'item',amount:1},effects:[{stat:'breathing.water',mode:'set',value:1},{stat:'note',mode:'text',value:'может дышать под водой'}],duration:{kind:'rounds',rounds:600,label:'1 час'}}]}),
+ catalogItem({id:'it_potion_invisibility',n:'Зелье невидимости',type:'potion',rarity:'очень редкий',
+  tags:['potion','consumable','magical','alchemy','protection'],weight:'0,5 фунта',cost:'900 зм',
+  desc:'Пустой на вид флакон становится заметен лишь по смещению света вокруг стекла. Выпивший становится невидимым на 1 час вместе с переносимым и надетым снаряжением; эффект заканчивается раньше, если он атакует или накладывает заклинание.',
+  props:'Движок связывает состояние с триггерами атаки и заклинания; снятый или брошенный предмет становится видимым.',
+  uses:[{id:'drink',label:'Выпить',cost:'action',target:'self',consume:{kind:'item',amount:1},effects:[{stat:'condition',mode:'text',value:'Невидимый'},{stat:'note',mode:'text',value:'оканчивается при атаке или наложении заклинания'}],duration:{kind:'rounds',rounds:600,label:'1 час'},breakOn:['attack','spell']}]}),
+ catalogItem({id:'it_potion_flying',n:'Зелье полета',type:'potion',rarity:'очень редкий',
+  tags:['potion','consumable','magical','alchemy','exploration'],weight:'0,5 фунта',cost:'1000 зм',
+  desc:'Прозрачная жидкость плавает у пробки независимо от того, как повернуть сосуд. На 1 час выпивший получает скорость полета, равную скорости ходьбы, и может зависать; когда эффект заканчивается в воздухе, существо падает, если ничто его не удерживает.',
+  props:'Зелье не требует концентрации. Отдельная скорость полета хранится как типизированный эффект.',
+  uses:[{id:'drink',label:'Выпить',cost:'action',target:'self',consume:{kind:'item',amount:1},effects:[{stat:'speed.fly',mode:'set',value:'равна скорости ходьбы'},{stat:'note',mode:'text',value:'может летать и зависать; после окончания возможно падение'}],duration:{kind:'rounds',rounds:600,label:'1 час'}}]}),
+ catalogItem({id:'it_potion_hill_giant_strength',n:'Зелье силы холмового великана',type:'potion',rarity:'необычный',
+  tags:['potion','consumable','magical','alchemy','protection'],weight:'0,5 фунта',cost:'250 зм',
+  desc:'Мутная коричневая смесь содержит крошечную щепку ногтя великана и пахнет влажной землей. На 1 час значение Силы выпившего становится не ниже 21; если Сила уже 21 или выше, зелье ее не уменьшает и не повышает.',
+  props:'Изменение сразу влияет на модификатор Силы, атаки, спасброски, навыки и грузоподъемность.',
+  uses:[{id:'drink',label:'Выпить',cost:'action',target:'self',consume:{kind:'item',amount:1},effects:[{stat:'ab.str',mode:'min',value:21}],duration:{kind:'rounds',rounds:600,label:'1 час'}}]}),
+ catalogItem({id:'it_acid_vial',n:'Кислота (флакон)',
+  tags:['consumable','alchemy','acid','reagent'],weight:'1 фунт',cost:'25 зм',dmgType:'кислота',
+  desc:'Хрупкий флакон содержит едкую минеральную кислоту. Действием его метают как импровизированное дальнобойное оружие в существо или объект: при попадании цель получает 2d6 урона кислотой, после чего флакон расходуется.',
+  props:'Обычная дистанция 6 м, дальняя 18 м; атака Ловкостью без бонуса мастерства.',
+  uses:[{id:'throw',label:'Метнуть флакон',cost:'action',target:'enemy',consume:{kind:'item',amount:1},attack:{ability:'dex',proficient:false,mode:'ranged',range:'6/18 м'},damage:[{cnt:2,sides:6,mod:0,type:'кислота'}]}]}),
+ catalogItem({id:'it_holy_water',n:'Святая вода (фляга)',
+  tags:['consumable','holy','radiant','reagent'],weight:'1 фунт',cost:'25 зм',dmgType:'сияние',
+  desc:'Серебряная пробка запечатывает воду, освященную признанным обрядом. Действием флягу метают в нежить или исчадие как импровизированное дальнобойное оружие; при попадании цель получает 2d6 урона сиянием, а фляга расходуется.',
+  props:'Не наносит автоматического урона существам других типов. Обычная дистанция 6 м, дальняя 18 м.',
+  uses:[{id:'throw',label:'Метнуть флягу',cost:'action',target:'enemy',consume:{kind:'item',amount:1},requirements:{requiredTags:['undead','fiend']},attack:{ability:'dex',proficient:false,mode:'ranged',range:'6/18 м'},damage:[{cnt:2,sides:6,mod:0,type:'сияние'}]}]}),
+
+ /* ── свитки заклинаний (10) ── */
+ catalogItem({id:'it_scroll_mage_armor',n:'Свиток заклинания «Доспехи мага»',type:'scroll',rarity:'обычный',tags:['scroll','consumable','magical','protection'],cost:'50 зм',
+  desc:'Тонкий пергамент покрыт геометрическими печатями ограждения. Его может прочитать только персонаж, у которого «Доспехи мага» входят в список класса; заклинание не требует ячейки или компонентов, а свиток рассыпается после попытки.',
+  props:'1 круг; СЛ свитка 13, атака +5. Если персонаж пока не может накладывать заклинания 1 круга, требуется проверка базовой характеристики заклинаний СЛ 11.',
+  uses:[{id:'cast',label:'Прочитать свиток',cost:'action',target:'ally',consume:{kind:'item',amount:1},requirements:{unarmored:true},scroll:{spellId:'sp_доспехи_мага',level:1,saveDC:13,attackBonus:5},effects:[{stat:'acbase',mode:'set',value:13,note:'только без доспеха'}],duration:{kind:'rounds',rounds:4800,label:'8 часов'}}]}),
+ catalogItem({id:'it_scroll_cure_wounds',n:'Свиток заклинания «Лечение ран»',type:'scroll',rarity:'обычный',tags:['scroll','consumable','magical','healingit'],cost:'50 зм',
+  desc:'Изумрудные строки на этом свитке становятся теплыми рядом с раненым. Подходящий заклинатель касается существа и восстанавливает ему 1d8 + 3 хита без траты ячейки и компонентов; свиток расходуется один раз независимо от результата проверки высокого круга.',
+  props:'1 круг; фиксированный модификатор свитка +3. Не возвращает к жизни погибшее существо.',
+  uses:[{id:'cast',label:'Прочитать свиток',cost:'action',target:'ally',consume:{kind:'item',amount:1},scroll:{spellId:'sp_лечение_ран',level:1,saveDC:13,attackBonus:5},heal:{cnt:1,sides:8,mod:3}}]}),
+ catalogItem({id:'it_scroll_detect_magic',n:'Свиток заклинания «Обнаружение магии»',type:'scroll',rarity:'обычный',tags:['scroll','consumable','magical'],cost:'50 зм',
+  desc:'По серебряным буквам пробегает слабое свечение рядом с магическими аурами. Прочитавший в течение 10 минут ощущает магию в пределах 9 м и действием может увидеть ауру видимого существа или предмета; эффект требует концентрации.',
+  props:'1 круг; свиток проверяет список класса и при необходимости требует проверку СЛ 11. Преграды из плотных материалов могут блокировать обнаружение по описанию заклинания.',
+  uses:[{id:'cast',label:'Прочитать свиток',cost:'action',target:'self',consume:{kind:'item',amount:1},scroll:{spellId:'sp_обнаружение_магии',level:1,saveDC:13,attackBonus:5},concentration:true,effects:[{stat:'detection.magic',mode:'set',value:1},{stat:'note',mode:'text',value:'ощущает магию в пределах 9 м и может видеть ауры'}],duration:{kind:'rounds',rounds:100,label:'концентрация, до 10 минут'}}]}),
+ catalogItem({id:'it_scroll_longstrider',n:'Свиток заклинания «Скороход»',type:'scroll',rarity:'обычный',tags:['scroll','consumable','magical'],cost:'50 зм',
+  desc:'На полях пергамента изображены повторяющиеся следы сапог. После прочтения скорость выбранного существа увеличивается на 3 м на 1 час без концентрации; свиток сам задает длительность и не разбирает ее из текста.',
+  props:'1 круг; одна цель в касании. Эффект скорости складывается только по общим правилам одноименных источников.',
+  uses:[{id:'cast',label:'Прочитать свиток',cost:'action',target:'ally',consume:{kind:'item',amount:1},scroll:{spellId:'sp_скороход',level:1,saveDC:13,attackBonus:5},effects:[{stat:'speed',mode:'add',value:'3 м'}],duration:{kind:'rounds',rounds:600,label:'1 час'}}]}),
+ catalogItem({id:'it_scroll_guiding_bolt',n:'Свиток заклинания «Направляющий снаряд»',type:'scroll',rarity:'обычный',tags:['scroll','consumable','magical','radiant'],cost:'50 зм',dmgType:'сияние',
+  desc:'Золотая каллиграфия вспыхивает, когда читающий указывает на врага. Свиток совершает дальнобойную атаку заклинанием с бонусом +5; при попадании наносит 4d6 урона сиянием, а следующая атака по цели получает преимущество до конца следующего хода читающего.',
+  props:'1 круг; дистанция 36 м. Преимущество расходуется ровно на первом подходящем броске атаки.',
+  uses:[{id:'cast',label:'Прочитать свиток',cost:'action',target:'enemy',consume:{kind:'item',amount:1},scroll:{spellId:'sp_guiding_bolt',level:1,saveDC:13,attackBonus:5},attack:{fixedBonus:5,mode:'ranged',range:'36 м'},damage:[{cnt:4,sides:6,mod:0,type:'сияние'}],effects:[{stat:'incoming.attack',mode:'adv',value:1,consume:'roll'},{stat:'note',mode:'text',value:'следующая атака по цели совершается с преимуществом'}],effectWhen:'hit',duration:{kind:'rounds',rounds:1,label:'до конца следующего хода читающего'}}]}),
+ catalogItem({id:'it_scroll_shield_of_faith',n:'Свиток заклинания «Щит веры»',type:'scroll',rarity:'обычный',tags:['scroll','consumable','magical','protection'],cost:'50 зм',
+  desc:'На пергаменте сияет незамкнутый круг, который закрывается вокруг имени цели. Бонусным действием читающий дает выбранному существу +2 к КД до 10 минут; эффект требует концентрации и прерывает прежнюю концентрацию читающего.',
+  props:'1 круг; защита хранится отдельным эффектом и сразу участвует во всех формулах атак по цели.',
+  uses:[{id:'cast',label:'Прочитать свиток',cost:'bonus',target:'ally',consume:{kind:'item',amount:1},scroll:{spellId:'sp_щит_веры',level:1,saveDC:13,attackBonus:5},concentration:true,effects:[{stat:'ac',mode:'add',value:2}],duration:{kind:'rounds',rounds:100,label:'концентрация, до 10 минут'}}]}),
+ catalogItem({id:'it_scroll_invisibility',n:'Свиток заклинания «Невидимость»',type:'scroll',rarity:'необычный',tags:['scroll','consumable','magical','protection'],cost:'150 зм',
+  desc:'Текст этого свитка исчезает по мере чтения, начиная с первых строк. Существо в касании становится невидимым на срок до 1 часа; читающий должен сохранять концентрацию, а атака или наложение заклинания невидимой целью досрочно снимает эффект.',
+  props:'2 круг; СЛ 12 для заклинателя, чей максимальный доступный круг ниже второго. Свиток расходуется и при провале этой проверки.',
+  uses:[{id:'cast',label:'Прочитать свиток',cost:'action',target:'ally',consume:{kind:'item',amount:1},scroll:{spellId:'sp_невидимость',level:2,saveDC:13,attackBonus:5},concentration:true,effects:[{stat:'condition',mode:'text',value:'Невидимый'},{stat:'note',mode:'text',value:'оканчивается при атаке или наложении заклинания цели'}],duration:{kind:'rounds',rounds:600,label:'концентрация, до 1 часа'},breakOn:['attack','spell']}]}),
+ catalogItem({id:'it_scroll_misty_step',n:'Свиток заклинания «Туманный шаг»',type:'scroll',rarity:'необычный',tags:['scroll','consumable','magical'],cost:'150 зм',
+  desc:'Края свитка постоянно выпускают тонкие нити серебристого тумана. Бонусным действием читающий телепортируется на расстояние до 9 м в видимое незанятое пространство; перемещение не расходует скорость и не провоцирует атаку.',
+  props:'2 круг; действует только на читающего. Место назначения отмечает игрок или мастер на поле боя.',
+  uses:[{id:'cast',label:'Прочитать свиток',cost:'bonus',target:'self',consume:{kind:'item',amount:1},scroll:{spellId:'sp_туманный_шаг',level:2,saveDC:13,attackBonus:5},special:'teleport',teleport:{distance:'9 м',requiresSight:true}}]}),
+ catalogItem({id:'it_scroll_lesser_restoration',n:'Свиток заклинания «Малое восстановление»',type:'scroll',rarity:'необычный',tags:['scroll','consumable','magical','healingit'],cost:'150 зм',
+  desc:'Четыре печати на свитке соответствуют слепоте, глухоте, параличу и отравлению. Читающий касается существа, выбирает одно из этих состояний и снимает его; выбор подтверждается до атомарного расходования свитка.',
+  props:'2 круг; не снимает болезнь, истощение, проклятие или состояние, которого у цели нет.',
+  uses:[{id:'cast',label:'Прочитать свиток',cost:'action',target:'ally',consume:{kind:'item',amount:1},scroll:{spellId:'sp_lesser_restoration',level:2,saveDC:13,attackBonus:5},special:'cleanse',choices:['Ослепленный','Глухой','Парализованный','Отравленный']}]}),
+ catalogItem({id:'it_scroll_fly',n:'Свиток заклинания «Полет»',type:'scroll',rarity:'необычный',tags:['scroll','consumable','magical'],cost:'300 зм',
+  desc:'Строки на плотном пергаменте образуют стилизованные крылья. Существо в касании получает скорость полета 18 м на срок до 10 минут; читающий сохраняет концентрацию, а при окончании эффекта цель падает, если находится в воздухе без иной опоры.',
+  props:'3 круг; СЛ проверки свитка 13, если персонаж не может обычно накладывать заклинания 3 круга. СЛ самого свитка 15, бонус атаки +7.',
+  uses:[{id:'cast',label:'Прочитать свиток',cost:'action',target:'ally',consume:{kind:'item',amount:1},scroll:{spellId:'sp_полет',level:3,saveDC:15,attackBonus:7},concentration:true,effects:[{stat:'speed.fly',mode:'set',value:'18 м'},{stat:'note',mode:'text',value:'при окончании цель падает, если ничто ее не удерживает'}],duration:{kind:'rounds',rounds:100,label:'концентрация, до 10 минут'}}]}),
+
+ /* ── специализированные инструменты (12) ── */
+ catalogItem({id:'it_tool_herbalism',n:'Набор травника',tags:['tool','herbalism','crafting'],weight:'3 фунта',cost:'5 зм',useMode:'profile',
+  desc:'Кожаный футляр содержит ножницы, ступку с пестиком, мешочки для образцов, перчатки и стеклянные банки. Набор нужен для безопасного определения, сбора и обработки трав, а также для приготовления лечебных составов из структурированных рецептов.',
+  props:'Проверки обычно используют Мудрость; владение набором добавляет бонус мастерства. Рецепт не тратит сам инструмент.',
+  tool:{sk:'Мудрость',prof:'Набор травника',what:'поиск, определение и безопасная обработка растений',dc:'обычные лечебные травы — СЛ 10; редкие или ядовитые — СЛ 13–17',tasks:['harvest:herb','identify:plant','craft:potion']}}),
+ catalogItem({id:'it_tool_alchemist',n:'Инструменты алхимика',tags:['tool','alchemy','crafting','reagent'],weight:'8 фунтов',cost:'50 зм',useMode:'profile',
+  desc:'Комплект включает две стеклянные колбы, металлическую рамку, горелку, стеклянную палочку, ступку, пестик и набор устойчивых реагентов. Он позволяет анализировать неизвестные вещества, нейтрализовать простые реакции и собирать стабильные зелья по рецептам.',
+  props:'Базовая проверка — Интеллект. Для ремесла необходимы все указанные ингредиенты; движок сначала проверяет их, затем списывает одной транзакцией.',
+  tool:{sk:'Интеллект',prof:'Инструменты алхимика',what:'анализ веществ и приготовление алхимических составов',dc:'опознать обычное вещество — СЛ 10; стабилизировать опасную реакцию — СЛ 15',tasks:['identify:reagent','craft:alchemy','neutralize:chemical']}}),
+ catalogItem({id:'it_tool_poisoner',n:'Инструменты отравителя',tags:['tool','poisoncraft','crafting','poison'],weight:'2 фунта',cost:'50 зм',useMode:'profile',
+  desc:'Запираемый футляр хранит стеклянные флаконы, тонкие пипетки, щипцы, фильтры и защитные перчатки. Набор используют для извлечения яда из частей существ, распознавания токсинов и приготовления доз, не касаясь вещества голой кожей.',
+  props:'Проверка Интеллекта с владением набором. Провал проверки сбора не создает предмет автоматически: последствия и реальный бросок отмечает мастер.',
+  tool:{sk:'Интеллект',prof:'Инструменты отравителя',what:'извлечение, распознавание и приготовление ядов',dc:'извлечь обычный яд — СЛ 13; редкий — СЛ 15–20',tasks:['harvest:venom','identify:poison','craft:poison']}}),
+ catalogItem({id:'it_tool_smith',n:'Инструменты кузнеца',tags:['tool','smithing','crafting'],weight:'8 фунтов',cost:'20 зм',useMode:'profile',
+  desc:'Молотки разного веса, клещи, точильный камень и переносные формы позволяют работать у полноценного горна. Инструменты нужны для выплавки слитков, ковки заготовок, ремонта металлического оружия и оценки качества сплава.',
+  props:'Проверка Силы для тяжелой ковки или Интеллекта для анализа сплава; базовая кнопка использует Силу. Горн и топливо считаются частью места работы, а не самого набора.',
+  tool:{sk:'Сила',prof:'Инструменты кузнеца',what:'выплавка, ковка и ремонт металлических изделий',dc:'обычный ремонт — СЛ 10; сложная деталь или незнакомый сплав — СЛ 15',tasks:['refine:ore','craft:metal','repair:metal']}}),
+ catalogItem({id:'it_tool_leatherworker',n:'Инструменты кожевника',tags:['tool','crafting'],weight:'5 фунтов',cost:'5 зм',useMode:'profile',
+  desc:'Набор состоит из ножа-полумесяца, шил, пробойников, игл, вощеной нити и гладилки. С его помощью свежую шкуру очищают, дубят и превращают в пригодную для брони, ремней, ножен и походных починок кожу.',
+  props:'Проверка Ловкости; владение добавляет мастерство. Для дубления по рецепту нужна сырая шкура и растительный реагент.',
+  tool:{sk:'Ловкость',prof:'Инструменты кожевника',what:'дубление шкур, пошив и ремонт кожаных изделий',dc:'починка ремня — СЛ 10; подгонка брони — СЛ 15',tasks:['refine:hide','craft:leather','repair:leather']}}),
+ catalogItem({id:'it_tool_woodcarver',n:'Инструменты резчика по дереву',tags:['tool','crafting'],weight:'5 фунтов',cost:'1 зм',useMode:'profile',
+  desc:'В свертке лежат короткий нож, малые стамески, желобки и точильный камень. Набор превращает подходящую ветвь в ровную деревянную заготовку, позволяет делать древки, болты, небольшие фигурки и точные пазы.',
+  props:'Проверка Ловкости; для крупных конструкций лучше подходят плотницкие инструменты.',
+  tool:{sk:'Ловкость',prof:'Инструменты резчика по дереву',what:'точная резьба и изготовление малых деревянных деталей',dc:'простое древко — СЛ 10; тонкая деталь — СЛ 15',tasks:['refine:wood','craft:small-wood','repair:wood']}}),
+ catalogItem({id:'it_tool_carpenter',n:'Инструменты плотника',tags:['tool','crafting','camp'],weight:'6 фунтов',cost:'8 зм',useMode:'profile',
+  desc:'Молоток, пила, рубанок, угольник, линейка, гвозди и долото предназначены для крупных деревянных конструкций. Ими укрепляют двери, собирают настилы, ремонтируют повозки и подготавливают массивные заготовки.',
+  props:'Проверка Силы для грубой работы или Интеллекта для планирования; базовая кнопка использует Интеллект.',
+  tool:{sk:'Интеллект',prof:'Инструменты плотника',what:'проектирование, строительство и ремонт деревянных конструкций',dc:'баррикада — СЛ 10; надежный мост или механизм — СЛ 15',tasks:['refine:wood','craft:structure','repair:vehicle']}}),
+ catalogItem({id:'it_tool_mason',n:'Инструменты каменщика',tags:['tool','crafting','mineral'],weight:'8 фунтов',cost:'10 зм',useMode:'profile',
+  desc:'Кельма, молот, зубила, щетка и отвес помогают читать кладку и работать с камнем. Набор позволяет находить слабые места стены, распознавать способ строительства, добывать аккуратные образцы и выполнять ремонт.',
+  props:'Проверка Интеллекта; преимущество или конкретный эффект от знания кладки назначается по обстоятельствам, а не из текста предмета.',
+  tool:{sk:'Интеллект',prof:'Инструменты каменщика',what:'анализ кладки, обработка камня и ремонт стен',dc:'определить возраст кладки — СЛ 10; найти скрытую слабость — СЛ 15',tasks:['identify:stone','harvest:mineral','repair:stone']}}),
+ catalogItem({id:'it_tool_jeweler',n:'Инструменты ювелира',tags:['tool','crafting','gem','valuable'],weight:'2 фунта',cost:'25 зм',useMode:'profile',
+  desc:'Малые пилы и плоскогубцы, пинцет, лупа и точные весы позволяют оценивать камни и работать с мягкими металлами. Набор отличает стекло от самоцвета, определяет качество огранки и подготавливает стоимостные компоненты.',
+  props:'Проверка Интеллекта. Инструмент не повышает цену камня сам по себе и не создает золото из сырья.',
+  tool:{sk:'Интеллект',prof:'Инструменты ювелира',what:'оценка, огранка и закрепление самоцветов',dc:'оценить обычный камень — СЛ 10; распознать искусную подделку — СЛ 15',tasks:['identify:gem','craft:jewelry','prepare:component']}}),
+ catalogItem({id:'it_tool_cook',n:'Кухонная утварь',tags:['tool','crafting','food','camp'],weight:'8 фунтов',cost:'1 зм',useMode:'profile',
+  desc:'Небольшой котел, ножи, ложки, половник и складная решетка образуют походную кухню. Утварь помогает безопасно приготовить найденные продукты, заметить порчу, растянуть припасы и сделать долгий отдых приятнее, если есть время и огонь.',
+  props:'Проверка Мудрости; обычная съедобная пища не требует броска. Набор не заменяет ингредиенты и чистую воду.',
+  tool:{sk:'Мудрость',prof:'Кухонная утварь',what:'приготовление пищи и определение ее безопасности',dc:'обычная походная еда — без проверки; сомнительные ингредиенты — СЛ 10–15',tasks:['identify:food','craft:meal','preserve:food']}}),
+ catalogItem({id:'it_tool_cartographer',n:'Инструменты картографа',tags:['tool','crafting','map','travelgear'],weight:'6 фунтов',cost:'15 зм',useMode:'profile',
+  desc:'Перья, чернила, пергамент, циркуль, измерительная цепочка и линейки служат для съемки местности. Набор помогает переносить маршрут на карту, сверять масштаб, отмечать высоты и замечать несоответствия в чужом плане.',
+  props:'Проверка Интеллекта. Для новой карты нужны свет, время и возможность наблюдать местность; расход бумаги учитывается отдельно по решению мастера.',
+  tool:{sk:'Интеллект',prof:'Инструменты картографа',what:'съемка местности, чтение и исправление карт',dc:'сверить маршрут — СЛ 10; восстановить карту по наблюдениям — СЛ 15',tasks:['create:map','navigate:land','identify:map']}}),
+ catalogItem({id:'it_tool_navigator',n:'Инструменты навигатора',tags:['tool','travelgear','exploration'],weight:'2 фунта',cost:'25 зм',useMode:'profile',
+  desc:'Секстант, компас, циркуль, линейка и таблицы позволяют определить курс по солнцу и звездам. Инструменты особенно полезны на море и в открытой местности, но не показывают путь сами и требуют наблюдаемого ориентира.',
+  props:'Проверка Мудрости; владение добавляет мастерство. Магнитные и магические помехи могут изменить СЛ или сделать метод неприменимым.',
+ tool:{sk:'Мудрость',prof:'Инструменты навигатора',what:'определение курса и положения по небесным ориентирам',dc:'обычный курс в ясную погоду — СЛ 10; шторм или неизвестные воды — СЛ 15',tasks:['navigate:sea','forecast:route','identify:course']}}),
+
+ /* ── собираемые природные ресурсы (16) ── */
+ catalogItem({id:'it_mat_sunleaf',n:'Солнечник (пучок)',tags:['harvestable','materialit','herb','reagent','herbalism','healingit'],weight:'0,1 фунта',cost:'5 см',useMode:'profile',
+  desc:'Узкие золотистые листья солнечника пахнут медом и оставляют на пальцах теплое масло. Свежие верхушки служат основной лечебной травой: их сушат отдельно от корней и используют в зельях лечения и противоядиях.',
+  props:'Собирается реальным броском; одна успешная порция становится одной единицей ингредиента.',
+  material:{category:'herb',tier:1,source:'солнечные луга и опушки',harvest:{biomes:['луг','опушка','пашня'],skill:'Природа',ability:'int',dc:10,time:'10 минут',yield:'1d4 порции'},uses:['cr_alchemical_base','cr_potion_superior','cr_potion_supreme','cr_antitoxin']}}),
+ catalogItem({id:'it_mat_bitterroot',n:'Горький корень',tags:['harvestable','materialit','herb','reagent','herbalism'],weight:'0,2 фунта',cost:'1 см',useMode:'profile',
+  desc:'Узелковатый серый корень выделяет резко пахнущий белый сок. После правильной сушки он связывает часть растительных токсинов и помогает стабилизировать смеси; сырой сок раздражает кожу и не является готовым противоядием.',
+  props:'Не употребляется напрямую. Ошибка обработки не создает лечебного эффекта.',
+  material:{category:'root',tier:1,source:'влажная лесная почва',harvest:{biomes:['лес','болото'],skill:'Природа',ability:'int',dc:10,time:'10 минут',yield:'1d4 порции'},uses:['cr_potion_climbing','cr_potion_giant_strength','cr_cured_leather','cr_antitoxin']}}),
+ catalogItem({id:'it_mat_silverleaf',n:'Серебролист (пучок)',tags:['harvestable','materialit','herb','reagent','herbalism','holy'],weight:'0,1 фунта',cost:'1 зм',useMode:'profile',
+  desc:'С нижней стороны эти темные листья покрыты серебристым ворсом, заметным в лунном свете. Серебролист смягчает сильные восстановительные смеси и удерживает освящение в воде, поэтому его ценят травники и служители храмов.',
+  props:'Одна порция — связка из трех неповрежденных листьев; обрывки не считаются отдельными единицами.',
+  material:{category:'herb',tier:2,source:'старые леса и священные рощи',harvest:{biomes:['древний лес','священная роща'],skill:'Природа',ability:'int',dc:13,time:'20 минут',yield:'1d3 порции'},uses:['cr_potion_superior','cr_potion_supreme','cr_potion_heroism','cr_potion_flying','cr_holy_water']}}),
+ catalogItem({id:'it_mat_moonwort',n:'Лунник (цветок)',tags:['harvestable','materialit','herb','reagent','herbalism','magical'],weight:'0,1 фунта',cost:'5 зм',useMode:'profile',
+  desc:'Белый цветок лунника раскрывается после заката и становится полупрозрачным перед рассветом. Собранные в темноте лепестки удерживают магию сокрытия и легкости; при ярком солнце несрезанный цветок закрывается и теряется среди травы.',
+  props:'Редкий реагент. Реальный бросок определяет урожай; движок не генерирует случайное количество.',
+  material:{category:'herb',tier:3,source:'лунные поляны и высокогорные луга',harvest:{biomes:['лунная поляна','высокогорье'],skill:'Природа',ability:'int',dc:15,time:'30 минут',yield:'1d2 порции'},uses:['cr_potion_heroism','cr_potion_invisibility','cr_potion_flying']}}),
+ catalogItem({id:'it_mat_emberflower',n:'Жар-цвет (соцветие)',tags:['harvestable','materialit','herb','reagent','herbalism','fire'],weight:'0,1 фунта',cost:'2 зм',useMode:'profile',
+  desc:'Красно-оранжевые чашечки жар-цвета растут на прогретом камне и остаются теплыми ночью. Высушенная пыльца поглощает часть жара, а в закрытой колбе становится основой для огнестойких составов; открытое пламя может испортить урожай.',
+  props:'Хранить отдельно от трута и масла. Сам по себе цветок не дает сопротивления огню.',
+  material:{category:'herb',tier:2,source:'вулканические склоны и сухие каменистые земли',harvest:{biomes:['вулканический склон','пустошь'],skill:'Природа',ability:'int',dc:13,time:'20 минут',yield:'1d3 порции'},uses:['cr_potion_fire_resistance']}}),
+ catalogItem({id:'it_mat_frost_lichen',n:'Морозный лишайник',tags:['harvestable','materialit','herb','reagent','herbalism','cold'],weight:'0,1 фунта',cost:'2 зм',useMode:'profile',
+  desc:'Голубой лишайник растет на северной стороне камней и хрустит даже в оттепель. Его осторожно снимают вместе с тонким слоем породы: чистая культура поглощает холодовые колебания и входит в защитные настои.',
+  props:'При нагревании выше обычной комнатной температуры быстро теряет качество; хранится в прохладном контейнере.',
+  material:{category:'lichen',tier:2,source:'тундра, ледники и холодные пещеры',harvest:{biomes:['тундра','ледник','холодная пещера'],skill:'Природа',ability:'int',dc:13,time:'20 минут',yield:'1d3 порции'},uses:['cr_potion_cold_resistance']}}),
+ catalogItem({id:'it_mat_water_reed',n:'Глубоководный тростник',tags:['harvestable','materialit','herb','reagent','herbalism'],weight:'0,2 фунта',cost:'1 зм',useMode:'profile',
+  desc:'Полый зеленый стебель растет ниже поверхности чистых озер и удерживает внутри цепочку крупных пузырьков. Сердцевина сохраняет растворенный воздух и после обработки становится главным реагентом зелий подводного дыхания.',
+  props:'Сбор требует добраться до растения под водой; проверка относится к распознаванию и аккуратному срезу, а не к самому плаванию.',
+  material:{category:'aquatic-plant',tier:2,source:'чистые озера и медленные реки',harvest:{biomes:['озеро','река'],skill:'Природа',ability:'int',dc:12,time:'20 минут',yield:'1d3 порции'},uses:['cr_potion_water_breathing']}}),
+ catalogItem({id:'it_mat_cave_moss',n:'Цепкий пещерный мох',tags:['harvestable','materialit','herb','reagent','herbalism'],weight:'0,2 фунта',cost:'5 см',useMode:'profile',
+  desc:'Темно-зеленый мох цепляется за влажную скалу множеством почти невидимых волосков. После промывки волокна загущают составы и помогают удерживаться на шероховатой поверхности, поэтому материал используют в зельях лазания и алхимической основе.',
+  props:'Сырой мох может содержать плесень или паразитов; безопасной порцией считается только очищенная масса.',
+  material:{category:'moss',tier:1,source:'влажные пещеры и колодцы',harvest:{biomes:['пещера','подземелье'],skill:'Природа',ability:'int',dc:10,time:'10 минут',yield:'1d4 порции'},uses:['cr_alchemical_base','cr_potion_climbing','cr_potion_water_breathing']}}),
+ catalogItem({id:'it_mat_nightshade',n:'Паслен-теневик (ягоды)',tags:['harvestable','materialit','herb','reagent','herbalism','poison'],weight:'0,1 фунта',cost:'2 зм',useMode:'profile',
+  desc:'Черные ягоды теневика покрыты матовым фиолетовым налетом и горчат даже через перчатку. Их сок используют как токсичную основу и как малую долю реагента сокрытия; употребление необработанных ягод опасно и не считается применением готового предмета.',
+  props:'Ядовитое сырье. Набор травника помогает распознать растение, инструменты отравителя — безопасно переработать.',
+  material:{category:'toxic-plant',tier:2,source:'тенистые овраги и заброшенные сады',harvest:{biomes:['овраг','заброшенный сад','болото'],skill:'Природа',ability:'int',dc:13,time:'15 минут',yield:'1d3 порции'},uses:['cr_potion_invisibility','cr_acid_vial','cr_basic_poison']}}),
+ catalogItem({id:'it_mat_spider_venom_sac',n:'Ядовитая железа гигантского паука',tags:['harvestable','materialit','creaturepart','reagent','poison','poisoncraft'],weight:'0,2 фунта',cost:'10 зм',useMode:'profile',
+  desc:'Неповрежденная полупрозрачная железа еще содержит густой яд и остается опасной после смерти паука. Ее извлекают инструментами отравителя до высыхания туши; одна целая железа дает одну структурированную порцию для рецепта.',
+  props:'Источник — подходящий ядовитый паук. Извлечение требует реального броска и разрешения мастера; провал не добавляет предмет.',
+  material:{category:'creature-part',tier:2,source:'туша гигантского ядовитого паука',harvest:{biomes:['любое место после победы над существом'],skill:'Природа',ability:'int',dc:13,time:'10 минут',yield:'1 порция'},uses:['cr_basic_poison']}}),
+ catalogItem({id:'it_mat_raw_hide',n:'Сырая прочная шкура',tags:['harvestable','materialit','creaturepart','crafting'],weight:'5 фунтов',cost:'2 зм',useMode:'profile',
+  desc:'Снятый пласт шкуры очищен от большей части мяса, но еще не высушен и не продублен. Материал портится без обработки и не годится как броня; две порции вместе с дубильным корнем превращаются в выделанную кожу.',
+  props:'Источник и качество определяет мастер по размеру и состоянию зверя. Одна запись означает пригодный стандартный пласт.',
+  material:{category:'creature-part',tier:1,source:'туша Среднего или более крупного зверя',harvest:{biomes:['любое место после разделки зверя'],skill:'Выживание',ability:'wis',dc:10,time:'30 минут',yield:'1d2 порции'},uses:['cr_cured_leather']}}),
+ catalogItem({id:'it_mat_iron_ore',n:'Железная руда (корзина)',tags:['harvestable','materialit','mineral','ore','smithing'],weight:'10 фунтов',cost:'5 см',useMode:'profile',
+  desc:'Тяжелые буро-красные куски содержат достаточно железа для небольшой плавки, но еще смешаны с пустой породой. Две корзины руды и порция угля дают один железный слиток при наличии горна и инструментов кузнеца.',
+  props:'Одна единица — стандартная корзина отобранной руды; мелкая находка меньше этого объема остается заметкой, а не предметом.',
+  material:{category:'ore',tier:1,source:'железная жила или хвосты старой шахты',harvest:{biomes:['шахта','каменистый склон'],skill:'Природа',ability:'int',dc:10,time:'1 час',yield:'1d3 корзины'},uses:['cr_iron_ingot','cr_potion_giant_strength']}}),
+ catalogItem({id:'it_mat_silver_ore',n:'Серебряная руда (корзина)',tags:['harvestable','materialit','mineral','ore','smithing','valuable'],weight:'10 фунтов',cost:'5 зм',useMode:'profile',
+  desc:'Темная порода пересечена тусклыми металлическими нитями серебра. Руда ценнее железной, но требует отделить примеси: две корзины и уголь переплавляются в один серебряный слиток, пригодный для священных и ювелирных работ.',
+  props:'Цена отражает сырье, а не чистый металл. Оценка жилы выполняется отдельно от добычи.',
+  material:{category:'ore',tier:2,source:'серебряная жила в шахте',harvest:{biomes:['глубокая шахта','горная трещина'],skill:'Природа',ability:'int',dc:13,time:'1 час',yield:'1d2 корзины'},uses:['cr_silver_ingot']}}),
+ catalogItem({id:'it_mat_coal',n:'Кузнечный уголь (мешок)',tags:['harvestable','materialit','mineral','smithing','crafting'],weight:'10 фунтов',cost:'2 см',useMode:'profile',
+  desc:'Отсортированный плотный уголь дает ровный жар и меньше золы, чем сырые обломки. Мешок является расходным топливом для плавки железа, серебра и стали, а также углеродной добавкой для стальной заготовки.',
+  props:'Обычный костер не заменяет кузнечный горн. Одна единица — мешок, достаточный для одной указанной операции рецепта.',
+  material:{category:'fuel',tier:1,source:'угольный пласт или поставщик кузницы',harvest:{biomes:['шахта','обнажение породы'],skill:'Природа',ability:'int',dc:10,time:'1 час',yield:'1d4 мешка'},uses:['cr_iron_ingot','cr_silver_ingot','cr_steel_billet','cr_potion_fire_resistance','cr_acid_vial']}}),
+ catalogItem({id:'it_mat_quartz',n:'Чистый кварц (осколок)',tags:['harvestable','materialit','mineral','gem','reagent'],weight:'0,5 фунта',cost:'2 зм',useMode:'profile',
+  desc:'Прозрачный шестигранный кристалл почти не содержит трещин и удерживает слабый магический резонанс. Алхимики измельчают его в стабилизирующий порошок для составов холода и полета; ювелир может отдельно оценить особенно чистый образец.',
+  props:'Один осколок — одна порция. Цена ниже стоимостных компонентов заклинаний и не удовлетворяет требованию 50 зм.',
+  material:{category:'mineral',tier:2,source:'кварцевая жила и пещерная друза',harvest:{biomes:['пещера','горная жила'],skill:'Природа',ability:'int',dc:12,time:'30 минут',yield:'1d3 осколка'},uses:['cr_potion_cold_resistance','cr_potion_flying']}}),
+ catalogItem({id:'it_mat_hardwood_bough',n:'Ветвь твердого дерева',tags:['harvestable','materialit','crafting'],weight:'5 фунтов',cost:'1 см',useMode:'profile',
+  desc:'Прямая выдержанная ветвь дуба, ясеня или другого плотного дерева не имеет гнили и крупных сучков. Две такие ветви после сушки и обработки дают стандартную деревянную заготовку для древка, рукояти или небольшой детали.',
+  props:'Живое дерево повреждается при небрежной рубке; поиск упавшей пригодной древесины может занять больше времени, но не вредит лесу.',
+  material:{category:'wood',tier:1,source:'лес с взрослыми твердыми породами',harvest:{biomes:['лиственный лес','старая роща'],skill:'Выживание',ability:'wis',dc:10,time:'30 минут',yield:'1d4 ветви'},uses:['cr_hardwood_blank']}}),
+
+ /* ── обработанные материалы (6) ── */
+ catalogItem({id:'it_mat_iron_ingot',n:'Железный слиток',tags:['materialit','refined','smithing','crafting'],weight:'5 фунтов',cost:'1 зм',useMode:'profile',
+  desc:'Очищенный прямоугольный слиток обычного железа имеет клеймо плавки и ровный излом. Он служит базовой металлической заготовкой для инструментов и оружия или превращается в сталь при дополнительной обработке.',
+  props:'Создается атомарным рецептом из 2 корзин железной руды и 1 мешка угля.',
+  material:{category:'refined',tier:1,source:'кузнечная плавка',producedBy:'cr_iron_ingot',uses:['cr_steel_billet']}}),
+ catalogItem({id:'it_mat_silver_ingot',n:'Серебряный слиток',tags:['materialit','refined','smithing','crafting','valuable','holy'],weight:'5 фунтов',cost:'25 зм',useMode:'profile',
+  desc:'Светлый слиток очищенного серебра достаточно однороден для ювелирной, оружейной или обрядовой работы. Это материал, а не готовое посеребренное оружие; конкретное изделие требует отдельного рецепта или решения мастера.',
+  props:'Создается из 2 корзин серебряной руды и 1 мешка угля; одна единица входит в рецепт святой воды мира.',
+  material:{category:'refined',tier:2,source:'кузнечная плавка',producedBy:'cr_silver_ingot',uses:['cr_holy_water']}}),
+ catalogItem({id:'it_mat_steel_billet',n:'Стальная заготовка',tags:['materialit','refined','smithing','crafting'],weight:'5 фунтов',cost:'2 зм',useMode:'profile',
+  desc:'Узкая полоса закаленной стали сочетает очищенное железо с правильно введенным углеродом. Заготовка готова к ковке клинка или прочной детали, но еще не имеет формы, баланса и заточки готового предмета.',
+  props:'Создается из 1 железного слитка и 2 мешков кузнечного угля. Не считается оружием и не может совершать атаку.',
+  material:{category:'refined',tier:2,source:'повторная кузнечная обработка',producedBy:'cr_steel_billet',uses:[]}}),
+ catalogItem({id:'it_mat_cured_leather',n:'Выделанная кожа',tags:['materialit','refined','crafting'],weight:'5 фунтов',cost:'5 зм',useMode:'profile',
+  desc:'Очищенная, продубленная и промасленная кожа больше не портится как сырая шкура. Ровный пласт пригоден для брони, ремней, сумок и ножен, но сам по себе не дает КД и не занимает слот экипировки.',
+  props:'Создается инструментами кожевника из 2 сырых шкур и 1 горького корня.',
+  material:{category:'refined',tier:1,source:'дубление и сушка',producedBy:'cr_cured_leather',uses:[]}}),
+ catalogItem({id:'it_mat_hardwood_blank',n:'Заготовка из твердого дерева',tags:['materialit','refined','crafting'],weight:'5 фунтов',cost:'5 см',useMode:'profile',
+  desc:'Высушенный и выправленный брусок не имеет трещин и сохраняет направление волокон. Он подходит для рукояти, древка, щитовой детали или резной основы; окончательные свойства зависят от создаваемого изделия.',
+  props:'Создается резчиком по дереву или плотником из 2 пригодных ветвей твердого дерева.',
+  material:{category:'refined',tier:1,source:'сушка и столярная обработка',producedBy:'cr_hardwood_blank',uses:[]}}),
+ catalogItem({id:'it_mat_alchemical_base',n:'Стабильная алхимическая основа',tags:['materialit','refined','alchemy','reagent','crafting'],weight:'1 фунт',cost:'5 зм',useMode:'profile',
+  desc:'Нейтральный густой раствор удерживает действующие вещества, не вступая с ними в преждевременную реакцию. Одна колба основы входит в большинство рецептов зелий и расходников; пить ее отдельно бесполезно и может вызвать тошноту.',
+  props:'Создается инструментами алхимика из солнечника и цепкого пещерного мха.',
+  material:{category:'refined',tier:1,source:'алхимическая обработка',producedBy:'cr_alchemical_base',uses:['cr_potion_superior','cr_potion_supreme','cr_potion_climbing','cr_potion_heroism','cr_potion_fire_resistance','cr_potion_cold_resistance','cr_potion_water_breathing','cr_potion_invisibility','cr_potion_flying','cr_potion_giant_strength','cr_acid_vial','cr_antitoxin','cr_basic_poison']}}),
+
+ /* ── точные стоимостные компоненты заклинаний (5) ── */
+ catalogItem({id:'it_component_diamond_50',n:'Алмаз для хроматического шара (50 зм)',tags:['materialit','spellcomponent','gem','valuable'],weight:'0,1 фунта',cost:'50 зм',useMode:'profile',
+  desc:'Небольшой ограненный алмаз имеет подтвержденную оценку ровно 50 зм и подходит как стоимостный драгоценный камень для «Хроматического шара». Заклинание не расходует камень, поэтому запись остается в инвентаре после успешного применения.',
+  props:'Компонент: драгоценный камень не дешевле 50 зм; расход 0.',material:{category:'component',tier:2,source:'ювелир или сокровищница',component:{matchTokens:['алмаз','брилл','драгоц','камен'],valueGp:50,consumedBy:[]},uses:['sp_chromatic_orb']}}),
+ catalogItem({id:'it_component_diamonds_300',n:'Алмазы для оживления (300 зм)',tags:['materialit','spellcomponent','gem','valuable','consumable'],weight:'0,2 фунта',cost:'300 зм',useMode:'profile',
+  desc:'Запечатанный мешочек содержит набор мелких алмазов с общей подтвержденной стоимостью 300 зм. Это одна учетная единица для «Оживления»: при подтвержденном заклинании весь набор расходуется ровно один раз.',
+  props:'Компонент «Оживления»; расход 1 комплект. Фокусировка и мешочек компонентов его не заменяют.',material:{category:'component',tier:3,source:'ювелир или храм',component:{matchTokens:['алмаз','брилл'],valueGp:300,consumedBy:['sp_оживление']},uses:['sp_оживление']}}),
+ catalogItem({id:'it_component_diamond_500',n:'Алмаз для воскрешения мертвого (500 зм)',tags:['materialit','spellcomponent','gem','valuable','consumable'],weight:'0,2 фунта',cost:'500 зм',useMode:'profile',
+  desc:'Чистый алмаз с храмовым сертификатом оценен не менее чем в 500 зм. Он предназначен для «Воскрешения мертвого» и полностью исчезает при завершении заклинания; час наложения не меняет правило единственного атомарного расхода.',
+  props:'Компонент «Воскрешения мертвого»; расход 1 камень.',material:{category:'component',tier:4,source:'крупный ювелир или храмовая казна',component:{matchTokens:['алмаз','брилл'],valueGp:500,consumedBy:['sp_воскрешение_мертвого']},uses:['sp_воскрешение_мертвого']}}),
+ catalogItem({id:'it_component_diamond_1000',n:'Алмаз для воскрешения (1000 зм)',tags:['materialit','spellcomponent','gem','valuable','consumable'],weight:'0,3 фунта',cost:'1000 зм',useMode:'profile',
+  desc:'Редкий крупный алмаз без видимых включений оценен в 1000 зм и хранится в мягком футляре. «Воскрешение» расходует его полностью после всех проверок и до последствий; отмена до коммита оставляет камень на месте.',
+  props:'Стоимостный компонент «Воскрешения»: требуется не менее 1000 зм, расходуется ровно 1 камень и не заменяется фокусировкой.',material:{category:'component',tier:4,source:'столичный ювелир или королевская сокровищница',component:{matchTokens:['алмаз','брилл'],valueGp:1000,consumedBy:['sp_воскрешение']},uses:['sp_воскрешение']}}),
+ catalogItem({id:'it_component_diamonds_25000',n:'Алмазы для истинного воскрешения (25 000 зм)',tags:['materialit','spellcomponent','gem','valuable','consumable','legendary'],weight:'2 фунта',cost:'25 000 зм',useMode:'profile',
+  desc:'Опечатанный ларец содержит несколько безупречных алмазов общей стоимостью не менее 25 000 зм, каждый внесен в опись. Весь комплект является одной учетной единицей и расходуется «Истинным воскрешением»; это сокровище кампании, а не обычный товар лавки.',
+ props:'Стоимостный компонент «Истинного воскрешения»: требуется комплект не дешевле 25 000 зм, он расходуется целиком и не заменяется фокусировкой.',material:{category:'component',tier:5,source:'легендарная сокровищница, великий храм или награда кампании',component:{matchTokens:['алмаз','брилл'],valueGp:25000,consumedBy:['sp_истинное_воскрешение']},uses:['sp_истинное_воскрешение']}})
+];
+/* Рецепты мира — предсказуемые производственные операции, а не скрытые
+   броски сайта. Все входы сначала валидируются, затем списываются одной
+   транзакцией; время проходит в повествовании кампании. */
+const ITEM_RECIPES_V45=[
+ {id:'cr_alchemical_base',n:'Стабильная алхимическая основа',duration:'2 часа',toolIds:['it_tool_alchemist'],result:{itemId:'it_mat_alchemical_base',qty:1},inputs:[{itemId:'it_mat_sunleaf',qty:1},{itemId:'it_mat_cave_moss',qty:1}],note:'Перегонка при ровном слабом нагреве.'},
+ {id:'cr_iron_ingot',n:'Железный слиток',duration:'4 часа',toolIds:['it_tool_smith'],result:{itemId:'it_mat_iron_ingot',qty:1},inputs:[{itemId:'it_mat_iron_ore',qty:2},{itemId:'it_mat_coal',qty:1}],note:'Требуется доступ к кузнечному горну.'},
+ {id:'cr_silver_ingot',n:'Серебряный слиток',duration:'4 часа',toolIds:['it_tool_smith'],result:{itemId:'it_mat_silver_ingot',qty:1},inputs:[{itemId:'it_mat_silver_ore',qty:2},{itemId:'it_mat_coal',qty:1}],note:'Требуется доступ к кузнечному горну и чистой форме.'},
+ {id:'cr_steel_billet',n:'Стальная заготовка',duration:'6 часов',toolIds:['it_tool_smith'],result:{itemId:'it_mat_steel_billet',qty:1},inputs:[{itemId:'it_mat_iron_ingot',qty:1},{itemId:'it_mat_coal',qty:2}],note:'Повторный нагрев, введение углерода и закалка.'},
+ {id:'cr_cured_leather',n:'Выделанная кожа',duration:'1 день',toolIds:['it_tool_leatherworker'],result:{itemId:'it_mat_cured_leather',qty:1},inputs:[{itemId:'it_mat_raw_hide',qty:2},{itemId:'it_mat_bitterroot',qty:1}],note:'Дубление требует воды и места для сушки.'},
+ {id:'cr_hardwood_blank',n:'Заготовка из твердого дерева',duration:'4 часа',toolIds:['it_tool_woodcarver','it_tool_carpenter'],result:{itemId:'it_mat_hardwood_blank',qty:1},inputs:[{itemId:'it_mat_hardwood_bough',qty:2}],note:'Ветви выправляются, сушатся и обрабатываются вдоль волокон.'},
+ {id:'cr_potion_superior',n:'Зелье превосходного лечения',duration:'5 дней',toolIds:['it_tool_herbalism'],result:{itemId:'it_potion_healing_superior',qty:1},inputs:[{itemId:'it_mat_sunleaf',qty:4},{itemId:'it_mat_silverleaf',qty:2},{itemId:'it_mat_alchemical_base',qty:1}],note:'Редкое лечебное зелье; стоимость времени и лаборатории остается частью кампании.'},
+ {id:'cr_potion_supreme',n:'Зелье высшего лечения',duration:'10 дней',toolIds:['it_tool_herbalism'],result:{itemId:'it_potion_healing_supreme',qty:1},inputs:[{itemId:'it_mat_sunleaf',qty:8},{itemId:'it_mat_silverleaf',qty:4},{itemId:'it_mat_alchemical_base',qty:2}],note:'Очень редкий состав, который нельзя сварить в активном бою.'},
+ {id:'cr_potion_climbing',n:'Зелье лазания',duration:'1 день',toolIds:['it_tool_herbalism','it_tool_alchemist'],result:{itemId:'it_potion_climbing',qty:1},inputs:[{itemId:'it_mat_cave_moss',qty:3},{itemId:'it_mat_bitterroot',qty:1},{itemId:'it_mat_alchemical_base',qty:1}],note:'Волокна мха должны сохранить сцепляющие свойства.'},
+ {id:'cr_potion_heroism',n:'Зелье героизма',duration:'3 дня',toolIds:['it_tool_alchemist'],result:{itemId:'it_potion_heroism',qty:1},inputs:[{itemId:'it_mat_silverleaf',qty:3},{itemId:'it_mat_moonwort',qty:1},{itemId:'it_mat_alchemical_base',qty:1}],note:'Состав выдерживается без яркого света.'},
+ {id:'cr_potion_fire_resistance',n:'Зелье сопротивления огню',duration:'3 дня',toolIds:['it_tool_alchemist'],result:{itemId:'it_potion_fire_resistance',qty:1},inputs:[{itemId:'it_mat_emberflower',qty:3},{itemId:'it_mat_coal',qty:1},{itemId:'it_mat_alchemical_base',qty:1}],note:'Нагрев увеличивается постепенно, чтобы не воспламенить пыльцу.'},
+ {id:'cr_potion_cold_resistance',n:'Зелье сопротивления холоду',duration:'3 дня',toolIds:['it_tool_alchemist'],result:{itemId:'it_potion_cold_resistance',qty:1},inputs:[{itemId:'it_mat_frost_lichen',qty:3},{itemId:'it_mat_quartz',qty:1},{itemId:'it_mat_alchemical_base',qty:1}],note:'Смесь выдерживается в прохладном месте.'},
+ {id:'cr_potion_water_breathing',n:'Зелье подводного дыхания',duration:'2 дня',toolIds:['it_tool_herbalism','it_tool_alchemist'],result:{itemId:'it_potion_water_breathing',qty:1},inputs:[{itemId:'it_mat_water_reed',qty:3},{itemId:'it_mat_cave_moss',qty:1},{itemId:'it_mat_alchemical_base',qty:1}],note:'Воздушные полости тростника нельзя разрушить до настаивания.'},
+ {id:'cr_potion_invisibility',n:'Зелье невидимости',duration:'10 дней',toolIds:['it_tool_alchemist'],result:{itemId:'it_potion_invisibility',qty:1},inputs:[{itemId:'it_mat_moonwort',qty:3},{itemId:'it_mat_nightshade',qty:1},{itemId:'it_mat_alchemical_base',qty:1}],note:'Очень редкий состав готовится в темноте и герметичной посуде.'},
+ {id:'cr_potion_flying',n:'Зелье полета',duration:'10 дней',toolIds:['it_tool_alchemist'],result:{itemId:'it_potion_flying',qty:1},inputs:[{itemId:'it_mat_moonwort',qty:2},{itemId:'it_mat_silverleaf',qty:2},{itemId:'it_mat_quartz',qty:1},{itemId:'it_mat_alchemical_base',qty:1}],note:'Кристалл растирается до однородной взвеси.'},
+ {id:'cr_potion_giant_strength',n:'Зелье силы холмового великана',duration:'3 дня',toolIds:['it_tool_alchemist'],result:{itemId:'it_potion_hill_giant_strength',qty:1},inputs:[{itemId:'it_mat_iron_ore',qty:2},{itemId:'it_mat_bitterroot',qty:2},{itemId:'it_mat_alchemical_base',qty:1}],note:'Минеральная часть многократно фильтруется; сырую взвесь пить нельзя.'},
+ {id:'cr_acid_vial',n:'Кислота (флакон)',duration:'4 часа',toolIds:['it_tool_alchemist'],result:{itemId:'it_acid_vial',qty:1},inputs:[{itemId:'it_mat_nightshade',qty:1},{itemId:'it_mat_coal',qty:1},{itemId:'it_mat_alchemical_base',qty:1}],note:'Нужен устойчивый флакон с притертой пробкой.'},
+ {id:'cr_holy_water',n:'Святая вода (фляга)',duration:'1 час',toolIds:['it_tool_alchemist'],result:{itemId:'it_holy_water',qty:1},inputs:[{itemId:'it_mat_silverleaf',qty:2},{itemId:'it_mat_silver_ingot',qty:1}],note:'Помимо подготовки сосуда требуется признанный религиозный обряд; его подтверждает мастер.'},
+ {id:'cr_antitoxin',n:'Противоядие',duration:'1 день',toolIds:['it_tool_herbalism'],result:{itemId:'it_противоядие',qty:1},inputs:[{itemId:'it_mat_bitterroot',qty:2},{itemId:'it_mat_sunleaf',qty:1},{itemId:'it_mat_alchemical_base',qty:1}],note:'Готовая доза дает преимущество на спасброски от яда по своему структурированному применению.'},
+ {id:'cr_basic_poison',n:'Базовый яд',duration:'1 день',toolIds:['it_tool_poisoner'],result:{itemId:'it_basic_poison',qty:1},inputs:[{itemId:'it_mat_nightshade',qty:2},{itemId:'it_mat_spider_venom_sac',qty:1},{itemId:'it_mat_alchemical_base',qty:1}],note:'Работа требует защитных перчаток и отдельной посуды.'}
+];
 /* ── ярлыки, размеченные ошибочно ── */
 const ITEM_TAG_FIX={
  'Карта пути к Замку Каменной Пасти и Кузнице':{drop:['food']},
@@ -2945,8 +3259,9 @@ const ITEM_TAG_FIX={
 };
 async function ensureItemAudit(){
   const flag=await store.get('dndworld2:itemaudit');
-  if(flag==='3') return;
+  if(flag==='4') return;
   ITEM_NEW.forEach(rec=>{ if(!itemsDB.some(x=>x.id===rec.id)) itemsDB.push(rec); });
+  ITEM_EXPANSION_V45.forEach(rec=>{ if(!itemsDB.some(x=>x.id===rec.id)) itemsDB.push(JSON.parse(JSON.stringify(rec))); });
   const lore=Object.assign({}, ITEM_LORE_A, ITEM_LORE_B, ITEM_LORE_C);
   Object.keys(lore).forEach(id=>{
     const it=itemsDB.find(x=>x.id===id); if(!it) return;
@@ -2973,7 +3288,18 @@ async function ensureItemAudit(){
     if(it&&Array.isArray(it.contents)&&it.contents.length) fillContainer(e,it);
   }));
   itemsDB.forEach(upgradeItem);
-  await store.set('dndworld2:itemaudit','3');
+  /* В исходных текстах стоимостных алмазов не было слова «расходуется»,
+     хотя четыре заклинания возвращения к жизни расходуют компонент по 5e.
+     Исправляем уже сохраненные структурированные контракты вместе с базой. */
+  const costly={
+    'Оживление':{cost:300,consume:1},'Воскрешение мертвого':{cost:500,consume:1},
+    'Воскрешение':{cost:1000,consume:1},'Истинное воскрешение':{cost:25000,consume:1}
+  };
+  Object.keys(costly).forEach(n=>{
+    const sp=spellsDB.find(x=>x.n===n),mat=sp&&sp.mechanics&&sp.mechanics.components&&sp.mechanics.components.material;
+    if(mat){ mat.cost=costly[n].cost; mat.consume=costly[n].consume; }
+  });
+  await store.set('dndworld2:itemaudit','4');
   fxInvalidate(); scheduleSave();
 }
 async function ensureSpellAudit(){
@@ -4186,7 +4512,7 @@ function fxRollMode(c,stat){
 function speedTotal(c){
   const raw=String(c.speed||'');
   if(conditionForcesZeroSpeed(effectiveConditions(c))) return '0 '+(/фут/i.test(raw)?'футов':'м');
-  const over=(typeof carryWeight==='function')?(carryWeight(c)>Math.round((+c.ab.str||10)*7.5)):false;
+  const over=(typeof carryWeight==='function')?(carryWeight(c)>Math.round(eAb(c,'str')*7.5)):false;
   const m=raw.replace(',','.').match(/-?\d+(?:\.\d+)?/);
   if(!m) return raw;
   let v=+m[0], add=0, mul=1, setVal=null, unit=/фут/i.test(raw)?' футов':' м';
@@ -4251,7 +4577,13 @@ function fxLine(c,stat){
 }
 
 /* ── эффективные характеристики (каскад в модификаторы) ── */
-function eAb(c,k){ return (c.ab&&c.ab[k]!=null?c.ab[k]:10)+fxSum(c,'ab.'+k); }
+function eAb(c,k){
+  let v=(c.ab&&c.ab[k]!=null?+c.ab[k]:10)+fxSum(c,'ab.'+k);
+  const set=fxSet(c,'ab.'+k),min=fxMin(c,'ab.'+k);
+  if(set!=null&&Number.isFinite(+set)) v=+set;
+  if(min!=null) v=Math.max(v,+min||0);
+  return v;
+}
 function eMod(c,k){ return Math.floor((eAb(c,k)-10)/2); }
 /* Некоторые эффекты 5e (например, Вытягивание жизни) действительно могут
    уменьшить максимум хитов до 0 — это не техническая «единица для деления»,
@@ -4372,13 +4704,13 @@ function advanceFxRound(steps){
 }
 function endTriggeredSpellEffects(c,trigger){
   if(!c) return;
-  const gone=(c.activeFx||[]).filter(a=>a.k==='spell'&&((a.breakOn||[]).indexOf(trigger)>=0
+  const gone=(c.activeFx||[]).filter(a=>(a.k==='spell'||a.k==='use')&&((a.breakOn||[]).indexOf(trigger)>=0
     ||(!a.mechanicsVersion&&!(a.breakOn||[]).length&&normSpellName(a.label)==='невидимость'&&(trigger==='attack'||trigger==='spell'))));
   if(!gone.length) return;
   gone.forEach(a=>detachActiveFx(c,a));
   c.activeFx=c.activeFx.filter(a=>gone.indexOf(a)<0);
   fxInvalidate(); syncStackedGrants(c); scheduleSave(); renderChars();
-  setStatus('✦ «Невидимость» окончена: '+(trigger==='attack'?'совершена атака':'наложено заклинание')+'.');
+  setStatus('✦ Эффект «'+gone.map(a=>a.label).filter((v,i,a)=>a.indexOf(v)===i).join('», «')+'» окончен: '+(trigger==='attack'?'совершена атака':'наложено заклинание')+'.');
 }
 function consumeRollFx(c,uids){
   const ids=[...new Set((uids||[]).filter(Boolean))];
@@ -4704,6 +5036,7 @@ function abilityCastFx(abilityId, casterId){
   if(pool) info.push(pool.label+': '+pool.cur+' из '+pool.max+' (1d'+pool.sides+')');
   const sw=document.getElementById('castSlotWrap'); if(sw) sw.style.display='none';
   document.getElementById('castItemWrap').style.display='none';
+  document.getElementById('castChoiceWrap').style.display='none';
   document.getElementById('castStep1').style.display='block';
   document.getElementById('castStep2').style.display='none';
   const er=document.getElementById('castErr'); er.style.display='none'; er.textContent='';
@@ -5115,7 +5448,7 @@ function materialCostFor(sp,comp){
   if(mat) return Math.max(0,+mat.cost||0);
   if(structured) return 0;
   const n=normSpellName(sp&&sp.n);
-  const fixed={'хроматический шар':50,'воскрешение мертвого':500,'воскрешение':1000,'истинное воскрешение':25000};
+  const fixed={'хроматический шар':50,'оживление':300,'воскрешение мертвого':500,'воскрешение':1000,'истинное воскрешение':25000};
   return fixed[n]||0;
 }
 function hasWarCaster(c){
@@ -5352,7 +5685,7 @@ function finalizeRollSpec(spec,source){
       provenance:r.sourceUid?'active-effect':(r.reaction?'reaction':(r.type==='res'?'resource':String(spec.meta.kind||source&&source.kind||'rule'))),
       dice:(+r.cnt>0&&+r.sides>0)?{count:+r.cnt,sides:+r.sides}:null,naturalD20:!!r.natural,
       advantage:+r.adv||0,optional:!!r.optional,
-      gates:{hit:!!r.requiredOnHit,failedSave:!!r.requiredOnFailedSave,threshold:r.requiredWhenThresholdEquals||''}
+      gates:{hit:!!r.requiredOnHit,failedSave:!!r.requiredOnFailedSave,scrollSuccess:!!r.requiredOnScrollSuccess,threshold:r.requiredWhenThresholdEquals||''}
     };
   });
   const ti=spec.meta.target||{};
@@ -5374,7 +5707,7 @@ function formulaContractErrors(spec){
     if(!r||ROLL_ROW_TYPES.indexOf(r.type)<0) out.push(at+': неизвестный тип '+String(r&&r.type));
     const semantic=rollRowSemantic(r);
     if(!semantic) out.push(at+': нет исполняемой семантики');
-    if(r&&r.type==='other'&&['atk','save','dmg'].indexOf(r.addTo)<0) out.push(at+': безымянная кость не привязана к формуле');
+    if(r&&r.type==='other'&&['atk','save','dmg','scrollcheck'].indexOf(r.addTo)<0) out.push(at+': безымянная кость не привязана к формуле');
     if(r&&r.natural&&![0,1,2].includes(+r.adv||0)) out.push(at+': неверный режим преимущества');
     if(r&&((+r.cnt>0)!==(+r.sides>0))) out.push(at+': неполная формула кости');
     if(r&&r.requiredWhenThresholdEquals&&!rows.some(x=>x&&x.key===r.requiredWhenThresholdEquals)) out.push(at+': неизвестная пороговая строка');
@@ -5391,7 +5724,7 @@ function semanticTokens(raw){
 function mechanicsSourceHash(rec,kind){
   const keys=kind==='spell'?['n','l','t','r','cm','d','conc','ritual','x','hi','fx']:
     (kind==='ability'?['n','mode','uses','rest','x','fx','combatCost','combatTarget','combatRequiresWeapon','combatForceAttack','combatConsumeOn','combatThreshold','combatThresholdCondition','combatUntil']:
-      ['n','type','rarity','tags','slot','weight','cost','dmg','dmgType','ac','strReq','desc','props','fx','passiveFx','uses','resource','useMode','manualNote']);
+      ['n','type','rarity','tags','slot','weight','cost','dmg','dmgType','ac','strReq','desc','props','fx','passiveFx','uses','resource','tool','material','useMode','manualNote']);
   return kind+'|'+keys.map(k=>JSON.stringify(rec&&rec[k]===undefined?null:rec[k])).join('|');
 }
 function inferComponents(sp){
@@ -5402,9 +5735,13 @@ function inferComponents(sp){
   const has=(...v)=>tokens.some(x=>v.indexOf(x)>=0);
   const text=(cm+' '+String((sp&&sp.x)||'')).toLowerCase().replace(/ё/g,'е');
   const notSpent=/не\s+(?:требуется\s+и\s+не\s+)?расходу/.test(text);
-  const consume=!notSpent&&/(?:расходуется|расходуем[а-я]*|при этом расходу)/.test(text)?1:0;
-  const fixed={'хроматический шар':50,'воскрешение мертвого':500,'воскрешение':1000,'истинное воскрешение':25000};
-  const cost=fixed[normSpellName(sp&&sp.n)]||0;
+  const spellName=normSpellName(sp&&sp.n),forcedConsume={
+    'оживление':1,'воскрешение мертвого':1,'воскрешение':1,'истинное воскрешение':1
+  };
+  const parsedConsume=!notSpent&&/(?:расходуется|расходуем[а-я]*|при этом расходу)/.test(text)?1:0;
+  const consume=forcedConsume[spellName]===undefined?parsedConsume:forcedConsume[spellName];
+  const fixed={'хроматический шар':50,'оживление':300,'воскрешение мертвого':500,'воскрешение':1000,'истинное воскрешение':25000};
+  const cost=fixed[spellName]||0;
   return {verbal:has('В','V'),somatic:has('С','C','S'),material:has('М','M')?
     {description:mat,matchTokens:semanticTokens(mat),consume,cost}:null};
 }
@@ -6292,7 +6629,7 @@ function targetCriticalHitImmune(ti){
 }
 function resolveOutcome(spec, v){
   const meta=spec.meta, ti=meta.target||{kind:'none',known:false,name:''};
-  const out={verdict:[], notes:[], hit:null, crit:false, fumble:false, saveOk:null, contestWin:null,
+  const out={verdict:[], notes:[], hit:null, crit:false, fumble:false, saveOk:null, contestWin:null,scrollOk:null,
     healTotal:null, tempTotal:null, dmgRaw:null, dmgTotal:null, damageParts:[], dmgType:meta.dmgType||'', targetName:ti.name||'',
     effectAllowed:null, blocked:false, mitigationTotal:0, reactionUses:[],thresholdSuccess:null};
   const row=t=>spec.rows.find(r=>r.type===t);
@@ -6357,6 +6694,17 @@ function resolveOutcome(spec, v){
   }
   /* состязание проверок */
   const ck=row('check'), tck=row('tcheck');
+  if(ck&&!tck&&meta.scrollGate){
+    const nat=pickNat(v,ck.key,ck.adv);
+    if(nat!=null){
+      const fxBonus=spec.rows.filter(r=>r.addTo==='scrollcheck'&&v[r.key]!=null)
+        .reduce((a,r)=>a+(v[r.key]+(r.mod||0))*(r.sign||1),0);
+      const total=nat+(ck.mod||0)+fxBonus;
+      out.scrollOk=total>=(+ck.dc||+meta.scrollDC||0);
+      out.verdict.push('Проверка свитка: d20 '+nat+' '+fmtMod(ck.mod||0)+(fxBonus?' '+(fxBonus>0?'+ ':'− ')+Math.abs(fxBonus):'')+' = '+total+' против СЛ '+(+ck.dc||+meta.scrollDC||0)+' — '+(out.scrollOk?'УСПЕХ':'провал; свиток исчезает без эффекта'));
+      out.notes.push('проверка свитка '+total+' против СЛ '+(+ck.dc||+meta.scrollDC||0));
+    }
+  }
   if(ck&&tck){
     const a=pickNat(v,'chk',ck.adv), b=tck.natural?pickNat(v,'tchk',tck.adv):v.tchk;
     if(a!=null&&b!=null){
@@ -6381,6 +6729,7 @@ function resolveOutcome(spec, v){
      Пустое поле не равно провалу цели: без результата движок не имеет права
      молча наложить состояние. */
   const gates=[];
+  if(meta.scrollGate) gates.push(out.scrollOk===true?true:(out.scrollOk===false?false:null));
   if(ar) gates.push(out.hit===true?true:(out.hit===false?false:null));
   if(thresholdRow) gates.push(out.thresholdSuccess===true?true:(out.thresholdSuccess===false?false:null));
   else if(sr) gates.push(out.saveOk===false?true:(out.saveOk===true?false:null));
@@ -6390,7 +6739,7 @@ function resolveOutcome(spec, v){
   let temp=0, tempSeen=false;
   spec.rows.forEach(r=>{ if(r.type==='temp'&&v[r.key]!=null){ temp+=v[r.key]+(r.mod||0); tempSeen=true; } });
   if(tempSeen){
-    out.tempTotal=Math.max(0,temp);
+    out.tempTotal=meta.scrollGate&&out.scrollOk!==true?0:Math.max(0,temp);
     const had=(ti.obj&&+ti.obj.hpTemp)||0;
     out.verdict.push('Временные хиты: '+out.tempTotal+(had?(out.tempTotal>had?' — заменят прежние '+had+' (по правилам берется большее)':' — прежние '+had+' сильнее, останутся они'):''));
   }
@@ -6402,7 +6751,7 @@ function resolveOutcome(spec, v){
   /* лечение */
   let heal=0, healSeen=false;
   spec.rows.forEach(r=>{ if(r.type==='heal'&&v[r.key]!=null){ heal+=v[r.key]+(r.mod||0); healSeen=true; } });
-  if(healSeen){ out.healTotal=Math.max(0,heal); out.verdict.push('Лечение: +'+out.healTotal+' хитов.'); }
+  if(healSeen){ out.healTotal=meta.scrollGate&&out.scrollOk!==true?0:Math.max(0,heal); out.verdict.push('Лечение: +'+out.healTotal+' хитов.'); }
   /* урон */
   let dmg=0, dmgSeen=false, dtype=meta.dmgType||'';
   const grouped={};
@@ -6442,7 +6791,11 @@ function resolveOutcome(spec, v){
   if(dmgSeen){
     out.dmgRaw=dmg;
     let parts=Object.values(grouped).map(p=>({type:p.type,raw:p.raw,total:p.raw,saveMode:p.saveMode||''}));
-    if(ar&&out.hit!==true){
+    if(meta.scrollGate&&out.scrollOk!==true){
+      parts.forEach(p=>p.total=0);
+      out.verdict.push(out.scrollOk===false?'Проверка свитка провалена — урон не применяется.':'Нет результата проверки свитка — урон не применяется.');
+    }
+    else if(ar&&out.hit!==true){
       parts.forEach(p=>p.total=0);
       out.verdict.push(out.hit===false?'Промах — урон не применяется.':'Нет подтвержденного результата атаки — урон не применяется.');
     }
@@ -6843,7 +7196,8 @@ function validateFormulaValues(spec,v,res){
     const val=v[r.key], second=v[r.key+'_2'];
     const hitGate=!r.requiredOnHit||(res&&res.hit===true);
     const saveGate=!r.requiredOnFailedSave||(res&&res.saveOk===false);
-    if(r.required&&val==null&&hitGate&&saveGate){
+    const scrollGate=!r.requiredOnScrollSuccess||(res&&res.scrollOk===true);
+    if(r.required&&val==null&&hitGate&&saveGate&&scrollGate){
       errors.push(r.label+': впишите результат — без него ресурс и эффект приема не подтверждены.');
       return;
     }
@@ -6917,7 +7271,7 @@ function castFormulaConfirm(){
   const attackMade=spec.rows.some(r=>r.type==='atk'&&v[r.key]!=null);
   const rolls={notes:res.notes.slice(), verdict:res.verdict.slice(), healTotal:res.healTotal, tempTotal:res.tempTotal,
     sleepTotal:res.sleepTotal, dmgTotal:res.dmgTotal, dmgRaw:res.dmgRaw, damageParts:res.damageParts, dmgType:res.dmgType, hit:res.hit, crit:res.crit,
-    saveOk:res.saveOk, contestWin:res.contestWin, effectAllowed:res.effectAllowed, blocked:res.blocked,
+    saveOk:res.saveOk, contestWin:res.contestWin, scrollOk:res.scrollOk, effectAllowed:res.effectAllowed, blocked:res.blocked,
     mitigationTotal:res.mitigationTotal, reactionUses:res.reactionUses,
     attackMade,
     consumeCasterFx:spec.rows.filter(r=>r.side!=='target'&&r.consume==='roll'&&r.sourceUid&&v[r.key]!=null).map(r=>r.sourceUid),
@@ -6948,7 +7302,7 @@ function castFormulaConfirm(){
     return;
   }
   if(castCtx.kind==='item'){
-    if(useItemApply(castCtx.entryId, castCtx.casterId, castCtx.target, rolls,castCtx.itemUseId,{weaponEntryId:castCtx.itemWeaponEntryId})) closeCastModal();
+    if(useItemApply(castCtx.entryId, castCtx.casterId, castCtx.target, rolls,castCtx.itemUseId,{weaponEntryId:castCtx.itemWeaponEntryId,choice:castCtx.itemChoice})) closeCastModal();
     return;
   }
   if(castCtx.kind==='ability'){
@@ -7048,6 +7402,7 @@ function castSpellFx(spellId, casterId){
   castCtx.extraTargets=[];
   renderCastMultiTargets();
   document.getElementById('castItemWrap').style.display='none';
+  document.getElementById('castChoiceWrap').style.display='none';
   document.getElementById('castStep1').style.display='block';
   document.getElementById('castStep2').style.display='none';
   const er=document.getElementById('castErr'); er.style.display='none'; er.textContent='';
@@ -7069,6 +7424,7 @@ function castTargetChanged(){
   document.getElementById('castItemWrap').style.display=(v==='invitem')?'block':'none';
   if(castCtx&&castCtx.kind==='spell') renderCastMultiTargets();
   if(castCtx&&castCtx.kind==='foe') renderFoeMultiTargets();
+  if(castCtx&&castCtx.kind==='item') itemChoiceRefresh();
 }
 function setCastConfirmCaption(text){ const b=document.getElementById('castConfirmBtn'); if(b) b.textContent=text; }
 function setCastTargetLabel(text){ const b=document.getElementById('castTargetLabel'); if(b) b.textContent=text; }
@@ -7100,10 +7456,11 @@ function castConfirm(){
     if(!e||!it) return;
     const use=itemUseOf(it,castCtx.itemUseId),wsel=document.getElementById('castWeapon');
     castCtx.itemWeaponEntryId=(use&&use.special==='coatWeapon'&&wsel)?wsel.value:null;
-    const chk=canUseItemCheck(caster,e,it,use,castCtx.target,{weaponEntryId:castCtx.itemWeaponEntryId});
+    castCtx.itemChoice=(document.getElementById('castChoiceWrap').style.display!=='none')?document.getElementById('castChoice').value:null;
+    const chk=canUseItemCheck(caster,e,it,use,castCtx.target,{weaponEntryId:castCtx.itemWeaponEntryId,choice:castCtx.itemChoice});
     if(!chk.ok){ castShowErr(chk.reason); return; }
     if(castFormulaShow()) return;
-    if(useItemApply(castCtx.entryId, castCtx.casterId, castCtx.target,null,castCtx.itemUseId,{weaponEntryId:castCtx.itemWeaponEntryId})) closeCastModal();
+    if(useItemApply(castCtx.entryId, castCtx.casterId, castCtx.target,null,castCtx.itemUseId,{weaponEntryId:castCtx.itemWeaponEntryId,choice:castCtx.itemChoice})) closeCastModal();
     return;
   }
   if(castCtx.kind==='ability'){
@@ -7514,7 +7871,7 @@ function deriveHeal(it){
    цель → формула бросков → разбор по правилам 5e → применение.
    Заряды, настройка, расход и вес влияют на показатели напрямую. */
 const ATTUNE_LIMIT=3;
-const ITEM_SCHEMA_VERSION=3;
+const ITEM_SCHEMA_VERSION=4;
 const ITEM_USE_COSTS=['action','attack','bonus','reaction','object','turnfree','free','long'];
 const ITEM_USE_TARGETS=['self','ally','enemy','any','none'];
 const ITEM_USE_RESOURCES=['none','item','charges','kit'];
@@ -7542,7 +7899,7 @@ function itemResourceSchemaErrors(resource){
 function itemUseSchemaErrors(uses,resource){
   const out=[],seen=new Set();
   const fxModes=['add','min','mul','set','grant','text','die','adv','dis'];
-  const specials=['stabilize','coatWeapon','oil','zone'];
+  const specials=['stabilize','coatWeapon','oil','zone','teleport','cleanse'];
   if(!Array.isArray(uses)) return [{index:-1,message:'применения должны быть JSON-массивом'}];
   uses.forEach((u,i)=>{
     const id=String(u&&u.id||''),label=String(u&&u.label||'').trim(),co=u&&u.consume;
@@ -7559,10 +7916,12 @@ function itemUseSchemaErrors(uses,resource){
       const mx=+((resource||{}).max)||0;
       if((resource||{}).kind!=='charges'||mx<+co.amount) add('расход зарядов превышает ресурс предмета');
     }
-    if(u.attack&&(!u.attack.ability||['str','dex','con','int','wis','cha'].indexOf(u.attack.ability)<0)) add('атака без допустимой характеристики');
+    if(u.attack&&u.attack.fixedBonus==null&&(!u.attack.ability||['str','dex','con','int','wis','cha'].indexOf(u.attack.ability)<0)) add('атака без допустимой характеристики или fixedBonus');
+    if(u.attack&&u.attack.fixedBonus!=null&&!Number.isFinite(+u.attack.fixedBonus)) add('fixedBonus атаки должен быть числом');
     if(u.save&&((!u.save.key||!AB_FULL[u.save.key])||!(+u.save.dc>0))) add('неверный спасбросок');
     (u.damage||[]).forEach((d,k)=>{ if(!(Number.isInteger(+d.cnt)&&+d.cnt>=0&&Number.isInteger(+d.sides)&&+d.sides>0&&Number.isFinite(d.mod==null?0:+d.mod))) add('неверная формула урона '+k); });
     if(u.heal&&!(Number.isInteger(+u.heal.cnt)&&+u.heal.cnt>=0&&Number.isInteger(+u.heal.sides)&&+u.heal.sides>=0&&Number.isFinite(u.heal.mod==null?0:+u.heal.mod))) add('неверная формула лечения');
+    if(u.temp&&!(Number.isInteger(+u.temp.cnt)&&+u.temp.cnt>=0&&Number.isInteger(+u.temp.sides)&&+u.temp.sides>=0&&Number.isFinite(u.temp.mod==null?0:+u.temp.mod))) add('неверная формула временных хитов');
     if(u.effects!=null&&!Array.isArray(u.effects)) add('effects должен быть массивом');
     (u.effects||[]).forEach((f,k)=>{
       if(!f||!String(f.stat||'').trim()) add('эффект '+k+' без показателя');
@@ -7573,8 +7932,58 @@ function itemUseSchemaErrors(uses,resource){
     if(u.special&&specials.indexOf(u.special)<0) add('неизвестный special '+u.special);
     if(u.effectWhen&&['hit','failedSave','always'].indexOf(u.effectWhen)<0) add('неизвестный effectWhen '+u.effectWhen);
     if(u.requirements&&u.requirements.blockedTags!=null&&!Array.isArray(u.requirements.blockedTags)) add('blockedTags должен быть массивом');
+    if(u.requirements&&u.requirements.requiredTags!=null&&!Array.isArray(u.requirements.requiredTags)) add('requiredTags должен быть массивом');
     if(u.special==='zone'&&(!u.zone||!u.zone.save||!AB_FULL[u.zone.save.key]||!(+u.zone.save.dc>0))) add('зона должна содержать корректный спасбросок');
+    if(u.special==='teleport'&&(!u.teleport||!String(u.teleport.distance||'').trim())) add('телепортация должна задавать дистанцию');
+    if(u.special==='cleanse'&&(!Array.isArray(u.choices)||!u.choices.length)) add('очищение должно задавать допустимые состояния');
+    if(u.breakOn!=null&&(!Array.isArray(u.breakOn)||u.breakOn.some(x=>['attack','spell'].indexOf(x)<0))) add('breakOn допускает только attack/spell');
+    if(u.concentration!=null&&typeof u.concentration!=='boolean') add('concentration должен быть boolean');
+    if(u.scroll){
+      const s=u.scroll;
+      if(!String(s.spellId||'').trim()||!Number.isInteger(+s.level)||+s.level<0||+s.level>9) add('свитку нужны spellId и круг 0–9');
+      if(!(+s.saveDC>0)||!Number.isFinite(+s.attackBonus)) add('свитку нужны числовые saveDC и attackBonus');
+      if(!co||co.kind!=='item'||+co.amount!==1) add('свиток должен расходовать ровно один предмет');
+    }
   });
+  return out;
+}
+function itemToolSchemaErrors(tool){
+  if(tool==null) return [];
+  const out=[];
+  if(typeof tool!=='object'||Array.isArray(tool)) return ['tool должен быть объектом'];
+  if(!String(tool.sk||'').trim()||!Object.values(AB_FULL).includes(tool.sk)) out.push('tool.sk должен задавать характеристику');
+  if(!String(tool.prof||'').trim()||!String(tool.what||'').trim()) out.push('tool требует prof и what');
+  if(!Array.isArray(tool.tasks)||!tool.tasks.length) out.push('tool.tasks должен содержать структурированные задачи');
+  return out;
+}
+function itemMaterialSchemaErrors(material){
+  if(material==null) return [];
+  const out=[];
+  if(typeof material!=='object'||Array.isArray(material)) return ['material должен быть объектом'];
+  if(!String(material.category||'').trim()) out.push('material.category обязателен');
+  if(!Number.isInteger(+material.tier)||+material.tier<1||+material.tier>5) out.push('material.tier должен быть целым от 1 до 5');
+  if(!String(material.source||'').trim()) out.push('material.source обязателен');
+  if(material.harvest){
+    const h=material.harvest;
+    if(!Array.isArray(h.biomes)||!h.biomes.length||!String(h.skill||'').trim()||!AB_FULL[h.ability]||!(+h.dc>0)||!String(h.time||'').trim()||!String(h.yield||'').trim())
+      out.push('harvest требует biomes, skill, ability, dc, time и yield');
+  }
+  if(material.category==='component'){
+    const c=material.component;
+    if(!c||!Array.isArray(c.matchTokens)||!c.matchTokens.length||!(+c.valueGp>0)||!Array.isArray(c.consumedBy)) out.push('компонент требует matchTokens, valueGp и consumedBy');
+  }
+  if(!Array.isArray(material.uses)) out.push('material.uses должен быть массивом связей');
+  return out;
+}
+function craftingRecipeSchemaErrors(recipe,itemIds){
+  const out=[];
+  if(!recipe||!ITEM_USE_ID_RE.test(String(recipe.id||''))||!String(recipe.n||'').trim()) out.push('нужны допустимые id и имя');
+  if(!recipe||!String(recipe.duration||'').trim()) out.push('нужна длительность');
+  if(!recipe||!Array.isArray(recipe.toolIds)||!recipe.toolIds.length) out.push('нужен хотя бы один инструмент');
+  if(!recipe||!Array.isArray(recipe.inputs)||!recipe.inputs.length) out.push('нужен хотя бы один ингредиент');
+  const refs=(recipe&&recipe.toolIds||[]).concat((recipe&&recipe.inputs||[]).map(x=>x.itemId)).concat(recipe&&recipe.result?[recipe.result.itemId]:[]);
+  if(itemIds) refs.forEach(id=>{ if(!itemIds.has(id)) out.push('неизвестная ссылка '+id); });
+  (recipe&&recipe.inputs||[]).concat(recipe&&recipe.result?[recipe.result]:[]).forEach(x=>{ if(!x||!String(x.itemId||'').trim()||!Number.isInteger(+x.qty)||+x.qty<1) out.push('количества ингредиентов и результата должны быть положительными целыми'); });
   return out;
 }
 function foeActionSchemaErrors(actions,multiattack){
@@ -7647,7 +8056,7 @@ function inferItemUseMode(it){
   if(Array.isArray(it.uses)&&it.uses.length) return 'structured';
   if(it.type==='weapon') return 'weapon';
   const p=itemProfile(it);
-  if(['ammo','light','firestarter','tool','instrument','lore','valuable','food','water','camp','rope','container','focus','gamble','ritual','writing'].indexOf(p.kind)>=0) return 'profile';
+  if(['ammo','light','firestarter','tool','instrument','lore','valuable','food','water','camp','rope','container','focus','gamble','ritual','writing','material','component'].indexOf(p.kind)>=0) return 'profile';
   if(it.slot||((it.passiveFx||[]).length)) return 'passive';
   return 'manual';
 }
@@ -7665,6 +8074,13 @@ function compileItemMechanics(it){
     const raw=String(profile.armor.ac||it.ac||''),base=(raw.match(/\d+/)||[])[0],cap=(raw.match(/макс\.?\s*(\d+)/i)||[])[1];
     profile.armor.acRule={base:+base||0,dex:/лов/i.test(raw),dexCap:cap==null?null:+cap,shield:profile.kind==='shield'};
   }
+  if(it.tool){ profile.kind='tool'; profile.tool=itemClone(it.tool); }
+  if(it.material){
+    profile.kind=it.material.category==='component'?'component':'material';
+    profile.material=itemClone(it.material);
+  }
+  const scrollAction=(it.uses||[]).find(u=>u&&u.scroll);
+  if(it.type==='scroll'&&scrollAction){ profile.kind='scroll'; profile.scroll=itemClone(scrollAction.scroll); }
   profile.flags=Object.assign({},profile.flags||{}, {
     focus:profile.kind==='focus'||tags.indexOf('focus')>=0||/фокус|священн.*символ/i.test(hay),
     componentPouch:/мешоч[а-я]*\s+с\s+компонент|component pouch/i.test(hay),
@@ -7674,7 +8090,10 @@ function compileItemMechanics(it){
     consumable:it.type==='potion'||it.type==='scroll'||tags.indexOf('consumable')>=0
   });
   profile.matchTokens=semanticTokens((it.n||'')+' '+(it.desc||'')+' '+(it.props||''));
+  const compTokens=it.material&&it.material.component&&it.material.component.matchTokens;
+  if(Array.isArray(compTokens)) profile.matchTokens=[...new Set(profile.matchTokens.concat(compTokens.map(x=>String(x).toLowerCase().slice(0,5))))];
   if(!profile.value) profile.value={gp:legacyItemGoldValue(it)};
+  if(it.material&&it.material.component&&it.material.component.valueGp) profile.value={gp:+it.material.component.valueGp};
   const armorKind=profile.kind==='shield'?'shield':(profile.kind==='armor'&&profile.armor?
     (profile.armor.weight==='тяжелый'?'heavy':(profile.armor.weight==='средний'?'medium':'light')):null);
   const mode=it.useMode==='manual'?'manual':'structured';
@@ -7766,8 +8185,18 @@ function itemUseTags(use){
   if(use&&(use.damage||[]).some(d=>dmgTypeCanon(d.type)==='яд')&&tags.indexOf('poison')<0) tags.push('poison');
   return tags;
 }
+function scrollUseCheck(caster,use){
+  const rule=use&&use.scroll,sp=rule&&spellOf(rule.spellId);
+  if(!rule||!sp) return {ok:false,reason:'Свиток ссылается на отсутствующее заклинание.'};
+  const meta=casterMeta(caster);
+  if(!meta) return {ok:false,reason:'У персонажа нет заклинательного класса: письмена свитка непонятны.'};
+  if(!spellClassListHas(caster,sp)) return {ok:false,reason:'«'+sp.n+'» не входит в список заклинаний класса «'+caster.cls+'»: свиток нельзя прочитать.'};
+  const level=+rule.level||0,max=maxCircleFor(caster),ability=spellAbOf(caster);
+  return {ok:true,spell:sp,level,max,ability,needsCheck:level>max,dc:10+level};
+}
 function itemUseAttackBonus(caster,use){
   const a=use&&use.attack||{},key=a.ability||'dex';
+  if(a.fixedBonus!=null) return +a.fixedBonus||0;
   return eMod(caster,key)+(a.proficient?PROF[caster.level]:0)+fxSum(caster,'atk');
 }
 function itemUseSpecOf(caster,it,use,ti,opts){
@@ -7775,20 +8204,37 @@ function itemUseSpecOf(caster,it,use,ti,opts){
   const cover=coverRuleOf(opts.cover);
   const rows=[], tags=itemUseTags(use), attack=use&&use.special!=='coatWeapon'&&use.attack,
     save=use&&use.special!=='coatWeapon'&&use.save;
+  const scrollCheck=use&&use.scroll?scrollUseCheck(caster,use):null;
   const meta={target:ti,kind:'item',itemId:it&&it.id,itemUseId:use&&use.id,recName:it&&it.n||'',half:!!(save&&save.half),
     dc:save?(+save.dc||0):0,saveKey:save&&save.key||'',saveAb:save?(AB_FULL[save.key]||save.key):'',
     saveAffectsDamage:!(save&&save.affectsDamage===false),dmgType:'',attackMode:attack&&attack.mode||'',within5:null,
     damageTags:{magical:!!(use&&use.magical),silvered:false,adamantine:false},consumeTargetFx:[],cover:cover.key,coverBonus:cover.bonus,totalCover:cover.total};
+  if(scrollCheck&&scrollCheck.ok&&scrollCheck.needsCheck){
+    const fx=rollFxEntries(caster,'check.'+scrollCheck.ability),hasAdv=fx.some(x=>x.mode==='adv'),hasDis=fx.some(x=>x.mode==='dis'),adv=hasAdv===hasDis?0:(hasAdv?1:2);
+    const mod=eMod(caster,scrollCheck.ability);
+    meta.scrollGate=true; meta.scrollDC=scrollCheck.dc; meta.scrollSpellId=scrollCheck.spell.id;
+    rows.push({key:'scrollcheck',type:'check',side:'caster',natural:true,required:true,mod,dc:scrollCheck.dc,adv,
+      label:'Проверка свитка: d20 '+fmtMod(mod),hint:(AB_FULL[scrollCheck.ability]||scrollCheck.ability)+' против СЛ '+scrollCheck.dc+' · при провале свиток расходуется без эффекта'});
+    fx.filter(x=>x.mode==='die').forEach((f,i)=>{
+      const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!dm) return;
+      rows.push({key:'scrollfx'+i,type:'other',side:'caster',cnt:Math.max(1,+dm[2]||1),sides:+dm[3],mod:0,addTo:'scrollcheck',sign:dm[1]?-1:1,
+        consume:f.consume||'',sourceUid:f.sourceUid||null,label:(f.label||'Эффект')+': '+(dm[1]?'-':'')+Math.max(1,+dm[2]||1)+'d'+dm[3],hint:'прибавляется к проверке свитка'});
+    });
+  }
   if(attack){
     const within5=opts.within5!==undefined?opts.within5:(attack.within5!==undefined?attack.within5:(attack.mode==='melee'?true:null));
     const rangeBands=attackRangeBands(attack.range),rangeBand=opts.rangeBand||'';
     const cond=attackConditionMode(caster,ti,{mode:attack.mode||'ranged',within5,rangeBand,threatenedWithin5:opts.threatenedWithin5});
-    const fx=rollFxEntries(caster,'attack.'+(attack.ability||'dex')),hasAdv=fx.some(x=>x.mode==='adv')||cond.adv.length>0,hasDis=fx.some(x=>x.mode==='dis')||cond.dis.length>0;
+    /* Фиксированный бонус свитка принадлежит самому свитку. Общие эффекты
+       атаки (например, Благословение) по-прежнему действуют, но бонусы,
+       адресованные атаке Ловкостью, не должны менять его формулу. */
+    const attackFxStat=attack.fixedBonus!=null?'attack.spell':'attack.'+(attack.ability||'dex');
+    const fx=rollFxEntries(caster,attackFxStat),hasAdv=fx.some(x=>x.mode==='adv')||cond.adv.length>0,hasDis=fx.some(x=>x.mode==='dis')||cond.dis.length>0;
     const adv=(hasAdv===hasDis)?0:(hasAdv?1:2),mod=itemUseAttackBonus(caster,use);
     meta.within5=within5;meta.rangeBands=rangeBands;meta.rangeBand=rangeBand;meta.threatenedWithin5=!!opts.threatenedWithin5;
     meta.spatialRequired=!!cond.requiresDistance; meta.autoCritOnHit=!!cond.autoCrit; meta.consumeTargetFx=cond.consumeTargetFx||[];
     rows.push({key:'atk',type:'atk',side:'caster',natural:true,required:true,mod,adv,
-      label:'Бросок атаки предметом: d20',hint:fmtMod(mod)+' · '+(attack.proficient?'с владением':'импровизированная атака без бонуса мастерства')
+      label:'Бросок атаки предметом: d20',hint:fmtMod(mod)+' · '+(attack.fixedBonus!=null?'фиксированный бонус свитка':(attack.proficient?'с владением':'импровизированная атака без бонуса мастерства'))
         +(attack.range?' · дистанция '+attack.range:'')+(ti.known&&ti.ac!=null?' · КД цели '+(+ti.ac+cover.bonus)+(cover.bonus?' (укрытие +'+cover.bonus+')':''):' · цель без структурированной КД')});
     fx.filter(x=>x.mode==='die').forEach((f,i)=>{
       const dm=normDiceInput(String(f.value||'')).match(/^(-)?(\d*)d(\d+)$/); if(!dm) return;
@@ -7816,6 +8262,11 @@ function itemUseSpecOf(caster,it,use,ti,opts){
     rows.push({key:'heal',type:'heal',side:'caster',required:true,cnt:+h.cnt||0,sides:+h.sides||0,mod:+h.mod||0,fixed:!(+h.cnt&&+h.sides),
       label:+h.cnt?('Лечение: сумма '+h.cnt+'d'+h.sides):'Фиксированное лечение',hint:(+h.cnt?'впишите сумму реальных костей':'без броска')+(h.mod?' · '+fmtMod(+h.mod):'')});
   }
+  if(use&&use.temp){
+    const h=use.temp;
+    rows.push({key:'temp',type:'temp',side:'caster',required:true,cnt:+h.cnt||0,sides:+h.sides||0,mod:+h.mod||0,fixed:!(+h.cnt&&+h.sides),
+      label:+h.cnt?('Временные хиты: сумма '+h.cnt+'d'+h.sides):'Фиксированные временные хиты',hint:(+h.cnt?'впишите сумму реальных костей':'без броска')+(h.mod?' · '+fmtMod(+h.mod):'')});
+  }
   (use&&use.special!=='coatWeapon'&&use.damage||[]).forEach((d,i)=>{
     const type=dmgTypeCanon(d.type); if(!meta.dmgType) meta.dmgType=type;
     rows.push({key:'itemdmg'+i,type:'dmg',side:'caster',required:true,requiredOnHit:!!attack,
@@ -7823,6 +8274,7 @@ function itemUseSpecOf(caster,it,use,ti,opts){
       fixed:!(+d.cnt&&+d.sides),dmgType:type,saveMode:d.saveMode||'',label:'Урон'+(type?' ('+type+')':'')+': сумма '+(+d.cnt||0)+'d'+(+d.sides||0),
       hint:'впишите сумму реальных костей'+(d.mod?' · '+fmtMod(+d.mod):'')});
   });
+  if(meta.scrollGate) rows.forEach(r=>{ if(r.key!=='scrollcheck'&&r.addTo!=='scrollcheck') r.requiredOnScrollSuccess=true; });
   return finalizeRollSpec({rows,meta},{kind:'item-action',id:(it&&it.id||'')+':'+(use&&use.id||''),name:(it&&it.n||'')+(use&&use.label?' — '+use.label:'')});
 }
 function invCharges(e,it){
@@ -7889,6 +8341,16 @@ function itemTargetOptionsHTML(caster,use){
   }
   return h||'<option value="ally:'+caster.id+'" selected>'+esc(caster.name)+'</option>';
 }
+function itemChoiceRefresh(){
+  if(!castCtx||castCtx.kind!=='item') return;
+  const it=itemOf(castCtx.itemId),use=it&&itemUseOf(it,castCtx.itemUseId),wrap=document.getElementById('castChoiceWrap'),sel=document.getElementById('castChoice');
+  if(!wrap||!sel||!use||use.special!=='cleanse'){ if(wrap) wrap.style.display='none'; return; }
+  const target=document.getElementById('castTarget').value,ti=targetInfoOf(target),conds=ti.obj?normalizeConditions(ti.obj.cond):[];
+  sel.innerHTML=(use.choices||[]).map(n=>'<option value="'+esc(n)+'"'+(conds.indexOf(n)<0?' disabled':'')+'>'+esc(n)+(conds.indexOf(n)>=0?' — есть у цели':' — у цели нет')+'</option>').join('');
+  const first=(use.choices||[]).find(n=>conds.indexOf(n)>=0); if(first) sel.value=first;
+  document.getElementById('castChoiceLabel').textContent='Какое состояние снять';
+  wrap.style.display='block';
+}
 function itemCastFx(entryId, casterId, useId){
   const caster=getCh(casterId||activeCharId); if(!caster) return;
   const e=(caster.inventory||[]).find(x=>x.id===entryId); if(!e) return;
@@ -7910,6 +8372,8 @@ function itemCastFx(entryId, casterId, useId){
   document.getElementById('castInfo').innerHTML=esc(info.join(' · '))
     +'<div class="note-ital" style="font-size:13px;margin-top:4px">'+esc(String(it.desc||'').split('\n')[0]).slice(0,300)+'</div>';
   document.getElementById('castTarget').innerHTML=itemTargetOptionsHTML(caster,use);
+  const cw=document.getElementById('castChoiceWrap'); if(cw) cw.style.display='none';
+  if(use.special==='cleanse') itemChoiceRefresh();
   const sw=document.getElementById('castSlotWrap'); if(sw) sw.style.display='none';
   const ww=document.getElementById('castWeaponWrap'),wsel=document.getElementById('castWeapon');
   if(ww&&wsel&&use.special==='coatWeapon'){
@@ -7934,11 +8398,18 @@ function itemUseTargetCheck(caster,use,target,opts){
   if(type==='ally'&&ti.kind!=='ally') return {ok:false,reason:'Нужно выбрать существующего героя или союзника.'};
   if(type==='enemy'&&ti.kind!=='foe') return {ok:false,reason:'Нужно выбрать противника.'};
   if(type!=='none'&&!ti.obj) return {ok:false,reason:'Выберите существующего героя или цель из бестиария.'};
+  const targetHasTag=(obj,tag)=>{
+    const hay=[obj&&obj.creatureType,obj&&obj.kind,obj&&obj.race].concat(obj&&obj.tags||[]).join(' ').toLowerCase();
+    const tests={undead:/undead|нежить/,construct:/construct|конструкт/,fiend:/fiend|исчади|демон|дьявол/};
+    return tests[tag]?tests[tag].test(hay):hay.indexOf(String(tag).toLowerCase())>=0;
+  };
   if(ti.obj&&use.requirements&&Array.isArray(use.requirements.blockedTags)){
     const hay=[ti.obj.creatureType,ti.obj.kind,ti.obj.race].concat(ti.obj.tags||[]).join(' ').toLowerCase();
-    const blocked=use.requirements.blockedTags.find(t=>hay.indexOf(String(t).toLowerCase())>=0);
+    const blocked=use.requirements.blockedTags.find(t=>targetHasTag(ti.obj,t));
     if(blocked) return {ok:false,reason:'«'+use.label+'» не действует на цель типа «'+blocked+'».'};
   }
+  if(ti.obj&&use.requirements&&Array.isArray(use.requirements.requiredTags)&&!use.requirements.requiredTags.some(t=>targetHasTag(ti.obj,t)))
+    return {ok:false,reason:'«'+use.label+'» действует только на цель типа: '+use.requirements.requiredTags.join(' или ')+'.'};
   if(use.requirements&&use.requirements.downed&&(!ti.obj||ti.kind!=='ally'||(+ti.obj.hp||0)!==0||(+((ti.obj.deaths||{}).f)||0)>=3))
     return {ok:false,reason:'Набор целителя стабилизирует живое существо ровно с 0 хитов; выбранная цель не подходит.'};
   if(use.requirements&&use.requirements.unarmored&&ti.kind==='ally'){
@@ -7948,6 +8419,11 @@ function itemUseTargetCheck(caster,use,target,opts){
   if(use.special==='coatWeapon'){
     const we=invEntryOf(caster,opts.weaponEntryId),wi=we&&itemOf(we.itemId),dt=wi&&dmgTypeCanon(wi.dmgType);
     if(!we||!wi||(dt!=='рубящий'&&dt!=='колющий')) return {ok:false,reason:'Выберите рубящее или колющее оружие из инвентаря.'};
+  }
+  if(use.special==='cleanse'){
+    const choice=opts.choice;
+    if((use.choices||[]).indexOf(choice)<0) return {ok:false,reason:'Выберите одно допустимое состояние для снятия.'};
+    if(!ti.obj||normalizeConditions(ti.obj.cond).indexOf(choice)<0) return {ok:false,reason:'У цели нет состояния «'+choice+'» — свиток не расходуется.'};
   }
   if(use.trigger==='incomingAttack'&&combat.active&&combatCurrentKey()==='ally:'+caster.id)
     return {ok:false,reason:'«Щит» — реакция на входящую атаку, а не действие в свой ход.'};
@@ -8009,12 +8485,16 @@ function canUseItemCheck(caster, e, it, use, target, opts){
     return {ok:false,reason:'Для этого применения «'+it.n+'» нужно держать в руке.'};
   if(ch&&ch.cur<=0) return {ok:false, reason:'Заряды «'+it.n+'» исчерпаны — восстановление '+(sp.when||'по объявленному правилу предмета')+'.'};
   if(!use) return {ok:false,reason:'У предмета нет структурированного применения; автоматические последствия недоступны.'};
+  const scroll=use.scroll?scrollUseCheck(caster,use):null;
+  if(scroll&&!scroll.ok) return scroll;
   const tc=itemUseTargetCheck(caster,use,target||('ally:'+caster.id),opts); if(!tc.ok) return tc;
   const rp=itemUseResourcePlan(caster,e,it,use); if(!rp.ok) return rp;
-  return {ok:true,target:tc,resource:rp};
+  return {ok:true,target:tc,resource:rp,scroll};
 }
-function itemUseRollCheck(use,rolls){
+function itemUseRollCheck(use,rolls,scroll){
   if(['coatWeapon','zone','stabilize'].indexOf(use.special)>=0) return {ok:true};
+  if(scroll&&scroll.needsCheck&&(!rolls||rolls.scrollOk==null)) return {ok:false,reason:'Нужна подтвержденная проверка характеристики для свитка СЛ '+scroll.dc+'.'};
+  if(scroll&&scroll.needsCheck&&rolls&&rolls.scrollOk===false) return {ok:true,scrollFailed:true};
   if(use.attack&&(!rolls||rolls.hit==null)) return {ok:false,reason:'Нужен подтвержденный итог атаки по КД цели.'};
   if(use.save&&(!use.attack||rolls&&rolls.hit===true)&&(!rolls||rolls.saveOk==null)) return {ok:false,reason:'Нужен подтвержденный спасбросок цели.'};
   if(use.heal&&(!rolls||rolls.healTotal==null)) return {ok:false,reason:'Нужно вписать результат лечения.'};
@@ -8038,7 +8518,8 @@ function attachItemUseDuration(entry,duration,targetKey){
 function applyItemUseEntry(caster,it,use,ti,extra){
   if(!ti||!ti.obj) return false;
   const entry=Object.assign({k:'use',id:it.id,label:it.n+' — '+use.label,fx:itemClone(use.effects||[]),from:caster.name,casterId:caster.id,
-    castId:castUid(),stackKey:'use:'+it.id+':'+use.id,power:0,why:'предмет применен: '+caster.name},extra||{});
+    castId:castUid(),stackKey:'use:'+it.id+':'+use.id,power:0,conc:!!use.concentration,breakOn:itemClone(use.breakOn||[]),mechanicsVersion:GAME_MECHANICS_SCHEMA_VERSION,
+    why:'предмет применен: '+caster.name},extra||{});
   attachItemUseDuration(entry,use.duration,ti.kind+':'+ti.id);
   if(ti.kind==='ally') applyFxTo(ti.id,entry); else if(ti.kind==='foe') applyFxToFoe(ti.obj,entry); else return false;
   return true;
@@ -8072,6 +8553,14 @@ function applyItemUseSpecial(caster,it,use,ti,rolls,opts){
       save:itemClone(z.save||{}),condition:z.condition||'',duration:itemClone(z.duration||{kind:'manual',label:'до снятия'}),active:true,createdRound:+combat.round||0});
     return ' · создана зона '+(z.area||'по описанию');
   }
+  if(use.special==='teleport'){
+    return ' · '+ti.name+' телепортируется на расстояние до '+String(use.teleport&&use.teleport.distance||'указанной дистанции')+(use.teleport&&use.teleport.requiresSight?' в видимое незанятое пространство':'');
+  }
+  if(use.special==='cleanse'){
+    const choice=opts.choice;
+    ti.obj.cond=normalizeConditions(ti.obj.cond).filter(x=>x!==choice);
+    return ' · состояние «'+choice+'» снято с '+ti.name;
+  }
   return '';
 }
 function useItemApply(entryId, casterId, target, rolls, useId, opts){
@@ -8082,18 +8571,29 @@ function useItemApply(entryId, casterId, target, rolls, useId, opts){
   if(!combatCastPreflight()) return false;
   const chk=canUseItemCheck(caster,e,it,use,target,opts);
   if(!chk.ok){ setStatus('✕ '+chk.reason,true); castShowErr&&castShowErr(chk.reason); return false; }
-  const rc=itemUseRollCheck(use,rolls); if(!rc.ok){ setStatus('✕ '+rc.reason,true); castShowErr&&castShowErr(rc.reason); return false; }
+  const rc=itemUseRollCheck(use,rolls,chk.scroll); if(!rc.ok){ setStatus('✕ '+rc.reason,true); castShowErr&&castShowErr(rc.reason); return false; }
   if(!preflightOutcomeReactions(rolls)) return false;
   if(!combatCommitCastAction('Предмет «'+it.n+'»: '+use.label)) return false;
   const cost=commitItemUseResource(chk.resource);
   if(!commitOutcomeReactions(rolls)) return false;
   consumeOutcomeRollFx(caster,target,rolls);
+  if(rc.scrollFailed){
+    fxInvalidate(); scheduleSave(); renderChars();
+    setStatus('⌁ «'+it.n+'»: проверка свитка провалена — свиток израсходован без эффекта'+cost+'.',true);
+    castLogLine('⌁ '+caster.name+': «'+it.n+'» — проверка провалена, свиток израсходован без эффекта'+cost);
+    if(rolls&&rolls.verdict&&rolls.verdict.length) castLogLine('    разбор: '+rolls.verdict.join(' | '));
+    promptItemLastCharge(chk.resource);
+    return true;
+  }
   if(rolls&&rolls.attackMade) endTriggeredSpellEffects(caster,'attack');
+  if(use.scroll) endTriggeredSpellEffects(caster,'spell');
   let info='';
   if(rolls) info+=applyRollsToTarget(target, rolls, '⚗ '+it.n);
   const tinfo=chk.target.ti;
   info+=applyItemUseSpecial(caster,it,use,tinfo,rolls,opts);
-  if((use.effects||[]).length&&itemUseEffectAllowed(use,rolls)&&applyItemUseEntry(caster,it,use,tinfo)) info+=' · эффект наложен';
+  const effectAllowed=itemUseEffectAllowed(use,rolls);
+  if(use.concentration&&effectAllowed&&(use.effects||[]).length) breakConcentration(caster,'начата концентрация на «'+it.n+'»');
+  if((use.effects||[]).length&&effectAllowed&&applyItemUseEntry(caster,it,use,tinfo)) info+=' · эффект наложен';
   const tl=tinfo.name||'—';
   fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
   setStatus('⚗ «'+it.n+'» применено (цель: '+tl+')'+cost+info+'.');
@@ -8321,7 +8821,8 @@ const ITEM_KIND_RU={weapon:'оружие', armor:'доспех', shield:'щит'
   instrument:'музыкальный инструмент', lore:'записи', valuable:'ценность', food:'припасы', water:'сосуд для питья',
   camp:'лагерное снаряжение', rope:'веревка', container:'вместилище', focus:'магическая фокусировка',
   magic:'магический предмет', oil:'горючее масло', trap:'рассыпная помеха', gamble:'игральный набор',
-  ritual:'обрядовый расходник', writing:'письменные принадлежности', misc:'снаряжение'};
+  ritual:'обрядовый расходник', writing:'письменные принадлежности', material:'материал', component:'компонент заклинания',
+  scroll:'свиток заклинания', misc:'снаряжение'};
 
 /* Машинно-проверяемый контракт всей боевой базы. Он намеренно не требует
    автоматизировать творческие и внебоевые решения, но гарантирует, что они
@@ -8432,6 +8933,8 @@ function gameDataAudit(data){
     if(+it.schemaVersion!==ITEM_SCHEMA_VERSION) errors.push(at+': нужна миграция схемы предмета до версии '+ITEM_SCHEMA_VERSION);
     if(ITEM_USE_MODES.indexOf(it.useMode)<0) errors.push(at+': неизвестный режим применения '+String(it.useMode));
     itemResourceSchemaErrors(itemResourceOf(it)).forEach(msg=>errors.push(at+': '+msg));
+    itemToolSchemaErrors(it.tool).forEach(msg=>errors.push(at+': '+msg));
+    itemMaterialSchemaErrors(it.material).forEach(msg=>errors.push(at+': '+msg));
     if(it.useMode==='structured'&&!itemUsesOf(it).length) errors.push(at+': структурированный режим не содержит применений');
     if(it.useMode==='manual'&&!String(it.manualNote||'').trim()) errors.push(at+': ручной режим не объясняет решение мастера');
     if(!p||!ITEM_KIND_RU[p.kind]) errors.push(at+': предмет не классифицирован');
@@ -8443,6 +8946,7 @@ function gameDataAudit(data){
     });
     itemUsesOf(it).forEach((u,j)=>{
       const ua=at+' use['+j+'] '+String(u&&u.label||'без имени');
+      if(u.scroll&&!ss.some(sp=>sp.id===u.scroll.spellId)) errors.push(ua+': неизвестное заклинание свитка '+u.scroll.spellId);
       try{ const us=itemUseSpecOf(caster,it,u,target,{}); variants++; checkFormula(us,ua); coverage.actionCosts.add(u.cost||'action'); coverage.targetKinds.add(u.target||'any'); }
       catch(e){ errors.push(ua+': формула применения выбросила '+e.message); }
     });
@@ -8517,6 +9021,12 @@ function gameDataAudit(data){
     referenceMechanicsErrors(c.mechanics,'class').forEach(msg=>errors.push(at+': '+msg));
   });
   const itemIds=new Set(ii.map(x=>x.id)),spellIds=new Set(ss.map(x=>x.id)),abilityIds=new Set(aa.map(x=>x.id));
+  const recipeIds=new Set((typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).map(r=>r.id));
+  (typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).forEach((r,i)=>craftingRecipeSchemaErrors(r,itemIds).forEach(msg=>errors.push('recipe['+i+'] '+String(r.n||r.id||'без имени')+': '+msg)));
+  ii.forEach((it,i)=>{
+    const m=it.material;
+    (m&&m.uses||[]).forEach(id=>{ if(!recipeIds.has(id)&&!spellIds.has(id)) errors.push('item['+i+'] '+it.n+': неизвестная связь материала '+id); });
+  });
   rr.forEach((r,i)=>(r.mechanics&&r.mechanics.features||[]).forEach((f,j)=>{
     if(f.abilityId&&!abilityIds.has(f.abilityId)) errors.push('race['+i+'] '+r.n+' feature['+j+']: неизвестная способность '+f.abilityId);
   }));
@@ -8593,7 +9103,7 @@ function weaponAttackFx(entryId, casterId, mode){
     +(w.versatile?'<div style="margin-top:6px"><label style="font-size:13.5px"><input type="checkbox" id="castTwoHand" '+(twoOk?'onchange="castCtx.two=this.checked"':'disabled')+'> держать двумя руками ('+w.versatile.cnt+'d'+w.versatile.sides+')</label>'
       +(twoOk?'':'<div class="note-ital" style="font-size:12px">Недоступно: вторая рука занята щитом, оружием или предметом.</div>')+'</div>':'');
   document.getElementById('castTarget').innerHTML=targetOptionsHTML(caster,'enemy');
-  ['castSlotWrap','castWeaponWrap','castMultiWrap','castItemWrap'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  ['castSlotWrap','castWeaponWrap','castChoiceWrap','castMultiWrap','castItemWrap'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   document.getElementById('castStep1').style.display='block';
   document.getElementById('castStep2').style.display='none';
   document.getElementById('castStep3').style.display='none';
@@ -10260,7 +10770,7 @@ function foeActionAftermath(f,a,ti,rolls,before){
 }
 function endTriggeredFoeEffects(f,trigger){
   if(!f) return;
-  const gone=(f.activeFx||[]).filter(x=>x.k==='spell'&&((x.breakOn||[]).indexOf(trigger)>=0
+  const gone=(f.activeFx||[]).filter(x=>(x.k==='spell'||x.k==='use')&&((x.breakOn||[]).indexOf(trigger)>=0
     ||(!x.mechanicsVersion&&!(x.breakOn||[]).length&&normSpellName(x.label)==='невидимость'&&(trigger==='attack'||trigger==='spell'))));
   if(gone.length){ f.activeFx=(f.activeFx||[]).filter(x=>gone.indexOf(x)<0); fxInvalidate(); }
 }
@@ -10378,7 +10888,7 @@ function foeActionFx(foeId,actionId){
   document.getElementById('castInfo').textContent=foeActionFormula(a)+(a.range?' · '+a.range:'')+(a.advHint?' · '+a.advHint:'');
   document.getElementById('castTarget').innerHTML=chars.map(c=>'<option value="ally:'+c.id+'"'+(c.id===first.id?' selected':'')+'>'
     +esc(c.name)+' — КД '+acTotal(c)+', хиты '+(+c.hp||0)+'/'+eHpMax(c)+'</option>').join('');
-  ['castSlotWrap','castWeaponWrap','castItemWrap'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
+  ['castSlotWrap','castWeaponWrap','castChoiceWrap','castItemWrap'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   if(a.area) renderFoeMultiTargets(); else { const mw=document.getElementById('castMultiWrap'); if(mw) mw.style.display='none'; }
   document.getElementById('castStep1').style.display='block';
   document.getElementById('castStep2').style.display='none';
@@ -11252,7 +11762,7 @@ function combatRunItemAction(entryId,index){
   const cost=combatItemActionCost(a); if(!combatCanSpend(cost,key)) return false;
   const m=String(a.fn).match(/^([A-Za-z_$][\w$]*)\((.*)\)$/),args=[]; if(!m) return false;
   String(m[2]).replace(/'([^']*)'/g,(_,v)=>{ args.push(v); return _; });
-  const calls={ammoRecover,lightToggle,oilUse,fireStart,trapScatter,poisonApply,toolCheck,healerKitStabilize,instrumentPlay,gamblePlay,loreRead,valuableSell,foodEat,waterDrink,campSet,ropeUse,writingUse,containerOpen,ritualBurn};
+  const calls={ammoRecover,lightToggle,oilUse,fireStart,trapScatter,poisonApply,toolCheck,craftOpen,materialInspect,healerKitStabilize,instrumentPlay,gamblePlay,loreRead,valuableSell,foodEat,waterDrink,campSet,ropeUse,writingUse,containerOpen,ritualBurn};
   if(!calls[m[1]]) return false; activeCharId=o.id; const oldRoll=rollSpec; calls[m[1]](...args);
   if(castCtx){ castCtx.combatActorKey=key; castCtx.combatCost=cost; castCtx.combatLabel=a.label; castCtx.combatCommitted=false; return true; }
   if(rollSpec&&rollSpec!==oldRoll){ rollSpec.combatAction={actorKey:key,cost,label:a.label}; return true; }
@@ -11626,6 +12136,90 @@ function descBlock(text){
   return '<div><div class="entry-desc'+(long?' clamp':'')+'">'+esc(text)+'</div>'
     +(long?'<button class="toggle-link" onclick="clampToggle(this)">развернуть ▾</button>':'')+'</div>';
 }
+function itemMaterialMeta(it){
+  const p=it&&itemProfile(it); return p&&p.material||it&&it.material||null;
+}
+function recipesUsingItem(itemId){
+  return (typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).filter(r=>r.result.itemId===itemId||(r.inputs||[]).some(x=>x.itemId===itemId));
+}
+function craftRecipesForTool(toolId){
+  return (typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).filter(r=>(r.toolIds||[]).indexOf(toolId)>=0);
+}
+function inventoryItemQty(c,itemId){
+  return (c&&c.inventory||[]).filter(e=>e.itemId===itemId).reduce((n,e)=>n+Math.max(0,+e.qty||0),0);
+}
+function craftPlanFor(c,recipeId,opts){
+  opts=opts||{};
+  const recipe=(typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).find(r=>r.id===recipeId);
+  if(!c||!recipe) return {ok:false,reason:'Рецепт не найден.'};
+  if(!opts.allowCombat&&combat&&combat.active) return {ok:false,reason:'Ремесло длительностью '+recipe.duration+' недоступно во время активного боя.'};
+  const toolEntry=(c.inventory||[]).find(e=>(recipe.toolIds||[]).indexOf(e.itemId)>=0&&(+e.qty||0)>0);
+  if(!toolEntry) return {ok:false,reason:'Нужен один из инструментов: '+recipe.toolIds.map(id=>(itemOf(id)||{n:id}).n).join(' или ')+'.'};
+  const deductions=[];
+  for(const input of recipe.inputs){
+    let left=+input.qty;
+    for(const e of (c.inventory||[]).filter(x=>x.itemId===input.itemId)){
+      if(left<=0) break;
+      const take=Math.min(left,Math.max(0,+e.qty||0)); if(take){ deductions.push({entryId:e.id,itemId:input.itemId,qty:take}); left-=take; }
+    }
+    if(left>0){ const it=itemOf(input.itemId); return {ok:false,reason:'Не хватает «'+(it?it.n:input.itemId)+'»: нужно '+input.qty+', есть '+inventoryItemQty(c,input.itemId)+'.'}; }
+  }
+  const result=itemOf(recipe.result.itemId);
+  if(!result) return {ok:false,reason:'Результат рецепта отсутствует в базе: '+recipe.result.itemId+'.'};
+  return {ok:true,caster:c,recipe,toolEntry,deductions,result};
+}
+function commitCraftPlan(plan){
+  if(!plan||!plan.ok||!plan.caster||!plan.recipe) return {ok:false,reason:'Нет подтвержденного плана ремесла.'};
+  const fresh=craftPlanFor(plan.caster,plan.recipe.id);
+  if(!fresh.ok) return fresh;
+  const c=fresh.caster;
+  fresh.deductions.forEach(d=>{
+    const e=invEntryOf(c,d.entryId); e.qty=(+e.qty||0)-d.qty;
+    if(e.qty<=0){
+      Object.keys(c.equipment||{}).forEach(k=>{ if(c.equipment[k]===e.id) delete c.equipment[k]; });
+      c.inventory=c.inventory.filter(x=>x.id!==e.id);
+    }
+  });
+  let out=(c.inventory||[]).find(e=>e.itemId===fresh.recipe.result.itemId);
+  if(out) out.qty=(+out.qty||0)+fresh.recipe.result.qty;
+  else { out={id:'inv_'+uid(),itemId:fresh.recipe.result.itemId,qty:fresh.recipe.result.qty,notes:''}; c.inventory.push(out); }
+  fxInvalidate(); scheduleSave();
+  return {ok:true,caster:c,recipe:fresh.recipe,result:fresh.result,qty:fresh.recipe.result.qty,entry:out};
+}
+let craftCtx=null;
+function craftClose(){ craftCtx=null; const b=document.getElementById('craftBack'); if(b) b.style.display='none'; }
+function craftRecipeLine(c,r){
+  const p=craftPlanFor(c,r.id),inputs=r.inputs.map(x=>{ const it=itemOf(x.itemId),have=inventoryItemQty(c,x.itemId); return (it?it.n:x.itemId)+' '+have+'/'+x.qty; });
+  return '<div class="props-block" style="margin:7px 0"><div class="row-line"><b class="grow">'+esc(r.n)+'</b><span>'+esc(r.duration)+'</span></div>'
+    +'<div style="font-size:13px;margin:4px 0">'+esc(inputs.join(' · '))+'</div><div class="note-ital" style="font-size:12.5px">'+esc(r.note||'')+'</div>'
+    +'<button class="btn '+(p.ok?'rub':'ghost')+' sm" style="margin-top:5px" '+(p.ok?'onclick="craftExecute(\''+r.id+'\')"':'disabled title="'+esc(p.reason)+'"')+'>'+(p.ok?'Создать':'Недоступно: '+esc(p.reason))+'</button></div>';
+}
+function craftOpen(entryId){
+  const c=cc(),e=c&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId),list=it&&craftRecipesForTool(it.id);
+  if(!c||!it||!list||!list.length){ setStatus('✕ Для этого инструмента пока нет структурированных рецептов.',true); return false; }
+  craftCtx={charId:c.id,toolEntryId:e.id};
+  document.getElementById('craftTitle').textContent='🛠 '+it.n+' — ремесло';
+  document.getElementById('craftInfo').textContent='Рецепты проверяют все ингредиенты до списания. Сайт не бросает кости и не продвигает календарь автоматически.';
+  document.getElementById('craftBody').innerHTML=list.map(r=>craftRecipeLine(c,r)).join('');
+  document.getElementById('craftBack').style.display='flex'; return true;
+}
+function craftExecute(recipeId){
+  const c=craftCtx&&getCh(craftCtx.charId),plan=craftPlanFor(c,recipeId);
+  if(!plan.ok){ setStatus('✕ '+plan.reason,true); if(c) document.getElementById('craftBody').innerHTML=craftRecipesForTool((itemOf((invEntryOf(c,craftCtx.toolEntryId)||{}).itemId)||{}).id).map(r=>craftRecipeLine(c,r)).join(''); return false; }
+  const done=commitCraftPlan(plan); if(!done.ok){ setStatus('✕ '+done.reason,true); return false; }
+  itemLog(c,'🛠 '+c.name+': создано «'+done.result.n+'» ×'+done.qty+'; работа заняла '+done.recipe.duration);
+  renderChars();
+  const tool=invEntryOf(c,craftCtx.toolEntryId); if(tool) document.getElementById('craftBody').innerHTML=craftRecipesForTool(tool.itemId).map(r=>craftRecipeLine(c,r)).join('');
+  return true;
+}
+function materialInspect(entryId){
+  const c=cc(),e=c&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId),m=it&&itemMaterialMeta(it); if(!it||!m) return false;
+  const lines=['Категория: '+m.category+' · уровень материала '+m.tier,'Источник: '+m.source];
+  if(m.harvest) lines.push('Сбор: '+m.harvest.skill+' ('+(AB_FULL[m.harvest.ability]||m.harvest.ability)+') СЛ '+m.harvest.dc+' · '+m.harvest.time+' · выход '+m.harvest.yield,'Среда: '+m.harvest.biomes.join(', '));
+  if(m.component) lines.push('Стоимостный компонент: '+m.component.valueGp+' зм'+(m.component.consumedBy.length?' · расходуется: '+m.component.consumedBy.map(id=>(spellOf(id)||{n:id}).n).join(', '):' · не расходуется указанным заклинанием'));
+  const refs=recipesUsingItem(it.id); if(refs.length) lines.push('Ремесленные связи: '+refs.map(r=>(r.result.itemId===it.id?'результат «':'ингредиент «')+r.n+'»').join('; '));
+  askShow({title:'⌁ '+it.n,body:lines.join('\n'),note:'Количество меняется только подтвержденным сбором мастера, ремеслом или расходом компонента.'}); return true;
+}
 /* какие кнопки показать у предмета в инвентаре */
 function itemActions(c, e, it){
   upgradeItem(it);
@@ -11657,7 +12251,10 @@ function itemActions(c, e, it){
     case 'poison':if(!itemUsesOf(it).length) B('☠','Нанести на оружие',"poisonApply('"+e.id+"')",'Отравить оружие','action'); break;
     case 'tool':
       B('🛠','Проверка',"toolCheck('"+e.id+"')",(pr.tool&&pr.tool.what)||'Проверка с инструментом','action');
+      if(craftRecipesForTool(it.id).length) B('⚒','Создать',"craftOpen('"+e.id+"')",'Открыть проверяемые рецепты этого инструмента','long');
       break;
+    case 'material':
+    case 'component': B('⌁','Связи',"materialInspect('"+e.id+"')",'Источник, сбор, компоненты и рецепты','free'); break;
     case 'instrument': B('🎵','Сыграть',"instrumentPlay('"+e.id+"')",'Проверка Выступления','action'); break;
     case 'gamble':     B('🎲','Пустить в ход',"gamblePlay('"+e.id+"')",'Скрытно подменить бросок — проверка Обмана','action'); break;
     case 'lore':       B('📖','Прочитать',"loreRead('"+e.id+"')",'Изучить записи','object'); break;
@@ -11728,13 +12325,28 @@ function itemCardHTML(it, extra){
   if(it.ac) meta.push('<b>КД:</b> '+esc(it.ac));
   if(it.slot) meta.push('<b>Слот:</b> '+esc(ITEM_SLOT_RU[it.slot]||it.slot));
   if(meta.length) h+='<div class="stat-line">'+meta.join(' &nbsp;·&nbsp; ')+'</div>';
+  const pr=itemProfile(it),material=itemMaterialMeta(it);
+  if(pr.kind==='tool'&&pr.tool){
+    h+='<div class="props-block"><span class="pt">Инструмент:</span> '+esc(pr.tool.what)+' · базовая характеристика '+esc(pr.tool.sk)+' · владение «'+esc(pr.tool.prof)+'»'
+      +(pr.tool.dc?'<div style="margin-top:3px"><b>Ориентиры СЛ:</b> '+esc(pr.tool.dc)+'</div>':'')
+      +(craftRecipesForTool(it.id).length?'<div style="margin-top:3px"><b>Рецептов:</b> '+craftRecipesForTool(it.id).length+'</div>':'')+'</div>';
+  }
+  if(material){
+    h+='<div class="props-block"><span class="pt">Структура материала:</span> '+esc(material.category)+' · уровень '+material.tier+'<div style="margin-top:3px"><b>Источник:</b> '+esc(material.source)+'</div>';
+    if(material.harvest) h+='<div style="margin-top:3px"><b>Сбор:</b> '+esc(material.harvest.skill)+' ('+esc(AB_FULL[material.harvest.ability]||material.harvest.ability)+') СЛ '+material.harvest.dc+' · '+esc(material.harvest.time)+' · выход '+esc(material.harvest.yield)+'</div>';
+    if(material.component) h+='<div style="margin-top:3px"><b>Компонент:</b> оценка '+material.component.valueGp+' зм · '+(material.component.consumedBy.length?'расходуемый':'нерасходуемый')+'</div>';
+    const links=recipesUsingItem(it.id); if(links.length) h+='<div style="margin-top:3px"><b>Ремесло:</b> '+links.map(r=>esc(r.n)).join(' · ')+'</div>';
+    h+='</div>';
+  }
   if(itemUsesOf(it).length){
     const tr={self:'на себя',ally:'союзник',enemy:'противник',any:'любая цель',none:'область/без цели'};
     h+='<div class="props-block"><span class="pt">Структурированные применения:</span>'+itemUsesOf(it).map(u=>{
       const c=u.consume||{},res=c.kind==='charges'?'заряды −'+(+c.amount||1):(c.kind==='item'?'предмет −'+(+c.amount||1):(c.kind==='kit'?'набор −'+(+c.amount||1):'без расхода'));
       const parts=[combatCostLabel(u.cost),tr[u.target]||u.target,res];
-      if(u.attack) parts.push('атака '+(u.attack.proficient?'с владением':'без владения'));
+      if(u.attack) parts.push('атака '+(u.attack.fixedBonus!=null?('с фиксированным бонусом '+fmtMod(+u.attack.fixedBonus||0)):(u.attack.proficient?'с владением':'без владения')));
       if(u.save) parts.push('спас. '+(AB_FULL[u.save.key]||u.save.key)+' СЛ '+u.save.dc);
+      if(u.scroll) parts.push('заклинание '+u.scroll.level+' круга · СЛ '+u.scroll.saveDC+' · атака '+fmtMod(u.scroll.attackBonus));
+      if(u.concentration) parts.push('концентрация');
       if(u.duration&&u.duration.label) parts.push(u.duration.label);
       return '<div style="margin-top:4px"><b>'+esc(u.label)+'</b> — '+esc(parts.join(' · '))+'</div>';
     }).join('')+'</div>';
@@ -11924,6 +12536,8 @@ function itemEditorHTML(){
    +'<label>Структурированные применения (JSON-массив). Для каждого применения обязательны id, label, cost, target и consume; отдельно задаются attack/save/damage/heal/effects/duration/special.</label><textarea id="edItUses" rows="8">'+esc(JSON.stringify(itemUsesOf(it),null,2))+'</textarea>'
    +'<label style="display:block;margin-top:8px"><input type="checkbox" id="edItCompileProfile"'+(!editing.it?' checked':'')+'> Один раз собрать профиль из полей предмета (после этого проверьте JSON)</label>'
    +'<label>Машинный профиль предмета (JSON): вид, оружейные/защитные свойства, свет, инструмент, боеприпас, вместимость, стоимость и флаги. Описание не используется для классификации после сохранения.</label><textarea id="edItProfile" rows="10">'+esc(JSON.stringify(profile,null,2))+'</textarea>'
+   +'<div class="f-grid"><div><label>Структура инструмента (JSON или null)</label><textarea id="edItTool" rows="6">'+esc(JSON.stringify(it.tool||null,null,2))+'</textarea></div>'
+   +'<div><label>Структура материала/компонента (JSON или null)</label><textarea id="edItMaterial" rows="6">'+esc(JSON.stringify(it.material||null,null,2))+'</textarea></div></div>'
    +'<label>Примечание ручного режима</label><input type="text" id="edItManual" value="'+esc(it.manualNote||'')+'">'
    +'<button class="btn rub" onclick="saveItemEd()">Вписать в арсенал</button> '
    +'<button class="btn ghost" onclick="editing.it=null;renderItemsDB()">Отменить</button></div>';
@@ -11931,18 +12545,22 @@ function itemEditorHTML(){
 function saveItemEd(){
   const g=id=>document.getElementById(id);
   const n=g('edItN').value.trim(); if(!n){ alert('Предмету нужно имя.'); return; }
-  let uses,resource,profile;
+  let uses,resource,profile,tool,material;
   try{ uses=JSON.parse(g('edItUses').value||'[]'); if(!Array.isArray(uses)) throw new Error('нужен JSON-массив'); }
   catch(e){ alert('Структурированные применения повреждены: '+e.message); return; }
   try{ resource=JSON.parse(g('edItResource').value||'null'); if(resource!=null&&(typeof resource!=='object'||Array.isArray(resource))) throw new Error('нужен объект или null'); }
   catch(e){ alert('Ресурс предмета поврежден: '+e.message); return; }
   try{ profile=JSON.parse(g('edItProfile').value||'{}'); if(!profile||typeof profile!=='object'||Array.isArray(profile)) throw new Error('нужен JSON-объект'); }
   catch(e){ alert('Машинный профиль предмета поврежден: '+e.message); return; }
+  try{ tool=JSON.parse(g('edItTool').value||'null'); material=JSON.parse(g('edItMaterial').value||'null'); }
+  catch(e){ alert('Структура инструмента или материала повреждена: '+e.message); return; }
   if(!ITEM_KIND_RU[profile.kind]){ alert('В машинном профиле указан неизвестный kind: '+String(profile.kind)); return; }
   const resourceErrors=itemResourceSchemaErrors(resource);
   if(resourceErrors.length){ alert('Ресурс предмета не прошел аудит:\n'+resourceErrors.join('\n')); return; }
   const useErrors=itemUseSchemaErrors(uses,resource);
   if(useErrors.length){ alert('Структурированные применения не прошли аудит:\n'+useErrors.map(e=>'use['+e.index+']: '+e.message).join('\n')); return; }
+  const metaErrors=itemToolSchemaErrors(tool).concat(itemMaterialSchemaErrors(material));
+  if(metaErrors.length){ alert('Структура инструмента/материала не прошла аудит:\n'+metaErrors.join('\n')); return; }
   const useMode=g('edItMode').value,manualNote=g('edItManual').value.trim();
   if(useMode==='structured'&&!uses.length){ alert('Структурированный режим требует хотя бы одно применение.'); return; }
   if(useMode==='manual'&&!manualNote){ alert('Для ручного режима объясните, какое решение остается за мастером.'); return; }
@@ -11951,7 +12569,7 @@ function saveItemEd(){
     dmgType:g('edItDT').value.trim(), ac:g('edItAC').value.trim(), desc:g('edItDesc').value,
     text:(g('edItText')?g('edItText').value:(it.text||'')),
     props:g('edItProps').value, tags:pickedTags('edItTags'), fx:[], passiveFx:parseFxLines(g('edItFx').value),
-    schemaVersion:ITEM_SCHEMA_VERSION,useMode,resource,uses,manualNote};
+    schemaVersion:ITEM_SCHEMA_VERSION,useMode,resource,uses,tool,material,manualNote};
   const mechanics=compileItemMechanics(data); mechanics.origin='explicit';
   if(!(g('edItCompileProfile')&&g('edItCompileProfile').checked)) mechanics.profile=mechanicsClone(profile);
   const finalProfile=mechanics.profile||{},flags=finalProfile.flags||{},armor=finalProfile.armor||{};
@@ -12713,7 +13331,7 @@ function stInventory(c){
   h+='<h3 class="rubric" style="font-size:22px">Валюта</h3><div class="coin-row">'
    +COINS.map(x=>'<div class="coin"><b>'+x[1]+'</b><input type="number" min="0" value="'+c.coins[x[0]]+'" onchange="updCoin(\''+x[0]+'\',this.value)"></div>').join('')+'</div>';
   /* нагрузка */
-  (function(){ const w=carryWeight(c), cap=Math.round((+c.ab.str||10)*7.5), over=w>cap;
+  (function(){ const w=carryWeight(c), cap=Math.round(eAb(c,'str')*7.5), over=w>cap;
     const att=attunedEntries(c);
     h+='<div class="load-row'+(over?' over':'')+'">⚖ Груз: <b>'+w+' кг</b> из '+cap+' кг'
       +(over?' — перегруз: скорость снижена на 3 м (вариант правил 5e)':'')

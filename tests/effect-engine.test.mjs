@@ -18,7 +18,7 @@ function loadEngine(random = () => 0) {
       loadAll, blankCombat,
       state() { return {chars,itemsDB,spellsDB,abilitiesDB,racesDB,classesDB,foesDB,activeCharId,fxRound,lastCastEvent,combat}; },
       applyFxTo, removeActiveFx, advanceFxRound, attachDuration, spellFxForCast,
-      castSpellApply, canCastCheck, parseComponents, materialPlanFor, slotPlanFor,
+      castSpellApply, canCastCheck, parseComponents, materialPlanFor, commitMaterialPlan, slotPlanFor,
       casterMeta, maxCircleFor, slotsRowFor, applyClassSlots, casterPreparationMode,
       knownSpellMax, cantripKnownMax, knownSpellCount, cantripKnownCount, spellLearningState, bardMagicalSecretsEarned,
       spellClassListHas, spellAccessCheck, spellAddCheck, spellEntryReady, spellRitualAllowed,
@@ -27,12 +27,14 @@ function loadEngine(random = () => 0) {
       addSpellFromDB, delBookSpell, beginKnownSpellReplacement, cancelKnownSpellReplacement,
       charFxAll, fxSum, eHpMax, acTotal, speedTotal, concEntriesOf,
       breakConcentration, concRollMode, longRest, shortRest, refreshShortRestResources, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
+      endTriggeredSpellEffects,
       applyDamageTo, applyRollsToTarget, resolveUndeadFortitude, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
       rollSpecOf, resolveOutcome, targetInfoOf, targetCriticalHitImmune, weaponSpecOf, weaponAttackApply, weaponCanUseTwoHands, weaponAttackResourcePlan, useItemApply,
       upgradeSpell, upgradeAbility, upgradeItem, upgradeRace, upgradeClass, currentMechanics,
       compileSpellMechanics, compileAbilityMechanics, compileItemMechanics, compileRaceMechanics, compileClassMechanics,
       mechanicsErrors, referenceMechanicsErrors, formulaContractErrors, finalizeRollSpec, normalizeResolutionContract,
-      itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemSpec, itemActions, combatItemActionCost, rollFxEntries,
+      itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemToolSchemaErrors, itemMaterialSchemaErrors,
+      craftingRecipeSchemaErrors, itemSpec, itemActions, combatItemActionCost, rollFxEntries, scrollUseCheck, canUseItemCheck,
       itemUseResourcePlan, commitItemUseResource,
       dmgAfterTraits, effectiveFoeConditions, castDispel, rollbackLastCast,
       seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, seedFoesDB, gameDataAudit,
@@ -51,6 +53,10 @@ function loadEngine(random = () => 0) {
       combatAbilityCost, combatAbilityUsable, combatSpellCost, combatCunningAction,
       combatFoeRecharge, combatFoeAttackAllowed, combatRecordFoeAttack, combatAttackCount,
       castConfirm, castFormulaShow, castFormulaConfirm, closeCastModal, runRareBattleAudit, runSpellPreparationAudit,
+      inventoryItemQty, craftPlanFor, commitCraftPlan, itemMaterialMeta, recipesUsingItem, craftRecipesForTool, eAb,
+      itemExpansion() { return ITEM_EXPANSION_V45; },
+      itemRecipes() { return ITEM_RECIPES_V45; },
+      itemTagNames() { return Object.keys(ITEM_TAGS); },
       castState() { return {ctx:castCtx, spec:castCtx&&castCtx.spec}; },
       makeBlank() { return buildBlank(); },
       conditions() { return CONDITIONS; },
@@ -542,15 +548,211 @@ test('контракт проверяет всю мировую базу, пре
   e.setState({spells, abilities, items, foes});
   const audit = e.gameDataAudit({spells, abilities, items, foes});
 
-  assert.deepEqual(plain(audit.counts), {spells: 121, abilities: 77, items: 134, foes: 30, total: 362});
+  assert.deepEqual(plain(audit.counts), {spells: 121, abilities: 77, items: 195, foes: 30, total: 423});
   assert.ok(audit.variants > 900);
   assert.deepEqual(plain(audit.errors), []);
   assert.equal(Object.values(audit.modes.spell).reduce((a, b) => a + b, 0), 121);
   assert.equal(Object.values(audit.modes.ability).reduce((a, b) => a + b, 0), 77);
-  assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 134);
+  assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 195);
   assert.equal(audit.modes.foe.structured, 30);
-  assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 134);
+  assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 195);
   assert.equal(new Set(audit.itemActions.manualNames).size, audit.itemActions.manual);
+});
+
+test('расширение 4.5 добавляет ровно 61 полностью структурированный предмет и 20 связных рецептов', () => {
+  const e = loadEngine(), expansion = plain(e.itemExpansion()), recipes = plain(e.itemRecipes());
+  const items = e.seedItemsDB(), spells = e.seedSpellsDB();
+  e.setState({items, spells});
+
+  assert.equal(expansion.length, 61);
+  assert.equal(new Set(expansion.map(it => it.id)).size, 61);
+  assert.equal(expansion.filter(it => it.type === 'potion' || ['it_acid_vial', 'it_holy_water'].includes(it.id)).length, 12);
+  assert.equal(expansion.filter(it => it.type === 'scroll').length, 10);
+  assert.equal(expansion.filter(it => it.tool).length, 12);
+  assert.equal(expansion.filter(it => it.material && it.material.harvest).length, 16);
+  assert.equal(expansion.filter(it => it.material && it.material.category === 'refined').length, 6);
+  assert.equal(expansion.filter(it => it.material && it.material.category === 'component').length, 5);
+
+  const knownTags = new Set(e.itemTagNames());
+  for (const raw of expansion) {
+    const item = items.find(it => it.id === raw.id);
+    assert.ok(item, `${raw.id}: запись должна попасть в стартовую базу`);
+    assert.ok(String(raw.desc || '').trim().length >= 120, `${raw.id}: описание слишком краткое`);
+    assert.ok(String(raw.props || '').trim().length >= 45, `${raw.id}: игровые свойства слишком краткие`);
+    assert.ok((raw.tags || []).length >= 2, `${raw.id}: нужны смысловые теги`);
+    assert.deepEqual((raw.tags || []).filter(tag => !knownTags.has(tag)), [], `${raw.id}: у каждого тега должен быть цвет и подпись`);
+    assert.deepEqual(plain(e.itemUseSchemaErrors(e.itemUsesOf(item), item.resource)), [], `${raw.id}: схема применения`);
+    assert.deepEqual(plain(e.itemToolSchemaErrors(item.tool)), [], `${raw.id}: схема инструмента`);
+    assert.deepEqual(plain(e.itemMaterialSchemaErrors(item.material)), [], `${raw.id}: схема материала`);
+  }
+
+  assert.equal(recipes.length, 20);
+  assert.equal(new Set(recipes.map(r => r.id)).size, 20);
+  const itemIds = new Set(items.map(it => it.id));
+  for (const recipe of recipes) {
+    assert.deepEqual(plain(e.craftingRecipeSchemaErrors(recipe, itemIds)), [], recipe.id);
+    assert.ok(e.recipesUsingItem(recipe.result.itemId).some(r => r.id === recipe.id), `${recipe.id}: обратная связь результата`);
+    for (const toolId of recipe.toolIds) assert.ok(e.craftRecipesForTool(toolId).some(r => r.id === recipe.id), `${recipe.id}: связь инструмента`);
+  }
+});
+
+test('ремесло проверяет все входы до списания, повторно валидирует план и блокируется в бою', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const crafter = hero('smith', {inventory: [
+    {id: 'tool', itemId: 'it_tool_smith', qty: 1},
+    {id: 'ore-a', itemId: 'it_mat_iron_ore', qty: 1},
+    {id: 'ore-b', itemId: 'it_mat_iron_ore', qty: 1},
+    {id: 'coal', itemId: 'it_mat_coal', qty: 1},
+    {id: 'ingots', itemId: 'it_mat_iron_ingot', qty: 2},
+  ]});
+  e.setState({chars: [crafter], items});
+
+  const stale = e.craftPlanFor(crafter, 'cr_iron_ingot');
+  assert.equal(stale.ok, true);
+  crafter.inventory.find(x => x.id === 'coal').qty = 0;
+  const beforeFailedCommit = plain(crafter.inventory);
+  const rejected = e.commitCraftPlan(stale);
+  assert.equal(rejected.ok, false);
+  assert.deepEqual(plain(crafter.inventory), beforeFailedCommit, 'устаревший план не списывает часть руды');
+
+  crafter.inventory.find(x => x.id === 'coal').qty = 1;
+  const done = e.commitCraftPlan(e.craftPlanFor(crafter, 'cr_iron_ingot'));
+  assert.equal(done.ok, true);
+  assert.equal(e.inventoryItemQty(crafter, 'it_mat_iron_ore'), 0);
+  assert.equal(e.inventoryItemQty(crafter, 'it_mat_coal'), 0);
+  assert.equal(e.inventoryItemQty(crafter, 'it_mat_iron_ingot'), 3);
+  assert.equal(e.inventoryItemQty(crafter, 'it_tool_smith'), 1, 'инструмент не расходуется');
+
+  e.setState({chars: [crafter], items, combat: {active: true, order: [{kind: 'ally', id: crafter.id}]}});
+  const inCombat = e.craftPlanFor(crafter, 'cr_iron_ingot');
+  assert.equal(inCombat.ok, false);
+  assert.match(inCombat.reason, /активного боя/);
+});
+
+test('свитки проверяют список класса, расходуются при неудачной проверке высокого круга и не берут бонус Ловкости', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), foes = e.seedFoesDB();
+  const mageArmor = items.find(it => it.id === 'it_scroll_mage_armor');
+  const cleric = hero('cleric', {cls: 'Жрец', inventory: [{id: 'mage-scroll', itemId: mageArmor.id, qty: 1}]});
+  e.setState({chars: [cleric], items, spells});
+  assert.equal(e.scrollUseCheck(cleric, e.itemUseOf(mageArmor, 'cast')).ok, false);
+  assert.equal(e.useItemApply('mage-scroll', cleric.id, `ally:${cleric.id}`, null, 'cast'), false);
+  assert.equal(cleric.inventory[0].qty, 1, 'непонятный свиток не расходуется');
+
+  const fly = items.find(it => it.id === 'it_scroll_fly');
+  const wizard = hero('wizard', {cls: 'Волшебник', level: 1, ab: {str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 10},
+    inventory: [{id: 'fly-scroll', itemId: fly.id, qty: 2}]});
+  e.setState({chars: [wizard], items, spells});
+  const flyUse = e.itemUseOf(fly, 'cast'), flyTarget = e.targetInfoOf(`ally:${wizard.id}`);
+  const flySpec = e.itemUseSpecOf(wizard, fly, flyUse, flyTarget, {});
+  assert.equal(flySpec.rows.find(r => r.key === 'scrollcheck').dc, 13);
+  const failed = e.resolveOutcome(flySpec, {scrollcheck: 9});
+  assert.equal(failed.scrollOk, false);
+  assert.equal(e.useItemApply('fly-scroll', wizard.id, `ally:${wizard.id}`, failed, 'cast'), true);
+  assert.equal(wizard.inventory[0].qty, 1);
+  assert.equal(wizard.activeFx.length, 0, 'провал не накладывает полет');
+
+  const passed = e.resolveOutcome(flySpec, {scrollcheck: 10});
+  assert.equal(passed.scrollOk, true);
+  assert.equal(e.useItemApply('fly-scroll', wizard.id, `ally:${wizard.id}`, passed, 'cast'), true);
+  assert.equal(wizard.inventory.length, 0);
+  assert.equal(wizard.activeFx.some(x => x.fx.some(f => f.stat === 'speed.fly')), true);
+  assert.equal(e.concEntriesOf(wizard.id).length, 1);
+
+  const guiding = items.find(it => it.id === 'it_scroll_guiding_bolt');
+  const blessedCleric = hero('blessed-cleric', {cls: 'Жрец', activeFx: [{uid: 'bonuses', k: 'test', id: 'bonuses', label: 'Бонусы', fx: [
+    {stat: 'attack.dex', mode: 'adv', value: 1},
+    {stat: 'attack', mode: 'die', value: '1d4'},
+  ]}]});
+  const goblin = foes.find(f => f.id === 'foe_goblin_scout');
+  e.setState({chars: [blessedCleric], items, spells, foes: [goblin]});
+  const guidingSpec = e.itemUseSpecOf(blessedCleric, guiding, e.itemUseOf(guiding, 'cast'), e.targetInfoOf(`foe:${goblin.id}`), {});
+  const attackRow = guidingSpec.rows.find(r => r.type === 'atk');
+  assert.equal(attackRow.mod, 5);
+  assert.equal(attackRow.adv, 0, 'преимущество только к атакам Ловкостью не меняет свиток');
+  assert.equal(guidingSpec.rows.some(r => r.addTo === 'atk' && r.sides === 4), true, 'общая кость к атаке действует');
+});
+
+test('зелья применяют сопротивление, временные хиты, d4, минимум Силы и триггер невидимости', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const adventurer = hero('adventurer', {hpTemp: 4, inventory: [
+    {id: 'fire', itemId: 'it_potion_fire_resistance', qty: 1},
+    {id: 'heroism', itemId: 'it_potion_heroism', qty: 1},
+    {id: 'giant', itemId: 'it_potion_hill_giant_strength', qty: 1},
+    {id: 'invisible', itemId: 'it_potion_invisibility', qty: 1},
+  ]});
+  e.setState({chars: [adventurer], items});
+
+  assert.equal(e.useItemApply('fire', adventurer.id, `ally:${adventurer.id}`, null, 'drink'), true);
+  assert.equal(e.dmgAfterTraits(adventurer, 9, 'огонь').amount, 4);
+
+  const heroism = items.find(it => it.id === 'it_potion_heroism'), heroismUse = e.itemUseOf(heroism, 'drink');
+  const heroismSpec = e.itemUseSpecOf(adventurer, heroism, heroismUse, e.targetInfoOf(`ally:${adventurer.id}`), {});
+  const heroismOutcome = e.resolveOutcome(heroismSpec, {temp: 0});
+  assert.equal(heroismOutcome.tempTotal, 10);
+  assert.equal(e.useItemApply('heroism', adventurer.id, `ally:${adventurer.id}`, heroismOutcome, 'drink'), true);
+  assert.equal(adventurer.hpTemp, 10);
+  assert.equal(e.rollFxEntries(adventurer, 'attack.str').some(f => f.mode === 'die' && f.value === '1d4'), true);
+  assert.equal(e.rollFxEntries(adventurer, 'save.wis').some(f => f.mode === 'die' && f.value === '1d4'), true);
+
+  assert.equal(e.eAb(adventurer, 'str'), 10);
+  assert.equal(e.useItemApply('giant', adventurer.id, `ally:${adventurer.id}`, null, 'drink'), true);
+  assert.equal(e.eAb(adventurer, 'str'), 21);
+
+  assert.equal(e.useItemApply('invisible', adventurer.id, `ally:${adventurer.id}`, null, 'drink'), true);
+  assert.equal(e.effectiveConditions(adventurer).includes('Невидимый'), true);
+  e.endTriggeredSpellEffects(adventurer, 'attack');
+  assert.equal(e.effectiveConditions(adventurer).includes('Невидимый'), false);
+});
+
+test('святая вода проверяет тип цели, а малое восстановление проверяет состояние до расхода', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), foes = e.seedFoesDB();
+  const holy = items.find(it => it.id === 'it_holy_water');
+  const thrower = hero('thrower', {inventory: [{id: 'holy', itemId: holy.id, qty: 2}]});
+  const goblin = foes.find(f => f.id === 'foe_goblin_scout'), zombie = foes.find(f => f.id === 'foe_zombie');
+  zombie.hp = zombie.hpMax = 30;
+  e.setState({chars: [thrower], items, spells, foes: [goblin, zombie]});
+  const hit = {hit: true, attackMade: true, saveOk: null, dmgRaw: 7, dmgTotal: 7, dmgType: 'сияние',
+    damageParts: [{type: 'сияние', raw: 7, total: 7}], effectAllowed: true, verdict: [], notes: []};
+  assert.equal(e.useItemApply('holy', thrower.id, `foe:${goblin.id}`, hit, 'throw'), false);
+  assert.equal(thrower.inventory[0].qty, 2);
+  assert.equal(e.useItemApply('holy', thrower.id, `foe:${zombie.id}`, hit, 'throw'), true);
+  assert.equal(thrower.inventory[0].qty, 1);
+  assert.equal(zombie.hp, 23);
+
+  const restoration = items.find(it => it.id === 'it_scroll_lesser_restoration');
+  const cleric = hero('restorer', {cls: 'Жрец', level: 3, inventory: [{id: 'restoration', itemId: restoration.id, qty: 1}]});
+  const patient = hero('patient');
+  e.setState({chars: [cleric, patient], items, spells});
+  assert.equal(e.useItemApply('restoration', cleric.id, `ally:${patient.id}`, null, 'cast', {choice: 'Отравленный'}), false);
+  assert.equal(cleric.inventory[0].qty, 1);
+  patient.cond.push('Отравленный');
+  assert.equal(e.useItemApply('restoration', cleric.id, `ally:${patient.id}`, null, 'cast', {choice: 'Отравленный'}), true);
+  assert.equal(cleric.inventory.length, 0);
+  assert.equal(e.effectiveConditions(patient).includes('Отравленный'), false);
+});
+
+test('стоимостные алмазы покрывают нужные заклинания и расходуются ровно по правилу', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB();
+  const cases = [
+    ['sp_chromatic_orb', 'it_component_diamond_50', 0],
+    ['sp_оживление', 'it_component_diamonds_300', 1],
+    ['sp_воскрешение_мертвого', 'it_component_diamond_500', 1],
+    ['sp_воскрешение', 'it_component_diamond_1000', 1],
+    ['sp_истинное_воскрешение', 'it_component_diamonds_25000', 1],
+  ];
+  const caster = hero('component-caster', {inventory: cases.map(([spellId, itemId], i) => ({id: `component-${i}`, itemId, qty: 2}))});
+  e.setState({chars: [caster], items, spells});
+
+  for (let i = 0; i < cases.length; i++) {
+    const [spellId, itemId, consume] = cases[i], spell = spells.find(sp => sp.id === spellId);
+    assert.ok(spell, `${spellId}: заклинание есть в базе`);
+    const comp = e.parseComponents(spell);
+    assert.equal(e.materialPlanFor(caster, spell, comp, {substitute: true}).ok, false, 'стоимостный компонент нельзя заменить фокусировкой');
+    const plan = e.materialPlanFor(caster, spell, comp, {entryId: `component-${i}`, use: consume});
+    assert.equal(plan.ok, true, `${spellId}: ${plan.reason || ''}`);
+    assert.equal(e.commitMaterialPlan(caster, plan).ok, true);
+    assert.equal(e.inventoryItemQty(caster, itemId), 2 - consume);
+  }
 });
 
 test('матрица всей базы не допускает урон при промахе и длительный эффект после успешного спасброска', () => {
@@ -2480,7 +2682,7 @@ test('выпуск 4.1 объединяет локальную и облачну
 
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /const CLOUD_PAUSED=false/);
-  assert.ok(html.includes('Движок 4.4 · подготовка заклинаний 2014'));
+  assert.ok(html.includes('Движок 4.5 · предметы и ремесло'));
 });
 
 test('формулы v2 не содержат броска мастера, ручного попадания или изменяемого преимущества', () => {
