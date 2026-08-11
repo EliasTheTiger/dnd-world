@@ -19,7 +19,12 @@ function loadEngine(random = () => 0) {
       state() { return {chars,itemsDB,spellsDB,abilitiesDB,racesDB,classesDB,foesDB,activeCharId,fxRound,lastCastEvent,combat}; },
       applyFxTo, removeActiveFx, advanceFxRound, attachDuration, spellFxForCast,
       castSpellApply, canCastCheck, parseComponents, materialPlanFor, slotPlanFor,
-      casterMeta, maxCircleFor, slotsRowFor, applyClassSlots, casterPreparationMode, spellEntryReady, spellRitualAllowed,
+      casterMeta, maxCircleFor, slotsRowFor, applyClassSlots, casterPreparationMode,
+      knownSpellMax, cantripKnownMax, knownSpellCount, cantripKnownCount, spellLearningState, bardMagicalSecretsEarned,
+      spellClassListHas, spellAccessCheck, spellAddCheck, spellEntryReady, spellRitualAllowed,
+      prepMax, prepCount, preparedChoiceIds, ensureSpellPreparationDraft, commitSpellPreparation, preparationPlanMinutes,
+      syncClassSpellAccess, upgradeSpellcastingState, autoLevelSpells, setClass, setLevel,
+      addSpellFromDB, delBookSpell, beginKnownSpellReplacement, cancelKnownSpellReplacement,
       charFxAll, fxSum, eHpMax, acTotal, speedTotal, concEntriesOf,
       breakConcentration, concRollMode, longRest, shortRest, refreshShortRestResources, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
       applyDamageTo, applyRollsToTarget, resolveUndeadFortitude, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
@@ -45,7 +50,7 @@ function loadEngine(random = () => 0) {
       combatDeathSave, combatContestAction, combatTriggerReady, combatOpportunityBlocked, combatSetGroup, combatSpellTurnAllowed,
       combatAbilityCost, combatAbilityUsable, combatSpellCost, combatCunningAction,
       combatFoeRecharge, combatFoeAttackAllowed, combatRecordFoeAttack, combatAttackCount,
-      castConfirm, castFormulaShow, castFormulaConfirm, closeCastModal, runRareBattleAudit,
+      castConfirm, castFormulaShow, castFormulaConfirm, closeCastModal, runRareBattleAudit, runSpellPreparationAudit,
       castState() { return {ctx:castCtx, spec:castCtx&&castCtx.spec}; },
       makeBlank() { return buildBlank(); },
       conditions() { return CONDITIONS; },
@@ -2475,7 +2480,7 @@ test('выпуск 4.1 объединяет локальную и облачну
 
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /const CLOUD_PAUSED=false/);
-  assert.ok(html.includes('Движок 4.3 · редкие сценарии 250'));
+  assert.ok(html.includes('Движок 4.4 · подготовка заклинаний 2014'));
 });
 
 test('формулы v2 не содержат броска мастера, ручного попадания или изменяемого преимущества', () => {
@@ -2633,23 +2638,239 @@ test('магия договора использует отдельную таб
 });
 
 test('известные, подготовленные и ритуальные заклинания различаются по классу', () => {
-  const e = loadEngine(), classes = e.seedClassesDB(), spell = {id: 'spell', n: 'Проверка', l: 1, ritual: true};
+  const e = loadEngine(), classes = e.seedClassesDB();
+  const abbr = {Бард: 'Брд', Чародей: 'Чрд', Колдун: 'Клд', Следопыт: 'Слд', Жрец: 'Жрц', Друид: 'Дрд', Паладин: 'Пал', Волшебник: 'Влш'};
   for (const cls of ['Бард', 'Чародей', 'Колдун', 'Следопыт']) {
-    const caster = hero(cls, {cls, spellbook: [{spellId: spell.id, prep: false}], slots: {1: {max: 2, cur: 2}}});
-    e.setState({chars: [caster], classes});
+    const spell = {id: `spell-${cls}`, n: 'Проверка', l: 1, c: abbr[cls], ritual: true};
+    const caster = hero(cls, {cls, spellbook: [{spellId: spell.id, prep: false, access: 'known'}], slots: {1: {max: 2, cur: 2}}});
+    e.setState({chars: [caster], classes, spells: [spell]});
     assert.equal(e.slotPlanFor(caster, spell, '1').ok, true, cls);
     assert.equal(e.slotPlanFor(caster, spell, 'ritual').ok, cls === 'Бард', `${cls}: ритуальное колдовство`);
   }
   for (const cls of ['Жрец', 'Друид', 'Паладин']) {
-    const caster = hero(cls, {cls, spellbook: [{spellId: spell.id, prep: false}], slots: {1: {max: 2, cur: 2}}});
-    e.setState({chars: [caster], classes});
+    const spell = {id: `spell-${cls}`, n: 'Проверка', l: 1, c: abbr[cls], ritual: true};
+    const caster = hero(cls, {cls, spellbook: [{spellId: spell.id, prep: false, access: 'classList'}], slots: {1: {max: 2, cur: 2}}});
+    e.setState({chars: [caster], classes, spells: [spell]});
     assert.equal(e.slotPlanFor(caster, spell, '1').ok, false, cls);
     assert.equal(e.slotPlanFor(caster, spell, 'ritual').ok, false, `${cls}: неподготовленный ритуал`);
   }
-  const wizard = hero('wizard', {cls: 'Волшебник', spellbook: [{spellId: spell.id, prep: false}], slots: {1: {max: 2, cur: 0}}});
-  e.setState({chars: [wizard], classes});
+  const spell = {id: 'spell-wizard', n: 'Проверка', l: 1, c: 'Влш', ritual: true};
+  const wizard = hero('wizard', {cls: 'Волшебник', spellbook: [{spellId: spell.id, prep: false, access: 'spellbook'}], slots: {1: {max: 2, cur: 0}}});
+  e.setState({chars: [wizard], classes, spells: [spell]});
   assert.equal(e.slotPlanFor(wizard, spell, '1').ok, false);
   assert.equal(e.slotPlanFor(wizard, spell, 'ritual').ok, true, 'волшебник читает ритуал из книги без подготовки');
+});
+
+test('таблицы подготовки, известных заклинаний и заговоров точны на всех 20 уровнях восьми классов', () => {
+  const e = loadEngine(), classes = e.seedClassesDB();
+  const known = {
+    Бард: [4,5,6,7,8,9,10,11,12,14,15,15,16,18,19,19,20,22,22,22],
+    Чародей: [2,3,4,5,6,7,8,9,10,11,12,12,13,13,14,14,15,15,15,15],
+    Колдун: [2,3,4,5,6,7,8,9,10,10,11,11,12,12,13,13,14,14,15,15],
+    Следопыт: [0,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11],
+  };
+  const cantrips = {
+    Волшебник: [3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5],
+    Жрец: [3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5],
+    Друид: [2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],
+    Бард: [2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],
+    Чародей: [4,4,4,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6],
+    Колдун: [2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],
+    Паладин: Array(20).fill(0), Следопыт: Array(20).fill(0),
+  };
+  const fullCircles = [1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,9,9];
+  const pactCircles = [1,1,2,2,3,3,4,4,5,5,5,5,5,5,5,5,5,5,5,5];
+  const halfCircles = [0,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5];
+  for (const cls of Object.keys(cantrips)) {
+    for (let level = 1; level <= 20; level++) {
+      const caster = hero(`${cls}-${level}`, {cls, level, spellbook: [], ab: {str:10,dex:10,con:10,int:16,wis:16,cha:16}});
+      e.setState({chars: [caster], classes});
+      const meta = e.casterMeta(caster);
+      const circles = meta.kind === 'pact' ? pactCircles : (meta.kind === 'half' ? halfCircles : fullCircles);
+      assert.equal(e.maxCircleFor(caster), circles[level - 1], `${cls} ${level}: круг`);
+      assert.equal(e.cantripKnownMax(caster), cantrips[cls][level - 1], `${cls} ${level}: заговоры`);
+      assert.equal(e.knownSpellMax(caster), (known[cls] || Array(20).fill(0))[level - 1], `${cls} ${level}: известные`);
+      const expectedPrep = meta.preparation === 'known' || circles[level - 1] === 0 ? 0
+        : (meta.kind === 'half' ? Math.floor(level / 2) + 3 : level + 3);
+      assert.equal(e.prepMax(caster), expectedPrep, `${cls} ${level}: подготовка`);
+      const rule = classes.find(x => x.n === cls).mechanics.spellcasting;
+      assert.equal(rule.edition, '2014');
+      assert.equal(rule.preparation, meta.preparation);
+      assert.equal(rule.listAccess, meta.listAccess);
+    }
+  }
+});
+
+test('план подготовки не меняет боевой список и вступает в силу только после допустимого долгого отдыха', () => {
+  const e = loadEngine(), classes = e.seedClassesDB();
+  const active = {id:'active', n:'Активное', l:1, c:'Влш', ritual:false};
+  const planned = {id:'planned', n:'Запланированное', l:2, c:'Влш', ritual:false};
+  const granted = {id:'granted', n:'Дар школы', l:2, c:'Влш', ritual:false};
+  const caster = hero('wizard', {cls:'Волшебник', level:3, spellbook:[
+    {spellId:active.id, prep:true, access:'spellbook'},
+    {spellId:planned.id, prep:false, access:'spellbook'},
+    {spellId:granted.id, prep:true, alwaysPrepared:true, countsAgainstPreparation:false, granted:true, access:'subclass'},
+  ], slots:{1:{max:4,cur:1},2:{max:2,cur:1}}, abilities:[]});
+  e.setState({chars:[caster], classes, spells:[active, planned, granted], activeCharId:caster.id});
+
+  const draft = e.ensureSpellPreparationDraft(caster); draft.choices = [planned.id];
+  assert.equal(e.prepCount(caster), 1);
+  assert.equal(e.prepCount(caster, {draft:true}), 1);
+  assert.equal(e.preparationPlanMinutes(caster), 2);
+  assert.equal(e.spellEntryReady(caster, caster.spellbook[0], active), true);
+  assert.equal(e.spellEntryReady(caster, caster.spellbook[1], planned), false);
+  assert.equal(e.slotPlanFor(caster, active, '1').ok, true);
+  assert.equal(e.slotPlanFor(caster, planned, '2').ok, false);
+
+  e.state().combat.active = true;
+  assert.equal(e.longRest(), false, 'отдых внутри боя должен быть отклонен');
+  assert.equal(caster.slots[1].cur, 1);
+  assert.equal(e.spellEntryReady(caster, caster.spellbook[0], active), true);
+  e.state().combat.active = false;
+  assert.equal(e.longRest(), true);
+  assert.equal(caster.slots[1].cur, 4);
+  assert.equal(e.spellEntryReady(caster, caster.spellbook[0], active), false);
+  assert.equal(e.spellEntryReady(caster, caster.spellbook[1], planned), true);
+  assert.equal(e.spellEntryReady(caster, caster.spellbook[2], granted), true);
+  assert.equal(e.prepCount(caster), 1, 'всегда подготовленное не занимает лимит');
+  assert.equal(caster.spellPrepDraft, undefined);
+});
+
+test('известные заклинания заменяются атомарно только в окно повышения уровня, а заговоры не заменяются', () => {
+  const e = loadEngine(), classes = e.seedClassesDB();
+  const spells = Array.from({length:6}, (_,i) => ({id:`bard-${i}`, n:`Песнь ${i}`, l:1, c:'Брд', ritual:false}));
+  const cantrips = Array.from({length:3}, (_,i) => ({id:`cantrip-${i}`, n:`Нота ${i}`, l:0, c:'Брд', ritual:false}));
+  const caster = hero('bard', {cls:'Бард', level:1, spellbook:spells.slice(0,4).map(sp=>({spellId:sp.id,prep:false,access:'known'}))
+    .concat(cantrips.slice(0,2).map(sp=>({spellId:sp.id,prep:false,access:'known'}))), spellLearning:{replacements:1,anyClassChoices:0}});
+  e.setState({chars:[caster], classes, spells:spells.concat(cantrips), activeCharId:caster.id});
+  assert.equal(e.knownSpellCount(caster), 4);
+  assert.equal(e.cantripKnownCount(caster), 2);
+  assert.equal(e.spellAddCheck(caster, spells[4]).ok, false, 'полный список нельзя расширить сверх таблицы');
+
+  e.delBookSpell(spells[0].id);
+  assert.equal(caster.spellbook.some(x=>x.spellId===spells[0].id), true, 'старое заклинание остается до атомарного выбора нового');
+  assert.equal(caster.spellReplacementDraft.removeId, spells[0].id);
+  e.addSpellFromDB(spells[4].id);
+  assert.equal(caster.spellbook.some(x=>x.spellId===spells[0].id), false);
+  assert.equal(caster.spellbook.some(x=>x.spellId===spells[4].id), true);
+  assert.equal(e.knownSpellCount(caster), 4);
+  assert.equal(caster.spellLearning.replacements, 0);
+  assert.equal(caster.spellReplacementDraft, undefined);
+
+  e.delBookSpell(spells[1].id);
+  assert.equal(caster.spellbook.some(x=>x.spellId===spells[1].id), true, 'без окна повышения уровня удаление блокируется');
+  e.delBookSpell(cantrips[0].id);
+  assert.equal(caster.spellbook.some(x=>x.spellId===cantrips[0].id), true, 'заговор нельзя заменить по базовым правилам 2014');
+  assert.equal(e.spellAddCheck(caster, cantrips[2]).ok, false);
+});
+
+test('Тайны магии барда допускают ровно заработанные заклинания из чужих списков и считают их известными', () => {
+  const e = loadEngine(), classes = e.seedClassesDB();
+  const bardSpells = Array.from({length:12}, (_,i)=>({id:`known-${i}`,n:`Бард ${i}`,l:Math.min(5,1+Math.floor(i/3)),c:'Брд'}));
+  const foreign = [{id:'foreign-1',n:'Чужая тайна 1',l:5,c:'Влш'},{id:'foreign-2',n:'Чужая тайна 2',l:5,c:'Жрц'},{id:'foreign-3',n:'Чужая тайна 3',l:5,c:'Дрд'}];
+  const caster = hero('bard-10', {cls:'Бард',level:10,spellbook:bardSpells.map(sp=>({spellId:sp.id,access:'known',prep:false})),spellLearning:{replacements:0,anyClassChoices:2}});
+  e.setState({chars:[caster],classes,spells:bardSpells.concat(foreign),activeCharId:caster.id});
+  e.addSpellFromDB(foreign[0].id); e.addSpellFromDB(foreign[1].id);
+  assert.equal(e.knownSpellCount(caster),14);
+  assert.equal(caster.spellLearning.anyClassChoices,0);
+  assert.equal(caster.spellbook.filter(x=>x.anyClassKnown).length,2);
+  assert.equal(e.spellEntryReady(caster,caster.spellbook.find(x=>x.spellId===foreign[0].id),foreign[0]),true);
+  assert.equal(e.spellAddCheck(caster,foreign[2]).ok,false);
+
+  const leveling = hero('leveling-bard',{cls:'Бард',level:10,spellbook:[],spellLearning:{replacements:0,anyClassChoices:0}});
+  e.setState({chars:[leveling],classes});
+  const change=e.autoLevelSpells(leveling,9);
+  assert.deepEqual(plain([change.learnChoices,leveling.spellLearning.replacements,leveling.spellLearning.anyClassChoices]),[2,1,2]);
+});
+
+test('полные списки жреца, друида и паладина синхронизируются, а волшебник и известные классы получают выборы', () => {
+  const e = loadEngine(), classes=e.seedClassesDB(), spells=e.seedSpellsDB();
+  for(const cls of ['Жрец','Друид','Паладин']){
+    const caster=hero(cls,{cls,level:5,spellbook:[]});
+    e.setState({chars:[caster],classes,spells});
+    const result=e.syncClassSpellAccess(caster);
+    const expected=spells.filter(sp=>sp.l>0&&sp.l<=e.maxCircleFor(caster)&&e.spellClassListHas(caster,sp)).map(sp=>sp.id).sort();
+    assert.deepEqual(plain(caster.spellbook.map(x=>x.spellId).sort()),plain(expected),cls);
+    assert.ok(result.added.length>0);
+    assert.ok(caster.spellbook.every(x=>x.access==='classList'));
+  }
+  const paladin1=hero('paladin-1',{cls:'Паладин',level:1,spellbook:[]});
+  e.setState({chars:[paladin1],classes,spells});e.syncClassSpellAccess(paladin1);
+  assert.equal(paladin1.spellbook.length,0);
+
+  const wizard=hero('wizard',{cls:'Волшебник',level:4,spellbook:[]});
+  e.setState({chars:[wizard],classes,spells});
+  assert.deepEqual(plain(e.autoLevelSpells(wizard,3)),{added:[],removed:[],learnChoices:2});
+  assert.equal(wizard.spellbook.length,0,'волшебнику не добавляется весь классовый список');
+  const ranger=hero('ranger',{cls:'Следопыт',level:2,spellbook:[],spellLearning:{replacements:0,anyClassChoices:0}});
+  e.setState({chars:[ranger],classes,spells});
+  const gained=e.autoLevelSpells(ranger,1);
+  assert.equal(gained.learnChoices,2);assert.equal(ranger.spellLearning.replacements,1);
+});
+
+test('смена класса архивирует прежние известные записи и не переносит их в книгу волшебника', () => {
+  const e=loadEngine(),classes=e.seedClassesDB();
+  const shared={id:'shared',n:'Общее заклинание',l:1,c:'Брд, Влш'};
+  const caster=hero('multiclass-edit',{cls:'Бард',level:3,spellbook:[{spellId:shared.id,prep:false,access:'known'}],spellLearning:{replacements:0,anyClassChoices:0}});
+  e.setState({chars:[caster],classes,spells:[shared],activeCharId:caster.id});
+  assert.equal(e.spellAccessCheck(caster,shared,caster.spellbook[0]).ok,true);
+  e.setClass('Волшебник');
+  assert.equal(caster.spellbook[0].access,'archive');
+  assert.equal(e.spellAccessCheck(caster,shared,caster.spellbook[0]).ok,false,'известное барду не появляется само в книге волшебника');
+  e.delBookSpell(shared.id);e.addSpellFromDB(shared.id);
+  assert.equal(caster.spellbook[0].access,'spellbook');
+  assert.equal(e.spellAccessCheck(caster,shared,caster.spellbook[0]).ok,true);
+});
+
+test('штатные Року и Торгар имеют полные канонические списки и корректные исключения особенностей', () => {
+  const e=loadEngine(),classes=e.seedClassesDB(),spells=e.seedSpellsDB();
+  const roku=e.buildRoku(),torgar=e.buildTorgar();
+  e.setState({chars:[roku,torgar],classes,spells,activeCharId:roku.id});
+  e.upgradeSpellcastingState(roku);e.upgradeSpellcastingState(torgar);
+  assert.equal(e.prepCount(roku),6);assert.equal(e.prepMax(roku),6);
+  const rokuBook=roku.spellbook.filter(entry=>{const sp=spells.find(x=>x.id===entry.spellId);return sp&&sp.l>0&&!entry.granted;});
+  assert.equal(rokuBook.length,10,'у волшебника 3 уровня: 6 стартовых + 2 + 2');
+  assert.equal(e.cantripKnownCount(roku),3);
+  const school=roku.spellbook.find(x=>x.spellId==='sp_evoc_allies');
+  assert.equal(e.spellEntryReady(roku,school,spells.find(x=>x.id===school.spellId)),true);
+  let html=e.renderSheetPanel('spells');
+  assert.match(html,/Активно подготовлено: <b>6 из 6<\/b>/);
+  assert.ok(html.includes('Аудит подготовки: 320'));
+  assert.ok(html.includes('Подготовить после отдыха'));
+
+  assert.equal(e.prepCount(torgar),6);assert.equal(e.prepMax(torgar),6);
+  assert.equal(e.cantripKnownCount(torgar),3);
+  const always=torgar.spellbook.filter(x=>x.alwaysPrepared);
+  assert.equal(always.length,4);
+  always.forEach(entry=>assert.equal(e.spellEntryReady(torgar,entry,spells.find(x=>x.id===entry.spellId)),true));
+  e.setState({chars:[roku,torgar],classes,spells,activeCharId:torgar.id});
+  html=e.renderSheetPanel('spells');
+  assert.match(html,/Активно подготовлено: <b>6 из 6<\/b>/);
+  assert.ok(html.includes('еще 4 всегда подготовлено'));
+});
+
+test('миграция восстанавливает нулевой старый список и не считает всегда подготовленные заклинания', () => {
+  const e=loadEngine(),classes=e.seedClassesDB();
+  const spells=Array.from({length:5},(_,i)=>({id:`cleric-${i}`,n:`Молитва ${i}`,l:i<3?1:2,c:'Жрц'}));
+  const legacy=hero('legacy',{cls:'Жрец',level:3,spellbook:spells.map(sp=>({spellId:sp.id,prep:false,access:'classList'})),spellPrepVersion:0});
+  e.setState({chars:[legacy],classes,spells});
+  assert.equal(e.upgradeSpellcastingState(legacy),true);
+  assert.equal(e.prepCount(legacy),5);
+  assert.equal(legacy.spellPrepVersion,3);
+  const known=hero('old-bard',{cls:'Бард',level:3,spellbook:[],spellPrepDraft:{choices:['ghost']},spellPrepVersion:0});
+  e.setState({chars:[known],classes,spells});e.upgradeSpellcastingState(known);
+  assert.equal(known.spellPrepDraft,undefined);
+  assert.deepEqual(plain(known.spellLearning),{replacements:0,anyClassChoices:0});
+});
+
+test('встроенный аудит подготовки проводит 320 проверок всех классов и полностью возвращает кампанию', () => {
+  const e=loadEngine(),items=e.seedItemsDB(),spells=e.seedSpellsDB(),abilities=e.seedAbilitiesDB();
+  const races=e.seedRacesDB(),classes=e.seedClassesDB(),foes=e.seedFoesDB(),party=[e.buildRoku(),e.buildTorgar(),e.buildSeptih(),e.buildLegerem()];
+  e.setState({chars:party,items,spells,abilities,races,classes,foes,activeCharId:party[0].id});
+  const before=plain(e.state()),report=e.runSpellPreparationAudit();
+  assert.equal(report.total,320);assert.equal(report.passed,320,plain(report.failures));assert.equal(report.failed,0);
+  assert.equal(Object.keys(report.categories).length,16);
+  assert.deepEqual(plain(e.state()),before,'аудит не должен менять листы, базы или бой');
 });
 
 test('универсальное оружие не переходит на большую кость при занятой щитом руке', () => {

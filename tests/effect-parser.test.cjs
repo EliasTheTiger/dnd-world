@@ -218,7 +218,7 @@ test('мгновенное лечение меняет хиты, но не ос�
     id: 'caster', name: 'Жрец', cls: 'Жрец', level: 5, spellAb: 'wis',
     ab: { str: 10, dex: 10, con: 10, int: 10, wis: 16, cha: 10 },
     abilities: [], activeFx: [], inventory: [], equipment: {}, cond: [], fxOff: [],
-    slots: {1: {max: 1, cur: 1}}, spellbook: []
+    slots: {1: {max: 1, cur: 1}}, spellbook: [{spellId:'heal',prep:true,access:'classList'}]
   };
   const target = {
     id: 'target', name: 'Союзник', level: 5, hp: 5, hpMax: 40,
@@ -226,7 +226,7 @@ test('мгновенное лечение меняет хиты, но не ос�
     abilities: [], activeFx: [], inventory: [], equipment: {}, cond: [], fxOff: []
   };
   const spell = {
-    id: 'heal', n: 'Лечение ран', l: 1, cm: '—', d: 'Мгновенная',
+    id: 'heal', n: 'Лечение ран', l: 1, c:'Жрц', cm: '—', d: 'Мгновенная',
     x: 'Цель восстанавливает 1к8 + модификатор Мудрости хитов.'
   };
   engine.setState({ chars: [caster, target], spells: [spell], abilities: [] });
@@ -241,7 +241,7 @@ test('извлеченное состояние участвует в прове
     id: 'caster', name: 'Маг', cls: 'Волшебник', level: 5,
     ab: { str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 10 },
     abilities: [], activeFx: [], inventory: [], equipment: {}, cond: [], fxOff: [],
-    slots: {2: {max: 1, cur: 1}}, spellbook: []
+    slots: {2: {max: 1, cur: 1}}, spellbook: [{spellId:'hold',prep:true,access:'spellbook'}]
   };
   const target = {
     id: 'target', name: 'Союзник', level: 5, hp: 20, hpMax: 20,
@@ -249,7 +249,7 @@ test('извлеченное состояние участвует в прове
     abilities: [], activeFx: [], inventory: [], equipment: {}, cond: [], fxOff: []
   };
   const spell = {
-    id: 'hold', n: 'Удержание личности', l: 2, cm: '—', d: 'Концентрация, 1 мин.',
+    id: 'hold', n: 'Удержание личности', l: 2, c:'Влш', cm: '—', d: 'Концентрация, 1 мин.',
     x: 'Гуманоид парализован до окончания заклинания.'
   };
   engine.setState({ chars: [caster, target], spells: [spell], abilities: [] });

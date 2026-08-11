@@ -572,7 +572,7 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
   <span class="corner bl">✠</span><span class="corner br">✠</span>
   <h1 class="title">D&amp;D World</h1>
   <div class="subtitle">Летопись развития персонажей · настольная книга гейм-мастера · единое издание с «D&amp;D Нексус»</div>
-  <div class="release-badge" id="releaseBadge" title="Формулы v2 принимают только объявленные реальные броски; встроен изолированный аудит 250 редких боев">Движок 4.3 · редкие сценарии 250</div>
+  <div class="release-badge" id="releaseBadge" title="Формулы v2 принимают только объявленные реальные броски; подготовка заклинаний проверяется по D&amp;D 5e 2014 для всех восьми классов">Движок 4.4 · подготовка заклинаний 2014</div>
   <div class="rule-flourish">❦</div>
   <div class="toolrow">
     <div class="dicebox">
@@ -1459,15 +1459,21 @@ function buildRoku(){
       {spellId:'sp_ray_frost', prep:false},
       {spellId:'sp_mage_hand', prep:false},
       {spellId:'sp_fire_bolt', prep:false},
-      {spellId:'sp_chill_touch', prep:false},
-      {spellId:'sp_wizard_intuition', prep:false},
-      {spellId:'sp_evoc_allies', prep:false},
-      {spellId:'sp_magic_missile', prep:false},
-      {spellId:'sp_burning_hands', prep:false},
-      {spellId:'sp_web', prep:false},
-      {spellId:'sp_magic_sleep', prep:false},
-      {spellId:'sp_planar_barrier', prep:false},
-      {spellId:'sp_chromatic_orb', prep:false}
+      {spellId:'sp_chill_touch', prep:false, granted:true, countsAgainstKnown:false, access:'feature', source:'Заклинатель из Невервинтера'},
+      {spellId:'sp_wizard_intuition', prep:false, granted:true, countsAgainstKnown:false, access:'feature', source:'Интуиция волшебника'},
+      {spellId:'sp_evoc_allies', prep:true, alwaysPrepared:true, countsAgainstPreparation:false, granted:true, access:'feature', source:'Школа воплощения'},
+      {spellId:'sp_magic_missile', prep:true},
+      {spellId:'sp_burning_hands', prep:true},
+      {spellId:'sp_web', prep:true},
+      {spellId:'sp_magic_sleep', prep:true},
+      {spellId:'sp_planar_barrier', prep:true},
+      {spellId:'sp_chromatic_orb', prep:true},
+      /* Шесть заклинаний на 1 уровне + по два выбранных на 2 и 3 уровнях.
+         Эти четыре находятся в книге, но не входят в текущие 6 подготовленных. */
+      {spellId:'sp_щит', prep:false,access:'spellbook',source:'Выбор при повышении уровня'},
+      {spellId:'sp_обнаружение_магии', prep:false,access:'spellbook',source:'Выбор при повышении уровня'},
+      {spellId:'sp_туманный_шаг', prep:false,access:'spellbook',source:'Выбор при повышении уровня'},
+      {spellId:'sp_палящий_луч', prep:false,access:'spellbook',source:'Выбор при повышении уровня'}
     ],
     slots:{1:{max:4,cur:4},2:{max:2,cur:2}},
     abilities:[
@@ -1481,7 +1487,8 @@ function buildRoku(){
       {abilityId:'ab_oghma_refuge', cur:null, notes:''},
       {abilityId:'ab_garasel_linguist', cur:null, notes:''}
     ],
-    feats:[], langs:'Общий, Эльфийский, Гоблинский', notes:'', hpPend:false
+    feats:[], langs:'Общий, Эльфийский, Гоблинский', notes:'', hpPend:false, spellPrepVersion:SPELL_PREPARATION_STATE_VERSION,
+    spellLearning:{replacements:0,anyClassChoices:0}
   };
 }
 
@@ -1945,12 +1952,25 @@ function buildTorgar(){
       {id:'inv_t11', itemId:'it_potion_great_heal', qty:1, notes:''}
     ],
     equipment:{MAIN_HAND:'inv_t7', CHEST:'inv_t8', OFF_HAND:'inv_t9', CLOAK:'inv_t10'},
-    spellbook: TORGAR_SPELLS.map(sp=>({spellId:sp.id, prep:false})),
+    spellbook:[
+      {spellId:'sp_sacred_flame',prep:false},{spellId:'sp_guidance_t',prep:false},{spellId:'sp_уход_за_умирающим',prep:false,access:'known'},
+      {spellId:'sp_благословение',prep:true,alwaysPrepared:true,countsAgainstPreparation:false,granted:true,access:'subclass',source:'Домен Жизни'},
+      {spellId:'sp_лечение_ран',prep:true,alwaysPrepared:true,countsAgainstPreparation:false,granted:true,access:'subclass',source:'Домен Жизни'},
+      {spellId:'sp_guiding_bolt',prep:true},
+      {spellId:'sp_lesser_restoration',prep:true,alwaysPrepared:true,countsAgainstPreparation:false,granted:true,access:'subclass',source:'Домен Жизни'},
+      {spellId:'sp_prayer_healing',prep:true},
+      {spellId:'sp_spiritual_weapon',prep:true,alwaysPrepared:true,countsAgainstPreparation:false,granted:true,access:'subclass',source:'Домен Жизни'},
+      {spellId:'sp_aid_t',prep:true},
+      {spellId:'sp_лечащее_слово',prep:true,access:'classList'},
+      {spellId:'sp_щит_веры',prep:true,access:'classList'},
+      {spellId:'sp_приказ',prep:true,access:'classList'}
+    ],
     slots:{1:{cur:4,max:4},2:{cur:2,max:2}},
     abilities: TORGAR_ABILITIES.map(a=>({abilityId:a.id, cur:null, notes:''})),
     feats:[], langs:'Общий, Дварфский', notes:'', hpPend:false,
     acOverride:null, initB:0, hdUsed:0, spellAb:'wis',
-    persona:{tr:'',id:'',bd:'',fl:'',ap:''}
+    persona:{tr:'',id:'',bd:'',fl:'',ap:''},spellPrepVersion:SPELL_PREPARATION_STATE_VERSION,
+    spellLearning:{replacements:0,anyClassChoices:0}
   };
 }
 
@@ -2409,15 +2429,36 @@ const SPELL_X_PATCHES = {
 
 /* Классы-заклинатели: аббревиатура в поле «c» заклинаний и тип прогрессии */
 const CASTER_META = {
- 'Волшебник':{abbr:'Влш',kind:'full',ability:'int',preparation:'book',slotRecovery:'long',ritualCasting:true},
- 'Жрец':{abbr:'Жрц',kind:'full',ability:'wis',preparation:'prepared',slotRecovery:'long',ritualCasting:true},
- 'Друид':{abbr:'Дрд',kind:'full',ability:'wis',preparation:'prepared',slotRecovery:'long',ritualCasting:true},
- 'Бард':{abbr:'Брд',kind:'full',ability:'cha',preparation:'known',slotRecovery:'long',ritualCasting:true},
- 'Чародей':{abbr:'Чрд',kind:'full',ability:'cha',preparation:'known',slotRecovery:'long',ritualCasting:false},
- 'Колдун':{abbr:'Клд',kind:'pact',ability:'cha',preparation:'known',slotRecovery:'short',ritualCasting:false},
- 'Паладин':{abbr:'Пал',kind:'half',ability:'cha',preparation:'prepared',slotRecovery:'long',ritualCasting:false},
- 'Следопыт':{abbr:'Слд',kind:'half',ability:'wis',preparation:'known',slotRecovery:'long',ritualCasting:false}
+ 'Волшебник':{abbr:'Влш',kind:'full',ability:'int',preparation:'book',listAccess:'spellbook',slotRecovery:'long',ritualCasting:true},
+ 'Жрец':{abbr:'Жрц',kind:'full',ability:'wis',preparation:'prepared',listAccess:'classList',slotRecovery:'long',ritualCasting:true},
+ 'Друид':{abbr:'Дрд',kind:'full',ability:'wis',preparation:'prepared',listAccess:'classList',slotRecovery:'long',ritualCasting:true},
+ 'Бард':{abbr:'Брд',kind:'full',ability:'cha',preparation:'known',listAccess:'known',slotRecovery:'long',ritualCasting:true},
+ 'Чародей':{abbr:'Чрд',kind:'full',ability:'cha',preparation:'known',listAccess:'known',slotRecovery:'long',ritualCasting:false},
+ 'Колдун':{abbr:'Клд',kind:'pact',ability:'cha',preparation:'known',listAccess:'known',slotRecovery:'short',ritualCasting:false},
+ 'Паладин':{abbr:'Пал',kind:'half',ability:'cha',preparation:'prepared',listAccess:'classList',slotRecovery:'long',ritualCasting:false},
+ 'Следопыт':{abbr:'Слд',kind:'half',ability:'wis',preparation:'known',listAccess:'known',slotRecovery:'long',ritualCasting:false}
 };
+/* PHB / Basic Rules 2014. Подготовленные заклинатели не имеют лимита
+   «известных» заклинаний 1+ круга: лимит относится к активной подготовке.
+   Для барда, чародея, колдуна и следопыта таблица задает именно известные
+   заклинания. Заговоры считаются отдельно для всех классов. */
+const SPELLS_KNOWN_2014 = {
+ 'Бард':[4,5,6,7,8,9,10,11,12,14,15,15,16,18,19,19,20,22,22,22],
+ 'Чародей':[2,3,4,5,6,7,8,9,10,11,12,12,13,13,14,14,15,15,15,15],
+ 'Колдун':[2,3,4,5,6,7,8,9,10,10,11,11,12,12,13,13,14,14,15,15],
+ 'Следопыт':[0,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11]
+};
+const CANTRIPS_KNOWN_2014 = {
+ 'Волшебник':[3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5],
+ 'Жрец':[3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5],
+ 'Друид':[2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],
+ 'Бард':[2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],
+ 'Чародей':[4,4,4,5,5,5,5,5,5,6,6,6,6,6,6,6,6,6,6,6],
+ 'Колдун':[2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],
+ 'Паладин':Array(20).fill(0),
+ 'Следопыт':Array(20).fill(0)
+};
+const SPELL_PREPARATION_STATE_VERSION=3;
 /* Ячейки полукастеров (паладин, следопыт) по уровню, PHB */
 const HALF_SLOTS = {
  1:[], 2:[2], 3:[3], 4:[3], 5:[4,2], 6:[4,2], 7:[4,3], 8:[4,3], 9:[4,3,2], 10:[4,3,2],
@@ -2437,10 +2478,12 @@ function casterMeta(c){
   if(rule&&rule.kind!=='none') return {
     abbr:rule.abbreviation||(fallback&&fallback.abbr)||'',kind:rule.kind,ability:rule.ability||(fallback&&fallback.ability)||'',
     preparation:rule.preparation||(fallback&&fallback.preparation)||'prepared',
+    listAccess:rule.listAccess||(fallback&&fallback.listAccess)||(rule.preparation==='book'?'spellbook':rule.preparation),
     slotRecovery:rule.slotRecovery||(fallback&&fallback.slotRecovery)||'long',
-    ritualCasting:rule.ritualCasting!=null?!!rule.ritualCasting:!!(fallback&&fallback.ritualCasting)
+    ritualCasting:rule.ritualCasting!=null?!!rule.ritualCasting:!!(fallback&&fallback.ritualCasting),
+    edition:rule.edition||(fallback&&fallback.edition)||'2014'
   };
-  return CASTER_META[c.cls]||null;
+  return fallback?Object.assign({edition:'2014'},fallback):null;
 }
 function maxCircleFor(c){
   const m=casterMeta(c); if(!m) return 0;
@@ -2457,57 +2500,182 @@ function slotsRowFor(c){
   return (m.kind==='half'? HALF_SLOTS[c.level] : FULL_SLOTS[c.level])||[];
 }
 function casterPreparationMode(c){ const m=casterMeta(c); return m?m.preparation:'none'; }
+function spellEntryAccessFor(c,sp){
+  const m=casterMeta(c); if(!m) return 'archive';
+  if(sp&&+sp.l===0) return 'known';
+  return m.listAccess||(m.preparation==='book'?'spellbook':m.preparation);
+}
+function spellClassTokens(sp){
+  return String(sp&&sp.c||'').split(/[,;/]/).map(x=>x.trim()).filter(Boolean);
+}
+function spellClassListHas(c,sp){
+  const m=casterMeta(c); return !!(m&&m.abbr&&spellClassTokens(sp).indexOf(m.abbr)>=0);
+}
+function spellEntryGranted(e){
+  return !!(e&&(e.granted||e.alwaysPrepared||e.countsAgainstKnown===false||e.access==='feature'||e.access==='subclass'||e.access==='feat'||e.ritualOnly));
+}
+function spellEntryAlwaysPrepared(e){ return !!(e&&e.alwaysPrepared); }
+function spellEntryCountsAgainstPreparation(e){ return !!e&&!spellEntryAlwaysPrepared(e)&&e.countsAgainstPreparation!==false; }
+function spellEntryCountsAgainstKnown(e){ return !!e&&!spellEntryGranted(e)&&e.countsAgainstKnown!==false; }
+function knownSpellMax(c){
+  const row=SPELLS_KNOWN_2014[c&&c.cls]; return row?row[Math.max(0,Math.min(19,(+c.level||1)-1))]:0;
+}
+function cantripKnownMax(c){
+  const row=CANTRIPS_KNOWN_2014[c&&c.cls]; return row?row[Math.max(0,Math.min(19,(+c.level||1)-1))]:0;
+}
+function spellLearningState(c){
+  if(!c.spellLearning||typeof c.spellLearning!=='object') c.spellLearning={replacements:0,anyClassChoices:0};
+  c.spellLearning.replacements=Math.max(0,+c.spellLearning.replacements||0);
+  c.spellLearning.anyClassChoices=Math.max(0,+c.spellLearning.anyClassChoices||0);
+  return c.spellLearning;
+}
+function bardMagicalSecretsEarned(level){ return [10,14,18].filter(x=>(+level||1)>=x).length*2; }
+function knownSpellCount(c){
+  return (c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&+sp.l>0&&spellEntryCountsAgainstKnown(e)&&spellEntryEligible(c,e,sp); }).length;
+}
+function cantripKnownCount(c){
+  return (c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&+sp.l===0&&spellEntryCountsAgainstKnown(e)&&spellEntryEligible(c,e,sp); }).length;
+}
+function spellEntryEligible(c,e,sp){
+  if(!sp) return false;
+  const m=casterMeta(c);
+  if(!m) return spellEntryGranted(e);
+  if(+sp.l>0&&+sp.l>maxCircleFor(c)) return false;
+  if(spellEntryGranted(e)||!!(e&&e.anyClassKnown)) return true;
+  if(!spellClassListHas(c,sp)) return false;
+  if(!e||!e.access) return true; /* миграция старого листа */
+  return e.access===spellEntryAccessFor(c,sp);
+}
+function spellEntryQuotaEligible(c,e,sp){
+  if(!spellEntryEligible(c,e,sp)) return false;
+  const tracked=Array.isArray(c.spellbook);
+  if(!tracked||!e||!spellEntryCountsAgainstKnown(e)) return true;
+  if(+sp.l===0) return cantripKnownCount(c)<=cantripKnownMax(c);
+  if(casterPreparationMode(c)==='known') return knownSpellCount(c)<=knownSpellMax(c);
+  return true;
+}
+function spellAccessCheck(c,sp,e){
+  if(!sp) return {ok:false,reason:'Заклинание отсутствует в мировом гримуаре.'};
+  const tracked=Array.isArray(c.spellbook);
+  if(!e&&tracked) return {ok:false,reason:'«'+sp.n+'» отсутствует в книге или списке заклинаний героя.'};
+  if(!e&&!tracked) return {ok:true,legacyUntracked:true};
+  if(!spellEntryEligible(c,e,sp)){
+    if(+sp.l>0&&+sp.l>maxCircleFor(c)) return {ok:false,reason:'«'+sp.n+'» имеет '+sp.l+' круг, но '+c.cls+' '+c.level+' уровня может использовать заклинания только до '+maxCircleFor(c)+' круга.'};
+    return {ok:false,reason:'«'+sp.n+'» не входит в список класса «'+c.cls+'» и не отмечено как полученное от особенности.'};
+  }
+  if(!spellEntryQuotaEligible(c,e,sp)){
+    const max=+sp.l===0?cantripKnownMax(c):knownSpellMax(c),kind=+sp.l===0?'заговоров':'заклинаний';
+    return {ok:false,reason:'Превышен классовый предел известных '+kind+': максимум '+max+' на '+c.level+' уровне.'};
+  }
+  return {ok:true};
+}
 function spellEntryReady(c,e,sp){
-  if(!sp||+sp.l===0||!casterMeta(c)||!e) return true;
+  const access=spellAccessCheck(c,sp,e); if(!access.ok) return false;
+  if(!sp||+sp.l===0||!casterMeta(c)||!e||access.legacyUntracked) return true;
+  if(spellEntryAlwaysPrepared(e)) return true;
   return casterPreparationMode(c)==='known'||!!e.prep;
 }
-function spellRitualAllowed(c,sp,e){
+function spellRitualAllowed(c,sp,e,opts){
+  opts=opts||{};
   if(!sp||!sp.ritual) return false;
+  if(combat&&combat.active&&!opts.ignoreCombat) return false;
+  if(!spellAccessCheck(c,sp,e).ok) return false;
   const meta=casterMeta(c),mode=casterPreparationMode(c);
   const feature=charAbilityRuleEntries(c).some(x=>x.rules&&x.rules.ritualCasting);
   if(meta&&!meta.ritualCasting&&!feature) return false;
+  if(e&&e.ritualOnly) return !!feature;
   if(mode==='book'||mode==='known'||mode==='none') return !meta||!!e;
-  return !!(e&&e.prep);
+  return !!(e&&spellEntryReady(c,e,sp));
 }
 /* лимит подготовленных: характеристика + уровень (полукастеры — половина уровня), минимум 1 */
 function prepMax(c){
   const m=casterMeta(c); if(!m) return 0;
-  if(m.preparation==='known') return 0;
+  if(m.preparation==='known'||maxCircleFor(c)===0) return 0;
   const lvlPart=m.kind==='half'? Math.max(1,Math.floor(c.level/2)) : c.level;
   return Math.max(1, lvlPart + eMod(c, spellAbOf(c)));
 }
-function prepCount(c){
-  return (c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return e.prep && sp && sp.l>0; }).length;
+function preparedChoiceIds(c,draft){
+  if(draft&&c.spellPrepDraft&&Array.isArray(c.spellPrepDraft.choices)) return new Set(c.spellPrepDraft.choices);
+  return new Set((c.spellbook||[]).filter(e=>e.prep&&spellEntryCountsAgainstPreparation(e)).map(e=>e.spellId));
 }
-
-/* Автокниги: при смене уровня заклинания открывшихся кругов входят в книгу, при откате — авто-добавленные уходят */
-function autoLevelSpells(c, oldLevel){
-  const m=casterMeta(c); if(!m) return {added:[], removed:[]};
-  /* Известные заклинания выбираются игроком по таблице класса. Автоматическое
-     добавление всего классового списка превращало барда, следопыта, чародея и
-     колдуна в подготовленных заклинателей. */
-  if(m.preparation==='known') return {added:[],removed:[]};
-  const oldC=maxCircleFor(Object.assign({},c,{level:oldLevel}));
-  const newC=maxCircleFor(c);
-  const added=[], removed=[];
-  if(newC>oldC){
-    for(let k=Math.max(1,oldC+1); k<=newC; k++){
-      spellsDB.filter(sp=>sp.l===k && String(sp.c||'').indexOf(m.abbr)>=0).forEach(sp=>{
-        if(!c.spellbook.some(e=>e.spellId===sp.id)){
-          c.spellbook.push({spellId:sp.id, prep:false, auto:true});
-          added.push(sp.n);
-        }
-      });
-    }
-  }
-  if(newC<oldC){
-    c.spellbook=c.spellbook.filter(e=>{
-      const sp=spellOf(e.spellId);
-      if(e.auto && sp && sp.l>newC){ removed.push(sp.n); return false; }
-      return true;
+function prepCount(c,opts){
+  const ids=preparedChoiceIds(c,!!(opts&&opts.draft));
+  return (c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return ids.has(e.spellId)&&spellEntryCountsAgainstPreparation(e)&&sp&&sp.l>0&&spellEntryEligible(c,e,sp); }).length;
+}
+function preparationPlanMinutes(c){
+  const ids=preparedChoiceIds(c,true);
+  return (c.spellbook||[]).reduce((sum,e)=>{ const sp=spellOf(e.spellId); return sum+(ids.has(e.spellId)&&spellEntryCountsAgainstPreparation(e)&&sp?Math.max(0,+sp.l||0):0); },0);
+}
+function ensureSpellPreparationDraft(c){
+  if(!c.spellPrepDraft||!Array.isArray(c.spellPrepDraft.choices))
+    c.spellPrepDraft={rules:'5e-2014-long-rest',choices:Array.from(preparedChoiceIds(c,false))};
+  return c.spellPrepDraft;
+}
+function cancelSpellPreparationDraft(){
+  const c=cc(); if(!c||!c.spellPrepDraft) return;
+  delete c.spellPrepDraft; scheduleSave(); renderChars(); setStatus('План подготовки отменен; активный список не изменился.');
+}
+function commitSpellPreparation(c){
+  if(!c||!c.spellPrepDraft||!Array.isArray(c.spellPrepDraft.choices)) return {changed:false,count:prepCount(c)};
+  const ids=new Set(c.spellPrepDraft.choices),limit=prepMax(c);
+  const valid=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return ids.has(e.spellId)&&spellEntryCountsAgainstPreparation(e)&&sp&&sp.l>0&&spellEntryEligible(c,e,sp); });
+  if(valid.length>limit) return {changed:false,error:'План подготовки превышает лимит: '+valid.length+' из '+limit+'.'};
+  (c.spellbook||[]).forEach(e=>{ const sp=spellOf(e.spellId); if(!sp||+sp.l===0) return; e.prep=spellEntryAlwaysPrepared(e)||ids.has(e.spellId); });
+  delete c.spellPrepDraft;
+  return {changed:true,count:valid.length};
+}
+function spellAddCheck(c,sp,opts){
+  opts=opts||{}; const m=casterMeta(c);
+  if(!m) return {ok:false,reason:'Класс «'+c.cls+'» не имеет заклинательной прогрессии.'};
+  const learning=spellLearningState(c),magicalSecret=c.cls==='Бард'&&+sp.l>0&&learning.anyClassChoices>0;
+  if(!opts.granted&&!spellClassListHas(c,sp)&&!magicalSecret) return {ok:false,reason:'«'+sp.n+'» не входит в список класса «'+c.cls+'».'};
+  if(+sp.l>0&&+sp.l>maxCircleFor(c)) return {ok:false,reason:'Доступны заклинания не выше '+maxCircleFor(c)+' круга.'};
+  if(+sp.l===0&&!opts.granted&&cantripKnownCount(c)>=cantripKnownMax(c))
+    return {ok:false,reason:'Лимит известных заговоров достигнут: '+cantripKnownCount(c)+' из '+cantripKnownMax(c)+'.'};
+  const replacing=!!(opts.replacement&&c.spellReplacementDraft&&c.spellReplacementDraft.removeId);
+  if(+sp.l>0&&m.preparation==='known'&&!opts.granted&&knownSpellCount(c)>=knownSpellMax(c)&&!replacing)
+    return {ok:false,reason:'Лимит известных заклинаний достигнут: '+knownSpellCount(c)+' из '+knownSpellMax(c)+'. Замена выполняется при получении уровня.'};
+  return {ok:true,special:magicalSecret&&!spellClassListHas(c,sp)?'magicalSecrets':''};
+}
+function syncClassSpellAccess(c){
+  const m=casterMeta(c),added=[],removed=[]; if(!m) return {added,removed};
+  const classList=m.listAccess==='classList'||m.preparation==='prepared',max=maxCircleFor(c);
+  c.spellbook=Array.isArray(c.spellbook)?c.spellbook:[];
+  c.spellbook=c.spellbook.filter(e=>{
+    if(e.access!=='classList') return true;
+    const sp=spellOf(e.spellId),keep=classList&&sp&&+sp.l>0&&+sp.l<=max&&spellClassListHas(c,sp);
+    if(!keep&&sp) removed.push(sp.n); return keep;
+  });
+  if(classList&&max>0){
+    spellsDB.filter(sp=>+sp.l>0&&+sp.l<=max&&spellClassListHas(c,sp)).forEach(sp=>{
+      const existing=c.spellbook.find(e=>e.spellId===sp.id);
+      if(!existing){ c.spellbook.push({spellId:sp.id,prep:false,access:'classList',auto:true}); added.push(sp.n); }
+      else if(!spellEntryGranted(existing)){ existing.access='classList';existing.auto=true; }
     });
   }
-  return {added, removed};
+  if(c.spellPrepDraft&&Array.isArray(c.spellPrepDraft.choices)){
+    const ids=new Set(c.spellbook.map(e=>e.spellId)); c.spellPrepDraft.choices=c.spellPrepDraft.choices.filter(id=>ids.has(id));
+  }
+  return {added,removed};
+}
+
+/* Смена уровня не превращает волшебника или известного заклинателя во
+   владельца всего списка класса. Жрец, друид и паладин действительно получают
+   доступ ко всему списку допустимых кругов; волшебник выбирает два заклинания
+   в книгу за уровень, остальные классы выбирают новые известные по таблице. */
+function autoLevelSpells(c, oldLevel){
+  const m=casterMeta(c); if(!m) return {added:[],removed:[],learnChoices:0};
+  const gained=Math.max(0,(+c.level||1)-(+oldLevel||+c.level||1));
+  const beforeKnown=SPELLS_KNOWN_2014[c.cls]?SPELLS_KNOWN_2014[c.cls][Math.max(0,Math.min(19,(+oldLevel||1)-1))]:0;
+  const afterKnown=knownSpellMax(c);
+  if(m.preparation==='known'){
+    const learning=spellLearningState(c); learning.replacements+=gained;
+    if(c.cls==='Бард') learning.anyClassChoices+=Math.max(0,bardMagicalSecretsEarned(c.level)-bardMagicalSecretsEarned(oldLevel));
+    if((+c.level||1)<(+oldLevel||1)){ learning.replacements=0;learning.anyClassChoices=Math.min(learning.anyClassChoices,bardMagicalSecretsEarned(c.level));delete c.spellReplacementDraft; }
+    return {added:[],removed:[],learnChoices:Math.max(0,afterKnown-beforeKnown),replacements:gained,anyClassChoices:learning.anyClassChoices};
+  }
+  if(m.preparation==='book') return {added:[],removed:[],learnChoices:Math.max(0,(+c.level-(+oldLevel||+c.level))*2)};
+  const synced=syncClassSpellAccess(c); synced.learnChoices=0; return synced;
 }
 /* Слоты по классу с сохранением потраченного */
 function applyClassSlots(c){
@@ -2991,13 +3159,21 @@ function parseClassProficiencies(c){
 }
 function classSpellcastingRule(c){
   const map={
-    'Волшебник':['full','int','Влш','book','long',true],'Жрец':['full','wis','Жрц','prepared','long',true],
-    'Друид':['full','wis','Дрд','prepared','long',true],'Бард':['full','cha','Брд','known','long',true],
-    'Чародей':['full','cha','Чрд','known','long',false],'Колдун':['pact','cha','Клд','known','short',false],
-    'Паладин':['half','cha','Пал','prepared','long',false],'Следопыт':['half','wis','Слд','known','long',false]
+    'Волшебник':['full','int','Влш','book','spellbook','long',true],
+    'Жрец':['full','wis','Жрц','prepared','classList','long',true],
+    'Друид':['full','wis','Дрд','prepared','classList','long',true],
+    'Бард':['full','cha','Брд','known','known','long',true],
+    'Чародей':['full','cha','Чрд','known','known','long',false],
+    'Колдун':['pact','cha','Клд','known','known','short',false],
+    'Паладин':['half','cha','Пал','prepared','classList','long',false],
+    'Следопыт':['half','wis','Слд','known','known','long',false]
   };
-  const x=map[c.n]; return x?{kind:x[0],ability:x[1],abbreviation:x[2],preparation:x[3],slotRecovery:x[4],ritualCasting:x[5]}
-    :{kind:'none',ability:'',abbreviation:'',preparation:'none',slotRecovery:'none',ritualCasting:false};
+  const x=map[c.n];
+  if(!x) return {kind:'none',ability:'',abbreviation:'',preparation:'none',listAccess:'none',slotRecovery:'none',ritualCasting:false,edition:'2014'};
+  return {kind:x[0],ability:x[1],abbreviation:x[2],preparation:x[3],listAccess:x[4],slotRecovery:x[5],ritualCasting:x[6],edition:'2014',
+    preparationChange:x[3]==='known'?'levelUp':'longRest',preparationFormula:x[3]==='book'?'level + ability':(x[3]==='prepared'?(x[0]==='half'?'floor(level / 2) + ability':'level + ability'):'none'),
+    knownSpellsByLevel:(SPELLS_KNOWN_2014[c.n]||[]).slice(),cantripsByLevel:(CANTRIPS_KNOWN_2014[c.n]||[]).slice(),
+    spellbookLearning:c.n==='Волшебник'?{level1:6,perWizardLevel:2,copyingAllowed:true}:null};
 }
 function compileClassMechanics(c){
   const progression=(c.lv||[]).map((x,i)=>({level:+x[0]||1,id:'class_'+slugify(c.n+'_'+x[1]+'_'+i),name:x[1]}));
@@ -3009,15 +3185,23 @@ function compileClassMechanics(c){
 }
 function upgradeClass(c,force){
   if(!c||typeof c!=='object') return c; const m=c.mechanics,hash=referenceSourceHash(c,'class');
-  const sr=m&&m.spellcasting,missingRule=sr&&sr.kind!=='none'&&(!['book','prepared','known'].includes(sr.preparation)||!['long','short'].includes(sr.slotRecovery)||typeof sr.ritualCasting!=='boolean');
+  const sr=m&&m.spellcasting,missingRule=sr&&sr.kind!=='none'&&(!['book','prepared','known'].includes(sr.preparation)||!['spellbook','classList','known'].includes(sr.listAccess)||
+    !['long','short'].includes(sr.slotRecovery)||typeof sr.ritualCasting!=='boolean'||sr.edition!=='2014'||!Array.isArray(sr.cantripsByLevel));
   if(force||!m||m.schemaVersion!==GAME_MECHANICS_SCHEMA_VERSION||(m.origin!=='explicit'&&(m.sourceHash!==hash||missingRule))) c.mechanics=compileClassMechanics(c);
   else if(missingRule){
     /* Явную пользовательскую механику не перезаписываем: дополняем только
        отсутствующие поля жизненного цикла заклинаний. */
     const d=classSpellcastingRule(c);
     if(!sr.preparation) sr.preparation=d.preparation;
+    if(!sr.listAccess) sr.listAccess=d.listAccess;
     if(!sr.slotRecovery) sr.slotRecovery=d.slotRecovery;
     if(typeof sr.ritualCasting!=='boolean') sr.ritualCasting=d.ritualCasting;
+    if(!sr.edition) sr.edition=d.edition;
+    if(!sr.preparationChange) sr.preparationChange=d.preparationChange;
+    if(!sr.preparationFormula) sr.preparationFormula=d.preparationFormula;
+    if(!Array.isArray(sr.knownSpellsByLevel)) sr.knownSpellsByLevel=d.knownSpellsByLevel;
+    if(!Array.isArray(sr.cantripsByLevel)) sr.cantripsByLevel=d.cantripsByLevel;
+    if(sr.spellbookLearning===undefined) sr.spellbookLearning=d.spellbookLearning;
   }
   return c;
 }
@@ -3036,8 +3220,12 @@ function referenceMechanicsErrors(m,kind){
     if(!m.spellcasting||!['none','full','half','pact'].includes(m.spellcasting.kind)) out.push('spellcasting не структурирован');
     else if(m.spellcasting.kind!=='none'){
       if(!['book','prepared','known'].includes(m.spellcasting.preparation)) out.push('spellcasting.preparation должен быть book, prepared или known');
+      if(!['spellbook','classList','known'].includes(m.spellcasting.listAccess)) out.push('spellcasting.listAccess должен быть spellbook, classList или known');
       if(!['long','short'].includes(m.spellcasting.slotRecovery)) out.push('spellcasting.slotRecovery должен быть long или short');
       if(typeof m.spellcasting.ritualCasting!=='boolean') out.push('spellcasting.ritualCasting должен быть boolean');
+      if(m.spellcasting.edition!=='2014') out.push('spellcasting.edition должен фиксировать правила 2014');
+      if(!Array.isArray(m.spellcasting.cantripsByLevel)||m.spellcasting.cantripsByLevel.length!==20) out.push('spellcasting.cantripsByLevel должен содержать 20 уровней');
+      if(m.spellcasting.preparation==='known'&&(!Array.isArray(m.spellcasting.knownSpellsByLevel)||m.spellcasting.knownSpellsByLevel.length!==20)) out.push('известному заклинателю нужен knownSpellsByLevel на 20 уровней');
     }
     if(!m.progression||!Array.isArray(m.progression.features)||!Array.isArray(m.progression.attacks)) out.push('progression не структурирован');
     if(!Array.isArray(m.subclasses)) out.push('subclasses должен быть массивом');
@@ -3190,6 +3378,9 @@ async function loadAll(){
   racesDB.forEach(upgradeRace);
   classesDB.forEach(upgradeClass);
   foesDB.forEach(upgradeFoe);
+  let spellStateTouched=false;
+  chars.forEach(c=>{ if(typeof upgradeSpellcastingState==='function'&&upgradeSpellcastingState(c)) spellStateTouched=true; });
+  if(spellStateTouched) scheduleSave();
   journal=(await readJSON('dndworld2:journal')) || (await readJSON('dndworld:journal')) || [];
   combat=normalizeCombatState(await readJSON('dndworld2:combat'));
   combat.order=combat.order.filter(e=>e&&((e.kind==='ally'&&chars.some(c=>c.id===e.id))||(e.kind==='foe'&&foesDB.some(f=>f.id===e.id))));
@@ -6821,8 +7012,12 @@ function castSpellFx(spellId, casterId){
   const curConc=concLabelOf(caster);
   if(isConc&&curConc) info.push('⚠ уже концентрируется на «'+curConc+'» — наложение ПРЕРВЕТ ее');
   const be=(caster.spellbook||[]).find(e=>e.spellId===sp.id);
-  if(sp.l>0&&be&&!spellEntryReady(caster,be,sp)) info.push('⚠ не подготовлено');
+  const access=spellAccessCheck(caster,sp,be);
+  if(!access.ok) info.push('⚠ '+access.reason);
+  else if(sp.l>0&&be&&!spellEntryReady(caster,be,sp)) info.push('⚠ не подготовлено');
   else if(sp.l>0&&casterPreparationMode(caster)==='known') info.push('известное заклинание — подготовка не требуется');
+  if(sp.l>0&&caster.spellPrepDraft&&Array.isArray(caster.spellPrepDraft.choices)&&caster.spellPrepDraft.choices.indexOf(sp.id)>=0&&!spellEntryReady(caster,be,sp)) info.push('запланировано после следующего долгого отдыха');
+  if(sp.ritual&&combat&&combat.active&&spellRitualAllowed(caster,sp,be,{ignoreCombat:true})) info.push('ритуал требует еще 10 минут и в активном бою недоступен');
   info.push('СЛ спасброска: '+spellDC(caster));
   document.getElementById('castInfo').textContent=info.join(' · ');
   document.getElementById('castTarget').innerHTML=targetOptionsHTML(caster,null)
@@ -6983,8 +7178,10 @@ function castLogLine(txt){
   if(combat&&combat.active){ combatLog(txt,'action',combatFocusedKey()); if(typeof renderCombat==='function') renderCombat(); }
 }
 function slotPlanFor(caster,sp,slotSel){
+  const bookEntry=(caster.spellbook||[]).find(e=>e.spellId===sp.id),access=spellAccessCheck(caster,sp,bookEntry);
+  if(!access.ok) return access;
   if(sp.l===0) return {ok:true,mode:'cantrip',lv:0,info:''};
-  const bookEntry=(caster.spellbook||[]).find(e=>e.spellId===sp.id),unprepared=!!(bookEntry&&!spellEntryReady(caster,bookEntry,sp));
+  const unprepared=!spellEntryReady(caster,bookEntry,sp);
   const prepWord=casterPreparationMode(caster)==='book'?'в книге, но не подготовлено':'не подготовлено';
   if(slotSel===undefined||slotSel===null){
     if(unprepared) return {ok:false,reason:'«'+sp.n+'» '+prepWord+'. Подготовьте его перед наложением.'};
@@ -6994,6 +7191,7 @@ function slotPlanFor(caster,sp,slotSel){
   }
   if(slotSel==='ritual'){
     if(!sp.ritual) return {ok:false,reason:'Это заклинание не является ритуалом.'};
+    if(combat&&combat.active) return {ok:false,reason:'Ритуальное наложение занимает обычное время заклинания + 10 минут и недоступно как одно действие активного боя. Используйте подходящую ячейку или завершите бой.'};
     if(!spellRitualAllowed(caster,sp,bookEntry)) return {ok:false,reason:'«'+sp.n+'» нельзя наложить ритуалом: этот класс должен сначала подготовить заклинание.'};
     return {ok:true,mode:'ritual',lv:sp.l,info:' · ритуалом (без ячейки, +10 минут)'};
   }
@@ -11237,14 +11435,14 @@ function runRareBattleAudit(){
         const levels=[1,2,3,5,9,10,11,16,17,20],c=hero('restpact',{cls:'Колдун',level:levels[v]}); world([c],[]); applyClassSlots(c); const lv=+Object.keys(c.slots)[0]; c.slots[lv].cur=0;c.spentRest=4;
         refreshShortRestResources(c); ensure(c.slots[lv].cur===c.slots[lv].max&&c.spentRest===0,'короткий отдых обязан вернуть ячейки договора');
       } else if(family===20){
-        const names=['Бард','Чародей','Колдун','Следопыт','Бард','Чародей','Колдун','Следопыт','Бард','Колдун'],sp={id:'known',n:'Известное',l:1,ritual:false},c=hero('known',{cls:names[v],level:5,spellbook:[{spellId:'known',prep:false}],slots:{1:{max:2,cur:2}}}); world([c],[]);
+        const names=['Бард','Чародей','Колдун','Следопыт','Бард','Чародей','Колдун','Следопыт','Бард','Колдун'],cls=names[v],sp={id:'known',n:'Известное',l:1,c:CASTER_META[cls].abbr,ritual:false},c=hero('known',{cls,level:5,spellbook:[{spellId:'known',prep:false,access:'known'}],slots:{1:{max:2,cur:2}}}); world([c],[]);
         ensure(slotPlanFor(c,sp,'1').ok===true&&spellEntryReady(c,c.spellbook[0],sp),'известное заклинание не должно требовать подготовки');
       } else if(family===21){
-        const names=['Волшебник','Жрец','Друид','Паладин','Волшебник','Жрец','Друид','Паладин','Жрец','Волшебник'],sp={id:'prepared',n:'Неподготовленное',l:1,ritual:false},c=hero('prepared',{cls:names[v],spellbook:[{spellId:'prepared',prep:false}],slots:{1:{max:2,cur:2}}}); world([c],[]);
+        const names=['Волшебник','Жрец','Друид','Паладин','Волшебник','Жрец','Друид','Паладин','Жрец','Волшебник'],cls=names[v],sp={id:'prepared',n:'Неподготовленное',l:1,c:CASTER_META[cls].abbr,ritual:false},c=hero('prepared',{cls,spellbook:[{spellId:'prepared',prep:false,access:CASTER_META[cls].listAccess}],slots:{1:{max:2,cur:2}}}); world([c],[]);
         ensure(slotPlanFor(c,sp,'1').ok===false,'подготавливающий класс не должен обходить список подготовки');
       } else if(family===22){
         const names=['Волшебник','Жрец','Друид','Паладин','Бард','Чародей','Колдун','Следопыт','Волшебник','Жрец'],allowed=[true,false,false,false,true,false,false,false,true,false][v];
-        const sp={id:'ritual',n:'Ритуал',l:1,ritual:true},c=hero('ritualist',{cls:names[v],spellbook:[{spellId:'ritual',prep:false}],slots:{1:{max:1,cur:0}}}); world([c],[]);
+        const cls=names[v],sp={id:'ritual',n:'Ритуал',l:1,c:CASTER_META[cls].abbr,ritual:true},c=hero('ritualist',{cls,spellbook:[{spellId:'ritual',prep:false,access:CASTER_META[cls].listAccess}],slots:{1:{max:1,cur:0}}}); world([c],[]);
         ensure(slotPlanFor(c,sp,'ritual').ok===allowed,'ритуальное правило класса применено неверно');
       } else if(family===23){
         const weapon=itemsDB.find(it=>{const w=itemProfile(it).weapon;return w&&w.versatile;}),shield=itemsDB.find(it=>itemArmorKind(it)==='shield'); ensure(weapon&&shield,'нет универсального оружия или щита');
@@ -11865,7 +12063,8 @@ function buildBlank(){
     hp:10, hpMax:10, hpTemp:0, ac:10, speed:'30 футов', init:0, hitDice:'1d10', inspiration:false, exhaustion:0,
     saves, skills, cond:[], deaths:{s:0,f:0},
     coins:{mm:0,sm:0,em:0,zm:0,pm:0},
-    inventory:[], equipment:{}, spellbook:[], slots:{}, abilities:[],
+    inventory:[], equipment:{}, spellbook:[], slots:{}, abilities:[],spellPrepVersion:SPELL_PREPARATION_STATE_VERSION,
+    spellLearning:{replacements:0,anyClassChoices:0},
     feats:[], langs:'Общий', notes:'', hpPend:false,
     acOverride:null, initB:0, hdUsed:0, spellAb:'', persona:{tr:'',id:'',bd:'',fl:'',ap:''}
   };
@@ -11982,6 +12181,68 @@ function shortRest(){
   setStatus('☕ Короткий отдых: способности короткого отдыха восстановлены'+(pact?'; все ячейки магии договора восстановлены':'')+'; кости хитов тратьте кнопкой ⚁ в ячейке «Кости хитов».');
   scheduleSave(); renderChars();
 }
+function upgradeSpellcastingState(c){
+  if(!c) return false;
+  let touched=false;
+  if(!Array.isArray(c.spellbook)){ c.spellbook=[]; touched=true; }
+  const synced=syncClassSpellAccess(c); if(synced.added.length||synced.removed.length) touched=true;
+  c.spellbook.forEach(e=>{
+    const sp=spellOf(e.spellId);
+    if(sp&&!e.access&&!spellEntryGranted(e)&&spellClassListHas(c,sp)){ e.access=spellEntryAccessFor(c,sp);touched=true; }
+  });
+  const byId=id=>c.spellbook.find(e=>e.spellId===id);
+  const ensureEntry=(id,data)=>{
+    let e=byId(id); if(!e&&spellOf(id)){ e=Object.assign({spellId:id,prep:false},data||{});c.spellbook.push(e);touched=true; }
+    return e;
+  };
+  const grant=(id,data)=>{ const e=byId(id); if(!e) return; Object.keys(data).forEach(k=>{ if(e[k]!==data[k]){ e[k]=data[k]; touched=true; } }); };
+  if(c.id==='char_roku'){
+    ['sp_щит','sp_обнаружение_магии','sp_туманный_шаг','sp_палящий_луч'].forEach(id=>ensureEntry(id,{access:'spellbook',source:'Выбор при повышении уровня'}));
+    grant('sp_chill_touch',{granted:true,countsAgainstKnown:false,access:'feature',source:'Заклинатель из Невервинтера'});
+    grant('sp_wizard_intuition',{granted:true,countsAgainstKnown:false,access:'feature',source:'Интуиция волшебника'});
+    grant('sp_evoc_allies',{prep:true,alwaysPrepared:true,countsAgainstPreparation:false,granted:true,access:'feature',source:'Школа воплощения'});
+  }
+  if(c.id==='char_torgar'){
+    ensureEntry('sp_уход_за_умирающим',{access:'known'});
+    ['sp_благословение','sp_лечение_ран','sp_lesser_restoration','sp_spiritual_weapon'].forEach(id=>
+      grant(id,{prep:true,alwaysPrepared:true,countsAgainstPreparation:false,granted:true,access:'subclass',source:'Домен Жизни'}));
+  }
+  const mode=casterPreparationMode(c),firstMigration=+c.spellPrepVersion<SPELL_PREPARATION_STATE_VERSION;
+  const hadLearning=!!(c.spellLearning&&typeof c.spellLearning==='object'),learning=spellLearningState(c);
+  if(!hadLearning) touched=true;
+  if(mode==='known'){
+    if(c.spellPrepDraft){ delete c.spellPrepDraft; touched=true; }
+    if(c.spellReplacementDraft){
+      const old=byId(c.spellReplacementDraft.removeId);
+      if(!old||learning.replacements<=0){ delete c.spellReplacementDraft;touched=true; }
+    }
+    if(firstMigration&&c.cls==='Бард'){
+      const used=(c.spellbook||[]).filter(e=>e.anyClassKnown).length,gap=Math.max(0,knownSpellMax(c)-knownSpellCount(c));
+      const pending=Math.min(gap,Math.max(0,bardMagicalSecretsEarned(c.level)-used));
+      if(learning.anyClassChoices<pending){ learning.anyClassChoices=pending;touched=true; }
+    }
+  }else if(mode==='book'||mode==='prepared'){
+    if(c.spellReplacementDraft){ delete c.spellReplacementDraft;touched=true; }
+    let active=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return e.prep&&spellEntryCountsAgainstPreparation(e)&&sp&&+sp.l>0&&spellEntryEligible(c,e,sp); });
+    const fillCanonical=c.id==='char_roku'||c.id==='char_torgar';
+    if(firstMigration&&active.length<prepMax(c)&&prepMax(c)>0&&(fillCanonical||!active.length)){
+      let preferred=[];
+      if(c.id==='char_roku') preferred=['sp_magic_missile','sp_burning_hands','sp_web','sp_magic_sleep','sp_planar_barrier','sp_chromatic_orb'];
+      else if(c.id==='char_torgar') preferred=['sp_guiding_bolt','sp_prayer_healing','sp_aid_t','sp_лечащее_слово','sp_щит_веры','sp_приказ'];
+      const eligible=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&+sp.l>0&&spellEntryCountsAgainstPreparation(e)&&spellEntryEligible(c,e,sp); });
+      eligible.sort((a,b)=>{ const ai=preferred.indexOf(a.spellId),bi=preferred.indexOf(b.spellId); return (ai<0?999:ai)-(bi<0?999:bi); });
+      const activeIds=new Set(active.map(e=>e.spellId));
+      eligible.filter(e=>!activeIds.has(e.spellId)).slice(0,Math.max(0,prepMax(c)-active.length)).forEach(e=>{ e.prep=true;active.push(e);activeIds.add(e.spellId);touched=true; });
+    }
+    const allowed=new Set(active.slice(0,prepMax(c)).map(e=>e.spellId));
+    (c.spellbook||[]).forEach(e=>{ const sp=spellOf(e.spellId); if(!sp||+sp.l===0) return;
+      const should=spellEntryAlwaysPrepared(e)||(spellEntryCountsAgainstPreparation(e)&&allowed.has(e.spellId));
+      if(!!e.prep!==should){ e.prep=should; touched=true; }
+    });
+  }
+  if(+c.spellPrepVersion!==SPELL_PREPARATION_STATE_VERSION){ c.spellPrepVersion=SPELL_PREPARATION_STATE_VERSION; touched=true; }
+  return touched;
+}
 function upgradeChar3(c){
   if(!c) return c;
   c.cond=normalizeConditions(c.cond);
@@ -11991,6 +12252,7 @@ function upgradeChar3(c){
   if(!Array.isArray(c.activeFx)) c.activeFx=[];
   c.activeFx.forEach(x=>{ if(x&&x.expiresAtRound==null&&x.untilRound!=null){ x.expiresAtRound=+x.untilRound; delete x.untilRound; } });
   upgradeActiveEffects(c);
+  upgradeSpellcastingState(c);
   if(c._v3) return c;
   if(c.acOverride===undefined){
     const cur=+c.ac||0, auto=acAuto(c);
@@ -12061,10 +12323,31 @@ const classOf=c=>classesDB.find(x=>x.n===c.cls)||classesDB[0]||CLASSES_SEED[0];
 
 function updC(key,val){ const c=cc(); if(!c) return; c[key]=val; scheduleSave(); }
 function updNum(key,val){ const c=cc(); if(!c) return; c[key]=+val||0; scheduleSave(); }
+function setClass(v){
+  const c=cc(); if(!c||c.cls===v) return;
+  const old=c.cls;
+  (c.spellbook||[]).forEach(e=>{ if(!spellEntryGranted(e)){ e.access='archive';e.prep=false; } });
+  c.cls=v; delete c.spellPrepDraft;delete c.spellReplacementDraft;
+  c.spellLearning={replacements:0,anyClassChoices:v==='Бард'?bardMagicalSecretsEarned(c.level):0};
+  if(typeof applyClassSlots==='function') applyClassSlots(c);
+  if(typeof syncClassSpellAccess==='function') syncClassSpellAccess(c);
+  if(typeof upgradeSpellcastingState==='function') upgradeSpellcastingState(c);
+  setStatus('Класс изменен: '+old+' → '+v+'. Ячейки и доступный список пересчитаны; заклинания прежнего класса сохранены как архивные, но не могут накладываться без отдельной особенности.');
+  scheduleSave(); renderChars();
+}
 function setRace(v){ const c=cc(); if(!c) return; c.race=v; c.subrace='';
   const r=racesDB.find(x=>x.n===v); if(r&&r.sp) c.speed=r.sp;
   scheduleSave(); renderChars(); }
-function setLevel(v){ const c=cc(); if(!c) return; c.level=Math.max(1,Math.min(20,+v||1)); scheduleSave(); renderChars(); }
+function setLevel(v){
+  const c=cc(); if(!c) return; const old=c.level,next=Math.max(1,Math.min(20,+v||1)); if(next===old) return;
+  c.level=next;
+  const r=typeof autoLevelSpells==='function'?autoLevelSpells(c,old):{added:[],removed:[],learnChoices:0};
+  if(typeof applyClassSlots==='function'&&casterMeta(c)) applyClassSlots(c);
+  if(typeof upgradeSpellcastingState==='function') upgradeSpellcastingState(c);
+  const choice=r.learnChoices?(' Доступно новых выбранных заклинаний: '+r.learnChoices+'.'):'';
+  setStatus('Уровень изменен: '+old+' → '+next+'. Ячейки, круги и лимиты пересчитаны.'+choice);
+  scheduleSave(); renderChars();
+}
 function setXp(v){ const c=cc(); if(!c) return; c.xp=Math.max(0,+v||0); scheduleSave(); renderChars(); }
 function setHp(v){
   const c=cc(); if(!c) return;
@@ -12116,6 +12399,7 @@ function levelUp(){
   if(typeof autoLevelSpells==='function'){
     const r=autoLevelSpells(c, oldLvl);
     if(r.added.length) setStatus('📖 Уровень '+c.level+': в книгу вошли заклинания '+Math.min(9,Math.ceil(c.level/2))+' круга — '+r.added.slice(0,5).join(', ')+(r.added.length>5?' и еще '+(r.added.length-5):'')+'.');
+    else if(r.learnChoices) setStatus('📖 Уровень '+c.level+': выберите '+r.learnChoices+' нов'+(r.learnChoices===1?'ое':'ых')+' заклинани'+(r.learnChoices===1?'е':'я')+' из доступных кругов; весь список автоматически не добавляется.');
   }
   if(typeof applyClassSlots==='function' && casterMeta(c)) applyClassSlots(c);
   c.hpPend=true; scheduleSave(); renderChars();
@@ -12152,7 +12436,7 @@ function sheetHTML(c){
    +'<div style="flex:2;min-width:200px"><label class="lbl">Имя героя</label><input style="width:100%;font-family:var(--disp);font-size:26px;color:var(--rubric)" value="'+esc(c.name)+'" oninput="updC(\'name\',this.value)"></div>'
    +'<div><label class="lbl">Народ</label><select onchange="setRace(this.value)">'+raceOpts(c.race)+'</select></div>'
    +'<div><label class="lbl">Ветвь народа</label><select onchange="updC(\'subrace\',this.value)">'+subraceOpts(c.race,c.subrace)+'</select></div>'
-   +'<div><label class="lbl">Призвание</label><select onchange="updC(\'cls\',this.value);renderChars()">'+clsOpts(c.cls)+'</select></div>'
+   +'<div><label class="lbl">Призвание</label><select onchange="setClass(this.value)">'+clsOpts(c.cls)+'</select></div>'
    +'<div><label class="lbl">Традиция / архетип</label><input style="width:130px" value="'+esc(c.subcls)+'" placeholder="Универсалист…" oninput="updC(\'subcls\',this.value)"></div>'
    +'<div><label class="lbl">Предыстория</label><select onchange="updC(\'bg\',this.value)">'+bgOpts(c.bg)+'</select></div>'
    +'<div><label class="lbl">Мировоззрение</label><select onchange="updC(\'align\',this.value)">'+alignOpts(c.align)+'</select></div>'
@@ -12544,30 +12828,86 @@ function stEquipment(c){
 
 /* ── Подвкладка: Заклинания ── */
 const bookFlt={q:'',l:'',prep:''};
+function cancelKnownSpellReplacement(){
+  const c=cc(); if(!c||!c.spellReplacementDraft) return;
+  delete c.spellReplacementDraft;scheduleSave();renderChars();setStatus('Замена известного заклинания отменена; прежнее заклинание осталось известно.');
+}
+function beginKnownSpellReplacement(c,spellId){
+  const sp=spellOf(spellId),learning=spellLearningState(c);
+  if(combat&&combat.active){ setStatus('✕ Нельзя менять известные заклинания во время активного боя.',true); return false; }
+  if(learning.replacements<=0){ setStatus('✕ '+c.cls+' может заменить одно известное заклинание только при получении уровня; доступных замен сейчас нет.',true); return false; }
+  c.spellReplacementDraft={removeId:spellId};
+  sheetSearch.sp='';scheduleSave();renderChars();setStatus('Выбрано для замены: «'+(sp?sp.n:'заклинание')+'». Найдите новое заклинание класса; замена применится атомарно.');
+  return true;
+}
+function commitSpellLearningSelection(c,sp,check){
+  const meta=casterMeta(c),replacing=meta&&meta.preparation==='known'&&c.spellReplacementDraft&&c.spellReplacementDraft.removeId;
+  if(replacing){
+    const removeId=c.spellReplacementDraft.removeId;
+    c.spellbook=c.spellbook.filter(e=>e.spellId!==removeId);
+    const learning=spellLearningState(c);learning.replacements=Math.max(0,learning.replacements-1);
+    delete c.spellReplacementDraft;
+  }
+  const entry={spellId:sp.id,prep:false,access:spellEntryAccessFor(c,sp)};
+  if(check&&check.special==='magicalSecrets'){
+    entry.access='magicalSecrets';entry.anyClassKnown=true;entry.source='Тайны магии барда';
+    const learning=spellLearningState(c);learning.anyClassChoices=Math.max(0,learning.anyClassChoices-1);
+  }
+  if(!c.spellbook.some(x=>x.spellId===sp.id)) c.spellbook.push(entry);
+  return {replaced:!!replacing,entry};
+}
 function addSpellFromDB(spellId){
-  const c=cc(); if(!c) return;
-  if(!c.spellbook.some(x=>x.spellId===spellId)) c.spellbook.push({spellId, prep:false});
+  const c=cc(),sp=spellOf(spellId); if(!c||!sp) return;
+  if(combat&&combat.active){ setStatus('✕ Книгу, известные заклинания и заговоры нельзя менять во время активного боя.',true); return; }
+  const chk=spellAddCheck(c,sp,{replacement:!!c.spellReplacementDraft}); if(!chk.ok){ setStatus('✕ '+chk.reason,true); return; }
+  const result=commitSpellLearningSelection(c,sp,chk);
   sheetSearch.sp=''; scheduleSave(); renderChars();
+  if(result.replaced) setStatus('↔ Замена завершена: новое известное заклинание — «'+sp.n+'».');
 }
 function delBookSpell(spellId){ const c=cc(); if(!c) return;
-  c.spellbook=c.spellbook.filter(x=>x.spellId!==spellId); scheduleSave(); renderChars(); }
+  const e=c.spellbook.find(x=>x.spellId===spellId),sp=spellOf(spellId); if(!e) return;
+  if(combat&&combat.active){ setStatus('✕ Книгу и список известных заклинаний нельзя менять во время активного боя.',true); return; }
+  if(e.access==='classList'){ setStatus('«'+(sp?sp.n:'Заклинание')+'» входит в полный список класса и не удаляется; просто не включайте его в подготовку.'); return; }
+  if(spellEntryAlwaysPrepared(e)){ setStatus('«'+(sp?sp.n:'Заклинание')+'» всегда подготовлено особенностью и не может быть удалено из активного списка.'); return; }
+  const eligible=sp&&spellEntryEligible(c,e,sp)&&spellEntryCountsAgainstKnown(e);
+  if(eligible&&+sp.l===0&&cantripKnownCount(c)<=cantripKnownMax(c)){
+    setStatus('✕ По базовым правилам 2014 известный заговор не заменяется при отдыхе или повышении уровня. Удаление доступно только для исправления превышенного лимита.',true); return;
+  }
+  if(eligible&&+sp.l>0&&casterPreparationMode(c)==='known'&&knownSpellCount(c)<=knownSpellMax(c)){
+    beginKnownSpellReplacement(c,spellId); return;
+  }
+  c.spellbook=c.spellbook.filter(x=>x.spellId!==spellId);
+  if(c.spellPrepDraft&&Array.isArray(c.spellPrepDraft.choices)) c.spellPrepDraft.choices=c.spellPrepDraft.choices.filter(id=>id!==spellId);
+  scheduleSave(); renderChars(); }
 function togglePrep(spellId){ const c=cc(); const e=c.spellbook.find(x=>x.spellId===spellId); if(!e) return;
+  if(combat&&combat.active){ setStatus('✕ План подготовки нельзя менять во время активного боя. Завершите схватку, затем подготовьтесь к долгому отдыху.',true); return; }
   if(casterPreparationMode(c)==='known'){
     const sp=spellOf(spellId); setStatus('«'+(sp?sp.n:'Заклинание')+'» уже известно: '+c.cls+' не готовит отдельный список заклинаний.'); return;
   }
-  if(!e.prep && casterMeta(c) && prepCount(c)>=prepMax(c)){
-    setStatus('✕ Лимит подготовки достигнут: '+prepCount(c)+' из '+prepMax(c)+'. Сначала снимите подготовку с другого заклинания.',true); return;
+  const sp=spellOf(spellId),access=spellAccessCheck(c,sp,e);
+  if(!access.ok){ setStatus('✕ '+access.reason,true); return; }
+  if(spellEntryAlwaysPrepared(e)){ setStatus('«'+sp.n+'» всегда подготовлено особенностью и не занимает место в лимите.'); return; }
+  const draft=ensureSpellPreparationDraft(c),ids=new Set(draft.choices),adding=!ids.has(spellId);
+  if(adding&&prepCount(c,{draft:true})>=prepMax(c)){
+    setStatus('✕ Лимит плана подготовки достигнут: '+prepCount(c,{draft:true})+' из '+prepMax(c)+'. Сначала исключите другое заклинание.',true); return;
   }
-  e.prep=!e.prep; scheduleSave(); renderChars(); }
+  if(adding) ids.add(spellId); else ids.delete(spellId);
+  draft.choices=Array.from(ids);
+  setStatus('План на следующий долгий отдых: '+prepCount(c,{draft:true})+' из '+prepMax(c)+'. Активный список пока не изменен.');
+  scheduleSave(); renderChars(); }
 function quickAddSpell(){
   const g=id=>document.getElementById(id);
   const n=g('qsN').value.trim(); if(!n){ alert('Заклинанию нужно имя.'); return; }
+  const c=cc(),meta=casterMeta(c); if(!meta){ setStatus('✕ Этот класс не владеет заклинаниями.',true); return; }
+  if(combat&&combat.active){ setStatus('✕ Новое заклинание нельзя создавать в книге героя во время активного боя.',true); return; }
   const sp={id:'sp_'+uid(), n, l:Math.max(0,Math.min(9,+g('qsL').value||0)), s:g('qsS').value,
-    c:'', t:g('qsT').value.trim(), r:g('qsR').value.trim(), cm:g('qsCm').value.trim(), d:g('qsD').value.trim(),
+    c:meta.abbr, t:g('qsT').value.trim(), r:g('qsR').value.trim(), cm:g('qsCm').value.trim(), d:g('qsD').value.trim(),
     ritual:false, conc:g('qsConc').checked, custom:true, tags:[], x:g('qsX').value, hi:''};
+  const chk=spellAddCheck(c,sp,{replacement:!!c.spellReplacementDraft}); if(!chk.ok){ setStatus('✕ '+chk.reason,true); return; }
   spellsDB.push(sp);
-  cc().spellbook.push({spellId:sp.id, prep:false});
+  const result=commitSpellLearningSelection(c,sp,chk);
   quickForm.sp=false; scheduleSave(); renderChars();
+  if(result.replaced) setStatus('↔ Замена завершена: новое известное заклинание — «'+sp.n+'».');
 }
 function slotGem(lv,i){
   const c=cc(); const s=c.slots[lv]; if(!s) return;
@@ -12594,7 +12934,12 @@ function suggestSlots(){
   scheduleSave(); renderChars();
 }
 function longRest(){
-  const c=cc(); if(!c) return;
+  const c=cc(); if(!c) return false;
+  if(combat&&combat.active){
+    setStatus('✕ Долгий отдых и смена подготовленных заклинаний невозможны во время активного боя. Сначала завершите схватку.',true);
+    return false;
+  }
+  const prepCommit=typeof commitSpellPreparation==='function'?commitSpellPreparation(c):{changed:false};
   if(typeof breakConcentration==='function') breakConcentration(c,'начат долгий отдых');
   Object.keys(c.slots).forEach(l=>{ c.slots[l].cur=c.slots[l].max; });
   c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null) a.cur=db.uses; });
@@ -12613,7 +12958,108 @@ function longRest(){
   if(typeof fxInvalidate==='function') fxInvalidate();
   syncStackedGrants(c);
   c.hp=(typeof eHpMax==='function')?eHpMax(c):c.hpMax;
+  if(prepCommit.error) setStatus('☾ Долгий отдых завершен, но '+prepCommit.error+' Активный список подготовки сохранен.',true);
+  else setStatus('☾ Долгий отдых завершен.'+(prepCommit.changed?' Новый список подготовки вступил в силу: '+prepCommit.count+' заклинаний.':''));
   scheduleSave(); renderChars();
+  return true;
+}
+
+/* Детерминированный стенд подготовки: 8 классов × 20 уровней проверяются
+   дважды — по таблицам прогрессии и по полному жизненному циклу доступа,
+   подготовки, ритуала и боевого ограничения. Стенд работает на временном
+   мире, не бросает кости, ничего не сохраняет и возвращает исходные ссылки. */
+let spellPrepAuditView=null;
+function runSpellPreparationAudit(){
+  const saved={chars,journal,itemsDB,spellsDB,abilitiesDB,racesDB,classesDB,rulesDB,foesDB,activeCharId,fxRound,combat,castCtx,lastCastEvent};
+  const report={total:320,passed:0,failed:0,categories:{},failures:[],edition:'D&D 5e 2014'};
+  const classNames=['Волшебник','Жрец','Друид','Бард','Чародей','Колдун','Паладин','Следопыт'];
+  const ensure=(ok,msg)=>{ if(!ok) throw new Error(msg); };
+  const run=(cls,level,phase,fn)=>{
+    const category=cls+' · '+phase; report.categories[category]=(report.categories[category]||0)+1;
+    try{ fn(); report.passed++; }
+    catch(err){ report.failed++; report.failures.push({className:cls,level,phase,message:String(err&&err.message||err)}); }
+  };
+  const auditHero=(cls,level)=>({id:'prep_audit_'+slugify(cls)+'_'+level,name:'Аудит '+cls,cls,level,
+    ab:{str:10,dex:10,con:10,int:16,wis:16,cha:16},saves:{},skills:{},hp:20,hpMax:20,hpTemp:0,
+    inventory:[],equipment:{},spellbook:[],slots:{},abilities:[],activeFx:[],fxOff:[],cond:[],deaths:{s:0,f:0},
+    resist:[],vuln:[],immune:[],exhaustion:0,spentRest:0,hdUsed:0,spellAb:'',spellPrepVersion:SPELL_PREPARATION_STATE_VERSION});
+  try{
+    classesDB=seedClassesDB(); abilitiesDB=seedAbilitiesDB(); itemsDB=[]; foesDB=[]; racesDB=[]; rulesDB=[]; journal=[];
+    const baseSpells=seedSpellsDB();
+    classNames.forEach(cls=>{
+      for(let level=1;level<=20;level++) run(cls,level,'таблицы',()=>{
+        const c=auditHero(cls,level),meta=casterMeta(c),row=slotsRowFor(c); chars=[c];activeCharId=c.id;combat=blankCombat();spellsDB=baseSpells;
+        applyClassSlots(c);
+        const expectedSlots={}; row.forEach((max,i)=>{ if(max>0) expectedSlots[i+1]={max,cur:max}; });
+        ensure(JSON.stringify(c.slots)===JSON.stringify(expectedSlots),'таблица ячеек не совпала с примененным состоянием');
+        const highest=Object.keys(expectedSlots).map(Number).sort((a,b)=>b-a)[0]||0;
+        ensure(maxCircleFor(c)===highest,'максимальный круг не совпал с таблицей ячеек');
+        const expectedPrep=meta.preparation==='known'||highest===0?0:Math.max(1,(meta.kind==='half'?Math.floor(level/2):level)+3);
+        ensure(prepMax(c)===expectedPrep,'неверный предел подготовки');
+        const knownRow=SPELLS_KNOWN_2014[cls]||[];
+        ensure(knownSpellMax(c)===(knownRow[level-1]||0),'неверный предел известных заклинаний');
+        ensure(cantripKnownMax(c)===(CANTRIPS_KNOWN_2014[cls][level-1]||0),'неверный предел известных заговоров');
+        const classRule=classOf(c).mechanics.spellcasting;
+        ensure(classRule.edition==='2014'&&classRule.preparation===meta.preparation&&classRule.listAccess===meta.listAccess,'классовый контракт подготовки поврежден');
+      });
+    });
+    classNames.forEach((cls,classIndex)=>{
+      for(let level=1;level<=20;level++) run(cls,level,'жизненный цикл',()=>{
+        const c=auditHero(cls,level),meta=casterMeta(c),available=maxCircleFor(c)>0;
+        const sp={id:'prep_spell',n:'Проверочное заклинание',l:1,s:'Ограждение',c:meta.abbr,t:'1 действие',r:'60 футов',cm:'В, С',d:'Мгновенная',ritual:true,conc:false,x:''};
+        const granted={id:'prep_granted',n:'Дарованное заклинание',l:1,s:'Ограждение',c:meta.abbr,t:'1 действие',r:'60 футов',cm:'В',d:'Мгновенная',ritual:false,conc:false,x:''};
+        const wrongMeta=CASTER_META[classNames[(classIndex+1)%classNames.length]];
+        const wrong={id:'prep_wrong',n:'Чужое заклинание',l:1,s:'Ограждение',c:wrongMeta.abbr,t:'1 действие',r:'60 футов',cm:'В',d:'Мгновенная',ritual:false,conc:false,x:''};
+        const cantrip={id:'prep_cantrip',n:'Проверочный заговор',l:0,s:'Ограждение',c:meta.abbr,t:'1 действие',r:'60 футов',cm:'В',d:'Мгновенная',ritual:false,conc:false,x:''};
+        spellsDB=baseSpells.concat([sp,granted,wrong,cantrip]);chars=[c];activeCharId=c.id;combat=blankCombat();applyClassSlots(c);
+        const access=meta.listAccess,candidate={spellId:sp.id,prep:false,access};c.spellbook=[candidate];
+        ensure(spellAddCheck(c,cantrip).ok===(cantripKnownMax(c)>0),'доступ к заговору не совпал с классовой таблицей');
+        const wrongEntry={spellId:wrong.id,prep:false,access};c.spellbook.push(wrongEntry);
+        ensure(spellAccessCheck(c,wrong,wrongEntry).ok===false,'заклинание чужого класса прошло проверку доступа');
+        c.spellbook.pop();
+        if(!available){
+          ensure(spellAddCheck(c,sp).ok===false&&slotPlanFor(c,sp,'1').ok===false,'класс без магии на этом уровне получил заклинание 1 круга');
+          return;
+        }
+        ensure(spellAccessCheck(c,sp,candidate).ok===true,'классовое заклинание не прошло проверку доступа');
+        const unpreparedRitual=spellRitualAllowed(c,sp,candidate);
+        if(meta.preparation==='known'){
+          ensure(spellEntryReady(c,candidate,sp)===true,'известное заклинание ошибочно требует подготовки');
+          ensure(unpreparedRitual===(cls==='Бард'),'ритуал известного заклинателя применен не по правилам класса');
+          ensure(slotPlanFor(c,sp).ok===true,'известное заклинание не использует доступную ячейку');
+        }else{
+          ensure(spellEntryReady(c,candidate,sp)===false,'неподготовленное заклинание стало активным');
+          ensure(unpreparedRitual===(cls==='Волшебник'),'неподготовленный ритуал применен не по правилам класса');
+          const draft=ensureSpellPreparationDraft(c); draft.choices.push(sp.id);
+          ensure(prepCount(c)===0&&prepCount(c,{draft:true})===1&&!spellEntryReady(c,candidate,sp),'план подготовки преждевременно изменил активный список');
+          const committed=commitSpellPreparation(c);
+          ensure(committed.changed&&prepCount(c)===1&&spellEntryReady(c,candidate,sp),'долгий отдых не активировал допустимый план');
+          ensure(spellRitualAllowed(c,sp,candidate)===(cls==='Волшебник'||cls==='Жрец'||cls==='Друид'),'ритуал подготовленного заклинания применен не по правилам класса');
+        }
+        const beforeCount=meta.preparation==='known'?knownSpellCount(c):prepCount(c);
+        const grantedEntry={spellId:granted.id,prep:true,alwaysPrepared:true,countsAgainstPreparation:false,countsAgainstKnown:false,granted:true,access:'subclass'};
+        c.spellbook.push(grantedEntry);
+        ensure(spellEntryReady(c,grantedEntry,granted),'всегда подготовленное заклинание особенности недоступно');
+        ensure((meta.preparation==='known'?knownSpellCount(c):prepCount(c))===beforeCount,'заклинание особенности заняло классовый лимит');
+        combat.active=true;
+        ensure(spellRitualAllowed(c,sp,candidate)===false&&slotPlanFor(c,sp,'ritual').ok===false,'ритуал прошел как одно действие активного боя');
+      });
+    });
+  } finally {
+    chars=saved.chars;journal=saved.journal;itemsDB=saved.itemsDB;spellsDB=saved.spellsDB;abilitiesDB=saved.abilitiesDB;racesDB=saved.racesDB;
+    classesDB=saved.classesDB;rulesDB=saved.rulesDB;foesDB=saved.foesDB;activeCharId=saved.activeCharId;fxRound=saved.fxRound;
+    combat=saved.combat;castCtx=saved.castCtx;lastCastEvent=saved.lastCastEvent;fxInvalidate();
+  }
+  spellPrepAuditView=report;
+  const out=document.getElementById('spellPrepAuditOut');
+  if(out){
+    out.style.display='block';out.style.color=report.failed?'#b63a2b':'#2f6b3b';
+    out.textContent=report.failed?('✕ '+report.passed+' / '+report.total+'; первый сбой: '+report.failures[0].className+', '+report.failures[0].level+' ур. — '+report.failures[0].message)
+      :('✓ '+report.passed+' / '+report.total+' проверок · 8 классов × 20 уровней × 2 цикла · кампания не изменена');
+  }
+  setStatus(report.failed?'✕ Аудит подготовки: '+report.failed+' сбоев из '+report.total+'.':'◇ Аудит подготовки: 320 из 320, ошибок нет; кампания не изменена.',report.failed>0);
+  window.__lastSpellPreparationAudit=report;
+  return report;
 }
 
 /* ── умная сводка кругов: что есть, что тратится, что вернется ── */
@@ -12633,16 +13079,29 @@ function spellDashHTML(c){
   }
   /* подготовка и доступность */
   if(meta){
-    const mode=meta.preparation,pc=prepCount(c),pm=prepMax(c);
-    const cantrips=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&sp.l===0; }).length;
-    const ready=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&sp.l>0&&spellEntryReady(c,e,sp); });
+    const mode=meta.preparation,pc=prepCount(c),pm=prepMax(c),draft=!!(c.spellPrepDraft&&Array.isArray(c.spellPrepDraft.choices));
+    const cantripEntries=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&+sp.l===0&&spellAccessCheck(c,sp,e).ok; });
+    const cantrips=cantripKnownCount(c),cantripMax=cantripKnownMax(c),grantedCantrips=Math.max(0,cantripEntries.length-cantrips);
+    const ready=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&+sp.l>0&&spellEntryReady(c,e,sp); });
     const castable=ready.filter(e=>{ const sp=spellOf(e.spellId);
       return lvls.some(lv=>lv>=sp.l && c.slots[lv].cur>0); }).length;
-    const ritual=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return spellRitualAllowed(c,sp,e); }).length;
+    const ritual=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return spellRitualAllowed(c,sp,e,{ignoreCombat:true}); }).length;
     const spent=+c.spentRest||0;
-    if(mode==='known') h+='<div class="sd-line">Известно заклинаний: <b>'+ready.length+'</b>; отдельная подготовка для '+esc(c.cls)+' не требуется.</div>';
-    else h+='<div class="sd-line'+(pc>pm?' sd-over':'')+'">Подготовлено: <b>'+pc+' из '+pm+'</b> (уровень + модификатор характеристики)'+(pc>pm?' — превышение требует исправления списка':'')+'; смена списка — на долгом отдыхе.</div>';
-    h+='<div class="sd-line">Сейчас можно наложить: <b>'+castable+'</b> из '+ready.length+' '+(mode==='known'?'известных':'подготовленных')+' (по свободным ячейкам подходящих кругов) · заговоров без ячеек: '+cantrips+(ritual?' · доступных ритуалов без ячеек: '+ritual:'')+'.</div>';
+    if(mode==='known'){
+      const known=knownSpellCount(c),knownMax=knownSpellMax(c),granted=Math.max(0,ready.length-known);
+      h+='<div class="sd-line'+(known>knownMax?' sd-over':'')+'">Известно заклинаний 1+ круга: <b>'+known+' из '+knownMax+'</b>'+(granted?' · еще '+granted+' от особенностей (в лимит не входят)':'')+'. '+esc(c.cls)+' не готовит отдельный список; замена выполняется при получении уровня.</div>';
+      const learning=spellLearningState(c),replaceEntry=c.spellReplacementDraft&&(c.spellbook||[]).find(e=>e.spellId===c.spellReplacementDraft.removeId),replaceSpell=replaceEntry&&spellOf(replaceEntry.spellId);
+      if(learning.replacements||learning.anyClassChoices||replaceSpell) h+='<div class="sd-line">Доступно при повышении уровня: замен известных заклинаний — <b>'+learning.replacements+'</b>'+(learning.anyClassChoices?' · выборов «Тайн магии» из любого списка — <b>'+learning.anyClassChoices+'</b>':'')+(replaceSpell?' · сейчас заменяется «'+esc(replaceSpell.n)+'» <button class="btn ghost sm" onclick="cancelKnownSpellReplacement()">Отменить</button>':'')+'.</div>';
+    }else{
+      const always=ready.filter(e=>spellEntryAlwaysPrepared(e)).length;
+      h+='<div class="sd-line'+(pc>pm?' sd-over':'')+'">Активно подготовлено: <b>'+pc+' из '+pm+'</b>'+(always?' · еще '+always+' всегда подготовлено особенностями (в лимит не входит)':'')+(pc>pm?' — превышение требует исправления списка':'')+'.</div>';
+      if(draft){
+        const planned=prepCount(c,{draft:true}),minutes=preparationPlanMinutes(c);
+        h+='<div class="sd-line'+(planned>pm?' sd-over':'')+'">План после следующего долгого отдыха: <b>'+planned+' из '+pm+'</b> · подготовка всего нового списка займет не менее '+minutes+' мин. До отдыха в бою действует прежний список. <button class="btn ghost sm" onclick="cancelSpellPreparationDraft()">Отменить план</button></div>';
+      }else h+='<div class="sd-line">Изменения формируют план и вступают в силу только после следующего долгого отдыха; требуется не менее 1 минуты за круг каждого заклинания нового списка.</div>';
+    }
+    h+='<div class="sd-line">Заговоры: <b>'+cantrips+' из '+cantripMax+'</b> известных'+(grantedCantrips?' · еще '+grantedCantrips+' от особенностей':'')+'; они не подготавливаются и не тратят ячейки.</div>';
+    h+='<div class="sd-line">Сейчас можно наложить ячейкой: <b>'+castable+'</b> из '+ready.length+' '+(mode==='known'?'известных или дарованных':'активно подготовленных')+' заклинаний'+(ritual?' · ритуалов вне активного боя: '+ritual:'')+(combat&&combat.active&&ritual?' (ритуал в бою недоступен: время +10 минут)':'')+'.</div>';
     h+='<div class="sd-line'+(spent>=3?' sd-hot':'')+'">Потрачено ячеек с последнего '+(meta.slotRecovery==='short'?'короткого':'долгого')+' отдыха: <b>'+spent+'</b>'+(spent>=3?' — бой заметно истощает запас!':'')+'.</div>';
     const total=lvls.reduce((a,lv)=>a+c.slots[lv].cur,0);
     const totalMax=lvls.reduce((a,lv)=>a+c.slots[lv].max,0);
@@ -12652,12 +13111,16 @@ function spellDashHTML(c){
   return h+'</div>';
 }
 function stSpells(c){
-  const prepMode=casterPreparationMode(c),knownMode=prepMode==='known';
+  const prepMode=casterPreparationMode(c),knownMode=prepMode==='known',meta=casterMeta(c);
   let h='<div class="panel">';
   /* ячейки */
   h+='<div class="row-line"><h3 class="rubric" style="font-size:22px;margin:0">Ячейки заклинаний</h3><span class="grow"></span>'
+   +'<button class="btn ghost sm" id="spellPrepAuditBtn" onclick="runSpellPreparationAudit()">◇ Аудит подготовки: 320</button>'
    +'<button class="btn ghost sm" onclick="suggestSlots()">По таблице заклинателя</button>'
    +'<button class="btn ghost sm" onclick="longRest()">☾ Долгий отдых</button></div>';
+  const audit=spellPrepAuditView;
+  h+='<div id="spellPrepAuditOut" style="display:'+(audit?'block':'none')+';margin:8px 0;padding:8px;border:1px solid '+(audit&&audit.failed?'#9f3d32':'#4f7655')+';background:#f6f2e7;color:'+(audit&&audit.failed?'#9f2f25':'#315f39')+';font-size:13px">'
+    +(audit?(audit.failed?('✕ '+audit.passed+' / '+audit.total+'; первый сбой: '+esc(audit.failures[0].className)+', '+audit.failures[0].level+' ур. — '+esc(audit.failures[0].message)):('✓ '+audit.passed+' / '+audit.total+' проверок · 8 классов × 20 уровней × 2 цикла · кампания не изменена')):'')+'</div>';
   h+=spellDashHTML(c);
   /* заклинательные показатели */
   const sab=spellAbOf(c);
@@ -12675,15 +13138,18 @@ function stSpells(c){
     h+='<button class="mini-btn" title="изменить число ячеек" onclick="setSlotMax('+lv+')">…</button></div>';
   });
   h+='<div class="slot-lv"><button class="btn ghost sm" onclick="setSlotMax(prompt(\'Какой круг добавить (1–9)?\',\''+(lvls.length?lvls[lvls.length-1]+1:1)+'\')||0)">✚ круг</button></div></div>';
-  /* добавление */
-  h+='<div class="db-bar"><input type="text" placeholder="Найти заклинание в гримуаре мира и вписать в книгу…" value="'+esc(sheetSearch.sp)+'" oninput="sheetSearch.sp=this.value;renderChars();const f=document.querySelector(\'#tab-chars .db-bar input\');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}">'
+  /* добавление: поиск показывает только доступные этому классу и уровню записи */
+  const addHint=!meta?'Этот класс не владеет заклинаниями':(prepMode==='book'?'Найти допустимое заклинание и вписать в книгу…':(knownMode?'Выбрать допустимое известное заклинание…':'Выбрать заговор; заклинания 1+ круга уже доступны из полного списка класса…'));
+  h+='<div class="db-bar"><input type="text" placeholder="'+esc(addHint)+'" value="'+esc(sheetSearch.sp)+'" oninput="sheetSearch.sp=this.value;renderChars();const f=document.querySelector(\'#tab-chars .db-bar input\');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}">'
    +'<button class="btn ghost sm" onclick="quickForm.sp=!quickForm.sp;renderChars()">✚ Свое</button></div>';
   if(sheetSearch.sp.trim().length>1){
     const q=sheetSearch.sp.toLowerCase();
     const inBook=new Set(c.spellbook.map(x=>x.spellId));
-    const hits=spellsDB.filter(sp=>sp.n.toLowerCase().includes(q)&&!inBook.has(sp.id)).slice(0,10);
-    h+=hits.length?hits.map(sp=>'<div class="spell-hit" onclick="addSpellFromDB(\''+sp.id+'\')"><span><b>'+esc(sp.n)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+(sp.l===0?'заговор':sp.l+' круг')+', '+esc(sp.s)+'</span></span><span style="color:var(--gold)">+ вписать</span></div>').join('')
-      :'<p class="note-ital" style="font-size:14px">В гримуаре мира такого нет — создайте свое.</p>';
+    const candidates=spellsDB.filter(sp=>sp.n.toLowerCase().includes(q)&&!inBook.has(sp.id));
+    const replacing=!!(c.spellReplacementDraft&&c.spellReplacementDraft.removeId);
+    const checked=candidates.map(sp=>({sp,check:spellAddCheck(c,sp,{replacement:replacing})})),hits=checked.filter(x=>x.check.ok).slice(0,10);
+    h+=hits.length?hits.map(x=>'<div class="spell-hit" onclick="addSpellFromDB(\''+x.sp.id+'\')"><span><b>'+esc(x.sp.n)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+(x.sp.l===0?'заговор':x.sp.l+' круг')+', '+esc(x.sp.s)+'</span></span><span style="color:var(--gold)">+ '+(knownMode?'выбрать':'вписать')+'</span></div>').join('')
+      :'<p class="note-ital" style="font-size:14px">'+(checked.length?'Недоступно: '+esc(checked[0].check.reason):(candidates.length?'Все подходящие записи уже есть у героя.':'В гримуаре мира такого нет — создайте свое.'))+'</p>';
   }
   if(quickForm.sp){
     h+='<div class="editor"><h3>Быстрое создание заклинания</h3><div class="f-grid">'
@@ -12705,22 +13171,47 @@ function stSpells(c){
    +'<input type="text" placeholder="Поиск в книге героя…" value="'+esc(bookFlt.q)+'" oninput="bookFlt.q=this.value;renderChars();const fs=document.querySelectorAll(\'#tab-chars .db-bar input\');const f=fs[fs.length-1];if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}">'
    +'<select onchange="bookFlt.l=this.value;renderChars()"><option value="">Все круги</option><option value="0"'+(bookFlt.l==='0'?' selected':'')+'>Заговоры</option>'
    +[1,2,3,4,5,6,7,8,9].map(l=>'<option value="'+l+'"'+(bookFlt.l===String(l)?' selected':'')+'>'+l+' круг</option>').join('')+'</select>'
-   +(knownMode?'<span class="note-ital" style="font-size:13px">Все записи считаются известными</span>':'<select onchange="bookFlt.prep=this.value;renderChars()"><option value="">Все</option><option value="1"'+(bookFlt.prep==='1'?' selected':'')+'>Подготовленные</option><option value="0"'+(bookFlt.prep==='0'?' selected':'')+'>Неподготовленные</option></select>')+'</div>';
+   +(knownMode?'<span class="note-ital" style="font-size:13px">Отдельный список подготовки не используется</span>':'<select onchange="bookFlt.prep=this.value;renderChars()"><option value="">Все</option><option value="1"'+(bookFlt.prep==='1'?' selected':'')+'>Активно подготовленные</option><option value="0"'+(bookFlt.prep==='0'?' selected':'')+'>Сейчас не подготовлены</option></select>')+'</div>';
   /* книга по кругам */
   const entries=c.spellbook.map(e=>({e, sp:spellOf(e.spellId)})).filter(x=>x.sp)
     .filter(x=>(!bookFlt.q||x.sp.n.toLowerCase().includes(bookFlt.q.toLowerCase()))
       &&(bookFlt.l===''||x.sp.l===+bookFlt.l)
-      &&(knownMode||bookFlt.prep===''||(bookFlt.prep==='1')===(x.sp.l===0?true:!!x.e.prep)))
+      &&(knownMode||bookFlt.prep===''||(+x.sp.l>0&&(bookFlt.prep==='1')===spellEntryReady(c,x.e,x.sp))))
     .sort((a,b)=>a.sp.l-b.sp.l||a.sp.n.localeCompare(b.sp.n,'ru'));
   if(!entries.length){ h+='<div class="empty-scroll"><span class="big">❦</span>Книга заклинаний пуста.</div>'; return h+'</div>'; }
+  const hasDraft=!!(c.spellPrepDraft&&Array.isArray(c.spellPrepDraft.choices)),plannedIds=preparedChoiceIds(c,hasDraft);
   let lastL=-1;
   entries.forEach(x=>{
     if(x.sp.l!==lastL){ lastL=x.sp.l;
       h+='<h3 class="rubric" style="font-size:21px;margin-top:12px">'+(lastL===0?'Заговоры':lastL+' круг')+'</h3>'; }
-    const extra='<button class="btn ghost sm fx-cast" title="Наложить эффект на героя или союзника" onclick="castSpellFx(\''+x.sp.id+'\',\''+c.id+'\')">⚡ Наложить</button>'
-     +(x.sp.l>0?(knownMode?'<span class="type-tag">известно</span>':'<button class="btn ghost sm prep-btn'+(x.e.prep?' on':'')+'" onclick="togglePrep(\''+x.sp.id+'\')">'+(x.e.prep?'Подготовлено ✓':'Подготовить')+'</button>'):'')
+    const access=spellAccessCheck(c,x.sp,x.e),ready=spellEntryReady(c,x.e,x.sp),ritualReady=spellRitualAllowed(c,x.sp,x.e),castReady=access.ok&&(+x.sp.l===0||ready||ritualReady);
+    const castTitle=!access.ok?access.reason:(!castReady?'Не подготовлено: сначала составьте план и завершите долгий отдых':'Наложить заклинание с проверкой ячейки, компонентов и цели');
+    let prepControl='';
+    if(+x.sp.l>0){
+      if(!access.ok) prepControl='<span class="type-tag">архив · недоступно классу</span>';
+      else if(spellEntryAlwaysPrepared(x.e)) prepControl='<span class="type-tag">всегда подготовлено'+(x.e.source?' · '+esc(x.e.source):'')+'</span>';
+      else if(knownMode) prepControl='<span class="type-tag">'+(spellEntryGranted(x.e)?'от особенности':(x.e.anyClassKnown?'Тайны магии':'известно'))+'</span>'+(c.spellReplacementDraft&&c.spellReplacementDraft.removeId===x.sp.id?'<span class="wax-tag">выбрано для замены</span>':'');
+      else {
+        const planned=plannedIds.has(x.sp.id);
+        const label=hasDraft?(planned?(ready?'Останется ✓':'После отдыха ✓'):(ready?'После отдыха: снять':'Подготовить после отдыха')):(ready?'Подготовлено ✓':'Подготовить после отдыха');
+        prepControl='<button class="btn ghost sm prep-btn'+(planned?' on':'')+'" title="Меняет план; активный список обновится только после долгого отдыха" onclick="togglePrep(\''+x.sp.id+'\')">'+label+'</button>';
+      }
+    }
+    let removeControl='';
+    const countedKnown=access.ok&&spellEntryCountsAgainstKnown(x.e);
+    if(x.e.access!=='classList'&&!spellEntryAlwaysPrepared(x.e)){
+      if(knownMode&&countedKnown&&+x.sp.l>0){
+        const remaining=spellLearningState(c).replacements;
+        if(knownSpellCount(c)>knownSpellMax(c)) removeControl='<button class="del-x" title="Убрать превышение лимита известных заклинаний" onclick="delBookSpell(\''+x.sp.id+'\')">✕</button>';
+        else if(remaining>0) removeControl='<button class="btn ghost sm" title="Заменить при получении уровня; прежнее заклинание останется до выбора нового" onclick="delBookSpell(\''+x.sp.id+'\')">↔ Заменить</button>';
+      }else if(knownMode&&countedKnown&&+x.sp.l===0){
+        if(cantripKnownCount(c)>cantripKnownMax(c)) removeControl='<button class="del-x" title="Убрать превышение лимита заговоров" onclick="delBookSpell(\''+x.sp.id+'\')">✕</button>';
+      }else removeControl='<button class="del-x" title="Вычеркнуть из книги или списка" onclick="delBookSpell(\''+x.sp.id+'\')">✕</button>';
+    }
+    const extra='<button class="btn ghost sm fx-cast" title="'+esc(castTitle)+'"'+(castReady?' onclick="castSpellFx(\''+x.sp.id+'\',\''+c.id+'\')"':' disabled')+'>⚡ Наложить</button>'
+     +prepControl
      +'<button class="btn ghost sm" title="Править в гримуаре мира" onclick="switchTab(\'spellsdb\');openSpellEd(\''+x.sp.id+'\')">✎</button>'
-     +'<button class="del-x" title="Вычеркнуть из книги героя" onclick="delBookSpell(\''+x.sp.id+'\')">✕</button>';
+     +removeControl;
     h+=spellCardHTML(x.sp, extra);
   });
   return h+'</div>';
