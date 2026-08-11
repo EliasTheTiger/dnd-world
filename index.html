@@ -1509,7 +1509,7 @@ function buildRoku(){
 }
 
 /* ═══════════════ ЗАСЕВ БАЗ: справочники старой летописи + перенос ═══════════════ */
-function slugify(n){ return n.toLowerCase().replace(/[^a-zа-яе0-9]+/g,'_').replace(/^_+|_+$/g,''); }
+function slugify(n){ return String(n||'').toLowerCase().replace(/ё/g,'е').replace(/[^a-zа-я0-9]+/g,'_').replace(/^_+|_+$/g,''); }
 
 function weaponAutoTags(w){
   const t=[];
@@ -1843,10 +1843,6 @@ function seedAbilitiesDB(){
 
 /* ═══════════════ ТОРГАР ЖЕЛЕЗНАЯ ВЕРА — дварф-жрец Домена Жизни (перенос со скриншотов) ═══════════════ */
 const TORGAR_ITEMS = [
- {id:'it_diamond_torg', n:'Бриллиант', type:'wondrous', rarity:'обычный', custom:true,
-  tags:['consumable','jewelry','gem','valuable'], slot:null,
-  weight:'1 фунт', cost:'100 зм', dmg:'', dmgType:'',
-  desc:'Этот прозрачный граненый алмаз обладает исключительным блеском и чистотой.\n• Материальный компонент: бриллианты такой высокой стоимости являются необходимым компонентом для могущественных заклинаний школы непостижимости и жизни, таких как Оживление или Воскрешение.\n• Для искателей приключений эти камни представляют огромную ценность как компактное и дорогое сокровище, которое легко обменять на золото.', props:''},
  {id:'it_silver_comb', n:'Серебряная расческа', type:'wondrous', rarity:'необычный', custom:true,
   tags:['magical','jewelry','quest'], slot:null,
   weight:'0,5 фунта', cost:'25 зм', dmg:'', dmgType:'',
@@ -1956,7 +1952,7 @@ function buildTorgar(){
     saves, skills, cond:[], deaths:{s:0,f:0},
     coins:{mm:0,sm:0,em:0,zm:0,pm:0},
     inventory:[
-      {id:'inv_t1', itemId:'it_diamond_torg', qty:1, notes:''},
+      {id:'inv_t1', itemId:'it_diamond', qty:1, valueGp:100, notes:'Оценочная стоимость одного камня: 100 зм'},
       {id:'inv_t2', itemId:'it_silver_comb', qty:1, notes:''},
       {id:'inv_t3', itemId:'it_incense_t', qty:5, notes:''},
       {id:'inv_t4', itemId:'it_tinderbox_t', qty:1, notes:''},
@@ -2152,7 +2148,7 @@ function buildSeptih(){
     coins:{mm:0,sm:0,em:0,zm:0,pm:0},
     inventory:[
       {id:'inv_s1', itemId:'it_thieves_tools_s', qty:5, notes:''},
-      {id:'inv_s2', itemId:'it_diamond_torg', qty:1, notes:''},
+      {id:'inv_s2', itemId:'it_diamond', qty:1, valueGp:100, notes:'Оценочная стоимость одного камня: 100 зм'},
       {id:'inv_s3', itemId:'it_talon', qty:1, notes:''},
       {id:'inv_s4', itemId:'it_disguise_kit_s', qty:5, notes:''},
       {id:'inv_s5', itemId:'it_grappling_hook_s', qty:1, notes:''},
@@ -2944,7 +2940,7 @@ const ITEM_NEW=[
 function catalogItem(rec){
   return Object.assign({type:'equipment',rarity:'обычный',custom:false,tags:[],slot:null,weight:'',cost:'',dmg:'',dmgType:'',desc:'',props:'',passiveFx:[]},rec);
 }
-/* 61 запись первого расширения предметов. Литературное описание остается
+/* 58 записей первого расширения предметов. Литературное описание остается
    только представлением: применения, материалы, инструменты и свитки ниже
    имеют отдельные машинные поля и не зависят от разбора этих абзацев. */
 const ITEM_EXPANSION_V45=[
@@ -3196,22 +3192,18 @@ const ITEM_EXPANSION_V45=[
   props:'Создается инструментами алхимика из солнечника и цепкого пещерного мха.',
   material:{category:'refined',tier:1,source:'алхимическая обработка',producedBy:'cr_alchemical_base',uses:['cr_potion_superior','cr_potion_supreme','cr_potion_climbing','cr_potion_heroism','cr_potion_fire_resistance','cr_potion_cold_resistance','cr_potion_water_breathing','cr_potion_invisibility','cr_potion_flying','cr_potion_giant_strength','cr_acid_vial','cr_antitoxin','cr_basic_poison']}}),
 
- /* ── точные стоимостные компоненты заклинаний (5) ── */
- catalogItem({id:'it_component_diamond_50',n:'Алмаз для хроматического шара (50 зм)',tags:['materialit','spellcomponent','gem','valuable'],weight:'0,1 фунта',cost:'50 зм',useMode:'profile',
-  desc:'Небольшой ограненный алмаз имеет подтвержденную оценку ровно 50 зм и подходит как стоимостный драгоценный камень для «Хроматического шара». Заклинание не расходует камень, поэтому запись остается в инвентаре после успешного применения.',
-  props:'Компонент: драгоценный камень не дешевле 50 зм; расход 0.',material:{category:'component',tier:2,source:'ювелир или сокровищница',component:{matchTokens:['алмаз','брилл','драгоц','камен'],valueGp:50,consumedBy:[]},uses:['sp_chromatic_orb']}}),
- catalogItem({id:'it_component_diamonds_300',n:'Алмазы для оживления (300 зм)',tags:['materialit','spellcomponent','gem','valuable','consumable'],weight:'0,2 фунта',cost:'300 зм',useMode:'profile',
-  desc:'Запечатанный мешочек содержит набор мелких алмазов с общей подтвержденной стоимостью 300 зм. Это одна учетная единица для «Оживления»: при подтвержденном заклинании весь набор расходуется ровно один раз.',
-  props:'Компонент «Оживления»; расход 1 комплект. Фокусировка и мешочек компонентов его не заменяют.',material:{category:'component',tier:3,source:'ювелир или храм',component:{matchTokens:['алмаз','брилл'],valueGp:300,consumedBy:['sp_оживление']},uses:['sp_оживление']}}),
- catalogItem({id:'it_component_diamond_500',n:'Алмаз для воскрешения мертвого (500 зм)',tags:['materialit','spellcomponent','gem','valuable','consumable'],weight:'0,2 фунта',cost:'500 зм',useMode:'profile',
-  desc:'Чистый алмаз с храмовым сертификатом оценен не менее чем в 500 зм. Он предназначен для «Воскрешения мертвого» и полностью исчезает при завершении заклинания; час наложения не меняет правило единственного атомарного расхода.',
-  props:'Компонент «Воскрешения мертвого»; расход 1 камень.',material:{category:'component',tier:4,source:'крупный ювелир или храмовая казна',component:{matchTokens:['алмаз','брилл'],valueGp:500,consumedBy:['sp_воскрешение_мертвого']},uses:['sp_воскрешение_мертвого']}}),
- catalogItem({id:'it_component_diamond_1000',n:'Алмаз для воскрешения (1000 зм)',tags:['materialit','spellcomponent','gem','valuable','consumable'],weight:'0,3 фунта',cost:'1000 зм',useMode:'profile',
-  desc:'Редкий крупный алмаз без видимых включений оценен в 1000 зм и хранится в мягком футляре. «Воскрешение» расходует его полностью после всех проверок и до последствий; отмена до коммита оставляет камень на месте.',
-  props:'Стоимостный компонент «Воскрешения»: требуется не менее 1000 зм, расходуется ровно 1 камень и не заменяется фокусировкой.',material:{category:'component',tier:4,source:'столичный ювелир или королевская сокровищница',component:{matchTokens:['алмаз','брилл'],valueGp:1000,consumedBy:['sp_воскрешение']},uses:['sp_воскрешение']}}),
- catalogItem({id:'it_component_diamonds_25000',n:'Алмазы для истинного воскрешения (25 000 зм)',tags:['materialit','spellcomponent','gem','valuable','consumable','legendary'],weight:'2 фунта',cost:'25 000 зм',useMode:'profile',
-  desc:'Опечатанный ларец содержит несколько безупречных алмазов общей стоимостью не менее 25 000 зм, каждый внесен в опись. Весь комплект является одной учетной единицей и расходуется «Истинным воскрешением»; это сокровище кампании, а не обычный товар лавки.',
- props:'Стоимостный компонент «Истинного воскрешения»: требуется комплект не дешевле 25 000 зм, он расходуется целиком и не заменяется фокусировкой.',material:{category:'component',tier:5,source:'легендарная сокровищница, великий храм или награда кампании',component:{matchTokens:['алмаз','брилл'],valueGp:25000,consumedBy:['sp_истинное_воскрешение']},uses:['sp_истинное_воскрешение']}})
+ /* ── самоцвет и его отдельная обработанная форма (2) ── */
+ catalogItem({id:'it_diamond',n:'Алмаз',tags:['materialit','spellcomponent','gem','valuable','jewelry','crafting'],weight:'переменный',cost:'оценка экземпляра',useMode:'profile',
+  desc:'Природный или ограненный алмаз. Это один канонический предмет независимо от размера и цены: конкретная оценочная стоимость хранится у экземпляра в инвентаре. Алмаз можно хранить как сокровище, продавать, использовать в ювелирном или ремесленном замысле и предъявлять как материальный компонент, если его оценка покрывает требование заклинания.',
+  props:'При выдаче или редактировании экземпляра укажите его оценку в золотых. Заклинание само определяет минимальную стоимость и то, расходуется ли камень; эти правила не являются частью названия предмета.',
+  material:{category:'gemstone',tier:2,source:'рудник, россыпь, сокровищница, ювелир или торговец',roles:['treasure','trade','jewelry','crafting','spellComponent'],
+    component:{matchTokens:['алмаз','брилл','драгоц','камен'],valueMode:'inventory',defaultValueGp:100,form:'gem',consumedBy:['sp_оживление','sp_воскрешение_мертвого','sp_воскрешение','sp_истинное_воскрешение']},
+    uses:['sp_chromatic_orb','sp_оживление','sp_воскрешение_мертвого','sp_воскрешение','sp_врата','sp_истинное_воскрешение']}}),
+ catalogItem({id:'it_diamond_dust',n:'Алмазная пыль',tags:['materialit','spellcomponent','gem','reagent','consumable'],weight:'0,1 фунта',cost:'100 зм',useMode:'profile',
+  desc:'Отмеренная порция измельченного алмаза общей стоимостью 100 зм. Пыль является обработанным реагентом, а не вторым названием целого камня: ее нельзя вставить в украшение или снова превратить в алмаз. «Каменная кожа» расходует всю порцию после успешного префлайта заклинания.',
+  props:'Отдельная физическая форма материала: порошок. Одна порция стоимостью 100 зм расходуется «Каменной кожей».',
+  material:{category:'processed',tier:2,source:'ювелирная мастерская или измельчение алмаза',roles:['crafting','spellComponent'],
+    component:{matchTokens:['алмаз','пыль'],valueMode:'fixed',valueGp:100,form:'powder',consumedBy:['sp_каменная_кожа']},uses:['sp_каменная_кожа']}})
 ];
 /* Рецепты мира — предсказуемые производственные операции, а не скрытые
    броски сайта. Все входы сначала валидируются, затем списываются одной
@@ -3253,13 +3245,118 @@ const ITEM_TAG_FIX={
  'Бутылочка чернил':{drop:['consumable','alchemy','camp','tool'],add:['writing']},
  'Огниво':{drop:['writing']},
  'Тяжелая железная кадильница «Дыхание Гор»':{drop:['poison']},
- 'Бриллиант':{drop:['thunder']},
  'Письмо в плотной кожаной папке':{drop:['tool','map'],add:['writing']},
  'Кольчуга Железного Щита':{drop:['shield']}
 };
+
+/* Каноническая идентичность предметов не зависит от орфографии старых
+   сохранений и от того, для какого заклинания предмет когда-то создавался.
+   Алиасы используются только при миграции ссылок; в рабочей базе остается
+   одна запись, а свойства конкретного экземпляра живут в инвентаре. */
+const LEGACY_ITEM_ID_ALIASES={
+  it_diamond_torg:'it_diamond',
+  it_component_diamond_50:'it_diamond',
+  it_component_diamonds_300:'it_diamond',
+  it_component_diamond_500:'it_diamond',
+  it_component_diamond_1000:'it_diamond',
+  it_component_diamonds_25000:'it_diamond',
+  it_зелье_лечения_2к4_2:'it_зелье_лечения_2d4_2',
+  it_набор_целителя_10_исп:'it_healer_kit_t'
+};
+const LEGACY_ITEM_VALUE_GP={
+  it_diamond_torg:100,
+  it_component_diamond_50:50,
+  it_component_diamonds_300:300,
+  it_component_diamond_500:500,
+  it_component_diamond_1000:1000,
+  it_component_diamonds_25000:25000
+};
+function itemIdentityKey(name){
+  return String(name||'').toLowerCase().replace(/ё/g,'е')
+    .replace(/(\d)\s*[кдd]\s*(\d)/g,'$1d$2')
+    .replace(/[«»"'`]/g,'').replace(/\s+/g,' ').trim();
+}
+function mergeCanonicalItem(target,source){
+  if(!target||!source||target===source) return target;
+  ['type','rarity','slot','weight','cost','dmg','dmgType','ac','strReq','desc','props','text','cap','manualNote'].forEach(k=>{
+    if((target[k]==null||target[k]==='')&&source[k]!=null&&source[k]!=='') target[k]=source[k];
+  });
+  target.tags=uniqTags((target.tags||[]).concat(source.tags||[]));
+  if(!Array.isArray(target.passiveFx)&&Array.isArray(source.passiveFx)) target.passiveFx=JSON.parse(JSON.stringify(source.passiveFx));
+  if(!Array.isArray(target.uses)&&Array.isArray(source.uses)) target.uses=JSON.parse(JSON.stringify(source.uses));
+  if(!target.resource&&source.resource) target.resource=JSON.parse(JSON.stringify(source.resource));
+  if(!target.tool&&source.tool) target.tool=JSON.parse(JSON.stringify(source.tool));
+  if(!target.material&&source.material) target.material=JSON.parse(JSON.stringify(source.material));
+  if(!target.contents&&source.contents) target.contents=JSON.parse(JSON.stringify(source.contents));
+  target.custom=!!(target.custom||source.custom);
+  delete target.mechanics;
+  return target;
+}
+function canonicalizeItemDatabase(db,party,worldCombat){
+  db=Array.isArray(db)?db:[]; party=Array.isArray(party)?party:[];
+  const byId=new Map(db.map(it=>[it.id,it])),aliases=Object.assign({},LEGACY_ITEM_ID_ALIASES);
+  /* Старые slug с «ё» должны указывать на уже существующий id с «е». */
+  db.forEach(it=>{
+    const normalized=String(it.id||'').replace(/ё/g,'е');
+    if(normalized!==it.id&&byId.has(normalized)) aliases[it.id]=normalized;
+  });
+  const resolve=id=>{
+    const seen=new Set(); let cur=id;
+    while(aliases[cur]&&aliases[cur]!==cur&&!seen.has(cur)){ seen.add(cur); cur=aliases[cur]; }
+    return cur;
+  };
+  Object.keys(aliases).forEach(id=>{ aliases[id]=resolve(id); });
+
+  /* Одинаковое каноническое имя — одна сущность. Предпочитаем штатный
+     slug/id, затем встроенную запись; недостающие поля дубля не теряются. */
+  const groups=new Map();
+  db.forEach(it=>{
+    if(aliases[it.id]) return;
+    const k=itemIdentityKey(it.n); if(!k) return;
+    if(!groups.has(k)) groups.set(k,[]);
+    groups.get(k).push(it);
+  });
+  groups.forEach(list=>{
+    if(list.length<2) return;
+    const score=it=>(it.id==='it_'+slugify(it.n)?20:0)+(String(it.id||'').indexOf('it_'+slugify(it.n))===0?10:0)+(!it.custom?4:0)+(it.desc?1:0);
+    list.sort((a,b)=>score(b)-score(a)||String(a.id).localeCompare(String(b.id)));
+    const target=list[0];
+    list.slice(1).forEach(source=>{ aliases[source.id]=target.id; mergeCanonicalItem(target,source); });
+  });
+  Object.keys(aliases).forEach(id=>{ aliases[id]=resolve(id); });
+
+  let remapped=0,valued=0;
+  const remapEntries=list=>{
+    (Array.isArray(list)?list:[]).forEach(e=>{
+      const old=e.itemId,target=resolve(old),oldRec=byId.get(old);
+      if(target!==old){ e.itemId=target; remapped++; }
+      if(target==='it_diamond'&&!(Number.isFinite(+e.valueGp)&&+e.valueGp>0)){
+        const inferred=legacyItemGoldValue(oldRec)||LEGACY_ITEM_VALUE_GP[old];
+        if(inferred>0){ e.valueGp=inferred; valued++; }
+      }
+      remapEntries(e.inside);
+    });
+  };
+  party.forEach(c=>remapEntries(c&&c.inventory));
+  db.forEach(it=>{
+    if(Array.isArray(it.contents)) it.contents=it.contents.map(pair=>Array.isArray(pair)?[resolve(pair[0]),pair[1]]:pair);
+  });
+  if(worldCombat&&Array.isArray(worldCombat.zones)) worldCombat.zones.forEach(z=>{ if(z&&z.itemId) z.itemId=resolve(z.itemId); });
+
+  const removed=[];
+  for(let i=db.length-1;i>=0;i--){
+    const target=resolve(db[i].id);
+    if(target!==db[i].id&&byId.has(target)){ removed.push(db[i].id); db.splice(i,1); }
+  }
+  return {aliases,removed,remapped,valued};
+}
 async function ensureItemAudit(){
   const flag=await store.get('dndworld2:itemaudit');
-  if(flag==='4') return;
+  if(flag==='5'){
+    const identity=canonicalizeItemDatabase(itemsDB,chars,combat);
+    if(identity.removed.length||identity.remapped||identity.valued) scheduleSave();
+    return;
+  }
   ITEM_NEW.forEach(rec=>{ if(!itemsDB.some(x=>x.id===rec.id)) itemsDB.push(rec); });
   ITEM_EXPANSION_V45.forEach(rec=>{ if(!itemsDB.some(x=>x.id===rec.id)) itemsDB.push(JSON.parse(JSON.stringify(rec))); });
   const lore=Object.assign({}, ITEM_LORE_A, ITEM_LORE_B, ITEM_LORE_C);
@@ -3282,24 +3379,25 @@ async function ensureItemAudit(){
     if(f.add) f.add.forEach(t=>{ if(tg.indexOf(t)<0) tg.push(t); });
     it.tags=tg;
   });
+  canonicalizeItemDatabase(itemsDB,chars,combat);
   /* наполняем уже выданные вместилища */
   chars.forEach(c=>(c.inventory||[]).forEach(e=>{
     const it=itemOf(e.itemId);
     if(it&&Array.isArray(it.contents)&&it.contents.length) fillContainer(e,it);
   }));
   itemsDB.forEach(upgradeItem);
-  /* В исходных текстах стоимостных алмазов не было слова «расходуется»,
-     хотя четыре заклинания возвращения к жизни расходуют компонент по 5e.
-     Исправляем уже сохраненные структурированные контракты вместе с базой. */
+  /* Закрепляем цену, физический расход и режим единичной/общей стоимости в
+     уже сохраненных структурированных контрактах, не полагаясь на текст. */
   const costly={
+    'Каменная кожа':{cost:100,consume:1},
     'Оживление':{cost:300,consume:1},'Воскрешение мертвого':{cost:500,consume:1},
-    'Воскрешение':{cost:1000,consume:1},'Истинное воскрешение':{cost:25000,consume:1}
+    'Воскрешение':{cost:1000,consume:1},'Врата':{cost:5000,consume:0},'Истинное воскрешение':{cost:25000,consume:1}
   };
   Object.keys(costly).forEach(n=>{
     const sp=spellsDB.find(x=>x.n===n),mat=sp&&sp.mechanics&&sp.mechanics.components&&sp.mechanics.components.material;
-    if(mat){ mat.cost=costly[n].cost; mat.consume=costly[n].consume; }
+    if(mat){ mat.cost=costly[n].cost; mat.consume=costly[n].consume; mat.costMode=/^(Каменная кожа|Оживление|Истинное воскрешение)$/.test(n)?'aggregate':'single'; }
   });
-  await store.set('dndworld2:itemaudit','4');
+  await store.set('dndworld2:itemaudit','5');
   fxInvalidate(); scheduleSave();
 }
 async function ensureSpellAudit(){
@@ -5381,7 +5479,8 @@ function parseComponents(sp){
   if(mc){
     const mat=mc.material;
     return {v:!!mc.verbal,s:!!mc.somatic,m:!!mat,matDesc:mat&&mat.description||'',
-      matTokens:mat&&Array.isArray(mat.matchTokens)?mat.matchTokens.slice():[],cost:+(mat&&mat.cost)||0,flex:false};
+      matTokens:mat&&Array.isArray(mat.matchTokens)?mat.matchTokens.slice():[],matForm:mat&&mat.form||materialFormFromText(mat&&mat.description),
+      costMode:mat&&mat.costMode||'single',cost:+(mat&&mat.cost)||0,flex:false};
   }
   const cm=String((sp&&sp.cm)||'').trim().replace(/\u0451/g,'е');
   if(!cm||cm==='—') return {v:false,s:false,m:false,matDesc:'',flex:false};
@@ -5395,7 +5494,8 @@ function parseComponents(sp){
   const top=cm.replace(/\([^)]*\)/g,' ').toUpperCase();
   const tokens=top.split(/[\s,;/+]+/).filter(Boolean);
   const has=(...variants)=>tokens.some(x=>variants.indexOf(x)>=0);
-  return {v:has('В','V'), s:has('С','C','S'), m:has('М','M'), matDesc,flex:false};
+  return {v:has('В','V'), s:has('С','C','S'), m:has('М','M'), matDesc,matForm:materialFormFromText(matDesc),
+    costMode:/алмазы|пыл|порош/i.test(matDesc)?'aggregate':'single',flex:false};
 }
 /* расход материального компонента, шт. — по правилам 5e тратится лишь то, что заклинание «расходует» */
 const MAT_CONSUME={ sp_web:0, sp_magic_sleep:0, sp_chromatic_orb:0 };
@@ -5496,7 +5596,7 @@ function materialCostFor(sp,comp){
   if(mat) return Math.max(0,+mat.cost||0);
   if(structured) return 0;
   const n=normSpellName(sp&&sp.n);
-  const fixed={'хроматический шар':50,'оживление':300,'воскрешение мертвого':500,'воскрешение':1000,'истинное воскрешение':25000};
+  const fixed={'хроматический шар':50,'каменная кожа':100,'оживление':300,'воскрешение мертвого':500,'воскрешение':1000,'врата':5000,'истинное воскрешение':25000};
   return fixed[n]||0;
 }
 function hasWarCaster(c){
@@ -5537,21 +5637,71 @@ function itemGoldValue(it){
   if(p) return p.value&&p.value.gp!=null?(+p.value.gp||null):null;
   return legacyItemGoldValue(it);
 }
-function matEntryScore(entry, matDesc, matTokens){
+function itemEntryGoldValue(entry,it){
+  if(entry&&Number.isFinite(+entry.valueGp)&&+entry.valueGp>0) return +entry.valueGp;
+  return itemGoldValue(it);
+}
+function itemUsesInventoryValue(it){
+  const p=it&&itemProfile(it),v=p&&p.value;
+  return !!(v&&v.mode==='inventory');
+}
+function matEntryScore(entry, matDesc, matTokens, matForm){
   const it=entry?itemOf(entry.itemId):null; if(!it) return 0;
   const words=Array.isArray(matTokens)&&matTokens.length?matTokens:semanticTokens(matDesc);
   const structured=it.mechanics&&it.mechanics.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&it.mechanics.mode!=='legacy';
-  const profile=itemProfile(it),hay=Array.isArray(profile.matchTokens)?profile.matchTokens:(structured?[]:semanticTokens((it.n||'')+' '+(it.desc||'')));
+  const profile=itemProfile(it),component=profile.material&&profile.material.component;
+  if(matForm&&component&&component.form&&component.form!==matForm) return 0;
+  const hay=Array.isArray(profile.matchTokens)?profile.matchTokens:(structured?[]:semanticTokens((it.n||'')+' '+(it.desc||'')));
   return words.reduce((a,w)=>a+(hay.indexOf(w)>=0?1:0),0);
 }
-function matGuessEntry(caster, matDesc, matTokens){
+function matGuessEntry(caster, matDesc, matTokens, matForm){
   const inv=caster.inventory||[];
   let best=null;
   inv.forEach(e=>{
-    const score=matEntryScore(e,matDesc,matTokens);
+    const score=matEntryScore(e,matDesc,matTokens,matForm);
     if(score>0&&(!best||score>best.score)) best={e,score};
   });
   return best?best.e:null;
+}
+function aggregateMaterialPlan(caster,comp,cost){
+  const candidates=[]; let unknown=0,matched=0;
+  (caster.inventory||[]).forEach(e=>{
+    if(matEntryScore(e,comp.matDesc,comp.matTokens,comp.matForm)<=0) return;
+    matched++;
+    const it=itemOf(e.itemId),value=itemEntryGoldValue(e,it),qty=Math.max(0,Math.floor(+e.qty||0));
+    if(value==null){ unknown+=qty; return; }
+    if(qty) candidates.push({e,it,value,qty,cents:Math.max(1,Math.round(value*100))});
+  });
+  if(!matched) return {ok:false,reason:'Материальный компонент «'+(comp.matDesc||'М')+'» не найден в инвентаре.'};
+  const target=Math.max(1,Math.round(cost*100));
+  const available=candidates.reduce((n,x)=>n+x.cents*x.qty,0);
+  if(available<target){
+    const known=Math.round(available)/100;
+    return {ok:false,reason:(unknown?'У части подходящих компонентов не указана оценка. ':'')+'Подтвержденная общая стоимость — '+known+' зм, требуется не менее '+cost+' зм.'};
+  }
+  const maxUnit=Math.max(...candidates.map(x=>x.cents)),limit=target+maxUnit-1;
+  let states=new Map([[0,{sum:0,count:0,picks:[]}]]);
+  candidates.forEach((candidate,ci)=>{
+    const prior=[...states.values()],next=new Map(states),maxQty=Math.min(candidate.qty,Math.ceil(limit/candidate.cents));
+    prior.forEach(state=>{
+      for(let qty=1;qty<=maxQty;qty++){
+        const sum=state.sum+candidate.cents*qty; if(sum>limit) break;
+        const proposal={sum,count:state.count+qty,picks:state.picks.concat([[ci,qty]])},old=next.get(sum);
+        if(!old||proposal.count<old.count) next.set(sum,proposal);
+      }
+    });
+    if(next.size>12000){
+      const all=[...next.values()];
+      const keep=all.filter(x=>x.sum>=target).sort((a,b)=>a.sum-b.sum||a.count-b.count).slice(0,6000)
+        .concat(all.filter(x=>x.sum<target).sort((a,b)=>b.sum-a.sum||a.count-b.count).slice(0,6000));
+      states=new Map(keep.map(x=>[x.sum,x]));
+    } else states=next;
+  });
+  const best=[...states.values()].filter(x=>x.sum>=target).sort((a,b)=>a.sum-b.sum||a.count-b.count)[0];
+  if(!best) return {ok:false,reason:'Не удалось составить подтвержденный набор компонентов на '+cost+' зм.'};
+  const deductions=best.picks.map(([ci,qty])=>({entryId:candidates[ci].e.id,itemId:candidates[ci].e.itemId,qty,
+    label:candidates[ci].it.n,unitValueGp:candidates[ci].value}));
+  return {ok:true,deductions,totalGp:best.sum/100,count:best.count};
 }
 function materialPlanFor(caster,sp,comp,mat){
   if(!comp.m) return {ok:true,mode:'none',info:''};
@@ -5561,26 +5711,45 @@ function materialPlanFor(caster,sp,comp,mat){
     if(!cover) return {ok:false,reason:'Фокусировка или мешочек с компонентами больше не найдены в инвентаре.'};
     return {ok:true,mode:'cover',entryId:cover.e.id,use:0,info:' · компонент: '+cover.label+' (фокусировка)'};
   }
+  if(cost&&comp.costMode==='aggregate'){
+    const aggregate=aggregateMaterialPlan(caster,comp,cost);
+    if(!aggregate.ok) return aggregate;
+    const deductions=need>0?aggregate.deductions:[];
+    const labels=aggregate.deductions.map(d=>d.label+' ×'+d.qty).join(', ');
+    return {ok:true,mode:'items',deductions,use:need>0?aggregate.count:0,valueGp:aggregate.totalGp,label:labels,
+      info:' · компоненты: '+labels+' ('+aggregate.totalGp+' зм)'+(need>0?' — расходуются':' — сохраняются')};
+  }
   let entryId=mat&&mat.entryId, use=mat&&mat.use!==undefined?Math.max(0,Math.floor(+mat.use||0)):need;
   if(!entryId&&need===0&&!cost&&cover)
     return {ok:true,mode:'cover',entryId:cover.e.id,use:0,info:' · компонент: '+cover.label+' (фокусировка)'};
   if(!entryId){
-    const g=matGuessEntry(caster,comp.matDesc,comp.matTokens); if(g) entryId=g.id;
+    const g=matGuessEntry(caster,comp.matDesc,comp.matTokens,comp.matForm); if(g) entryId=g.id;
   }
   const e=(caster.inventory||[]).find(x=>x.id===entryId), it=e?itemOf(e.itemId):null;
   if(!e||!it) return {ok:false,reason:'Материальный компонент «'+(comp.matDesc||'М')+'» не найден в инвентаре.'};
-  if(comp.matDesc&&matEntryScore(e,comp.matDesc,comp.matTokens)<=0)
+  if(comp.matDesc&&matEntryScore(e,comp.matDesc,comp.matTokens,comp.matForm)<=0)
     return {ok:false,reason:'«'+it.n+'» не соответствует компоненту «'+comp.matDesc+'».'};
-  const value=itemGoldValue(it);
-  if(cost&&value!=null&&value<cost)
+  const value=itemEntryGoldValue(e,it);
+  if(cost&&value==null)
+    return {ok:false,reason:'У экземпляра «'+it.n+'» не указана оценочная стоимость; для этого заклинания требуется не менее '+cost+' зм.'};
+  if(cost&&value<cost)
     return {ok:false,reason:'Стоимость «'+it.n+'» ('+value+' зм) ниже требуемых '+cost+' зм.'};
   if(use!==need) return {ok:false,reason:'Для этого заклинания расход компонента фиксирован: ровно '+need+' шт.'};
   if(use>(e.qty||1)) return {ok:false,reason:'В инвентаре лишь '+(e.qty||1)+' шт. «'+it.n+'» — списать '+use+' нельзя.'};
-  return {ok:true,mode:'item',entryId,use,label:it.n,info:' · компонент: '+it.n+(use>0?' −'+use+' шт.':' (не расходуется)')};
+  return {ok:true,mode:'item',entryId,use,label:it.n,valueGp:value,info:' · компонент: '+it.n+(value!=null?' ('+value+' зм)':'')+(use>0?' −'+use+' шт.':' (не расходуется)')};
 }
 function commitMaterialPlan(caster,p){
+  if(p.mode==='items') return matSpendMany(caster,p.deductions||[]);
   if(p.mode!=='item') return {ok:true};
   return matSpend(caster,p.entryId,p.use);
+}
+function matSpendMany(caster,deductions){
+  for(const d of deductions){
+    const e=(caster.inventory||[]).find(x=>x.id===d.entryId),it=e&&itemOf(e.itemId);
+    if(!e||!it||(+e.qty||0)<d.qty) return {ok:false,reason:'Набор материальных компонентов изменился до подтверждения; ничего не списано.'};
+  }
+  deductions.forEach(d=>matSpend(caster,d.entryId,d.qty));
+  return {ok:true,use:deductions.reduce((n,d)=>n+d.qty,0)};
 }
 function matSpend(caster, entryId, use){
   const e=(caster.inventory||[]).find(x=>x.id===entryId);
@@ -5769,6 +5938,13 @@ function semanticTokens(raw){
   return [...new Set((String(raw||'').toLowerCase().match(/[а-я]{4,}/g)||[])
     .filter(w=>!SEMANTIC_TOKEN_STOP.test(w)).map(w=>w.slice(0,5)))];
 }
+function materialFormFromText(raw){
+  const t=String(raw||'').toLowerCase().replace(/ё/g,'е');
+  if(/пыл|порош/.test(t)) return 'powder';
+  if(/масл|жидкост|вода|кров/.test(t)) return 'liquid';
+  if(/алмаз|брилл|драгоценн[а-я]*\s+кам/.test(t)) return 'gem';
+  return '';
+}
 function mechanicsSourceHash(rec,kind){
   const keys=kind==='spell'?['n','l','t','r','cm','d','conc','ritual','x','hi','fx']:
     (kind==='ability'?['n','mode','uses','rest','x','fx','combatCost','combatTarget','combatRequiresWeapon','combatForceAttack','combatConsumeOn','combatThreshold','combatThresholdCondition','combatUntil']:
@@ -5784,14 +5960,15 @@ function inferComponents(sp){
   const text=(cm+' '+String((sp&&sp.x)||'')).toLowerCase().replace(/ё/g,'е');
   const notSpent=/не\s+(?:требуется\s+и\s+не\s+)?расходу/.test(text);
   const spellName=normSpellName(sp&&sp.n),forcedConsume={
-    'оживление':1,'воскрешение мертвого':1,'воскрешение':1,'истинное воскрешение':1
+    'каменная кожа':1,'оживление':1,'воскрешение мертвого':1,'воскрешение':1,'врата':0,'истинное воскрешение':1
   };
   const parsedConsume=!notSpent&&/(?:расходуется|расходуем[а-я]*|при этом расходу)/.test(text)?1:0;
   const consume=forcedConsume[spellName]===undefined?parsedConsume:forcedConsume[spellName];
-  const fixed={'хроматический шар':50,'оживление':300,'воскрешение мертвого':500,'воскрешение':1000,'истинное воскрешение':25000};
+  const fixed={'хроматический шар':50,'каменная кожа':100,'оживление':300,'воскрешение мертвого':500,'воскрешение':1000,'врата':5000,'истинное воскрешение':25000};
   const cost=fixed[spellName]||0;
+  const costMode=/алмазы|пыл|порош/.test(mat.toLowerCase())?'aggregate':'single';
   return {verbal:has('В','V'),somatic:has('С','C','S'),material:has('М','M')?
-    {description:mat,matchTokens:semanticTokens(mat),consume,cost}:null};
+    {description:mat,matchTokens:semanticTokens(mat),form:materialFormFromText(mat),consume,cost,costMode}:null};
 }
 function inferActionCost(raw,fallback){
   const t=normRollTxt(raw);
@@ -7540,14 +7717,21 @@ function castConfirm(){
     if(!invList.length){ castShowErr('Материальный компонент (М): инвентарь пуст — компонент взять неоткуда.'); return; }
     const auto=matConsumeFor(sp);
     const cover=auto===0&&!materialCostFor(sp,chk.comp)?materialCover(caster):null;
-    const guess=matGuessEntry(caster, chk.comp.matDesc);
+    const guess=matGuessEntry(caster, chk.comp.matDesc, chk.comp.matTokens, chk.comp.matForm);
+    const aggregateCost=materialCostFor(sp,chk.comp)&&chk.comp.costMode==='aggregate';
+    const aggregatePreview=aggregateCost?aggregateMaterialPlan(caster,chk.comp,materialCostFor(sp,chk.comp)):null;
     document.getElementById('castMatDesc').textContent='Требуется М: '+(chk.comp.matDesc||'материальный компонент')+'.';
-    document.getElementById('castMat').innerHTML=(cover?'<option value="__cover__" selected>'+esc(cover.label)+' — фокусировка/мешочек, без расхода</option>':'')+invList.map(e=>{
-      const it=itemOf(e.itemId); if(!it) return '';
-      return '<option value="'+e.id+'"'+(!cover&&guess&&guess.id===e.id?' selected':'')+'>'+esc(it.n)+((e.qty||1)>1?' × '+e.qty:'')+'</option>';
-    }).join('');
-    const qty=document.getElementById('castMatQty'); qty.value=auto; qty.readOnly=true;
-    document.getElementById('castMatAuto').textContent='по структурированному правилу: '+auto+(auto===0?' (компонент не расходуется)':' шт.');
+    document.getElementById('castMat').innerHTML=aggregateCost
+      ?'<option value="__aggregate__" selected>'+(aggregatePreview&&aggregatePreview.ok?'Подобрать без переплаты: '+esc(aggregatePreview.deductions.map(d=>d.label+' ×'+d.qty).join(', '))+' · '+aggregatePreview.totalGp+' зм':'Автоматически подобрать компоненты по общей стоимости')+'</option>'
+      :((cover?'<option value="__cover__" selected>'+esc(cover.label)+' — фокусировка/мешочек, без расхода</option>':'')+invList.map(e=>{
+        const it=itemOf(e.itemId); if(!it) return '';
+        const gp=itemEntryGoldValue(e,it);
+        return '<option value="'+e.id+'"'+(!cover&&guess&&guess.id===e.id?' selected':'')+'>'+esc(it.n)+(gp!=null?' · '+gp+' зм':(itemUsesInventoryValue(it)?' · оценка не указана':''))+((e.qty||1)>1?' × '+e.qty:'')+'</option>';
+      }).join(''));
+    const qty=document.getElementById('castMatQty'); qty.value=aggregatePreview&&aggregatePreview.ok?aggregatePreview.count:auto; qty.readOnly=true;
+    document.getElementById('castMatAuto').textContent=aggregateCost
+      ?'по структурированному правилу: общая стоимость не ниже '+materialCostFor(sp,chk.comp)+' зм; движок выбирает минимальную достаточную комбинацию'
+      :('по структурированному правилу: '+auto+(auto===0?' (компонент не расходуется)':' шт.'));
     const er=document.getElementById('castErr'); er.style.display='none';
     document.getElementById('castStep1').style.display='none';
     document.getElementById('castStep2').style.display='block';
@@ -7567,7 +7751,7 @@ function castMatConfirm(){
   const entryId=document.getElementById('castMat').value;
   const use=+document.getElementById('castMatQty').value||0;
   if(!entryId){ castShowErr('Выберите предмет-компонент.'); return; }
-  castCtx.mat=entryId==='__cover__'?{substitute:true}:{entryId,use};
+  castCtx.mat=entryId==='__cover__'?{substitute:true}:(entryId==='__aggregate__'?{aggregate:true}:{entryId,use});
   if(castFormulaShow()) return;
   if(castSpellApply(castCtx.spellId, castCtx.casterId, castCtx.target, castCtx.inv, castCtx.mat, castCtx.slotSel, null, castCtx.extraTargets)) closeCastModal();
 }
@@ -7919,7 +8103,7 @@ function deriveHeal(it){
    цель → формула бросков → разбор по правилам 5e → применение.
    Заряды, настройка, расход и вес влияют на показатели напрямую. */
 const ATTUNE_LIMIT=3;
-const ITEM_SCHEMA_VERSION=4;
+const ITEM_SCHEMA_VERSION=5;
 const ITEM_USE_COSTS=['action','attack','bonus','reaction','object','turnfree','free','long'];
 const ITEM_USE_TARGETS=['self','ally','enemy','any','none'];
 const ITEM_USE_RESOURCES=['none','item','charges','kit'];
@@ -8016,9 +8200,16 @@ function itemMaterialSchemaErrors(material){
     if(!Array.isArray(h.biomes)||!h.biomes.length||!String(h.skill||'').trim()||!AB_FULL[h.ability]||!(+h.dc>0)||!String(h.time||'').trim()||!String(h.yield||'').trim())
       out.push('harvest требует biomes, skill, ability, dc, time и yield');
   }
-  if(material.category==='component'){
+  const knownRoles=['treasure','trade','jewelry','crafting','spellComponent'];
+  if(material.roles!=null&&(!Array.isArray(material.roles)||material.roles.some(x=>knownRoles.indexOf(x)<0)||new Set(material.roles).size!==material.roles.length))
+    out.push('material.roles содержит неизвестные или повторные функции');
+  if(material.component){
     const c=material.component;
-    if(!c||!Array.isArray(c.matchTokens)||!c.matchTokens.length||!(+c.valueGp>0)||!Array.isArray(c.consumedBy)) out.push('компонент требует matchTokens, valueGp и consumedBy');
+    if(!Array.isArray(c.matchTokens)||!c.matchTokens.length||!Array.isArray(c.consumedBy)) out.push('компонент требует matchTokens и consumedBy');
+    if(['fixed','inventory'].indexOf(c.valueMode)<0) out.push('компоненту нужен valueMode fixed/inventory');
+    if(c.valueMode==='fixed'&&!(+c.valueGp>0)) out.push('фиксированному компоненту нужен valueGp');
+    if(c.valueMode==='inventory'&&!(+c.defaultValueGp>0)) out.push('компоненту с оценкой экземпляра нужен defaultValueGp');
+    if(c.form!=null&&c.form!==''&&['gem','powder','liquid'].indexOf(c.form)<0) out.push('неизвестная физическая форма компонента');
   }
   if(!Array.isArray(material.uses)) out.push('material.uses должен быть массивом связей');
   return out;
@@ -8126,6 +8317,8 @@ function compileItemMechanics(it){
   if(it.material){
     profile.kind=it.material.category==='component'?'component':'material';
     profile.material=itemClone(it.material);
+    profile.roles=Array.isArray(it.material.roles)?it.material.roles.slice():[];
+    if(it.material.component&&profile.roles.indexOf('spellComponent')<0) profile.roles.push('spellComponent');
   }
   const scrollAction=(it.uses||[]).find(u=>u&&u.scroll);
   if(it.type==='scroll'&&scrollAction){ profile.kind='scroll'; profile.scroll=itemClone(scrollAction.scroll); }
@@ -8141,7 +8334,9 @@ function compileItemMechanics(it){
   const compTokens=it.material&&it.material.component&&it.material.component.matchTokens;
   if(Array.isArray(compTokens)) profile.matchTokens=[...new Set(profile.matchTokens.concat(compTokens.map(x=>String(x).toLowerCase().slice(0,5))))];
   if(!profile.value) profile.value={gp:legacyItemGoldValue(it)};
-  if(it.material&&it.material.component&&it.material.component.valueGp) profile.value={gp:+it.material.component.valueGp};
+  const component=it.material&&it.material.component;
+  if(component&&component.valueMode==='inventory') profile.value={gp:null,mode:'inventory',defaultGp:+component.defaultValueGp||null};
+  else if(component&&component.valueGp) profile.value={gp:+component.valueGp,mode:'fixed'};
   const armorKind=profile.kind==='shield'?'shield':(profile.kind==='armor'&&profile.armor?
     (profile.armor.weight==='тяжелый'?'heavy':(profile.armor.weight==='средний'?'medium':'light')):null);
   const mode=it.useMode==='manual'?'manual':'structured';
@@ -8156,6 +8351,8 @@ function upgradeItem(it){
   if(!it||typeof it!=='object') return it;
   if(it.__mechanicsUpgrading) return it;
   it.__mechanicsUpgrading=true;
+  if(it.material&&it.material.component&&!it.material.component.valueMode&&+it.material.component.valueGp>0)
+    it.material.component.valueMode='fixed';
   if(it.type==='armor'&&it.strReq==null&&typeof ARMORS!=='undefined'){
     const base=ARMORS.find(a=>a.n===it.n),raw=base&&base.str;
     if(raw) it.strReq=raw==='—'?0:+((raw.match(/\d+/)||[])[0]||0);
@@ -8931,6 +9128,13 @@ function gameDataAudit(data){
     return checkFormula(spec,at);
   }
   base('spell',ss); base('ability',aa); base('item',ii); base('foe',ff);
+  const itemIdentities=new Map();
+  ii.forEach((it,i)=>{
+    const key=itemIdentityKey(it&&it.n);
+    if(!key) return;
+    if(itemIdentities.has(key)) errors.push('item['+i+'] '+it.n+': повтор канонической сущности с '+itemIdentities.get(key));
+    else itemIdentities.set(key,it.id);
+  });
   ss.forEach((sp,i)=>{
     const at='spell['+i+'] '+sp.n, lv=+sp.l;
     mechanicsErrors(sp.mechanics,'spell').forEach(msg=>errors.push(at+': '+msg));
@@ -9094,7 +9298,13 @@ function gameDataAudit(data){
     (c.cond||[]).forEach(n=>{ if(!knownConditions.has(canonicalCondition(n))) errors.push(at+': неизвестное состояние '+n); });
     const deaths=c.deaths||{}; if((+deaths.s||0)<0||(+deaths.s||0)>3||(+deaths.f||0)<0||(+deaths.f||0)>3) errors.push(at+': спасброски смерти вне диапазона 0–3');
     Object.keys(c.slots||{}).forEach(lv=>{ const s=c.slots[lv]; if(!Number.isInteger(+lv)||+lv<1||+lv>9||!s||!Number.isInteger(+s.max)||!Number.isInteger(+s.cur)||+s.max<0||+s.cur<0||+s.cur>+s.max) errors.push(at+': неверный счетчик ячеек '+lv+' круга'); });
-    (c.inventory||[]).forEach((e,j)=>{ if(!e.id||entries.has(e.id)) errors.push(at+': повтор/пустой id инвентаря '+j); entries.add(e.id); if(!itemIds.has(e.itemId)) errors.push(at+': инвентарь ссылается на неизвестный предмет '+e.itemId); if(!Number.isInteger(+e.qty)||+e.qty<1) errors.push(at+': количество предмета '+j+' должно быть целым и положительным'); });
+    (c.inventory||[]).forEach((e,j)=>{
+      if(!e.id||entries.has(e.id)) errors.push(at+': повтор/пустой id инвентаря '+j); entries.add(e.id);
+      if(!itemIds.has(e.itemId)) errors.push(at+': инвентарь ссылается на неизвестный предмет '+e.itemId);
+      if(!Number.isInteger(+e.qty)||+e.qty<1) errors.push(at+': количество предмета '+j+' должно быть целым и положительным');
+      const dbItem=ii.find(x=>x.id===e.itemId);
+      if(dbItem&&itemUsesInventoryValue(dbItem)&&!(Number.isFinite(+e.valueGp)&&+e.valueGp>0)) errors.push(at+': у экземпляра «'+dbItem.n+'» не указана положительная оценочная стоимость');
+    });
     Object.keys(c.equipment||{}).forEach(slot=>{ if(!entries.has(c.equipment[slot])) errors.push(at+': слот '+slot+' ссылается на отсутствующую запись инвентаря'); });
     (c.abilities||[]).forEach(e=>{ if(abilityRefs.has(e.abilityId)) errors.push(at+': повтор способности '+e.abilityId); abilityRefs.add(e.abilityId); if(!abilityIds.has(e.abilityId)) errors.push(at+': неизвестная способность '+e.abilityId); const db=aa.find(x=>x.id===e.abilityId); if(db&&db.uses!=null&&e.cur!=null&&(!Number.isInteger(+e.cur)||+e.cur<0||+e.cur>+db.uses)) errors.push(at+': ресурс способности '+db.n+' вне диапазона'); });
     (c.spellbook||[]).forEach(e=>{ if(spellRefs.has(e.spellId)) errors.push(at+': повтор заклинания '+e.spellId); spellRefs.add(e.spellId); if(!spellIds.has(e.spellId)) errors.push(at+': неизвестное заклинание '+e.spellId); });
@@ -9427,7 +9637,7 @@ function valuableSell(entryId){
   const c=cc(); if(!c) return;
   const e=invEntryOf(c,entryId); if(!e) return;
   const it=itemOf(e.itemId); if(!it) return;
-  const guess=itemGoldValue(it)||0;
+  const guess=itemEntryGoldValue(e,it)||0;
   const raw=window.prompt('💰 За сколько золотых продан «'+it.n+'»?\n(в инвентаре '+(e.qty||1)+' шт. — продается одна)', String(guess||10));
   if(raw==null) return;
   const gp=Math.max(0,parseInt(raw,10)||0);
@@ -12264,7 +12474,17 @@ function materialInspect(entryId){
   const c=cc(),e=c&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId),m=it&&itemMaterialMeta(it); if(!it||!m) return false;
   const lines=['Категория: '+m.category+' · уровень материала '+m.tier,'Источник: '+m.source];
   if(m.harvest) lines.push('Сбор: '+m.harvest.skill+' ('+(AB_FULL[m.harvest.ability]||m.harvest.ability)+') СЛ '+m.harvest.dc+' · '+m.harvest.time+' · выход '+m.harvest.yield,'Среда: '+m.harvest.biomes.join(', '));
-  if(m.component) lines.push('Стоимостный компонент: '+m.component.valueGp+' зм'+(m.component.consumedBy.length?' · расходуется: '+m.component.consumedBy.map(id=>(spellOf(id)||{n:id}).n).join(', '):' · не расходуется указанным заклинанием'));
+  if(m.component){
+    const value=itemEntryGoldValue(e,it);
+    lines.push(m.component.valueMode==='inventory'
+      ?('Оценка этого экземпляра: '+(value==null?'не указана':value+' зм')+' (редактируется в инвентаре)')
+      :('Стоимость порции: '+m.component.valueGp+' зм'));
+    const spellLinks=(m.uses||[]).map(id=>spellOf(id)).filter(Boolean).map(sp=>{
+      const comp=parseComponents(sp),cost=materialCostFor(sp,comp),consume=matConsumeFor(sp);
+      return sp.n+(cost?' · от '+cost+' зм':'')+(consume?' · расходуется':' · сохраняется');
+    });
+    if(spellLinks.length) lines.push('Применения в заклинаниях:\n• '+spellLinks.join('\n• '));
+  }
   const refs=recipesUsingItem(it.id); if(refs.length) lines.push('Ремесленные связи: '+refs.map(r=>(r.result.itemId===it.id?'результат «':'ингредиент «')+r.n+'»').join('; '));
   askShow({title:'⌁ '+it.n,body:lines.join('\n'),note:'Количество меняется только подтвержденным сбором мастера, ремеслом или расходом компонента.'}); return true;
 }
@@ -12318,6 +12538,9 @@ function itemActions(c, e, it){
     case 'container':  B('📦','Открыть',"containerOpen('"+e.id+"')",'Посмотреть и переложить содержимое','object'); break;
     case 'ritual':     B('🕯','Возжечь',"ritualBurn('"+e.id+"')",'Начать обряд','long'); break;
   }
+  const roles=Array.isArray(pr.roles)?pr.roles:[];
+  if(roles.indexOf('trade')>=0&&!a.some(x=>x.label==='Продать'))
+    B('💰','Продать',"valuableSell('"+e.id+"')",'Обменять один экземпляр по подтвержденной цене','long');
   const useIcon={action:'⚗',attack:'⚔',bonus:'◇',reaction:'↯',object:'▣',long:'⌛',free:'◌',turnfree:'◌'};
   itemUsesOf(it).forEach(use=>{
     if(a.some(x=>x.label===use.label)) return;
@@ -12349,7 +12572,9 @@ function itemHintHTML(c, e, it){
   if(pr.kind==='light'){ bits.push('яркий '+pr.light.bright+' м · хватает на '+pr.light.hours+' ч'+(pr.light.fuel?' на '+pr.light.fuel:'')); }
   if(pr.kind==='ammo'){ bits.push('боеприпасы: '+ammoRemaining(e,it)); }
   if(pr.kind==='lore'&&e.read) bits.push('прочитано');
-  if(pr.kind==='valuable'&&pr.value&&pr.value.gp) bits.push('оценка '+pr.value.gp+' зм');
+  const gp=itemEntryGoldValue(e,it);
+  if((pr.kind==='valuable'||itemUsesInventoryValue(it))&&gp!=null) bits.push('оценка экземпляра '+gp+' зм');
+  else if(itemUsesInventoryValue(it)) bits.push('оценка экземпляра не указана');
   if(itemIsBox(it)){
     if(it.cap) bits.push('вмещает '+it.cap);
     else if(pr.container&&pr.container.cap) bits.push('вмещает '+pr.container.cap);
@@ -12382,7 +12607,11 @@ function itemCardHTML(it, extra){
   if(material){
     h+='<div class="props-block"><span class="pt">Структура материала:</span> '+esc(material.category)+' · уровень '+material.tier+'<div style="margin-top:3px"><b>Источник:</b> '+esc(material.source)+'</div>';
     if(material.harvest) h+='<div style="margin-top:3px"><b>Сбор:</b> '+esc(material.harvest.skill)+' ('+esc(AB_FULL[material.harvest.ability]||material.harvest.ability)+') СЛ '+material.harvest.dc+' · '+esc(material.harvest.time)+' · выход '+esc(material.harvest.yield)+'</div>';
-    if(material.component) h+='<div style="margin-top:3px"><b>Компонент:</b> оценка '+material.component.valueGp+' зм · '+(material.component.consumedBy.length?'расходуемый':'нерасходуемый')+'</div>';
+    if(material.component){
+      h+='<div style="margin-top:3px"><b>Компонент:</b> '+(material.component.valueMode==='inventory'?'оценка задается у экземпляра':'стоимость '+material.component.valueGp+' зм')+' · физическая форма '+esc(material.component.form||'любая')+'</div>';
+      const spellLinks=(material.uses||[]).map(id=>spellOf(id)).filter(Boolean).map(sp=>{ const c=parseComponents(sp); return esc(sp.n)+' — '+materialCostFor(sp,c)+' зм, '+(matConsumeFor(sp)?'расходуется':'сохраняется'); });
+      if(spellLinks.length) h+='<div style="margin-top:3px"><b>Заклинания:</b> '+spellLinks.join(' · ')+'</div>';
+    }
     const links=recipesUsingItem(it.id); if(links.length) h+='<div style="margin-top:3px"><b>Ремесло:</b> '+links.map(r=>esc(r.n)).join(' · ')+'</div>';
     h+='</div>';
   }
@@ -12593,6 +12822,8 @@ function itemEditorHTML(){
 function saveItemEd(){
   const g=id=>document.getElementById(id);
   const n=g('edItN').value.trim(); if(!n){ alert('Предмету нужно имя.'); return; }
+  const duplicate=itemsDB.find(x=>x.id!==editing.it&&itemIdentityKey(x.n)===itemIdentityKey(n));
+  if(duplicate){ alert('Предмет «'+duplicate.n+'» уже существует. Добавьте новое применение или свойство в его запись вместо создания дубля.'); return; }
   let uses,resource,profile,tool,material;
   try{ uses=JSON.parse(g('edItUses').value||'[]'); if(!Array.isArray(uses)) throw new Error('нужен JSON-массив'); }
   catch(e){ alert('Структурированные применения повреждены: '+e.message); return; }
@@ -13309,6 +13540,16 @@ function setInvQty(e,it,next){
 }
 function invQty(entryId,d){ const c=cc(); const e=c.inventory.find(x=>x.id===entryId); if(!e) return;
   setInvQty(e,itemOf(e.itemId),(e.qty||1)+d); scheduleSave(); renderChars(); }
+function invValueEdit(entryId){
+  const c=cc(),e=c&&c.inventory.find(x=>x.id===entryId),it=e&&itemOf(e.itemId); if(!it||!itemUsesInventoryValue(it)) return false;
+  const suggested=itemEntryGoldValue(e,it)||((itemProfile(it).value||{}).defaultGp)||1;
+  const raw=window.prompt('Оценочная стоимость одного экземпляра «'+it.n+'» в золотых монетах:',String(suggested));
+  if(raw==null) return false;
+  const gp=Number(String(raw).trim().replace(',','.'));
+  if(!Number.isFinite(gp)||gp<=0){ alert('Укажите положительную оценочную стоимость в золотых монетах.'); return false; }
+  e.valueGp=Math.round(gp*100)/100;
+  scheduleSave(); renderChars(); return true;
+}
 function invNoteClear(entryId){ const c=cc(); if(!c) return;
   const e=c.inventory.find(x=>x.id===entryId); if(!e) return;
   e.notes=''; scheduleSave(); renderChars(); }
@@ -13351,17 +13592,29 @@ function invEquipToggle(entryId){
   scheduleSave(); renderChars();
 }
 function addInvFromDB(itemId){
-  const c=cc(); if(!c) return;
-  const ex=c.inventory.find(x=>x.itemId===itemId);
-  if(ex) setInvQty(ex,itemOf(itemId),(ex.qty||1)+1);
-  else c.inventory.push({id:'inv_'+uid(), itemId, qty:1, notes:''});
+  const c=cc(),it=c&&itemOf(itemId); if(!c||!it) return;
+  let valueGp=null;
+  if(itemUsesInventoryValue(it)){
+    const suggested=(itemProfile(it).value||{}).defaultGp||1;
+    const raw=window.prompt('Оценочная стоимость выдаваемого экземпляра «'+it.n+'» в золотых монетах:',String(suggested));
+    if(raw==null) return;
+    valueGp=Number(String(raw).trim().replace(',','.'));
+    if(!Number.isFinite(valueGp)||valueGp<=0){ alert('Укажите положительную оценочную стоимость в золотых монетах.'); return; }
+    valueGp=Math.round(valueGp*100)/100;
+  }
+  const ex=c.inventory.find(x=>x.itemId===itemId&&(!itemUsesInventoryValue(it)||+x.valueGp===valueGp));
+  let added=ex;
+  if(ex) setInvQty(ex,it,(ex.qty||1)+1);
+  else { added={id:'inv_'+uid(), itemId, qty:1, notes:''}; if(valueGp!=null) added.valueGp=valueGp; c.inventory.push(added); }
   sheetSearch.inv=''; scheduleSave(); renderChars();
-  (function(){ const e=(c.inventory||[])[c.inventory.length-1]; const t=e?itemOf(e.itemId):null;
-    if(t&&Array.isArray(t.contents)&&t.contents.length&&typeof fillContainer==='function') fillContainer(e,t); })();
+  (function(){ const t=added?itemOf(added.itemId):null;
+    if(t&&Array.isArray(t.contents)&&t.contents.length&&typeof fillContainer==='function') fillContainer(added,t); })();
 }
 function quickAddItem(){
   const g=id=>document.getElementById(id);
   const n=g('qiN').value.trim(); if(!n){ alert('Предмету нужно имя.'); return; }
+  const duplicate=itemsDB.find(x=>itemIdentityKey(x.n)===itemIdentityKey(n));
+  if(duplicate){ alert('Предмет «'+duplicate.n+'» уже есть в арсенале. Выдайте существующую запись или дополните ее свойства.'); return; }
   const it={id:'it_'+uid(), n, type:g('qiT').value, rarity:'обычный', custom:true, tags:[],
     slot:g('qiSlot').value||null, weight:'', cost:g('qiC').value.trim(), dmg:g('qiDmg').value.trim(),
     dmgType:'', desc:g('qiDesc').value, props:''};
@@ -13429,8 +13682,11 @@ function stInventory(c){
       const chBox=ich
         ? '<span class="uses-box" title="Заряды предмета'+(isp.when?' · восстановление '+esc(isp.when):'')+'"><button class="mini-btn" onclick="invChargeDelta(\''+e.id+'\',-1)">−</button>заряды '+ich.cur+' / '+ich.max+'<button class="mini-btn" onclick="invChargeDelta(\''+e.id+'\',1)">+</button></span>'
         : '';
+      const valueBox=itemUsesInventoryValue(it)
+        ? '<button class="btn ghost sm" title="Оценка относится к этому экземпляру, а не к виду предмета" onclick="invValueEdit(\''+e.id+'\')">💰 '+(itemEntryGoldValue(e,it)==null?'указать оценку':itemEntryGoldValue(e,it)+' зм')+'</button>'
+        : '';
       const extra=acts.map(x=>'<button class="btn ghost sm fx-cast" title="'+esc(x.title)+'" onclick="'+x.fn+'">'+x.icon+' '+esc(x.label)+'</button>').join('')
-       +chBox+attBox
+       +chBox+valueBox+attBox
        +'<span class="qty-box"><button class="mini-btn" onclick="invQty(\''+e.id+'\',-1)">−</button><b>'+(e.qty||1)+'</b><button class="mini-btn" onclick="invQty(\''+e.id+'\',1)">+</button></span>'
        +(canEq?'<button class="btn '+(eq?'':'ghost ')+'sm" onclick="invEquipToggle(\''+e.id+'\')">'+(eq?'Надето ✓':'Надеть')+'</button>':'')
        +'<button class="btn ghost sm" title="Править в базе предметов" onclick="jumpToItemEd(\''+it.id+'\')">✎</button>'

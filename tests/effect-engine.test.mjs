@@ -55,6 +55,7 @@ function loadEngine(random = () => 0) {
       combatFoeRecharge, combatFoeAttackAllowed, combatRecordFoeAttack, combatAttackCount,
       castConfirm, castFormulaShow, castFormulaConfirm, closeCastModal, runRareBattleAudit, runSpellPreparationAudit,
       inventoryItemQty, craftPlanFor, commitCraftPlan, itemMaterialMeta, recipesUsingItem, craftRecipesForTool, eAb,
+      itemIdentityKey, canonicalizeItemDatabase, itemEntryGoldValue, itemUsesInventoryValue,
       itemExpansion() { return ITEM_EXPANSION_V45; },
       itemRecipes() { return ITEM_RECIPES_V45; },
       itemTagNames() { return Object.keys(ITEM_TAGS); },
@@ -549,30 +550,33 @@ test('контракт проверяет всю мировую базу, пре
   e.setState({spells, abilities, items, foes});
   const audit = e.gameDataAudit({spells, abilities, items, foes});
 
-  assert.deepEqual(plain(audit.counts), {spells: 121, abilities: 77, items: 195, foes: 30, total: 423});
+  assert.deepEqual(plain(audit.counts), {spells: 121, abilities: 77, items: 191, foes: 30, total: 419});
   assert.ok(audit.variants > 900);
   assert.deepEqual(plain(audit.errors), []);
   assert.equal(Object.values(audit.modes.spell).reduce((a, b) => a + b, 0), 121);
   assert.equal(Object.values(audit.modes.ability).reduce((a, b) => a + b, 0), 77);
-  assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 195);
+  assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 191);
   assert.equal(audit.modes.foe.structured, 30);
-  assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 195);
+  assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 191);
   assert.equal(new Set(audit.itemActions.manualNames).size, audit.itemActions.manual);
 });
 
-test('расширение 4.5 добавляет ровно 61 полностью структурированный предмет и 20 связных рецептов', () => {
+test('расширение 4.5 содержит 58 самостоятельных сущностей без предметов, названных по одному заклинанию', () => {
   const e = loadEngine(), expansion = plain(e.itemExpansion()), recipes = plain(e.itemRecipes());
   const items = e.seedItemsDB(), spells = e.seedSpellsDB();
   e.setState({items, spells});
 
-  assert.equal(expansion.length, 61);
-  assert.equal(new Set(expansion.map(it => it.id)).size, 61);
+  assert.equal(expansion.length, 58);
+  assert.equal(new Set(expansion.map(it => it.id)).size, 58);
   assert.equal(expansion.filter(it => it.type === 'potion' || ['it_acid_vial', 'it_holy_water'].includes(it.id)).length, 12);
   assert.equal(expansion.filter(it => it.type === 'scroll').length, 10);
   assert.equal(expansion.filter(it => it.tool).length, 12);
   assert.equal(expansion.filter(it => it.material && it.material.harvest).length, 16);
   assert.equal(expansion.filter(it => it.material && it.material.category === 'refined').length, 6);
-  assert.equal(expansion.filter(it => it.material && it.material.category === 'component').length, 5);
+  assert.equal(expansion.filter(it => it.material && it.material.component).length, 2);
+  assert.equal(expansion.filter(it => it.material && it.material.category === 'gemstone').length, 1);
+  assert.equal(expansion.filter(it => it.material && it.material.category === 'processed').length, 1);
+  assert.equal(expansion.filter(it => /^Алмаз (?:для|к)/.test(it.n) || /^Алмазы для/.test(it.n)).length, 0);
 
   const knownTags = new Set(e.itemTagNames());
   for (const raw of expansion) {
@@ -732,28 +736,129 @@ test('святая вода проверяет тип цели, а малое в
   assert.equal(e.effectiveConditions(patient).includes('Отравленный'), false);
 });
 
-test('стоимостные алмазы покрывают нужные заклинания и расходуются ровно по правилу', () => {
+test('один Алмаз хранит цену у экземпляра и покрывает все заклинания по их собственным правилам', () => {
   const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB();
   const cases = [
-    ['sp_chromatic_orb', 'it_component_diamond_50', 0],
-    ['sp_оживление', 'it_component_diamonds_300', 1],
-    ['sp_воскрешение_мертвого', 'it_component_diamond_500', 1],
-    ['sp_воскрешение', 'it_component_diamond_1000', 1],
-    ['sp_истинное_воскрешение', 'it_component_diamonds_25000', 1],
+    ['sp_chromatic_orb', 50, 0],
+    ['sp_оживление', 300, 1],
+    ['sp_воскрешение_мертвого', 500, 1],
+    ['sp_воскрешение', 1000, 1],
+    ['sp_врата', 5000, 0],
+    ['sp_истинное_воскрешение', 25000, 1],
   ];
-  const caster = hero('component-caster', {inventory: cases.map(([spellId, itemId], i) => ({id: `component-${i}`, itemId, qty: 2}))});
+  const diamond = items.find(it => it.id === 'it_diamond'), dust = items.find(it => it.id === 'it_diamond_dust');
+  assert.ok(diamond && dust);
+  assert.equal(items.filter(it => e.itemIdentityKey(it.n) === 'алмаз').length, 1);
+  assert.equal(items.some(it => /^it_component_diamond/.test(it.id) || /^it_component_diamonds/.test(it.id) || it.id === 'it_diamond_torg'), false);
+  assert.deepEqual(plain(e.itemProfile(diamond).roles), ['treasure', 'trade', 'jewelry', 'crafting', 'spellComponent']);
+
+  const caster = hero('component-caster', {inventory: cases.map(([, value], i) => ({id: `component-${i}`, itemId: diamond.id, qty: 2, valueGp: value}))
+    .concat([{id: 'unknown-value', itemId: diamond.id, qty: 1}, {id: 'dust', itemId: dust.id, qty: 2}])});
   e.setState({chars: [caster], items, spells});
 
   for (let i = 0; i < cases.length; i++) {
-    const [spellId, itemId, consume] = cases[i], spell = spells.find(sp => sp.id === spellId);
+    const [spellId, value, consume] = cases[i], spell = spells.find(sp => sp.id === spellId);
     assert.ok(spell, `${spellId}: заклинание есть в базе`);
     const comp = e.parseComponents(spell);
     assert.equal(e.materialPlanFor(caster, spell, comp, {substitute: true}).ok, false, 'стоимостный компонент нельзя заменить фокусировкой');
     const plan = e.materialPlanFor(caster, spell, comp, {entryId: `component-${i}`, use: consume});
     assert.equal(plan.ok, true, `${spellId}: ${plan.reason || ''}`);
+    assert.equal(plan.valueGp, value);
     assert.equal(e.commitMaterialPlan(caster, plan).ok, true);
-    assert.equal(e.inventoryItemQty(caster, itemId), 2 - consume);
+    assert.equal(caster.inventory.find(x => x.id === `component-${i}`).qty, 2 - consume);
   }
+
+  const orb = spells.find(sp => sp.id === 'sp_chromatic_orb');
+  assert.match(e.materialPlanFor(caster, orb, e.parseComponents(orb), {entryId: 'unknown-value', use: 0}).reason, /не указана оценочная стоимость/);
+  const stoneskin = spells.find(sp => sp.id === 'sp_каменная_кожа');
+  assert.ok(stoneskin);
+  const wholeOnly=hero('whole-only',{inventory:[{id:'whole',itemId:diamond.id,qty:1,valueGp:1000}]});
+  e.setState({chars:[wholeOnly],items,spells});
+  assert.equal(e.materialPlanFor(wholeOnly, stoneskin, e.parseComponents(stoneskin), {aggregate:true}).ok, false, 'целый алмаз не является алмазной пылью');
+  e.setState({chars:[caster],items,spells});
+  const dustPlan = e.materialPlanFor(caster, stoneskin, e.parseComponents(stoneskin), {entryId: 'dust', use: 1});
+  assert.equal(dustPlan.ok, true, dustPlan.reason || 'алмазная пыль подходит');
+  assert.equal(e.commitMaterialPlan(caster, dustPlan).ok, true);
+  assert.equal(caster.inventory.find(x => x.id === 'dust').qty, 1);
+
+  const labels=e.itemActions(caster,caster.inventory[0],diamond).map(x=>x.label);
+  assert.ok(labels.includes('Связи') && labels.includes('Продать'), 'алмаз остается материалом и самостоятельной ценностью');
+
+  const revivify=spells.find(sp=>sp.id==='sp_оживление'),raiseDead=spells.find(sp=>sp.id==='sp_воскрешение_мертвого');
+  const many=hero('many-diamonds',{inventory:[{id:'hundreds',itemId:diamond.id,qty:3,valueGp:100}]});
+  e.setState({chars:[many],items,spells});
+  const manyPlan=e.materialPlanFor(many,revivify,e.parseComponents(revivify),{aggregate:true});
+  assert.equal(manyPlan.ok,true,manyPlan.reason||'три алмаза по 100 зм покрывают общую цену');
+  assert.deepEqual(plain(manyPlan.deductions),[{entryId:'hundreds',itemId:'it_diamond',qty:3,label:'Алмаз',unitValueGp:100}]);
+  assert.equal(e.commitMaterialPlan(many,manyPlan).ok,true);
+  assert.equal(many.inventory.length,0);
+
+  const tooSmall=hero('small-diamonds',{inventory:[{id:'small',itemId:diamond.id,qty:5,valueGp:100}]});
+  e.setState({chars:[tooSmall],items,spells});
+  assert.equal(e.materialPlanFor(tooSmall,raiseDead,e.parseComponents(raiseDead),{entryId:'small',use:1}).ok,false,
+    'пять мелких камней не заменяют один алмаз ценой 500 зм там, где правило требует один камень');
+});
+
+test('миграция склеивает все опубликованные дубли и переводит прежние алмазы без потери цены и вложений', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const spellingAliases = [
+    ['it_верёвка_пеньковая_15_м','it_веревка_пеньковая_15_м'],
+    ['it_верёвка_шёлковая_15_м','it_веревка_шелковая_15_м'],
+    ['it_верёвочная_лестница_3_м','it_веревочная_лестница_3_м'],
+    ['it_длинное_копьё_пика','it_длинное_копье_пика'],
+    ['it_кавалерийское_копьё','it_кавалерийское_копье'],
+    ['it_копьё','it_копье'],
+    ['it_лёгкий_арбалет','it_легкий_арбалет'],
+    ['it_лёгкий_молот','it_легкий_молот'],
+    ['it_метательное_копьё','it_метательное_копье'],
+    ['it_проклёпанная_кожа_arm','it_проклепанная_кожа_arm'],
+    ['it_стёганый_arm','it_стеганый_arm'],
+    ['it_тяжёлый_арбалет','it_тяжелый_арбалет'],
+  ];
+  const legacyPairs = spellingAliases.concat([
+    ['it_зелье_лечения_2к4_2','it_зелье_лечения_2d4_2'],
+    ['it_набор_целителя_10_исп','it_healer_kit_t'],
+  ]);
+  for (const [oldId,targetId] of legacyPairs) {
+    const target=items.find(it=>it.id===targetId);
+    assert.ok(target, targetId);
+    const old=plain(target); old.id=oldId;
+    if(oldId.includes('2к4')) old.n='Зелье лечения (2к4+2)';
+    if(oldId.includes('набор_целителя')) old.n='Набор целителя (10 исп.)';
+    items.push(old);
+  }
+  const diamondAliases = [
+    ['it_diamond_torg',100],['it_component_diamond_50',50],['it_component_diamonds_300',300],
+    ['it_component_diamond_500',500],['it_component_diamond_1000',1000],['it_component_diamonds_25000',25000],
+  ];
+  const diamond=items.find(it=>it.id==='it_diamond');
+  diamondAliases.forEach(([id,value])=>items.push({id,n:'Старая запись алмаза '+value,type:'equipment',tags:['gem'],cost:value+' зм',desc:''}));
+
+  const inventory=legacyPairs.map(([oldId],i)=>({id:'legacy-'+i,itemId:oldId,qty:1}));
+  diamondAliases.forEach(([oldId],i)=>inventory.push({id:'diamond-'+i,itemId:oldId,qty:1}));
+  inventory.push({id:'holder',itemId:'it_gem_pouch',qty:1,inside:[{id:'inner-diamond',itemId:'it_component_diamond_50',qty:1}]});
+  const party=[hero('migrated',{inventory})],before=items.length;
+  e.setState({chars:party,items});
+  const result=e.canonicalizeItemDatabase(items,party,{});
+
+  assert.equal(before-items.length,20);
+  assert.equal(result.removed.length,20);
+  assert.equal(result.remapped,21);
+  assert.equal(result.valued,7);
+  for (const [oldId,targetId] of legacyPairs) {
+    assert.equal(items.some(it=>it.id===oldId),false,oldId+' удален');
+    assert.ok(party[0].inventory.some(x=>x.itemId===targetId),targetId+' получил ссылку');
+  }
+  diamondAliases.forEach(([oldId,value],i)=>{
+    const entry=party[0].inventory.find(x=>x.id==='diamond-'+i);
+    assert.equal(entry.itemId,diamond.id);
+    assert.equal(entry.valueGp,value);
+    assert.equal(items.some(it=>it.id===oldId),false);
+  });
+  const inside=party[0].inventory.find(x=>x.id==='holder').inside[0];
+  assert.deepEqual(plain({itemId:inside.itemId,valueGp:inside.valueGp}),{itemId:'it_diamond',valueGp:50});
+  const names=items.map(it=>e.itemIdentityKey(it.n));
+  assert.equal(new Set(names).size,names.length,'после миграции нет повторных сущностей по имени');
 });
 
 test('матрица всей базы не допускает урон при промахе и длительный эффект после успешного спасброска', () => {
@@ -2798,10 +2903,8 @@ test('неизвестную КД и исчерпанные ресурсы не�
 test('материальный компонент имеет точный расход, а аудит связывает всю штатную четверку', () => {
   const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
   const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
-  const diamond = {id: 'audit-diamond', n: 'Алмаз', type: 'wondrous', tags: [], cost: '100 зм', desc: ''};
-  e.upgradeItem(diamond);
-  items.push(diamond);
-  const caster = hero('material-caster', {inventory: [{id: 'gem', itemId: diamond.id, qty: 3}]});
+  const diamond = items.find(it => it.id === 'it_diamond');
+  const caster = hero('material-caster', {inventory: [{id: 'gem', itemId: diamond.id, qty: 3, valueGp: 100}]});
   const spell = {id: 'material-spell', n: 'Точный компонент', l: 1, cm: 'М (алмаз, расходуется)', d: 'Мгновенная', x: ''};
   e.upgradeSpell(spell, true); spells.push(spell);
   e.setState({chars: [caster], items, spells, abilities, races, classes, foes});

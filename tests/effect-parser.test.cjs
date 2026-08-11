@@ -75,11 +75,11 @@ const engine = loadEngine();
 test('разделители компонентов не отключают обязательные проверки', () => {
   assert.deepEqual(
     plain(engine.parseComponents({ cm: 'В / С / М' })),
-    { v: true, s: true, m: true, matDesc: '', flex: false }
+    { v: true, s: true, m: true, matDesc: '', matForm: '', costMode: 'single', flex: false }
   );
   assert.deepEqual(
     plain(engine.parseComponents({ cm: 'В, С, М (щепотка песка/лепестков)' })),
-    { v: true, s: true, m: true, matDesc: 'щепотка песка/лепестков', flex: false }
+    { v: true, s: true, m: true, matDesc: 'щепотка песка/лепестков', matForm: '', costMode: 'single', flex: false }
   );
 });
 
