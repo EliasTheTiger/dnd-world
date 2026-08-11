@@ -54,6 +54,8 @@ function loadEngine(random = () => 0) {
       combatStart, combatNextTurn, combatEnd, combatSpend, combatCanSpend, combatBasicAction, combatFocus, combatTurnStamp,
       combatEnsureSetup, restorePartyAndCombatState, resetCombatAndParty,
       mergeStableEntries, structuredReleaseCampaignPayload,
+      syncNeedsOwnerAuth, syncUrlWithAuth,
+      setSyncConfig(v){ syncCfg=v; },
       combatCastSpell, combatUseAbility, combatWeapon, combatFoeAction, combatSyncChanges, combatVictoryText,
       combatUseItem, combatResolveItemZone,
       combatDeathSave, combatContestAction, combatTriggerReady, combatOpportunityBlocked, combatSetGroup, combatSpellTurnAllowed,
@@ -4536,4 +4538,29 @@ test('регрессия уникальных предметов: реакции
   assert.ok(freshChoice); const stale = e.applyInlineSaveDecision(fresh, ti, freshChoice);
   Object.keys(legerem.equipment).forEach(slot => { if (legerem.equipment[slot] === seal.id) delete legerem.equipment[slot]; });
   assert.equal(e.inlineSavePlanCheck(stale.plan).ok, false, 'снятая между планом и d20 печать делает план stale без расхода');
+});
+
+test('облачная синхронизация отличает штатную базу и безопасно добавляет ID-токен', () => {
+  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  assert.doesNotMatch(html,/"\.read"\s*:\s*true/);
+  assert.doesNotMatch(html,/"\.write"\s*:\s*true/);
+  assert.match(html,/firebase-auth\.js/);
+  assert.match(html,/getIdToken/);
+  const e=loadEngine();
+  e.setSyncConfig({
+    url:'https://best-dnd-campaign-ever-default-rtdb.firebaseio.com/',
+    room:'SpeakFriendAndEnter2026',
+    on:true
+  });
+  assert.equal(e.syncNeedsOwnerAuth(),true);
+  assert.equal(
+    e.syncUrlWithAuth('https://example.firebaseio.com/world.json','token +/='),
+    'https://example.firebaseio.com/world.json?auth=token%20%2B%2F%3D'
+  );
+  assert.equal(
+    e.syncUrlWithAuth('https://example.firebaseio.com/world.json?print=silent','abc'),
+    'https://example.firebaseio.com/world.json?print=silent&auth=abc'
+  );
+  e.setSyncConfig({url:'https://another-project.firebaseio.com',room:'main',on:true});
+  assert.equal(e.syncNeedsOwnerAuth(),false);
 });

@@ -11018,7 +11018,8 @@ function fxPanelHTML(c){
      предметы и снаряжение, заклинания, способности, народы, призвания, справочник мастера.
    КАМПАНЕЙСКИЙ контур (узел campaigns/{ключ}) — персонажи и журнал конкретной кампании.
    Firebase Realtime Database через REST (запись) и Server-Sent Events (живой поток).
-   Если в код вписан DEFAULT_DB_URL, облако включается само на любом устройстве. */
+   Штатная база требует Firebase Authentication: URL и Web API key являются
+   публичной конфигурацией, а доступ определяют ID-токен и Security Rules. */
 const CLOUD_PAUSED=false;
 const DEFAULT_DB_URL='https://best-dnd-campaign-ever-default-rtdb.firebaseio.com';
 const DEFAULT_ROOM='SpeakFriendAndEnter2026';   /* кампания по умолчанию */
@@ -11051,6 +11052,72 @@ function syncBase(){
   return /^https:\/\/.+/.test(u)? u : null;
 }
 function syncRoom(){ return String((syncCfg&&syncCfg.room)||'').trim().replace(/[^a-zA-Z0-9_-]/g,''); }
+
+function syncNeedsOwnerAuth(){
+  const b=syncBase();
+  return !!b && b===DEFAULT_DB_URL;
+}
+function syncAuthApi(){ return window.dndFirebaseAuth||null; }
+function syncAuthReady(timeoutMs){
+  const api=syncAuthApi();
+  if(api) return Promise.resolve(api);
+  return new Promise(resolve=>{
+    let done=false;
+    const finish=()=>{ if(done) return; done=true; resolve(syncAuthApi()); };
+    window.addEventListener('dnd-firebase-auth-ready',finish,{once:true});
+    setTimeout(finish,timeoutMs||8000);
+  });
+}
+async function syncAuthToken(forceRefresh){
+  if(!syncNeedsOwnerAuth()) return '';
+  const api=await syncAuthReady();
+  if(!api) return null;
+  await api.ready;
+  return api.currentUser()?api.getToken(!!forceRefresh):null;
+}
+function syncUrlWithAuth(url,token){
+  if(!token) return url;
+  return url+(url.includes('?')?'&':'?')+'auth='+encodeURIComponent(token);
+}
+function syncRenderAuth(){
+  const box=document.getElementById('syncAuthState');
+  const inBtn=document.getElementById('syncAuthIn');
+  const outBtn=document.getElementById('syncAuthOut');
+  const api=syncAuthApi(), user=api&&api.currentUser?api.currentUser():null;
+  if(box) box.textContent=user?'Владелец авторизован ✓':'Требуется вход владельца';
+  if(box) box.className='sync-status'+(user?' ok':'');
+  if(inBtn) inBtn.style.display=user?'none':'';
+  if(outBtn) outBtn.style.display=user?'':'none';
+}
+async function syncAuthSignIn(){
+  const api=syncAuthApi();
+  if(!api){ syncStatus('Модуль защищенного входа еще загружается','err'); return false; }
+  try{
+    await api.signIn();
+    syncRenderAuth();
+    if(api.currentUser()) await syncConnect(false);
+    return !!api.currentUser();
+  }catch(e){
+    if(e&&e.code==='auth/popup-closed-by-user') return false;
+    syncStatus('Вход не выполнен — '+(e&&e.message?e.message:'неизвестная ошибка'),'err');
+    return false;
+  }
+}
+async function syncAuthSignOut(){
+  const api=syncAuthApi();
+  syncChans.forEach(syncCloseStream); syncOn=false;
+  if(api) await api.signOut();
+  syncRenderAuth(); syncStatus('Облако защищено: выполните вход владельца');
+}
+if(typeof window.addEventListener==='function') window.addEventListener('dnd-firebase-auth-changed',()=>{
+  syncRenderAuth();
+  const api=syncAuthApi();
+  if(api&&api.currentUser()&&syncCfg&&syncCfg.on&&!syncOn) syncConnect(false);
+  else if(syncNeedsOwnerAuth()&&(!api||!api.currentUser())){
+    syncChans.forEach(syncCloseStream); syncOn=false;
+    syncStatus('Облако защищено: выполните вход владельца');
+  }
+});
 
 function syncStatus(t,cls){
   const el=document.getElementById('syncStatus');
@@ -11180,8 +11247,10 @@ async function syncPushNow(ch){
   const u=ch.url(); if(!u||!syncOn) return false;
   const p={ by:syncClientId, at:Date.now(), j:JSON.stringify(ch.payloadOf()) };
   try{
+    const token=await syncAuthToken(false);
+    if(syncNeedsOwnerAuth()&&!token) throw new Error('требуется вход владельца');
     syncStatus('Облако: отправляю ('+ch.name+')…');
-    const r=await fetch(u,{method:'PUT',body:JSON.stringify(p)});
+    const r=await fetch(syncUrlWithAuth(u,token),{method:'PUT',body:JSON.stringify(p)});
     if(!r.ok) throw new Error('HTTP '+r.status);
     ch.lastAt=p.at;
     lsSet('dndworld2:synclast:'+ch.key,String(p.at)); lsSet('dndworld2:dirty:'+ch.key,'');
@@ -11192,11 +11261,13 @@ async function syncPushNow(ch){
 
 /* ─── живой поток ─── */
 function syncCloseStream(ch){ if(ch.es){ try{ ch.es.close(); }catch(e){} ch.es=null; } }
-function syncOpenStream(ch){
+async function syncOpenStream(ch,forceRefresh){
   syncCloseStream(ch);
   const u=ch.url(); if(!u) return;
   try{
-    ch.es=new EventSource(u);
+    const token=await syncAuthToken(!!forceRefresh);
+    if(syncNeedsOwnerAuth()&&!token) throw new Error('требуется вход владельца');
+    ch.es=new EventSource(syncUrlWithAuth(u,token));
     const onPut=(ev)=>{
       try{
         const p=JSON.parse(ev.data);
@@ -11210,7 +11281,11 @@ function syncOpenStream(ch){
     ch.es.addEventListener('put',onPut);
     ch.es.addEventListener('patch',onPut);
     ch.es.addEventListener('cancel',()=>syncStatus('Облако: доступ закрыт правилами базы','err'));
-    ch.es.addEventListener('auth_revoked',()=>syncStatus('Облако: истек доступ — проверьте правила базы','err'));
+    ch.es.addEventListener('auth_revoked',()=>{
+      syncStatus('Облако: обновляю защищенный доступ…');
+      syncCloseStream(ch);
+      if(syncOn) setTimeout(()=>syncOpenStream(ch,true),400);
+    });
     ch.es.onerror=()=>{ if(syncOn) syncStatus('Облако: связь прервана ('+ch.name+'), переподключаюсь…','err'); };
   }catch(e){ syncStatus('Облако: живой поток недоступен — '+e.message,'err'); }
 }
@@ -11229,7 +11304,7 @@ async function syncHandshake(ch, cloud, interactive){
   } else {
     await syncPushNow(ch);       /* узел пуст — кладем свои данные */
   }
-  syncOpenStream(ch);
+  await syncOpenStream(ch);
 }
 
 async function syncStructuredReleaseCampaign(cloud){
@@ -11244,7 +11319,7 @@ async function syncStructuredReleaseCampaign(cloud){
   if(!ok) return false;
   lsSet('dndworld2:release-pending','');
   syncReleasePending=false;
-  syncOpenStream(chCamp);
+  await syncOpenStream(chCamp);
   return true;
 }
 
@@ -11253,15 +11328,22 @@ async function syncConnect(interactive){
   if(!syncBase()){ syncStatus('Укажите ссылку на базу (https://…)','err'); return; }
   syncChans.forEach(syncCloseStream);
   syncStatus('Облако: подключаюсь…');
+  const token=await syncAuthToken(false);
+  if(syncNeedsOwnerAuth()&&!token){
+    syncOn=false;
+    syncStatus('Облако защищено: войдите как владелец','err');
+    syncRenderAuth();
+    return false;
+  }
   /* забираем оба узла */
   let cloudW=null, cloudC=null;
   try{
-    const r=await fetch(chWorld.url());
+    const r=await fetch(syncUrlWithAuth(chWorld.url(),token));
     if(!r.ok) throw new Error('HTTP '+r.status);
     cloudW=await r.json();
   }catch(e){ syncOn=false; syncStatus('Облако: нет доступа — '+e.message,'err'); return; }
   if(chCamp.url()){
-    try{ const r=await fetch(chCamp.url()); if(r.ok) cloudC=await r.json(); }catch(e){}
+    try{ const r=await fetch(syncUrlWithAuth(chCamp.url(),token)); if(r.ok) cloudC=await r.json(); }catch(e){}
   }
   syncOn=true; syncCfg.on=true; syncSaveCfg();
   /* перенос старого формата: раньше весь мир лежал внутри кампании */
@@ -11285,6 +11367,7 @@ async function syncConnect(interactive){
     } else await syncHandshake(chCamp, cloudC, interactive);
   }
   syncStatus('Облако: подключено ✓ (мир — общий'+(chCamp.url()?', кампания «'+syncRoom()+'»':'; кампания не задана')+')','ok');
+  return true;
 }
 function syncDisconnect(){
   syncChans.forEach(syncCloseStream); syncOn=false;
@@ -11294,7 +11377,9 @@ function syncDisconnect(){
 function syncAutoStart(){
   syncLoadCfg();
   if(CLOUD_PAUSED){ syncStatus('Облако: на паузе — весь материал ведется локально для всего сайта'); return; }
-  if(syncCfg && syncCfg.on && syncBase() && typeof EventSource!=='undefined') syncConnect(false);
+  if(syncCfg && syncCfg.on && syncBase() && typeof EventSource!=='undefined'){
+    syncAuthReady().then(()=>syncConnect(false));
+  }
 }
 
 /* ─── окно настройки ─── */
@@ -11311,21 +11396,27 @@ function openSyncModal(){
       '<input id="syncUrlInp" class="sync-inp" placeholder="https://ваш-проект-default-rtdb.europe-west1.firebasedatabase.app">'+
       '<label class="sync-lbl">Ключ кампании — для персонажей и журнала (можно оставить main)</label>'+
       '<input id="syncRoomInp" class="sync-inp" placeholder="main">'+
+      '<div id="syncAuthState" class="sync-status">Проверяю защищенный вход…</div>'+
+      '<div class="sync-btns">'+
+      '<button id="syncAuthIn" class="btn rub sm" onclick="syncAuthSignIn()">Войти владельцем</button>'+
+      '<button id="syncAuthOut" class="btn ghost sm" onclick="syncAuthSignOut()" style="display:none">Выйти из аккаунта</button>'+
+      '</div>'+
       '<div class="sync-btns">'+
       '<button class="btn sm" onclick="syncSaveAndConnect()">Подключить</button>'+
       '<button class="btn ghost sm" onclick="syncDisconnect()">Отключить</button>'+
       '<button class="btn ghost sm" onclick="closeSyncModal()">Закрыть</button>'+
       '</div>'+
       '<div id="syncStatus" class="sync-status"></div>'+
-      '<details class="sync-help"><summary>Как завести облако (один раз, ~3 минуты, бесплатно)</summary>'+
+      '<details class="sync-help"><summary>Как безопасно завести свое облако</summary>'+
       '<ol>'+
       '<li>Откройте <b>console.firebase.google.com</b> (нужен аккаунт Google) → «Создать проект». Название любое, Analytics можно выключить.</li>'+
-      '<li>Слева: <b>Build → Realtime Database</b> → «Создать базу данных» → регион любой → <b>«Начать в тестовом режиме»</b>.</li>'+
+      '<li>Слева: <b>Build → Realtime Database</b> → «Создать базу данных». Тестовый режим используйте только на время первоначальной настройки.</li>'+
+      '<li>Включите <b>Authentication → Google</b>, зарегистрируйте Web app и добавьте домен сайта в Authorized domains.</li>'+
       '<li>Над таблицей данных появится ссылка вида <i>https://…-default-rtdb.….firebasedatabase.app/</i> — скопируйте ее в поле выше.</li>'+
-      '<li>Нажмите «Подключить». На остальных устройствах введите ту же ссылку; своды мира сойдутся сами, а для общих персонажей укажите одинаковый ключ кампании.</li>'+
-      '<li>Тестовый режим действует 30 дней. Затем во вкладке <b>Правила</b> базы поставьте: <code>{"rules":{".read":true,".write":true}}</code> и нажмите «Опубликовать».</li>'+
+      '<li>Опубликуйте Security Rules, разрешающие чтение и запись только вашему <code>auth.uid</code>. Никогда не ставьте глобальные <code>.read: true</code> и <code>.write: true</code>.</li>'+
+      '<li>Нажмите «Войти владельцем», затем «Подключить». На своих устройствах используйте тот же аккаунт и ключ кампании.</li>'+
       '</ol>'+
-      '<div class="sync-note">Данные доступны всякому, кто знает ссылку на базу, — держите ее в секрете, как пароль, и не храните в летописи личные сведения.</div>'+
+      '<div class="sync-note">Ссылка и Firebase Web API key не являются паролями. Защиту обеспечивают Authentication и Security Rules.</div>'+
       '</details>'+
       '</div>';
     document.body.appendChild(m);
@@ -11334,6 +11425,7 @@ function openSyncModal(){
   document.getElementById('syncUrlInp').value=(syncCfg&&syncCfg.url)||'';
   document.getElementById('syncRoomInp').value=(syncCfg&&syncCfg.room)||DEFAULT_ROOM;
   m.classList.remove('hidden');
+  syncRenderAuth();
   syncStatus(syncOn?'Облако: подключено ✓':(CLOUD_PAUSED?'Облако: на паузе по решению мастера — «Подключить» включит его снова':'Облако: не подключено'), syncOn?'ok':'');
 }
 function closeSyncModal(){ const m=document.getElementById('syncModal'); if(m) m.classList.add('hidden'); }
@@ -15959,6 +16051,52 @@ function stNotes(c){
   renderChars(); renderCombat(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderFoes();
   if(typeof syncAutoStart==='function') syncAutoStart();
 })();
+</script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js';
+import {
+  getAuth, GoogleAuthProvider, getRedirectResult, onAuthStateChanged,
+  signInWithPopup, signInWithRedirect, signOut
+} from 'https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js';
+
+const firebaseConfig={
+  apiKey:'AIzaSyBp218SsfywNhxb0EJJZVXLwuAIuNqmvVc',
+  authDomain:'best-dnd-campaign-ever.firebaseapp.com',
+  databaseURL:'https://best-dnd-campaign-ever-default-rtdb.firebaseio.com',
+  projectId:'best-dnd-campaign-ever',
+  storageBucket:'best-dnd-campaign-ever.firebasestorage.app',
+  messagingSenderId:'109610232229',
+  appId:'1:109610232229:web:6fba38d143feb44c62204c'
+};
+const firebaseApp=initializeApp(firebaseConfig);
+const firebaseAuth=getAuth(firebaseApp);
+const googleProvider=new GoogleAuthProvider();
+let authReadyResolve;
+const authReady=new Promise(resolve=>{ authReadyResolve=resolve; });
+let authSeen=false;
+
+window.dndFirebaseAuth={
+  ready:authReady,
+  currentUser:()=>firebaseAuth.currentUser,
+  getToken:force=>firebaseAuth.currentUser?firebaseAuth.currentUser.getIdToken(!!force):Promise.resolve(null),
+  async signIn(){
+    try{ return (await signInWithPopup(firebaseAuth,googleProvider)).user; }
+    catch(e){
+      if(e&&e.code==='auth/popup-blocked'){
+        await signInWithRedirect(firebaseAuth,googleProvider);
+        return null;
+      }
+      throw e;
+    }
+  },
+  signOut:()=>signOut(firebaseAuth)
+};
+window.dispatchEvent(new Event('dnd-firebase-auth-ready'));
+onAuthStateChanged(firebaseAuth,user=>{
+  if(!authSeen){ authSeen=true; authReadyResolve(user||null); }
+  window.dispatchEvent(new CustomEvent('dnd-firebase-auth-changed',{detail:{signedIn:!!user}}));
+});
+getRedirectResult(firebaseAuth).catch(e=>console.warn('Firebase redirect sign-in:',e&&e.code||e));
 </script>
 </body>
 </html>
