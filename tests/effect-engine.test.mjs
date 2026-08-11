@@ -2853,6 +2853,10 @@ test('миграция восстанавливает нулевой стары�
   const e=loadEngine(),classes=e.seedClassesDB();
   const spells=Array.from({length:5},(_,i)=>({id:`cleric-${i}`,n:`Молитва ${i}`,l:i<3?1:2,c:'Жрц'}));
   const legacy=hero('legacy',{cls:'Жрец',level:3,spellbook:spells.map(sp=>({spellId:sp.id,prep:false,access:'classList'})),spellPrepVersion:0});
+  e.setState({chars:[legacy],classes,spells:[]});
+  e.upgradeSpellcastingState(legacy);
+  assert.equal(legacy.spellPrepVersion,0,'номер миграции нельзя ставить до загрузки гримуара');
+  assert.equal(legacy.spellbook.length,5,'ранняя загрузка не удаляет записи полного списка');
   e.setState({chars:[legacy],classes,spells});
   assert.equal(e.upgradeSpellcastingState(legacy),true);
   assert.equal(e.prepCount(legacy),5);
@@ -2861,6 +2865,13 @@ test('миграция восстанавливает нулевой стары�
   e.setState({chars:[known],classes,spells});e.upgradeSpellcastingState(known);
   assert.equal(known.spellPrepDraft,undefined);
   assert.deepEqual(plain(known.spellLearning),{replacements:0,anyClassChoices:0});
+
+  const seeded=e.seedSpellsDB(),roku=e.buildRoku();
+  roku.spellbook.forEach(entry=>{if(!entry.alwaysPrepared)entry.prep=false;});
+  roku.spellPrepVersion=3;delete roku.spellPrepCanonicalVersion;
+  e.setState({chars:[roku],classes,spells:seeded});e.upgradeSpellcastingState(roku);
+  assert.equal(e.prepCount(roku),6,'отдельная каноническая миграция чинит уже помеченный старый лист');
+  assert.equal(roku.spellPrepCanonicalVersion,1);
 });
 
 test('встроенный аудит подготовки проводит 320 проверок всех классов и полностью возвращает кампанию', () => {

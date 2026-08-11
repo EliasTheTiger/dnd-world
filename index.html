@@ -12185,6 +12185,13 @@ function upgradeSpellcastingState(c){
   if(!c) return false;
   let touched=false;
   if(!Array.isArray(c.spellbook)){ c.spellbook=[]; touched=true; }
+  /* loadAll читает листы раньше мирового гримуара. До появления spellsDB
+     нельзя удалять classList-записи, считать миграцию завершенной или
+     выбирать подготовку: spellOf пока закономерно вернет undefined. */
+  if(!Array.isArray(spellsDB)||!spellsDB.length){
+    if(!c.spellLearning||typeof c.spellLearning!=='object'){ c.spellLearning={replacements:0,anyClassChoices:0};touched=true; }
+    return touched;
+  }
   const synced=syncClassSpellAccess(c); if(synced.added.length||synced.removed.length) touched=true;
   c.spellbook.forEach(e=>{
     const sp=spellOf(e.spellId);
@@ -12207,7 +12214,7 @@ function upgradeSpellcastingState(c){
     ['sp_благословение','sp_лечение_ран','sp_lesser_restoration','sp_spiritual_weapon'].forEach(id=>
       grant(id,{prep:true,alwaysPrepared:true,countsAgainstPreparation:false,granted:true,access:'subclass',source:'Домен Жизни'}));
   }
-  const mode=casterPreparationMode(c),firstMigration=+c.spellPrepVersion<SPELL_PREPARATION_STATE_VERSION;
+  const mode=casterPreparationMode(c),firstMigration=(+c.spellPrepVersion||0)<SPELL_PREPARATION_STATE_VERSION;
   const hadLearning=!!(c.spellLearning&&typeof c.spellLearning==='object'),learning=spellLearningState(c);
   if(!hadLearning) touched=true;
   if(mode==='known'){
@@ -12224,8 +12231,8 @@ function upgradeSpellcastingState(c){
   }else if(mode==='book'||mode==='prepared'){
     if(c.spellReplacementDraft){ delete c.spellReplacementDraft;touched=true; }
     let active=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return e.prep&&spellEntryCountsAgainstPreparation(e)&&sp&&+sp.l>0&&spellEntryEligible(c,e,sp); });
-    const fillCanonical=c.id==='char_roku'||c.id==='char_torgar';
-    if(firstMigration&&active.length<prepMax(c)&&prepMax(c)>0&&(fillCanonical||!active.length)){
+    const fillCanonical=c.id==='char_roku'||c.id==='char_torgar',canonicalMigration=fillCanonical&&(+c.spellPrepCanonicalVersion||0)<1;
+    if((firstMigration||canonicalMigration)&&active.length<prepMax(c)&&prepMax(c)>0&&(fillCanonical||!active.length)){
       let preferred=[];
       if(c.id==='char_roku') preferred=['sp_magic_missile','sp_burning_hands','sp_web','sp_magic_sleep','sp_planar_barrier','sp_chromatic_orb'];
       else if(c.id==='char_torgar') preferred=['sp_guiding_bolt','sp_prayer_healing','sp_aid_t','sp_лечащее_слово','sp_щит_веры','sp_приказ'];
@@ -12239,6 +12246,7 @@ function upgradeSpellcastingState(c){
       const should=spellEntryAlwaysPrepared(e)||(spellEntryCountsAgainstPreparation(e)&&allowed.has(e.spellId));
       if(!!e.prep!==should){ e.prep=should; touched=true; }
     });
+    if(fillCanonical&&+c.spellPrepCanonicalVersion!==1){ c.spellPrepCanonicalVersion=1;touched=true; }
   }
   if(+c.spellPrepVersion!==SPELL_PREPARATION_STATE_VERSION){ c.spellPrepVersion=SPELL_PREPARATION_STATE_VERSION; touched=true; }
   return touched;
