@@ -13,10 +13,11 @@ function loadEngine(random = () => 0) {
         chars=s.chars||[]; journal=s.journal||[]; itemsDB=s.items||[]; spellsDB=s.spells||[];
         abilitiesDB=s.abilities||[]; racesDB=s.races||[]; classesDB=s.classes||[];
         rulesDB=s.rules||[]; foesDB=s.foes||[]; activeCharId=s.activeCharId||null; fxRound=s.fxRound||1;
+        harvestedSources=s.harvestedSources&&typeof s.harvestedSources==='object'?s.harvestedSources:{};
         combat=normalizeCombatState(s.combat); lastCastEvent=null; castCtx=null; rollSpec=null; fxInvalidate();
       },
       loadAll, blankCombat,
-      state() { return {chars,itemsDB,spellsDB,abilitiesDB,racesDB,classesDB,foesDB,activeCharId,fxRound,lastCastEvent,combat}; },
+      state() { return {chars,itemsDB,spellsDB,abilitiesDB,racesDB,classesDB,foesDB,harvestedSources,activeCharId,fxRound,lastCastEvent,combat}; },
       applyFxTo, removeActiveFx, advanceFxRound, attachDuration, spellFxForCast,
       castSpellApply, canCastCheck, parseComponents, materialPlanFor, commitMaterialPlan, slotPlanFor,
       casterMeta, maxCircleFor, slotsRowFor, applyClassSlots, casterPreparationMode,
@@ -25,27 +26,32 @@ function loadEngine(random = () => 0) {
       prepMax, prepCount, preparedChoiceIds, ensureSpellPreparationDraft, commitSpellPreparation, preparationPlanMinutes,
       syncClassSpellAccess, upgradeSpellcastingState, autoLevelSpells, setClass, setLevel,
       addSpellFromDB, delBookSpell, beginKnownSpellReplacement, cancelKnownSpellReplacement,
-      charFxAll, fxSum, eHpMax, acTotal, speedTotal, concEntriesOf,
+      charFxAll, fxSum, eHpMax, acTotal, speedTotal, carryWeight, concEntriesOf,
       breakConcentration, concRollMode, longRest, shortRest, refreshShortRestResources, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
       endTriggeredSpellEffects,
-      applyDamageTo, applyRollsToTarget, resolveUndeadFortitude, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
+      applyDamageTo, applyRollsToTarget, resolveUndeadFortitude, cancelLastBarrier, resolveLastBarrier, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
       rollSpecOf, resolveOutcome, targetInfoOf, targetCriticalHitImmune, weaponSpecOf, weaponAttackApply, weaponCanUseTwoHands, weaponAttackResourcePlan, useItemApply,
       upgradeSpell, upgradeAbility, upgradeItem, upgradeRace, upgradeClass, currentMechanics,
       compileSpellMechanics, compileAbilityMechanics, compileItemMechanics, compileRaceMechanics, compileClassMechanics,
       mechanicsErrors, referenceMechanicsErrors, formulaContractErrors, finalizeRollSpec, normalizeResolutionContract,
       itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemToolSchemaErrors, itemMaterialSchemaErrors,
-      craftingRecipeSchemaErrors, itemSpec, itemActions, combatItemActionCost, rollFxEntries, scrollUseCheck, canUseItemCheck,
+      itemInteractionsOf, itemInteractionSchemaErrors, itemToolTasks, toolTaskCheckSpec,
+      itemMassKg, legacyItemGoldValue, containerCapacityKg, containerPutPlan, oilUse, lightToggle, focusItemAllowed,
+      craftingRecipeSchemaErrors, itemCampaignRuleSchemaErrors, itemSpec, itemActions, combatItemActionCost, rollCheck, rollFxEntries, consumeRollFx, itemContextToken,
+      scrollUseCheck, wizardSavantMultiplier, scrollCopyPlan, commitScrollCopy, coinCopperTotal, coinSpendPlan, canUseItemCheck,
       itemUseResourcePlan, commitItemUseResource,
       dmgAfterTraits, effectiveFoeConditions, castDispel, rollbackLastCast,
       seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, seedFoesDB, gameDataAudit,
       reconcileRaceAbilityReferences,
-      upgradeFoe, mergeBuiltinFoe, foeSaveMod, foeSkillMod, foeActionReady, foeResetActionState,
+      upgradeFoe, mergeBuiltinFoe, foeSaveMod, foeSkillMod, foeActionReady, foeResetActionState, foeHpDelta, foeFullHeal,
       buildRoku, buildTorgar, buildSeptih, buildLegerem,
-      foeActionOf, foeActionFormula, foeActionSpecOf, foeActionApply, foeActionBatchApply,
+      foeActionOf, foeActionFormula, foeActionSpecOf, foeActionApply, foeActionBatchApply, appendCombatReactionRows,
+      inlineSaveItemCandidates, applyInlineSaveDecision, inlineSavePlanCheck, inlineSaveEventKey,
+      inlineSaveItemCandidates, applyInlineSaveDecision,
       abilityIsActive, isPassiveAbility, abilityPoolOf, itemProfile, weaponDamageOf, weaponBonusOf, ammoRemaining, ammoRecover, invQty,
       foeActionsOf, foeDefensesOf, conditionRules,
       validateFormulaValues, saveConditionMode, attackConditionMode, attackRangeBands, coverRuleOf,
-      combatStart, combatNextTurn, combatEnd, combatSpend, combatCanSpend, combatBasicAction, combatFocus,
+      combatStart, combatNextTurn, combatEnd, combatSpend, combatCanSpend, combatBasicAction, combatFocus, combatTurnStamp,
       combatEnsureSetup, restorePartyAndCombatState, resetCombatAndParty,
       mergeStableEntries, structuredReleaseCampaignPayload,
       combatCastSpell, combatUseAbility, combatWeapon, combatFoeAction, combatSyncChanges, combatVictoryText,
@@ -53,13 +59,21 @@ function loadEngine(random = () => 0) {
       combatDeathSave, combatContestAction, combatTriggerReady, combatOpportunityBlocked, combatSetGroup, combatSpellTurnAllowed,
       combatAbilityCost, combatAbilityUsable, combatSpellCost, combatCunningAction,
       combatFoeRecharge, combatFoeAttackAllowed, combatRecordFoeAttack, combatAttackCount,
-      castConfirm, castFormulaShow, castFormulaConfirm, closeCastModal, runRareBattleAudit, runSpellPreparationAudit,
-      inventoryItemQty, craftPlanFor, commitCraftPlan, itemMaterialMeta, recipesUsingItem, craftRecipesForTool, eAb,
+      korlinnAxePending, korlinnAxeChoose, planKorlinnSecondary, commitKorlinnSecondary,
+      castConfirm, castFormulaShow, castFormulaConfirm, closeCastModal, runRareBattleAudit, runSpellPreparationAudit, runItemIntegrationAudit,
+      inventoryItemQty, craftPlanFor, commitCraftPlan, craftRequirementsOf, itemMaterialMeta, recipesUsingItem, craftRecipesForTool, eAb,
+      downtimeActorCheck, worldDurationRounds, harvestYieldSpec, harvestDurationSpec, harvestCheckSpec, harvestRollContract,
+      harvestPlanFor, reserveHarvestAttempt, commitHarvestPlan, pendingHarvestRecord, resumeHarvestHazard,
       itemIdentityKey, canonicalizeItemDatabase, itemEntryGoldValue, itemUsesInventoryValue,
+      mergeSystemItemDefinition, patchSpellSemanticSaveTags, attackRangeBandAt, invEquipToggle, clearEquipmentEntry, equipmentHabitReset,
+      engineVersion() { return ENGINE_VERSION; }, engineLabel() { return ENGINE_LABEL; },
+      itemDataMigrationId() { return ITEM_DATA_MIGRATION_ID; },
       itemExpansion() { return ITEM_EXPANSION_V45; },
       itemRecipes() { return ITEM_RECIPES_V45; },
       itemTagNames() { return Object.keys(ITEM_TAGS); },
       castState() { return {ctx:castCtx, spec:castCtx&&castCtx.spec}; },
+      pendingRollSpec() { return rollSpec; },
+      setCastContext(v) { castCtx=v; },
       makeBlank() { return buildBlank(); },
       conditions() { return CONDITIONS; },
       renderWorld() {
@@ -550,14 +564,14 @@ test('контракт проверяет всю мировую базу, пре
   e.setState({spells, abilities, items, foes});
   const audit = e.gameDataAudit({spells, abilities, items, foes});
 
-  assert.deepEqual(plain(audit.counts), {spells: 121, abilities: 77, items: 191, foes: 30, total: 419});
+  assert.deepEqual(plain(audit.counts), {spells: 121, abilities: 77, items: 193, foes: 30, total: 421});
   assert.ok(audit.variants > 900);
   assert.deepEqual(plain(audit.errors), []);
   assert.equal(Object.values(audit.modes.spell).reduce((a, b) => a + b, 0), 121);
   assert.equal(Object.values(audit.modes.ability).reduce((a, b) => a + b, 0), 77);
-  assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 191);
+  assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 193);
   assert.equal(audit.modes.foe.structured, 30);
-  assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 191);
+  assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 193);
   assert.equal(new Set(audit.itemActions.manualNames).size, audit.itemActions.manual);
 });
 
@@ -585,14 +599,17 @@ test('расширение 4.5 содержит 58 самостоятельны�
     assert.ok(String(raw.desc || '').trim().length >= 120, `${raw.id}: описание слишком краткое`);
     assert.ok(String(raw.props || '').trim().length >= 45, `${raw.id}: игровые свойства слишком краткие`);
     assert.ok((raw.tags || []).length >= 2, `${raw.id}: нужны смысловые теги`);
+    assert.deepEqual(plain(item.tags), plain(raw.tags), `${raw.id}: литературный текст не должен добавлять теги`);
     assert.deepEqual((raw.tags || []).filter(tag => !knownTags.has(tag)), [], `${raw.id}: у каждого тега должен быть цвет и подпись`);
+    assert.equal(item.mechanics.origin, 'explicit', `${raw.id}: mechanics должен быть источником истины`);
+    assert.deepEqual(plain(e.itemInteractionSchemaErrors(e.itemInteractionsOf(item))), [], `${raw.id}: взаимодействия`);
     assert.deepEqual(plain(e.itemUseSchemaErrors(e.itemUsesOf(item), item.resource)), [], `${raw.id}: схема применения`);
     assert.deepEqual(plain(e.itemToolSchemaErrors(item.tool)), [], `${raw.id}: схема инструмента`);
     assert.deepEqual(plain(e.itemMaterialSchemaErrors(item.material)), [], `${raw.id}: схема материала`);
   }
 
-  assert.equal(recipes.length, 20);
-  assert.equal(new Set(recipes.map(r => r.id)).size, 20);
+  assert.equal(recipes.length, 21);
+  assert.equal(new Set(recipes.map(r => r.id)).size, 21);
   const itemIds = new Set(items.map(it => it.id));
   for (const recipe of recipes) {
     assert.deepEqual(plain(e.craftingRecipeSchemaErrors(recipe, itemIds)), [], recipe.id);
@@ -601,9 +618,134 @@ test('расширение 4.5 содержит 58 самостоятельны�
   }
 });
 
+test('встроенный аудит 4.6 исполняет каждый новый предмет, инструмент, сбор и рецепт без изменения кампании', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
+  const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const party = [e.buildRoku(), e.buildTorgar(), e.buildSeptih(), e.buildLegerem()];
+  e.setState({chars: party, items, spells, abilities, races, classes, foes, activeCharId: party[0].id});
+  const before = plain(e.state());
+  const report = plain(e.runItemIntegrationAudit());
+
+  assert.equal(report.failed, 0, report.failures.map(f => `${f.category}/${f.label}: ${f.message}`).join('\n'));
+  assert.equal(report.passed, report.total);
+  assert.ok(report.total > 1000, `слишком мало проверок: ${report.total}`);
+  assert.equal(report.items, 193);
+  assert.equal(report.uses, 24);
+  assert.equal(report.toolTasks, 38);
+  assert.equal(report.harvests, 16);
+  assert.equal(report.recipes, 21);
+  assert.deepEqual(plain(e.state()), before, 'изолированный аудит должен вернуть кампанию побайтно');
+});
+
+test('миграция 4.6 заменяет системный контракт по ID и сохраняет состояние экземпляра', () => {
+  const e = loadEngine(), canonical = e.itemExpansion().find(x => x.id === 'it_scroll_lesser_restoration');
+  const old = {id: canonical.id, n: canonical.n, type: canonical.type, tags: ['old'], uses: [{id: 'cast', choices: ['Отравленный']}],
+    mechanics: {mode: 'legacy'}, schemaVersion: 5, qty: 7, notes: 'заметка пользователя', customField: {keep: true}};
+  const same = e.mergeSystemItemDefinition(old, canonical);
+
+  assert.equal(same, old);
+  assert.deepEqual(plain(old.uses), plain(canonical.uses));
+  assert.deepEqual(plain(old.tags), plain(canonical.tags));
+  assert.equal(old.schemaVersion, 0);
+  assert.equal(old.mechanics, undefined);
+  assert.equal(old.qty, 7);
+  assert.equal(old.notes, 'заметка пользователя');
+  assert.deepEqual(plain(old.customField), {keep: true});
+  assert.equal(e.itemDataMigrationId(), 'items-v7-unique-runtime-20260811');
+});
+
+test('миграция 4.6 добавляет семантические теги в сохранённый Страх без потери его контракта', () => {
+  const e = loadEngine(), legacy = {id: 'sp_fear_saved', n: 'Страх', saveTags: [], customField: {keep: true},
+    mechanics: {origin: 'explicit', resolution: {save: {ability: 'wis', tags: []}}, customRule: {keep: true}}};
+  assert.equal(e.patchSpellSemanticSaveTags(legacy), true);
+  assert.deepEqual(plain(legacy.saveTags), ['fear', 'forcedRetreat']);
+  assert.deepEqual(plain(legacy.mechanics.resolution.save.tags), ['fear', 'forcedRetreat']);
+  assert.deepEqual(plain(legacy.customField), {keep: true});
+  assert.deepEqual(plain(legacy.mechanics.customRule), {keep: true});
+  assert.equal(e.patchSpellSemanticSaveTags(legacy), false, 'повторный запуск миграции идемпотентен');
+});
+
+test('одночисловая дистанция и атака кислотой по объекту исполняются, а не остаются подписью', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), acid = items.find(x => x.id === 'it_acid_vial');
+  const user = hero('acid-user', {ab: {str: 10, dex: 16, con: 10, int: 10, wis: 10, cha: 10},
+    inventory: [{id: 'acid', itemId: acid.id, qty: 1}]});
+  e.setState({chars: [user], items});
+  const use = e.itemUseOf(acid, 'throw'), object = e.targetInfoOf('object:15');
+  assert.equal(object.known, true); assert.equal(object.ac, 15);
+  assert.deepEqual(plain(e.attackRangeBands('36 м')), {normal: 36, maximum: 36, unit: 'm', long: false});
+
+  const legal = e.itemUseSpecOf(user, acid, use, object, {distanceM: 6});
+  const legalValues = {atk: 20, itemdmg0: 4}, legalOutcome = e.resolveOutcome(legal, legalValues);
+  assert.equal(e.validateFormulaValues(legal, legalValues, legalOutcome).ok, true);
+  assert.equal(e.useItemApply('acid', user.id, 'object:15', legalOutcome, 'throw', {distanceM: 6}), true);
+  assert.equal(user.inventory.length, 0);
+
+  const tooFar = e.itemUseSpecOf(user, acid, use, object, {distanceM: 100});
+  const farValues = {atk: 20, itemdmg0: 4}, farOutcome = e.resolveOutcome(tooFar, farValues);
+  assert.equal(tooFar.meta.rangeBand, 'out');
+  assert.equal(e.validateFormulaValues(tooFar, farValues, farOutcome).ok, false);
+});
+
+test('старые инструменты сохраняют действия, сеть не наносит урон и существует только как бросок', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const user = hero('legacy-tools', {level: 5, ab: {str: 12, dex: 16, con: 10, int: 10, wis: 10, cha: 10}});
+  e.setState({chars: [user], items, foes});
+  const tools = items.filter(it => e.itemProfile(it).kind === 'tool');
+  assert.ok(tools.length >= 17);
+  for (const [i, it] of tools.entries()) {
+    const entry = {id: `tool-${i}`, itemId: it.id, qty: 1}; user.inventory = [entry];
+    assert.ok(e.itemActions(user, entry, it).length > 0, it.n);
+  }
+  const net = items.find(x => x.n === 'Сеть'), target = foes[0];
+  const entry = {id: 'net', itemId: net.id, qty: 1}; user.inventory = [entry];
+  const actions = e.itemActions(user, entry, net);
+  assert.deepEqual(plain(actions.map(x => x.label)), ['Метнуть сеть']);
+  const spec = e.weaponSpecOf(user, net, e.targetInfoOf(`foe:${target.id}`), {entryId: entry.id, mode: 'throw', distanceM: 1.5});
+  assert.equal(spec.rows.some(x => x.type === 'dmg'), false);
+  const outcome = e.resolveOutcome(spec, {atk: 20});
+  assert.equal(outcome.hit, true); assert.equal(outcome.dmgTotal, null);
+});
+
+test('факел можно погасить и зажечь снова, а расход происходит только после полного выгорания', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const torch = items.find(x => x.n === 'Факел'), fire = items.find(x => /Трутница|Огниво/.test(x.n));
+  const user = hero('torch-user', {inventory: [{id: 'torch', itemId: torch.id, qty: 1}, {id: 'fire', itemId: fire.id, qty: 1}]});
+  e.setState({chars: [user], items, activeCharId: user.id, fxRound: 1});
+  e.lightToggle('torch');
+  assert.ok(user.inventory.some(x => x.id === 'torch'));
+  assert.equal(user.activeFx.filter(x => x.k === 'light').length, 1);
+  e.advanceFxRound(10); e.lightToggle('torch');
+  const remaining = user.inventory.find(x => x.id === 'torch').burnRounds;
+  assert.ok(remaining > 0 && remaining < 600);
+  assert.equal(user.activeFx.filter(x => x.k === 'light').length, 0);
+  e.lightToggle('torch'); e.advanceFxRound(remaining);
+  assert.equal(user.activeFx.filter(x => x.k === 'light').length, 0);
+  assert.equal(user.inventory.some(x => x.id === 'torch'), false);
+});
+
+test('свиток разделяет стек с исходным заклинанием и согласная цель подтверждается явно', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB();
+  const longstrider = items.find(x => x.id === 'it_scroll_longstrider'), fly = items.find(x => x.id === 'it_scroll_fly');
+  const mage = hero('scroll-stack', {cls: 'Волшебник', level: 20, speed: '9 м', inventory: [
+    {id: 'long', itemId: longstrider.id, qty: 1}, {id: 'fly', itemId: fly.id, qty: 1}],
+    activeFx: [{uid: 'spell-longstrider', k: 'spell', id: 'sp_скороход', label: 'Скороход', stackKey: 'spell:sp_скороход', power: 0,
+      appliedRound: 1, fx: [{stat: 'speed', mode: 'add', value: '3 м'}]}]});
+  const target = hero('willing-target');
+  e.setState({chars: [mage, target], items, spells});
+  assert.match(e.speedTotal(mage), /12 м/);
+  assert.equal(e.useItemApply('long', mage.id, `ally:${mage.id}`, null, 'cast'), true);
+  assert.match(e.speedTotal(mage), /12 м/);
+  assert.equal(mage.activeFx.filter(x => x.stackKey === 'spell:sp_скороход').length, 2);
+
+  assert.equal(e.useItemApply('fly', mage.id, `ally:${target.id}`, null, 'cast', {distanceM: 1}), false);
+  assert.equal(e.inventoryItemQty(mage, fly.id), 1);
+  assert.equal(e.useItemApply('fly', mage.id, `ally:${target.id}`, null, 'cast', {distanceM: 1, willingConfirmed: true}), true);
+  assert.equal(e.inventoryItemQty(mage, fly.id), 0);
+});
+
 test('ремесло проверяет все входы до списания, повторно валидирует план и блокируется в бою', () => {
   const e = loadEngine(), items = e.seedItemsDB();
-  const crafter = hero('smith', {inventory: [
+  const crafter = hero('smith', {toolProficiencies: ['Инструменты кузнеца'], knownRecipes: ['cr_iron_ingot'], craftingFacilities: ['кузнечный горн'], inventory: [
     {id: 'tool', itemId: 'it_tool_smith', qty: 1},
     {id: 'ore-a', itemId: 'it_mat_iron_ore', qty: 1},
     {id: 'ore-b', itemId: 'it_mat_iron_ore', qty: 1},
@@ -632,6 +774,117 @@ test('ремесло проверяет все входы до списания,
   const inCombat = e.craftPlanFor(crafter, 'cr_iron_ingot');
   assert.equal(inCombat.ok, false);
   assert.match(inCombat.reason, /активного боя/);
+});
+
+test('сбор требует связанный инструмент, подтвержденный источник и исчерпывает его ровно один раз', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  e.setState({items});
+  const harvestable = items.filter(it => e.itemMaterialMeta(it) && e.itemMaterialMeta(it).harvest);
+  assert.equal(harvestable.length, 16);
+  for (const it of harvestable) {
+    const hs = e.itemMaterialMeta(it).harvest;
+    assert.ok(hs.toolId, `${it.id}: инструмент должен быть явной частью контракта`);
+    const gatherer = hero(`gather-${it.id}`, {level: 20, inventory: []});
+    e.setState({chars: [gatherer], items});
+    assert.equal(e.harvestCheckSpec(gatherer, it).ok, false, `${it.id}: голыми руками сбор блокируется`);
+  }
+
+  const sunleaf = items.find(it => it.id === 'it_mat_sunleaf'), hs = e.itemMaterialMeta(sunleaf).harvest;
+  const gatherer = hero('source-tracker', {level: 20, inventory: [{id: 'herbalism', itemId: hs.toolId, qty: 1}]});
+  e.setState({chars: [gatherer], items});
+  const context = {confirmedSource: true, biome: hs.biomes[0], sourceId: 'clearing-17', sourceConditionConfirmed: true};
+  assert.equal(e.harvestPlanFor(gatherer, sunleaf.id, {check: 20, yield: 1}, {biome: hs.biomes[0]}).ok, false,
+    'без устойчивого sourceId добыча не начинается');
+  const plan = e.harvestPlanFor(gatherer, sunleaf.id, {check: 20, yield: 1}, context);
+  assert.equal(plan.ok, true); assert.equal(e.commitHarvestPlan(plan).ok, true);
+  assert.equal(e.inventoryItemQty(gatherer, sunleaf.id), 1);
+  assert.equal(e.harvestPlanFor(gatherer, sunleaf.id, {check: 20, yield: 1}, context).ok, false,
+    'тот же участок нельзя собрать повторно');
+});
+
+test('ремесло последовательно требует владение, формулу и каждое рабочее место', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), recipe = e.itemRecipes().find(r => r.id === 'cr_potion_climbing');
+  const crafter = hero('requirements', {toolProficiencies: [], knownRecipes: [], craftingFacilities: [], inventory: []});
+  recipe.toolIds.forEach((id, i) => crafter.inventory.push({id: `tool-${i}`, itemId: id, qty: 1}));
+  recipe.inputs.forEach((x, i) => crafter.inventory.push({id: `input-${i}`, itemId: x.itemId, qty: x.qty}));
+  e.setState({chars: [crafter], items});
+
+  let plan = e.craftPlanFor(crafter, recipe.id);
+  assert.equal(plan.ok, false); assert.match(plan.reason, /владения/);
+  crafter.toolProficiencies = recipe.toolIds.map(id => e.itemProfile(items.find(it => it.id === id)).tool.prof);
+  plan = e.craftPlanFor(crafter, recipe.id);
+  assert.equal(plan.ok, false); assert.match(plan.reason, /Формула/);
+  crafter.knownRecipes = [recipe.id];
+  plan = e.craftPlanFor(crafter, recipe.id);
+  assert.equal(plan.ok, false); assert.match(plan.reason, /место работы/);
+  crafter.craftingFacilities = e.craftRequirementsOf(recipe).facilities.slice(0, 1);
+  plan = e.craftPlanFor(crafter, recipe.id);
+  assert.equal(plan.ok, false, 'для рецепта с двумя наборами нужно подтвердить оба рабочих места');
+  crafter.craftingFacilities = e.craftRequirementsOf(recipe).facilities;
+  assert.equal(e.craftPlanFor(crafter, recipe.id).ok, true);
+
+  const powder = e.itemRecipes().find(r => r.id === 'cr_silver_powder_25');
+  assert.ok(powder); assert.deepEqual(plain(powder.inputs), [{itemId: 'it_mat_silver_ingot', qty: 1}]);
+  assert.equal(powder.result.itemId, 'it_silver_powder_25');
+  assert.ok(e.recipesUsingItem('it_mat_silver_ingot').some(r => r.id === powder.id));
+});
+
+test('уникальные предметы группы исполняют реакции, независимые ресурсы и ограничения боя', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+
+  const guard = hero('armor-guard', {level: 3, hp: 20, hpMax: 20,
+    inventory: [{id: 'shirt', itemId: 'it_chain_shirt_leg', qty: 1}], equipment: {CHEST: 'shirt'}});
+  const orc = foes.find(f => f.id === 'foe_orc_raider');
+  e.setState({chars: [guard], items, abilities, classes, foes: [orc]});
+  e.combatStart([{kind: 'foe', id: orc.id, nat: 20}, {kind: 'ally', id: guard.id, nat: 10}], 'Рубаха');
+  assert.equal(e.combatFoeAction('greataxe'), true);
+  e.setElementValue('castTarget', `ally:${guard.id}`); e.castConfirm();
+  const guardRow = e.castState().spec.rows.find(r => r.key === 'reaction_item_guard');
+  assert.ok(guardRow); assert.equal(guardRow.mod, 2);
+  e.setElementValue('cf_atk', '20'); e.setElementValue('cf_dmg0', '10'); e.setElementValue('cf_reaction_item_guard', '4');
+  e.castFormulaConfirm();
+  assert.equal(guard.hp, 13, '13 рубящего урона уменьшаются на 1d4(4)+мастерство(2)');
+  assert.equal(guard.inventory[0].ch.cur, 0); assert.equal(e.state().combat.order.find(x => x.id === guard.id).reactionUsed, true);
+  e.refreshShortRestResources(guard); assert.equal(guard.inventory[0].ch.cur, 1, 'рубаха восстанавливается после короткого отдыха');
+
+  const torgar = e.buildTorgar(), pauldron = torgar.inventory.find(x => x.itemId === 'it_pauldron_mentor');
+  torgar.hp = 10; torgar.hpMax = 30;
+  torgar.activeFx = [{uid: 'concentration', k: 'spell', id: 'test-concentration', label: 'Концентрация', casterId: torgar.id, castId: 'concentration', conc: true, fx: []}];
+  e.setState({chars: [torgar], items, abilities, classes});
+  const pending = e.applyDamageTo(`ally:${torgar.id}`, 10, 'рубящий', 'тест');
+  assert.ok(pending.lastBarrier); assert.equal(torgar.hp, 0);
+  assert.equal(torgar.cond.includes('Бессознательный'), false, 'падение не коммитится до реального d20');
+  assert.equal(e.concEntriesOf(torgar.id).length, 1, 'концентрация не рвется до результата реакции');
+  assert.equal(e.resolveLastBarrier(pending, 20).success, true);
+  assert.equal(torgar.hp, 1); assert.equal(torgar.cond.includes('Бессознательный'), false); assert.equal(pauldron.ch.cur, 0);
+
+  const failedTorgar = e.buildTorgar(); failedTorgar.hp = 10; failedTorgar.hpMax = 30;
+  failedTorgar.activeFx = [{uid: 'failed-concentration', k: 'spell', id: 'test-concentration', label: 'Концентрация', casterId: failedTorgar.id, castId: 'failed-concentration', conc: true, fx: []}];
+  e.setState({chars: [failedTorgar], items, abilities, classes});
+  const failedBarrier = e.applyDamageTo(`ally:${failedTorgar.id}`, 10, 'рубящий', 'тест');
+  assert.equal(e.resolveLastBarrier(failedBarrier, 1).success, false);
+  assert.equal(failedTorgar.cond.includes('Бессознательный'), true);
+  assert.equal(e.concEntriesOf(failedTorgar.id).length, 0, 'концентрация рвется только после подтвержденного провала');
+
+  const legerem = e.buildLegerem(), seal = legerem.inventory.find(x => x.itemId === 'it_korlinn_seal');
+  e.setState({chars: [legerem], items, abilities, classes});
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'name_weight', {contextConfirmed: true, contextTags: ['soldier']}), true);
+  assert.ok(e.rollFxEntries(legerem, 'skill.Убеждение', ['soldier']).some(f => f.mode === 'add' && f.value === 1));
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'seal_document', {documentContext: {token: 'order-one', label: 'Приказ 1'}}), true);
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'seal_document', {documentContext: {token: 'order-two', label: 'Приказ 2'}}), false);
+  e.refreshShortRestResources(legerem);
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'seal_document', {documentContext: {token: 'order-two', label: 'Приказ 2'}}), true,
+    'ресурс документа восстанавливается отдельно после короткого отдыха');
+
+  const axe = items.find(x => x.id === 'it_korlinn_axe'), axeEntry = legerem.inventory.find(x => x.itemId === axe.id), target = foes[0];
+  target.hp = Math.floor(target.hpMax / 2);
+  e.setState({chars: [legerem], items, abilities, classes, foes: [target]});
+  e.combatStart([{kind: 'ally', id: legerem.id, nat: 20}, {kind: 'foe', id: target.id, nat: 10}], 'Удар решимости');
+  const firstStrike = e.weaponSpecOf(legerem, axe, e.targetInfoOf(`foe:${target.id}`), {entryId: axeEntry.id, distanceM: 1.5});
+  assert.ok(firstStrike.rows.some(r => r.key === 'campaign_resolve_strike' && r.optional));
+  axeEntry.resolveStrikeCombatId = e.state().combat.id;
+  const repeated = e.weaponSpecOf(legerem, axe, e.targetInfoOf(`foe:${target.id}`), {entryId: axeEntry.id, distanceM: 1.5});
+  assert.equal(repeated.rows.some(r => r.key === 'campaign_resolve_strike'), false, 'Удар решимости появляется лишь раз за бой');
 });
 
 test('свитки проверяют список класса, расходуются при неудачной проверке высокого круга и не берут бонус Ловкости', () => {
@@ -677,6 +930,46 @@ test('свитки проверяют список класса, расходу�
   assert.equal(guidingSpec.rows.some(r => r.addTo === 'atk' && r.sides === 4), true, 'общая кость к атаке действует');
 });
 
+test('волшебник переписывает свиток атомарно: круг, Arcana, деньги и уничтожение при любом исходе', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB();
+  const scroll = items.find(it => it.id === 'it_scroll_mage_armor');
+  const wizard = hero('copyist', {cls: 'Волшебник', level: 3,
+    ab: {str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 10},
+    skills: {'Магия': {p: 1, m: null}}, spellbook: [],
+    coins: {mm: 0, sm: 0, em: 0, zm: 0, pm: 10},
+    inventory: [{id: 'copy-scroll', itemId: scroll.id, qty: 2}]});
+  e.setState({chars: [wizard], items, spells});
+
+  const first = e.scrollCopyPlan(wizard, 'copy-scroll');
+  assert.equal(first.ok, true); assert.equal(first.dc, 11); assert.equal(first.mod, 5);
+  assert.equal(first.costGp, 50); assert.equal(first.hours, 2);
+  assert.ok(e.itemActions(wizard, wizard.inventory[0], scroll).some(a => a.label === 'Переписать в книгу'));
+
+  const failed = e.commitScrollCopy(first, 1);
+  assert.equal(failed.ok, true); assert.equal(failed.success, false);
+  assert.equal(wizard.inventory[0].qty, 1, 'свиток уничтожается при провале');
+  assert.equal(e.coinCopperTotal(wizard), 5000, '50 зм материалов расходуются при провале');
+  assert.equal(wizard.spellbook.length, 0);
+
+  const second = e.scrollCopyPlan(wizard, 'copy-scroll');
+  const copied = e.commitScrollCopy(second, 20);
+  assert.equal(copied.success, true);
+  assert.equal(wizard.inventory.length, 0); assert.equal(e.coinCopperTotal(wizard), 0);
+  assert.deepEqual(plain(wizard.spellbook), [{spellId: 'sp_доспехи_мага', prep: false, access: 'spellbook', source: 'Переписано со свитка'}]);
+
+  const cleric = hero('wrong-class', {cls: 'Жрец', coins: {mm: 0, sm: 0, em: 0, zm: 100, pm: 0},
+    spellbook: [], inventory: [{id: 'cleric-scroll', itemId: scroll.id, qty: 1}]});
+  e.setState({chars: [cleric], items, spells});
+  assert.equal(e.scrollCopyPlan(cleric, 'cleric-scroll').ok, false);
+  assert.equal(cleric.inventory[0].qty, 1); assert.equal(e.coinCopperTotal(cleric), 10000);
+
+  const novice = hero('novice', {cls: 'Волшебник', level: 3, spellbook: [], coins: {mm: 0, sm: 0, em: 0, zm: 500, pm: 0},
+    inventory: [{id: 'fly-copy', itemId: 'it_scroll_fly', qty: 1}]});
+  e.setState({chars: [novice], items, spells});
+  assert.equal(e.scrollCopyPlan(novice, 'fly-copy').ok, false, 'нельзя переписать круг выше доступного');
+  assert.equal(novice.inventory[0].qty, 1); assert.equal(e.coinCopperTotal(novice), 50000);
+});
+
 test('зелья применяют сопротивление, временные хиты, d4, минимум Силы и триггер невидимости', () => {
   const e = loadEngine(), items = e.seedItemsDB();
   const adventurer = hero('adventurer', {hpTemp: 4, inventory: [
@@ -709,6 +1002,75 @@ test('зелья применяют сопротивление, временны
   assert.equal(e.effectiveConditions(adventurer).includes('Невидимый'), false);
 });
 
+test('полет и лазание используют отдельные режимы движения без глобального преимущества Атлетики', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB();
+  const climbing = items.find(it => it.id === 'it_potion_climbing');
+  const fly = items.find(it => it.id === 'it_scroll_fly');
+  const wizard = hero('mobile', {cls: 'Волшебник', level: 20, speed: '9 м', inventory: [
+    {id: 'climb', itemId: climbing.id, qty: 1}, {id: 'fly', itemId: fly.id, qty: 1}
+  ]});
+  e.setState({chars: [wizard], items, spells});
+
+  assert.equal(e.useItemApply('climb', wizard.id, `ally:${wizard.id}`, null, 'drink'), true);
+  assert.equal(e.rollFxEntries(wizard, 'check.climb').some(f => f.mode === 'adv'), true);
+  assert.equal(e.rollFxEntries(wizard, 'skill.Атлетика').some(f => f.mode === 'adv'), false,
+    'зелье не должно давать преимущество любой проверке Атлетики');
+  assert.equal(e.useItemApply('fly', wizard.id, `ally:${wizard.id}`, null, 'cast'), true);
+  assert.equal(e.speedTotal(wizard), '18 м (полет; ходьба 9 м)');
+});
+
+test('владение одним набором инструментов не подменяет другие наборы с общим префиксом', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const prof = {id: 'alchemist-prof', n: 'Владение: Инструменты алхимика', mode: 'passive', type: 'feat', tags: ['passive'],
+    x: 'Вы владеете Инструментами алхимика.', uses: null};
+  e.upgradeAbility(prof, true);
+  const artisan = hero('artisan', {abilities: [{abilityId: prof.id}]});
+  e.setState({chars: [artisan], items, abilities: [prof]});
+  const alchemist = items.find(it => it.id === 'it_tool_alchemist');
+  const smith = items.find(it => it.id === 'it_tool_smith');
+  const a = e.toolTaskCheckSpec(artisan, alchemist, 'identify:reagent');
+  const s = e.toolTaskCheckSpec(artisan, smith, 'refine:ore');
+
+  assert.equal(a.owns, true);
+  assert.equal(s.owns, false);
+  assert.equal(a.ability, 'int'); assert.equal(a.dc, 10);
+  assert.equal(s.ability, 'str'); assert.equal(s.dc, 10);
+});
+
+test('свиток бонусного заклинания применяет то же ограничение хода, что обычное заклинание', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), foes = e.seedFoesDB();
+  const scroll = items.find(it => it.id === 'it_scroll_shield_of_faith');
+  const cleric = hero('scroll-cleric', {cls: 'Жрец', level: 5, inventory: [{id: 'shield-scroll', itemId: scroll.id, qty: 1}]});
+  const foe = foes[0];
+  e.setState({chars: [cleric], items, spells, foes: [foe]});
+  assert.equal(e.combatStart([{kind: 'ally', id: cleric.id, nat: 20}, {kind: 'foe', id: foe.id, nat: 1}], 'Правило бонусного свитка'), true);
+  assert.equal(e.combatUseItem('shield-scroll', 'cast'), true);
+  assert.equal(e.useItemApply('shield-scroll', cleric.id, `ally:${cleric.id}`, null, 'cast'), true);
+
+  const guiding = spells.find(sp => sp.id === 'sp_guiding_bolt');
+  const cantrip = spells.find(sp => sp.id === 'sp_sacred_flame');
+  assert.equal(e.combatSpellTurnAllowed(guiding, 'action'), false, 'уровневое заклинание действием после бонусного запрещено');
+  assert.equal(e.combatSpellTurnAllowed(cantrip, 'action'), true, 'заговор действием остается разрешен');
+  assert.equal(e.state().combat.turn.bonusUsed, true);
+});
+
+test('святая вода создается только правильным обрядом с серебром и одной ячейкой', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const powder = items.find(it => it.id === 'it_silver_powder_25');
+  const crafter = hero('ritualist', {cls: 'Волшебник', slots: {1: {max: 2, cur: 2}},
+    craftingFacilities: ['признанный религиозный обряд'],
+    inventory: [{id: 'powder', itemId: powder.id, qty: 1}]});
+  e.setState({chars: [crafter], items});
+  assert.equal(e.craftPlanFor(crafter, 'cr_holy_water').ok, false);
+  crafter.cls = 'Жрец';
+  const plan = e.craftPlanFor(crafter, 'cr_holy_water');
+  assert.equal(plan.ok, true, plan.reason || 'обряд должен быть доступен');
+  assert.equal(e.commitCraftPlan(plan).ok, true);
+  assert.equal(e.inventoryItemQty(crafter, powder.id), 0);
+  assert.equal(e.inventoryItemQty(crafter, 'it_holy_water'), 1);
+  assert.equal(crafter.slots[1].cur, 1);
+});
+
 test('святая вода проверяет тип цели, а малое восстановление проверяет состояние до расхода', () => {
   const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), foes = e.seedFoesDB();
   const holy = items.find(it => it.id === 'it_holy_water');
@@ -718,22 +1080,28 @@ test('святая вода проверяет тип цели, а малое в
   e.setState({chars: [thrower], items, spells, foes: [goblin, zombie]});
   const hit = {hit: true, attackMade: true, saveOk: null, dmgRaw: 7, dmgTotal: 7, dmgType: 'сияние',
     damageParts: [{type: 'сияние', raw: 7, total: 7}], effectAllowed: true, verdict: [], notes: []};
-  assert.equal(e.useItemApply('holy', thrower.id, `foe:${goblin.id}`, hit, 'throw'), false);
+  assert.equal(e.useItemApply('holy', thrower.id, `foe:${goblin.id}`, hit, 'throw', {distanceM: 6}), false);
   assert.equal(thrower.inventory[0].qty, 2);
-  assert.equal(e.useItemApply('holy', thrower.id, `foe:${zombie.id}`, hit, 'throw'), true);
+  assert.equal(e.useItemApply('holy', thrower.id, `foe:${zombie.id}`, hit, 'throw', {distanceM: 6}), true);
   assert.equal(thrower.inventory[0].qty, 1);
   assert.equal(zombie.hp, 23);
 
   const restoration = items.find(it => it.id === 'it_scroll_lesser_restoration');
-  const cleric = hero('restorer', {cls: 'Жрец', level: 3, inventory: [{id: 'restoration', itemId: restoration.id, qty: 1}]});
+  const cleric = hero('restorer', {cls: 'Жрец', level: 3, inventory: [{id: 'restoration', itemId: restoration.id, qty: 2}]});
   const patient = hero('patient');
   e.setState({chars: [cleric, patient], items, spells});
-  assert.equal(e.useItemApply('restoration', cleric.id, `ally:${patient.id}`, null, 'cast', {choice: 'Отравленный'}), false);
-  assert.equal(cleric.inventory[0].qty, 1);
+  assert.equal(e.useItemApply('restoration', cleric.id, `ally:${patient.id}`, null, 'cast', {choice: 'Отравленный', distanceM: 1}), false);
+  assert.equal(cleric.inventory[0].qty, 2);
   patient.cond.push('Отравленный');
-  assert.equal(e.useItemApply('restoration', cleric.id, `ally:${patient.id}`, null, 'cast', {choice: 'Отравленный'}), true);
-  assert.equal(cleric.inventory.length, 0);
+  assert.equal(e.useItemApply('restoration', cleric.id, `ally:${patient.id}`, null, 'cast', {choice: 'Отравленный', distanceM: 1}), true);
+  assert.equal(cleric.inventory[0].qty, 1);
   assert.equal(e.effectiveConditions(patient).includes('Отравленный'), false);
+  patient.diseases = ['Канализационная чума'];
+  e.setState({chars: [cleric, patient], items, spells, activeCharId: patient.id});
+  assert.ok(e.renderSheetPanel('stats').includes('Канализационная чума'), 'болезнь редактируется и видна на листе');
+  assert.equal(e.useItemApply('restoration', cleric.id, `ally:${patient.id}`, null, 'cast', {choice: 'disease:Канализационная чума', distanceM: 1}), true);
+  assert.equal(cleric.inventory.length, 0);
+  assert.deepEqual(plain(patient.diseases), []);
 });
 
 test('один Алмаз хранит цену у экземпляра и покрывает все заклинания по их собственным правилам', () => {
@@ -752,8 +1120,11 @@ test('один Алмаз хранит цену у экземпляра и по�
   assert.equal(items.some(it => /^it_component_diamond/.test(it.id) || /^it_component_diamonds/.test(it.id) || it.id === 'it_diamond_torg'), false);
   assert.deepEqual(plain(e.itemProfile(diamond).roles), ['treasure', 'trade', 'jewelry', 'crafting', 'spellComponent']);
 
+  const holyWater = items.find(it => it.id === 'it_holy_water');
+  assert.ok(holyWater);
   const caster = hero('component-caster', {inventory: cases.map(([, value], i) => ({id: `component-${i}`, itemId: diamond.id, qty: 2, valueGp: value}))
-    .concat([{id: 'unknown-value', itemId: diamond.id, qty: 1}, {id: 'dust', itemId: dust.id, qty: 2}])});
+    .concat([{id: 'unknown-value', itemId: diamond.id, qty: 1}, {id: 'dust', itemId: dust.id, qty: 2},
+      {id: 'true-resurrection-water', itemId: holyWater.id, qty: 1}])});
   e.setState({chars: [caster], items, spells});
 
   for (let i = 0; i < cases.length; i++) {
@@ -767,6 +1138,8 @@ test('один Алмаз хранит цену у экземпляра и по�
     assert.equal(e.commitMaterialPlan(caster, plan).ok, true);
     assert.equal(caster.inventory.find(x => x.id === `component-${i}`).qty, 2 - consume);
   }
+  assert.equal(caster.inventory.some(x => x.id === 'true-resurrection-water'), false,
+    'Истинное воскрешение расходует святую воду вместе с алмазами');
 
   const orb = spells.find(sp => sp.id === 'sp_chromatic_orb');
   assert.match(e.materialPlanFor(caster, orb, e.parseComponents(orb), {entryId: 'unknown-value', use: 0}).reason, /не указана оценочная стоимость/);
@@ -782,7 +1155,7 @@ test('один Алмаз хранит цену у экземпляра и по�
   assert.equal(caster.inventory.find(x => x.id === 'dust').qty, 1);
 
   const labels=e.itemActions(caster,caster.inventory[0],diamond).map(x=>x.label);
-  assert.ok(labels.includes('Связи') && labels.includes('Продать'), 'алмаз остается материалом и самостоятельной ценностью');
+  assert.ok(labels.includes('Связи и свойства') && labels.includes('Продать'), 'алмаз остается материалом и самостоятельной ценностью');
 
   const revivify=spells.find(sp=>sp.id==='sp_оживление'),raiseDead=spells.find(sp=>sp.id==='sp_воскрешение_мертвого');
   const many=hero('many-diamonds',{inventory:[{id:'hundreds',itemId:diamond.id,qty:3,valueGp:100}]});
@@ -1092,15 +1465,15 @@ test('масло сверяется с КД, расходуется и дает 
   e.setState({chars: [user], items, foes});
 
   const miss = {hit: false, attackMade: true, saveOk: null, dmgRaw: null, dmgTotal: null, effectAllowed: false, verdict: [], notes: []};
-  assert.equal(e.useItemApply('oil', user.id, `foe:${target.id}`, miss, 'throw'), true);
+  assert.equal(e.useItemApply('oil', user.id, `foe:${target.id}`, miss, 'throw', {distanceM: 6}), true);
   assert.equal(user.inventory[0].qty, 2);
   assert.equal(target.activeFx.some(x => x.itemTrigger === 'oil'), false);
 
   const hit = {hit: true, attackMade: true, saveOk: null, dmgRaw: null, dmgTotal: null, effectAllowed: true, verdict: [], notes: []};
-  assert.equal(e.useItemApply('oil', user.id, `foe:${target.id}`, hit, 'throw'), true);
+  assert.equal(e.useItemApply('oil', user.id, `foe:${target.id}`, hit, 'throw', {distanceM: 6}), true);
   assert.equal(user.inventory[0].qty, 1);
   assert.equal(target.activeFx.some(x => x.itemTrigger === 'oil'), true);
-  assert.equal(e.useItemApply('oil', user.id, `foe:${target.id}`, hit, 'throw'), true);
+  assert.equal(e.useItemApply('oil', user.id, `foe:${target.id}`, hit, 'throw', {distanceM: 6}), true);
   assert.equal(user.inventory.length, 0);
   assert.equal(target.activeFx.filter(x => x.itemTrigger === 'oil').length, 1, 'повторное масло обновляет, а не складывает всплески +5');
   const mixedWithoutFire = e.applyDamageTo(`foe:${target.id}`, 3, 'смешанный: огонь + рубящий', 'Иммунный компонент', {fireDamage: 0});
@@ -1230,6 +1603,76 @@ test('условный текст экипировки не становится
     inventory: [{id: 'plate', itemId: plate.id, qty: 1}], equipment: {CHEST: 'plate'}});
   e.setState({chars: [dwarf], items});
   assert.equal(e.speedTotal(dwarf), '7,5 м', 'доспех не снижает скорость дварфа из-за недостатка Силы');
+});
+
+test('масса, монеты, вместимость и масло используют нормализованные физические величины', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  assert.equal(e.itemMassKg({weight: '1 фунт'}), 0.454);
+  assert.equal(e.legacyItemGoldValue({cost: '5 см'}), 0.5);
+  assert.equal(e.legacyItemGoldValue({cost: '7 мм'}), 0.07);
+
+  const backpack = items.find(it => it.id === 'it_рюкзак'), plate = items.find(it => it.n === 'Латы');
+  const carrier = hero('carrier', {inventory: [
+    {id: 'bag', itemId: backpack.id, qty: 1, inside: []}, {id: 'plate', itemId: plate.id, qty: 1}
+  ]});
+  e.setState({chars: [carrier], items});
+  assert.equal(e.containerCapacityKg(backpack), 15);
+  const blocked = e.containerPutPlan(carrier, carrier.inventory[0], carrier.inventory[1]);
+  assert.equal(blocked.ok, false);
+  assert.match(blocked.reason, /Вместимость/);
+  assert.equal(carrier.inventory.length, 2, 'неудачный префлайт не перемещает предмет');
+
+  const lantern = items.find(it => it.id === 'it_фонарь_яблочко'), oil = items.find(it => it.id === 'it_масло_фляга');
+  const fire = items.find(it => e.itemProfile(it).kind === 'firestarter');
+  const lamplighter = hero('lamplighter', {inventory: [
+    {id: 'lamp', itemId: lantern.id, qty: 1}, {id: 'oil', itemId: oil.id, qty: 1}, {id: 'fire', itemId: fire.id, qty: 1}
+  ]});
+  e.setState({chars: [lamplighter], items, activeCharId: lamplighter.id});
+  assert.equal(e.oilUse('oil', 'fuel'), true);
+  assert.equal(lamplighter.inventory.find(x => x.id === 'lamp').fuelRounds, 3600);
+  e.lightToggle('lamp');
+  assert.equal(lamplighter.activeFx.some(x => x.k === 'light'), true);
+  e.advanceFxRound(100);
+  e.lightToggle('lamp');
+  assert.equal(lamplighter.inventory.find(x => x.id === 'lamp').fuelRounds, 3500,
+    'гашение сохраняет остаток, а не возвращает полную флягу');
+});
+
+test('классовые фокусы, тяжелое оружие, копье, сеть и иглы исполняют явные ограничения', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const holy = items.find(it => it.id === 'it_holy_shield_life'), sword = items.find(it => it.n === 'Длинный меч');
+  const spell = {id: 'focus-spell', n: 'Фокус', l: 1, cm: 'В, С, М (лоскут)', d: 'Мгновенная', x: ''};
+  const caster = hero('focus-caster', {cls: 'Волшебник', inventory: [
+    {id: 'sword', itemId: sword.id, qty: 1}, {id: 'holy', itemId: holy.id, qty: 1}
+  ], equipment: {MAIN_HAND: 'sword', OFF_HAND: 'holy'}});
+  e.setState({chars: [caster], items, spells: [spell]});
+  assert.equal(e.focusItemAllowed(caster, holy), false);
+  assert.equal(e.canCastCheck(caster, spell).ok, false, 'чужой классовый фокус не освобождает занятую руку');
+  caster.cls = 'Жрец';
+  assert.equal(e.focusItemAllowed(caster, holy), true);
+  assert.equal(e.canCastCheck(caster, spell).ok, true);
+  assert.equal(e.materialPlanFor(caster, spell, e.parseComponents(spell), {substitute: true}).ok, true);
+
+  const heavy = items.find(it => it.n === 'Двуручный меч'), lance = items.find(it => it.id === 'it_кавалерийское_копье');
+  const net = items.find(it => it.id === 'it_сеть'), shield = items.find(it => e.itemProfile(it).kind === 'shield');
+  const foe = foes.find(f => f.id === 'foe_goblin_scout') || foes[0];
+  const small = hero('small', {race: 'Полурослик', inventory: [
+    {id: 'heavy', itemId: heavy.id, qty: 1}, {id: 'lance', itemId: lance.id, qty: 1},
+    {id: 'net', itemId: net.id, qty: 1}, {id: 'shield', itemId: shield.id, qty: 1},
+    {id: 'blowgun', itemId: 'it_духовая_трубка', qty: 1}, {id: 'needles', itemId: 'it_blowgun_needles_50', qty: 1}
+  ], equipment: {MAIN_HAND: 'lance', OFF_HAND: 'shield'}});
+  e.setState({chars: [small], items, foes: [foe]});
+  assert.equal(e.weaponSpecOf(small, heavy, e.targetInfoOf(`foe:${foe.id}`), {entryId: 'heavy', within5: true}).rows.find(r => r.type === 'atk').adv, 2);
+  assert.equal(e.weaponSpecOf(small, lance, e.targetInfoOf(`foe:${foe.id}`), {entryId: 'lance', within5: true}).rows.find(r => r.type === 'atk').adv, 2);
+  assert.equal(e.weaponAttackResourcePlan(small, 'lance', 'melee').ok, false, 'копье пешего бойца требует две руки');
+  small.mounted = true;
+  assert.equal(e.weaponAttackResourcePlan(small, 'lance', 'melee').ok, true);
+  assert.equal(e.weaponAttackResourcePlan(small, 'blowgun', 'ranged').ok, true, 'для трубки найдены канонические иглы');
+
+  const netSpec = e.weaponSpecOf(small, net, e.targetInfoOf(`foe:${foe.id}`), {entryId: 'net', mode: 'throw', within5: false});
+  const netOutcome = e.resolveOutcome(netSpec, manualFormulaValues(netSpec, 1));
+  assert.equal(e.weaponAttackApply('net', small.id, `foe:${foe.id}`, netOutcome), true);
+  assert.equal(e.effectiveFoeConditions(foe).includes('Опутанный'), true);
 });
 
 test('доспех без владения дает помеху всем броскам Силы и Ловкости и блокирует магию', () => {
@@ -2830,7 +3273,8 @@ test('выпуск 4.1 объединяет локальную и облачну
 
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /const CLOUD_PAUSED=false/);
-  assert.ok(html.includes('Движок 4.5 · предметы и ремесло'));
+  assert.equal(e.engineVersion(), '4.6');
+  assert.equal(e.engineLabel(), `Движок ${e.engineVersion()} · единый контракт предметов`);
 });
 
 test('формулы v2 не содержат броска мастера, ручного попадания или изменяемого преимущества', () => {
@@ -3523,4 +3967,573 @@ test('профили предметов, народов, классов и пр�
   assert.deepEqual(plain(cls.mechanics), classMechanics);
   assert.deepEqual(plain(e.foeActionsOf(foe)), foeActions);
   assert.equal(e.foeDefensesOf(foe).criticalHitImmune, false);
+});
+
+test('регрессия 4.6: школа волшебника меняет цену и время свитка, а списки классов точны', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB();
+  const scroll = items.find(it => it.id === 'it_scroll_mage_armor');
+  const makeWizard = (id, subcls = '') => hero(id, {cls: 'Волшебник', subcls, level: 3,
+    ab: {str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 10}, skills: {'Магия': {p: 1, m: null}},
+    coins: {mm: 0, sm: 0, em: 0, zm: 100, pm: 0}, spellbook: [],
+    inventory: [{id: `${id}-scroll`, itemId: scroll.id, qty: 1}]});
+  const cases = [
+    [makeWizard('normal'), 50, 2, 1],
+    [makeWizard('savant', 'Школа Ограждения'), 25, 1, 0.5],
+    [makeWizard('other-school', 'Школа Воплощения'), 50, 2, 1],
+  ];
+  for (const [wizard, costGp, hours, multiplier] of cases) {
+    e.setState({chars: [wizard], items, spells});
+    const plan = e.scrollCopyPlan(wizard, wizard.inventory[0].id);
+    assert.equal(plan.ok, true); assert.equal(plan.costGp, costGp); assert.equal(plan.hours, hours);
+    assert.equal(plan.savantMultiplier, multiplier);
+  }
+
+  const classMatrix = (itemId, allowed, denied) => {
+    const item = items.find(it => it.id === itemId), use = e.itemUseOf(item, 'cast');
+    for (const cls of allowed) assert.equal(e.scrollUseCheck(hero(`allowed-${itemId}-${cls}`, {cls, level: 20}), use).ok, true,
+      `${item.n}: ${cls} должен читать свиток`);
+    for (const cls of denied) assert.equal(e.scrollUseCheck(hero(`denied-${itemId}-${cls}`, {cls, level: 20}), use).ok, false,
+      `${item.n}: ${cls} не должен читать свиток`);
+  };
+  classMatrix('it_scroll_lesser_restoration', ['Бард', 'Друид', 'Жрец', 'Паладин', 'Следопыт'], ['Волшебник', 'Колдун', 'Чародей']);
+  classMatrix('it_scroll_longstrider', ['Бард', 'Волшебник', 'Друид', 'Следопыт'], ['Жрец', 'Паладин', 'Колдун', 'Чародей']);
+});
+
+test('регрессия 4.6: переписывание свитка атомарно тратит downtime и одноразовые эффекты', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), scrollId = 'it_scroll_mage_armor';
+  const spellId = e.itemUseOf(items.find(it => it.id === scrollId), 'cast').scroll.spellId;
+  const copyist = hero('feature-copyist', {cls: 'Волшебник', level: 3,
+    ab: {str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 10}, skills: {'Магия': {p: 1, m: null}},
+    coins: {mm: 0, sm: 0, em: 0, zm: 100, pm: 0},
+    spellbook: [
+      {spellId, prep: false, access: 'archive', source: 'Архив'},
+      {spellId, prep: true, access: 'feature', source: 'Особенность', granted: true, alwaysPrepared: true,
+        countsAgainstPreparation: false, countsAgainstKnown: false},
+    ],
+    inventory: [{id: 'feature-scroll', itemId: scrollId, qty: 1}],
+    activeFx: [
+      {uid: 'copy-guidance', k: 'test', id: 'copy-guidance', label: 'Наставление', fx: [
+        {stat: 'skill.Магия', mode: 'adv', value: 1, consume: 'roll'},
+        {stat: 'skill.Магия', mode: 'die', value: '1d4', consume: 'roll'},
+      ]},
+      {uid: 'short-copy-fx', k: 'test', id: 'short-copy-fx', label: 'Короткий эффект', expiresAtRound: 11, fx: [{stat: 'ac', mode: 'add', value: 1}]},
+    ]});
+  e.setState({chars: [copyist], items, spells, fxRound: 1});
+  const plan = e.scrollCopyPlan(copyist, 'feature-scroll');
+  assert.equal(plan.adv, 1); assert.equal(plan.fxDice.length, 1); assert.deepEqual(plain(plan.consumeFx), ['copy-guidance']);
+  const done = e.commitScrollCopy(plan, 10, [1]);
+  assert.equal(done.ok, true); assert.equal(done.success, true); assert.equal(done.elapsedRounds, 1200);
+  assert.equal(e.state().fxRound, 1201); assert.equal(copyist.activeFx.length, 0);
+  const merged = copyist.spellbook.filter(x => x.spellId === spellId);
+  assert.equal(merged.length, 1); assert.equal(merged[0].access, 'spellbook'); assert.equal(merged[0].bookCopy, true);
+  assert.equal(merged[0].granted, true); assert.equal(merged[0].alwaysPrepared, true);
+  assert.equal(merged[0].countsAgainstPreparation, false); assert.equal(merged[0].countsAgainstKnown, false);
+
+  const failedCopyist = hero('failed-copyist', {cls: 'Волшебник', level: 3,
+    ab: {str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 10}, skills: {'Магия': {p: 1, m: null}}, spellbook: [],
+    coins: {mm: 0, sm: 0, em: 0, zm: 100, pm: 0}, inventory: [{id: 'failed-scroll', itemId: scrollId, qty: 1}],
+    activeFx: [{uid: 'short-failure', k: 'test', id: 'short-failure', expiresAtRound: 11, fx: [{stat: 'ac', mode: 'add', value: 1}]}]});
+  e.setState({chars: [failedCopyist], items, spells, fxRound: 1});
+  const failed = e.commitScrollCopy(e.scrollCopyPlan(failedCopyist, 'failed-scroll'), 1, []);
+  assert.equal(failed.ok, true); assert.equal(failed.success, false); assert.equal(failed.elapsedRounds, 1200);
+  assert.equal(e.state().fxRound, 1201); assert.equal(failedCopyist.inventory.length, 0); assert.equal(failedCopyist.activeFx.length, 0);
+
+  const staleCopyist = hero('stale-copyist', {cls: 'Волшебник', level: 3, exhaustion: 1,
+    ab: {str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 10}, skills: {'Магия': {p: 1, m: null}}, spellbook: [],
+    coins: {mm: 0, sm: 0, em: 0, zm: 100, pm: 0}, inventory: [{id: 'stale-scroll', itemId: scrollId, qty: 1}]});
+  e.setState({chars: [staleCopyist], items, spells, fxRound: 9});
+  const stale = e.scrollCopyPlan(staleCopyist, 'stale-scroll');
+  assert.equal(stale.adv, 2, 'истощение дает помеху проверке характеристики');
+  staleCopyist.exhaustion = 0;
+  assert.equal(e.commitScrollCopy(stale, 20, []).ok, false);
+  assert.equal(e.state().fxRound, 9); assert.equal(staleCopyist.inventory[0].qty, 1); assert.equal(e.coinCopperTotal(staleCopyist), 10000);
+
+  const incapacitated = hero('incapacitated-copyist', {cls: 'Волшебник', level: 3, hp: 10, cond: ['Бессознательный'],
+    coins: {zm: 100}, inventory: [{id: 'blocked-scroll', itemId: scrollId, qty: 1}]});
+  e.setState({chars: [incapacitated], items, spells});
+  const blocked = e.scrollCopyPlan(incapacitated, 'blocked-scroll');
+  assert.equal(blocked.ok, false); assert.match(blocked.reason, /состоянии/);
+});
+
+test('регрессия 4.6: toolMode any принимает каждую одиночную ветку и только ее рабочее место', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), recipe = e.itemRecipes().find(r => r.id === 'cr_hardwood_blank');
+  assert.equal(recipe.requirements.toolMode, 'any');
+  const routes = [
+    ['it_tool_carpenter', 'плотницкая площадка'],
+    ['it_tool_woodcarver', 'устойчивый верстак'],
+  ];
+  for (const [toolId, facility] of routes) {
+    const tool = items.find(it => it.id === toolId), artisan = hero(`artisan-${toolId}`, {
+      toolProficiencies: [e.itemProfile(tool).tool.prof], craftingFacilities: [facility],
+      inventory: [{id: 'tool', itemId: toolId, qty: 1}, {id: 'wood', itemId: 'it_mat_hardwood_bough', qty: 2}],
+    });
+    e.setState({chars: [artisan], items});
+    const plan = e.craftPlanFor(artisan, recipe.id, {toolId});
+    assert.equal(plan.ok, true, `${tool.n}: ${plan.reason || ''}`);
+    assert.deepEqual(plain(plan.selectedToolIds), [toolId]); assert.deepEqual(plain(plan.craftReq.facilities), [facility]);
+    assert.equal(e.commitCraftPlan(plan).ok, true); assert.equal(e.inventoryItemQty(artisan, recipe.result.itemId), 1);
+  }
+  const empty = hero('artisan-empty', {inventory: [{id: 'wood', itemId: 'it_mat_hardwood_bough', qty: 2}]});
+  e.setState({chars: [empty], items});
+  const missing = e.craftPlanFor(empty, recipe.id);
+  assert.equal(missing.ok, false); assert.match(missing.reason, /один из инструментов/);
+});
+
+test('регрессия 4.6: ремесло агрегирует входы, отвергает stale facility и продвигает время один раз', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), recipe = e.itemRecipes().find(r => r.id === 'cr_iron_ingot');
+  const duplicate = plain(recipe);
+  duplicate.inputs = [{itemId: 'it_mat_iron_ore', qty: 1}, {itemId: 'it_mat_iron_ore', qty: 1}, {itemId: 'it_mat_coal', qty: 1}];
+  assert.match(e.craftingRecipeSchemaErrors(duplicate, new Set(items.map(it => it.id))).join(' '), /повторять один itemId/);
+
+  const originalInputs = recipe.inputs;
+  try {
+    recipe.inputs = duplicate.inputs;
+    const smith = hero('duplicate-smith', {toolProficiencies: ['Инструменты кузнеца'], craftingFacilities: ['кузнечный горн'],
+      inventory: [{id: 'tool', itemId: 'it_tool_smith', qty: 1}, {id: 'ore', itemId: 'it_mat_iron_ore', qty: 1},
+        {id: 'coal', itemId: 'it_mat_coal', qty: 1}]});
+    e.setState({chars: [smith], items});
+    const insufficient = e.craftPlanFor(smith, recipe.id);
+    assert.equal(insufficient.ok, false); assert.match(insufficient.reason, /нужно 2, есть 1/);
+    smith.inventory.find(x => x.id === 'ore').qty = 2;
+    assert.equal(e.craftPlanFor(smith, recipe.id).ok, true, 'дублированные входы агрегируются и в runtime');
+  } finally {
+    recipe.inputs = originalInputs;
+  }
+
+  const timed = hero('timed-smith', {toolProficiencies: ['Инструменты кузнеца'], craftingFacilities: ['кузнечный горн'],
+    inventory: [{id: 'tool', itemId: 'it_tool_smith', qty: 1}, {id: 'ore', itemId: 'it_mat_iron_ore', qty: 2},
+      {id: 'coal', itemId: 'it_mat_coal', qty: 1}],
+    activeFx: [{uid: 'short-craft', k: 'test', id: 'short-craft', expiresAtRound: 11, fx: [{stat: 'ac', mode: 'add', value: 1}]}]});
+  e.setState({chars: [timed], items, fxRound: 1});
+  const stale = e.craftPlanFor(timed, recipe.id);
+  timed.craftingFacilities = [];
+  const inventoryBefore = plain(timed.inventory);
+  assert.equal(e.commitCraftPlan(stale).ok, false);
+  assert.deepEqual(plain(timed.inventory), inventoryBefore); assert.equal(e.state().fxRound, 1);
+  timed.craftingFacilities = ['кузнечный горн'];
+  const done = e.commitCraftPlan(e.craftPlanFor(timed, recipe.id));
+  assert.equal(done.ok, true); assert.equal(done.elapsedRounds, 2400); assert.equal(e.state().fxRound, 2401);
+  assert.equal(timed.activeFx.length, 0); assert.equal(e.inventoryItemQty(timed, 'it_mat_iron_ingot'), 1);
+
+  const incapacitated = hero('incapacitated-smith', {hp: 10, cond: ['Бессознательный']});
+  e.setState({chars: [incapacitated], items});
+  const blocked = e.craftPlanFor(incapacitated, recipe.id);
+  assert.equal(blocked.ok, false); assert.match(blocked.reason, /состоянии/);
+});
+
+test('регрессия 4.6: сбор использует общий нормализованный источник, Nature d4 и мировое время', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const sunleaf = items.find(it => it.id === 'it_mat_sunleaf'), herbTool = e.itemMaterialMeta(sunleaf).harvest.toolId;
+  const first = hero('first-gatherer', {inventory: [{id: 'herb-1', itemId: herbTool, qty: 1}],
+    activeFx: [{uid: 'short-harvest', k: 'test', id: 'short-harvest', expiresAtRound: 50, fx: [{stat: 'ac', mode: 'add', value: 1}]}]});
+  const second = hero('second-gatherer', {inventory: [{id: 'herb-2', itemId: herbTool, qty: 1}]});
+  e.setState({chars: [first, second], items, fxRound: 1});
+  const firstContext = {confirmedSource: true, biome: 'луг', sourceId: '  Поляна   У Брода  '};
+  const gathered = e.commitHarvestPlan(e.harvestPlanFor(first, sunleaf.id, {check: 20, yield: 1}, firstContext));
+  assert.equal(gathered.ok, true); assert.equal(gathered.elapsedRounds, 100); assert.equal(e.state().fxRound, 101);
+  assert.equal(first.activeFx.length, 0); assert.ok(e.state().harvestedSources['it_mat_sunleaf@поляна у брода']);
+  const repeated = e.harvestPlanFor(second, sunleaf.id, {check: 20, yield: 1},
+    {confirmedSource: true, biome: 'луг', sourceId: 'поляна у брода'});
+  assert.equal(repeated.ok, false); assert.match(repeated.reason, /уже исчерпан/);
+
+  const venom = items.find(it => it.id === 'it_mat_spider_venom_sac'), poisoner = items.find(it => it.id === 'it_tool_poisoner');
+  const guided = hero('guided-poisoner', {ab: {str: 10, dex: 10, con: 10, int: 8, wis: 10, cha: 10},
+    toolProficiencies: [e.itemProfile(poisoner).tool.prof], inventory: [{id: 'poisoner-kit', itemId: poisoner.id, qty: 1}],
+    activeFx: [{uid: 'nature-guidance', k: 'test', id: 'nature-guidance', label: 'Наставление Природы',
+      fx: [{stat: 'skill.Природа', mode: 'die', value: '1d4', consume: 'roll'}]}]});
+  e.setState({chars: [guided], items, fxRound: 1});
+  const spec = e.harvestCheckSpec(guided, venom), contract = e.harvestRollContract(guided, spec);
+  assert.equal(spec.route, 'tool'); assert.equal(contract.kind, 'skill.Природа'); assert.equal(contract.dice.length, 1);
+  assert.deepEqual(plain(contract.consumeFx), ['nature-guidance']);
+  const natural = venom.material.harvest.dc - contract.mod - 1;
+  const context = {confirmedSource: true, biome: venom.material.harvest.biomes[0], sourceId: 'spider-guided', sourceConditionConfirmed: true};
+  const plan = e.harvestPlanFor(guided, venom.id, {check: natural, checkFx: [1], time: 1}, context);
+  assert.equal(plan.ok, true); assert.equal(plan.success, true);
+  const done = e.commitHarvestPlan(plan);
+  assert.equal(done.ok, true); assert.equal(done.elapsedRounds, 10); assert.equal(e.state().fxRound, 11);
+  assert.equal(guided.activeFx.some(x => x.uid === 'nature-guidance'), false);
+
+  const incapacitated = hero('incapacitated-gatherer', {hp: 10, cond: ['Бессознательный'], inventory: [{id: 'herb', itemId: herbTool, qty: 1}]});
+  e.setState({chars: [incapacitated], items});
+  const blocked = e.harvestPlanFor(incapacitated, sunleaf.id, {check: 20, yield: 1},
+    {confirmedSource: true, biome: 'луг', sourceId: 'blocked-source'});
+  assert.equal(blocked.ok, false); assert.match(blocked.reason, /состоянии/);
+});
+
+test('регрессия 4.6: опасный сбор возобновляется после потери инструмента и корректно обрабатывает 0 HP', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), venom = items.find(it => it.id === 'it_mat_spider_venom_sac');
+  const poisoner = items.find(it => it.id === venom.material.harvest.toolId), prof = e.itemProfile(poisoner).tool.prof;
+  const collector = hero('pending-collector', {toolProficiencies: [prof],
+    inventory: [{id: 'pending-tool', itemId: poisoner.id, qty: 1}]});
+  e.setState({chars: [collector], items, fxRound: 1});
+  const context = {confirmedSource: true, biome: venom.material.harvest.biomes[0], sourceId: 'pending-spider', sourceConditionConfirmed: true};
+  const pending = e.harvestPlanFor(collector, venom.id, {check: 1, time: 1}, context);
+  assert.equal(pending.ok, true); assert.equal(pending.pendingHazard, true);
+  const reserved = e.reserveHarvestAttempt(pending);
+  assert.equal(reserved.ok, true); assert.equal(reserved.elapsedRounds, 10); assert.equal(e.state().fxRound, 11);
+  assert.match(e.craftPlanFor(collector, 'cr_hardwood_blank').reason, /Сначала завершите опасную попытку/);
+
+  collector.inventory = []; collector.hp = 0; collector.cond = ['Бессознательный'];
+  const record = e.pendingHarvestRecord(collector, venom.id);
+  const resumeContext = {confirmedSource: true, biome: record.biome, sourceId: record.sourceId,
+    sourceConditionConfirmed: record.sourceConditionConfirmed, reservationToken: record.token};
+  const resumed = e.harvestPlanFor(collector, venom.id,
+    {...plain(record.attempt.rolls), hazardSave: 20, hazardDamage: 2}, resumeContext);
+  assert.equal(resumed.ok, true); assert.equal(resumed.pendingHazard, undefined);
+  const resolved = e.commitHarvestPlan(resumed);
+  assert.equal(resolved.ok, true); assert.equal(resolved.success, false); assert.equal(resolved.elapsedRounds, 0);
+  assert.equal(e.state().fxRound, 11); assert.equal(e.pendingHarvestRecord(collector, venom.id), null);
+
+  const poisoned = hero('poisoned-collector', {hp: 1, hpMax: 10, toolProficiencies: [prof],
+    inventory: [{id: 'poison-tool', itemId: poisoner.id, qty: 1}]});
+  e.setState({chars: [poisoned], items, fxRound: 1});
+  const poisonContext = {confirmedSource: true, biome: venom.material.harvest.biomes[0], sourceId: 'fatal-spider', sourceConditionConfirmed: true};
+  const poisonPlan = e.harvestPlanFor(poisoned, venom.id,
+    {check: 1, time: 1, hazardSave: 1, hazardDamage: 2}, poisonContext);
+  assert.equal(poisonPlan.ok, true); assert.equal(poisonPlan.pendingHazard, undefined);
+  const poisonDone = e.commitHarvestPlan(poisonPlan);
+  assert.equal(poisonDone.ok, true); assert.equal(poisonDone.poisonStable, true); assert.equal(poisonDone.elapsedRounds, 10);
+  assert.equal(poisoned.hp, 0); assert.deepEqual(plain(poisoned.deaths), {s: 3, f: 0});
+  assert.equal(e.effectiveConditions(poisoned).includes('Отравленный'), true);
+  assert.equal(e.effectiveConditions(poisoned).includes('Парализованный'), true);
+  const poisonFx = poisoned.activeFx.find(x => x.id === `${venom.id}:poisoned-zero`);
+  assert.ok(poisonFx); assert.equal(poisonFx.expiresAtRound, 611); assert.equal(e.state().fxRound, 11);
+});
+
+test('регрессия уникальных предметов: кольчужная рубаха знает источник урона, массу и дни ношения', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const shirt = items.find(x => x.id === 'it_chain_shirt_leg'), orc = foes.find(x => x.id === 'foe_orc_raider');
+  const guard = hero('shirt-guard', {cls: 'Воин', level: 3, ab: {str: 13, dex: 12, con: 10, int: 10, wis: 10, cha: 10},
+    inventory: [{id: 'shirt', itemId: shirt.id, qty: 1, equippedDays: 3}], equipment: {CHEST: 'shirt'}});
+  e.setState({chars: [guard], items, classes, foes: [orc], activeCharId: guard.id});
+  assert.equal(e.combatStart([{kind: 'foe', id: orc.id, nat: 20}, {kind: 'ally', id: guard.id, nat: 10}], 'Источник урона'), true);
+  const target = e.targetInfoOf(`ally:${guard.id}`), action = sourceKind => ({id: `blade-${sourceKind}`, n: 'Режущий клинок', kind: 'attack',
+    cost: 'action', mode: 'melee', sourceKind, attackBonus: 5, range: '1,5 м', damage: [{cnt: 1, sides: 8, mod: 0, type: 'рубящий'}]});
+  const spell = e.foeActionSpecOf(orc, action('spell'), target), weapon = e.foeActionSpecOf(orc, action('weapon'), target);
+  e.appendCombatReactionRows(spell, target); e.appendCombatReactionRows(weapon, target);
+  assert.equal(spell.rows.some(r => r.key === 'reaction_item_guard'), false, 'рубаха не снижает рубящий урон заклинания');
+  assert.equal(weapon.rows.some(r => r.key === 'reaction_item_guard'), true, 'рубаха снижает рубящий урон оружия');
+
+  const mass = e.itemMassKg(shirt), strong = hero('strong', {ab: {str: 13, dex: 10, con: 10, int: 10, wis: 10, cha: 10},
+    inventory: [{id: 'strong-shirt', itemId: shirt.id, qty: 1}], equipment: {CHEST: 'strong-shirt'}}),
+    weak = hero('weak', {ab: {str: 12, dex: 10, con: 10, int: 10, wis: 10, cha: 10},
+      inventory: [{id: 'weak-shirt', itemId: shirt.id, qty: 1}], equipment: {CHEST: 'weak-shirt'}}),
+    carried = hero('carried', {ab: {str: 13, dex: 10, con: 10, int: 10, wis: 10, cha: 10},
+      inventory: [{id: 'carried-shirt', itemId: shirt.id, qty: 1}]});
+  e.setState({chars: [strong, weak, carried], items, classes});
+  assert.equal(e.carryWeight(strong), 0); assert.equal(e.carryWeight(weak), Math.round(mass * 10) / 10);
+  assert.equal(e.carryWeight(carried), Math.round(mass * 10) / 10, 'льгота действует только на надетый собственный доспех');
+
+  const replacement = items.find(x => x.id !== shirt.id && x.slot === 'CHEST');
+  assert.ok(replacement, 'в базе нужна другая нагрудная броня');
+  strong.inventory[0].equippedDays = 3;
+  strong.inventory.push({id: 'replacement', itemId: replacement.id, qty: 1});
+  e.setState({chars: [strong], items, classes, activeCharId: strong.id}); e.setConfirmResults([true]);
+  e.invEquipToggle('replacement');
+  assert.equal(strong.equipment.CHEST, 'replacement'); assert.equal(strong.inventory[0].equippedDays, 0,
+    'замена нагрудного доспеха сбрасывает непрерывные дни ношения рубахи');
+});
+
+test('регрессия уникальных предметов: Последний заслон атомарен в активном бою и отвергает stale реакцию', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const foe = foes.find(x => x.id === 'foe_orc_raider');
+  const begin = id => {
+    const torgar = e.buildTorgar(); torgar.id = id; torgar.name = id; torgar.hp = 10; torgar.hpMax = 30;
+    const pauldron = torgar.inventory.find(x => x.itemId === 'it_pauldron_mentor');
+    pauldron.att = true; pauldron.ch = {cur: 1, max: 1};
+    e.setState({chars: [torgar], items, abilities, classes, foes: [foe], activeCharId: torgar.id});
+    assert.equal(e.combatStart([{kind: 'foe', id: foe.id, nat: 20}, {kind: 'ally', id: torgar.id, nat: 10}], id), true);
+    e.setConfirmResults([true]);
+    const result = e.applyDamageTo(`ally:${torgar.id}`, 10, 'рубящий', 'боевой тест');
+    assert.ok(result.lastBarrier); assert.equal(pauldron.ch.cur, 1, 'до d20 заряд не расходуется');
+    assert.equal(e.state().combat.order.find(x => x.id === torgar.id).reactionUsed, false, 'до d20 реакция не расходуется');
+    return {torgar, pauldron, result};
+  };
+
+  let x = begin('barrier-success'), resolved = e.resolveLastBarrier(x.result, 20);
+  assert.equal(resolved.success, true); assert.equal(x.torgar.hp, 1); assert.equal(x.pauldron.ch.cur, 0);
+  assert.equal(e.state().combat.order.find(row => row.id === x.torgar.id).reactionUsed, true);
+
+  x = begin('barrier-fail'); resolved = e.resolveLastBarrier(x.result, 1);
+  assert.equal(resolved.success, false); assert.equal(x.torgar.hp, 0); assert.equal(x.pauldron.ch.cur, 0);
+  assert.equal(x.torgar.cond.includes('Бессознательный'), true);
+  assert.equal(e.state().combat.order.find(row => row.id === x.torgar.id).reactionUsed, true);
+
+  x = begin('barrier-cancel');
+  assert.equal(e.cancelLastBarrier(x.result, 'игрок отказался'), true);
+  assert.equal(x.pauldron.ch.cur, 1); assert.equal(x.torgar.cond.includes('Бессознательный'), true);
+  assert.equal(e.state().combat.order.find(row => row.id === x.torgar.id).reactionUsed, false);
+
+  x = begin('barrier-healed'); x.torgar.hp = 2;
+  assert.equal(e.resolveLastBarrier(x.result, 20), null); assert.equal(x.result.lastBarrier.cancelled, true);
+  assert.equal(x.pauldron.ch.cur, 1); assert.equal(x.torgar.hp, 2);
+  assert.equal(e.state().combat.order.find(row => row.id === x.torgar.id).reactionUsed, false);
+
+  x = begin('barrier-unequipped');
+  Object.keys(x.torgar.equipment).forEach(slot => { if (x.torgar.equipment[slot] === x.pauldron.id) delete x.torgar.equipment[slot]; });
+  assert.equal(e.resolveLastBarrier(x.result, 20), null); assert.equal(x.result.lastBarrier.cancelled, true);
+  assert.equal(x.pauldron.ch.cur, 1); assert.equal(x.torgar.cond.includes('Бессознательный'), true);
+  assert.equal(e.state().combat.order.find(row => row.id === x.torgar.id).reactionUsed, false);
+
+  x = begin('barrier-stale-charge'); x.pauldron.ch = {cur: 0, max: 1};
+  assert.equal(e.resolveLastBarrier(x.result, 20), null, 'коммит повторно читает живой объект ресурса, а не captured alias');
+  assert.equal(x.pauldron.ch.cur, 0); assert.equal(x.torgar.hp, 0); assert.equal(x.torgar.cond.includes('Бессознательный'), true);
+  assert.equal(e.state().combat.order.find(row => row.id === x.torgar.id).reactionUsed, false);
+
+  const outside = e.buildTorgar(); outside.id = 'barrier-outside'; outside.name = outside.id; outside.hp = 10; outside.hpMax = 30;
+  const outsidePauldron = outside.inventory.find(entry => entry.itemId === 'it_pauldron_mentor');
+  outsidePauldron.att = true; outsidePauldron.ch = {cur: 1, max: 1};
+  e.setState({chars: [outside], items, abilities, classes, foes: [foe], activeCharId: outside.id}); e.setConfirmResults([true]);
+  const outsideResult = e.applyDamageTo(`ally:${outside.id}`, 10, 'рубящий', 'до боя');
+  assert.ok(outsideResult.lastBarrier); assert.equal(outsideResult.lastBarrier.combatId, null);
+  assert.equal(e.combatStart([{kind: 'foe', id: foe.id, nat: 20}, {kind: 'ally', id: outside.id, nat: 10}], 'Новый бой'), true);
+  assert.equal(e.resolveLastBarrier(outsideResult, 20), null, 'начатый вне боя заслон stale в новом бое');
+  assert.equal(outsidePauldron.ch.cur, 1); assert.equal(outside.hp, 0);
+  assert.equal(e.state().combat.order.find(row => row.id === outside.id).reactionUsed, false);
+});
+
+test('отложенные спасброски падения не разрешают более позднее ABA-событие хитов', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const torgar = e.buildTorgar(), zombie = foes.find(x => x.id === 'foe_zombie');
+  torgar.hp = 5; zombie.hp = 5;
+  const pauldron = torgar.inventory.find(x => x.itemId === 'it_pauldron_mentor');
+  pauldron.att = true; pauldron.ch = {cur: 1, max: 1};
+  e.setState({chars: [torgar], items, abilities, classes, foes: [zombie], activeCharId: torgar.id});
+
+  e.setConfirmResults([true, true]);
+  const firstBarrier = e.applyDamageTo(`ally:${torgar.id}`, 5, 'рубящий', 'первое падение');
+  assert.ok(firstBarrier.lastBarrier);
+  e.applyRollsToTarget(`ally:${torgar.id}`, {healTotal: 1, notes: []}, 'лечение между событиями');
+  const secondBarrier = e.applyDamageTo(`ally:${torgar.id}`, 1, 'рубящий', 'второе падение');
+  assert.ok(secondBarrier.lastBarrier);
+  assert.equal(e.resolveLastBarrier(firstBarrier, 20), null, 'старый d20 не относится ко второму падению');
+  assert.equal(pauldron.ch.cur, 1); assert.equal(secondBarrier.lastBarrier.resolved, false);
+
+  const firstFortitude = e.applyDamageTo(`foe:${zombie.id}`, 5, 'рубящий', 'первое падение нежити');
+  assert.ok(firstFortitude.undeadFortitude);
+  e.applyRollsToTarget(`foe:${zombie.id}`, {healTotal: 1, notes: []}, 'лечение нежити');
+  const secondFortitude = e.applyDamageTo(`foe:${zombie.id}`, 1, 'рубящий', 'второе падение нежити');
+  assert.ok(secondFortitude.undeadFortitude);
+  assert.equal(e.resolveUndeadFortitude(firstFortitude, 20), null, 'старый d20 нежити отвергается по токену события');
+  assert.equal(zombie.hp, 0); assert.equal(secondFortitude.undeadFortitude.resolved, false);
+
+  const uiZombie = plain(e.seedFoesDB().find(x => x.id === 'foe_zombie'));
+  uiZombie.id = 'foe_zombie_manual_hp'; uiZombie.hp = 5; uiZombie.cond = [];
+  e.setState({chars: [torgar], items, abilities, classes, foes: [uiZombie], activeCharId: torgar.id});
+  const manualPending = e.applyDamageTo(`foe:${uiZombie.id}`, 5, 'рубящий', 'падение до ручной правки');
+  assert.ok(manualPending.undeadFortitude);
+  const beforeUiSeq = uiZombie.hpEventSeq;
+  e.foeHpDelta(uiZombie.id, 1); e.foeHpDelta(uiZombie.id, -1);
+  assert.equal(uiZombie.hpEventSeq, beforeUiSeq + 2, 'обе ручные кнопки хитов создают новые события');
+  assert.equal(e.resolveUndeadFortitude(manualPending, 20), null, 'старый модал не переживает ручное лечение и новый ноль');
+  e.foeFullHeal(uiZombie.id);
+  assert.equal(uiZombie.hp, uiZombie.hpMax); assert.ok(uiZombie.hpEventSeq > beforeUiSeq + 2,
+    'полное восстановление через интерфейс также инвалидирует pending');
+});
+
+test('регрессия уникальных предметов: вторичный удар Корлиннов валидирует ход, цель, stale план, слизь и prone-тег', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB(), allFoes = e.seedFoesDB();
+  const legerem = e.buildLegerem(), friend = hero('korlinn-friend'), axe = items.find(x => x.id === 'it_korlinn_axe');
+  const axeEntry = legerem.inventory.find(x => x.itemId === axe.id), primary = allFoes.find(x => x.id === 'foe_orc_raider'),
+    secondary = allFoes.find(x => x.id === 'foe_goblin_scout'), ooze = allFoes.find(x => x.id === 'foe_ochre_jelly'),
+    wolf = allFoes.find(x => x.id === 'foe_dire_wolf');
+  const foes = [primary, secondary, ooze, wolf];
+  e.setState({chars: [legerem, friend], items, abilities, classes, foes, activeCharId: legerem.id});
+  axeEntry.korlinnHitPending = {combatId: 'absent', turnStamp: '', hitToken: 'outside', actorKey: `ally:${legerem.id}`,
+    primaryTarget: `foe:${primary.id}`, choiceOpen: true, secondaryOpen: true};
+  assert.equal(e.planKorlinnSecondary(legerem, axeEntry, `foe:${secondary.id}`, {casterToSecondaryM: 1, primaryToSecondaryM: 1}).ok, false,
+    'вне боя вторичный удар не существует');
+
+  assert.equal(e.combatStart([{kind: 'foe', id: primary.id, nat: 20}, {kind: 'foe', id: ooze.id, nat: 18},
+    {kind: 'foe', id: secondary.id, nat: 16}, {kind: 'foe', id: wolf.id, nat: 14},
+    {kind: 'ally', id: legerem.id, nat: 10}, {kind: 'ally', id: friend.id, nat: 8}], 'Вторичный удар'), true);
+  const arm = token => { axeEntry.korlinnHitPending = {combatId: e.state().combat.id, turnStamp: e.combatTurnStamp(), hitToken: token,
+    actorKey: `ally:${legerem.id}`, primaryTarget: `foe:${primary.id}`, choiceOpen: true, secondaryOpen: true}; };
+  arm('ally-reject');
+  const allyPlan = e.planKorlinnSecondary(legerem, axeEntry, `ally:${friend.id}`, {casterToSecondaryM: 1, primaryToSecondaryM: 1});
+  assert.equal(allyPlan.ok, false); assert.match(allyPlan.reason, /противника/);
+
+  arm('stale');
+  const stale = e.planKorlinnSecondary(legerem, axeEntry, `foe:${secondary.id}`, {casterToSecondaryM: 1, primaryToSecondaryM: 1});
+  assert.equal(stale.ok, true); const hpBefore = secondary.hp; axeEntry.korlinnHitPending.hitToken = 'new-hit';
+  assert.equal(e.commitKorlinnSecondary(stale).ok, false); assert.equal(secondary.hp, hpBefore);
+
+  arm('ooze-off-turn'); e.setConfirmResults([true]);
+  const oozePlan = e.planKorlinnSecondary(legerem, axeEntry, `foe:${ooze.id}`, {casterToSecondaryM: 2, primaryToSecondaryM: 2});
+  assert.equal(oozePlan.ok, true, 'попадание реакцией вне собственного хода тоже открывает вторичный удар');
+  const countBefore = e.state().foesDB.length, oozeDone = e.commitKorlinnSecondary(oozePlan);
+  assert.equal(oozeDone.ok, true); assert.equal(oozeDone.damageAfterTraits, 0, 'иммунитет желе обнуляет рубящий урон');
+  assert.match(oozeDone.foeReaction, /Разделение/); assert.equal(e.state().foesDB.length, countBefore + 1,
+    'подвергшееся рубящему урону желе исполняет структурированную реакцию Разделение');
+
+  arm('prone');
+  const bite = e.foeActionOf(wolf, 'bite'), base = e.foeActionSpecOf(wolf, bite, e.targetInfoOf(`ally:${legerem.id}`));
+  const baseMod = base.rows.find(r => r.key === 'save').mod;
+  assert.equal(e.korlinnAxeChoose(axeEntry.id, 'antiProneOrMove'), true);
+  const protectedSpec = e.foeActionSpecOf(wolf, bite, e.targetInfoOf(`ally:${legerem.id}`)), saveRow = protectedSpec.rows.find(r => r.key === 'save');
+  assert.equal(saveRow.mod, baseMod + 3, 'save.prone должен войти в реальную формулу спасброска с тегом prone');
+  assert.equal(protectedSpec.meta.consumeSaveFx.length, 1);
+  const values = manualFormulaValues(protectedSpec, 3), outcome = resolveManualOutcome(e, protectedSpec, values);
+  outcome.consumeTargetFx = protectedSpec.meta.consumeSaveFx.slice();
+  assert.equal(e.foeActionApply(wolf.id, bite.id, `ally:${legerem.id}`, outcome, {deferCommit: true}), true);
+  assert.equal(legerem.activeFx.some(fx => fx.id === `${axe.id}:legacy-choice`), false, 'одноразовая защита расходуется реальным спасброском');
+});
+
+test('регрессия уникальных предметов: Опека учителя не обходится подтверждением и входит в реальную формулу Страха', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const torgar = e.buildTorgar(), ally = hero('wounded-ally', {hp: 10, hpMax: 20}),
+    fearCaster = hero('fear-caster', {cls: 'Волшебник', level: 5, ab: {str: 10, dex: 10, con: 10, int: 18, wis: 10, cha: 10}}),
+    eye = foes.find(x => x.id === 'foe_eye_warden');
+  const pauldron = torgar.inventory.find(x => x.itemId === 'it_pauldron_mentor'), use = e.itemUseOf(items.find(x => x.id === pauldron.itemId), 'teacher_guard');
+  pauldron.att = true;
+  e.setState({chars: [torgar, ally, fearCaster], items, spells, abilities, classes, foes: [eye], activeCharId: torgar.id});
+  assert.equal(e.useItemApply(pauldron.id, torgar.id, `ally:${torgar.id}`, null, use.id, {contextConfirmed: true}), false,
+    'старый общий флаг не подменяет конкретного союзника и дистанцию');
+  assert.equal(e.useItemApply(pauldron.id, torgar.id, `ally:${torgar.id}`, null, use.id,
+    {mentorContext: {allyId: ally.id, distanceM: 9}}), false, 'ровно половина хитов не удовлетворяет условию');
+  ally.hp = 9;
+  assert.equal(e.useItemApply(pauldron.id, torgar.id, `ally:${torgar.id}`, null, use.id,
+    {mentorContext: {allyId: ally.id, distanceM: 9.01}}), false, 'дистанцию нельзя округлить внутрь радиуса');
+  assert.equal(e.useItemApply(pauldron.id, torgar.id, `ally:${torgar.id}`, null, use.id,
+    {mentorContext: {allyId: ally.id, distanceM: 9}}), true);
+
+  const fear = spells.find(sp => sp.n === 'Страх'), binding = e.foeActionOf(eye, 'binding_ray');
+  const fearFormula = () => e.rollSpecOf(fear, {caster: fearCaster, kind: 'spell', slotLvl: 3, target: e.targetInfoOf(`ally:${torgar.id}`)});
+  ally.hp = 10;
+  assert.equal(fearFormula().rows.find(r => r.key === 'save').adv, 0,
+    'если союзник больше не ниже половины, отложенное преимущество не проходит gate');
+  ally.hp = 9;
+  const fearSpec = fearFormula();
+  assert.equal(fearSpec.rows.find(r => r.key === 'save').adv, 1); assert.equal(fearSpec.meta.consumeSaveFx.length, 1);
+  assert.equal(e.foeActionSpecOf(eye, binding, e.targetInfoOf(`ally:${torgar.id}`)).rows.find(r => r.key === 'save').adv, 0,
+    'Опека не дает преимущество обычному спасброску без тега fear');
+  e.consumeRollFx(torgar, fearSpec.meta.consumeSaveFx);
+  assert.equal(torgar.activeFx.some(fx => fx.id === pauldron.itemId), false, 'преимущество расходуется подтвержденным спасброском Страха');
+
+  const target = e.targetInfoOf(`ally:${torgar.id}`), inlineBase = fearFormula();
+  const candidate = e.inlineSaveItemCandidates(inlineBase, target).find(x => x.kind === 'mentorGuard');
+  assert.ok(candidate, 'реальный Страх предлагает inline-реакцию наплечника');
+  const tooFar = e.applyInlineSaveDecision(inlineBase, target, {...plain(candidate), allyId: ally.id, distanceM: 9.01});
+  assert.equal(tooFar.ok, false, 'inline-путь не обходит фактическую дистанцию');
+  const inline = e.applyInlineSaveDecision(fearFormula(), target, {...plain(candidate), allyId: ally.id, distanceM: 9});
+  assert.equal(inline.ok, true); assert.equal(inline.spec.rows.find(r => r.key === 'save').adv, 1);
+  assert.equal(inline.plan.allyId, ally.id); assert.equal(inline.plan.distanceM, 9);
+});
+
+test('регрессия уникальных предметов: Вес имени требует экипировку, допустимый контекст и расходует эффект', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const legerem = e.buildLegerem(), seal = legerem.inventory.find(x => x.itemId === 'it_korlinn_seal'), item = items.find(x => x.id === seal.itemId);
+  const ringSlot = Object.keys(legerem.equipment).find(slot => legerem.equipment[slot] === seal.id);
+  delete legerem.equipment[ringSlot];
+  e.setState({chars: [legerem], items, abilities, classes, activeCharId: legerem.id});
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'name_weight', {contextTags: ['soldier']}), false,
+    'Вес имени требует надетую печать');
+  legerem.equipment.RING_L = seal.id;
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'name_weight', {contextConfirmed: true}), false,
+    'неструктурированное подтверждение не подменяет конкретные контекстные теги');
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'name_weight',
+    {contextConfirmed: true, contextTags: ['soldier', 'fanatic']}), false, 'исключенный тег имеет приоритет над допустимым');
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'name_weight',
+    {contextConfirmed: true, contextTags: ['soldier']}), true);
+  const allowed = e.rollFxEntries(legerem, 'skill.Убеждение', ['soldier']);
+  assert.equal(allowed.some(f => f.mode === 'add' && f.value === 1), true);
+  assert.equal(e.rollFxEntries(legerem, 'skill.Убеждение', ['merchant']).some(f => f.mode === 'add'), false);
+  assert.equal(e.rollFxEntries(legerem, 'skill.Убеждение', ['soldier', 'fanatic']).some(f => f.mode === 'add'), false);
+  e.consumeRollFx(legerem, allowed.map(f => f.sourceUid));
+  assert.equal(e.rollFxEntries(legerem, 'skill.Убеждение', ['soldier']).some(f => f.mode === 'add'), false);
+  assert.equal(e.itemActions(legerem, seal, item).some(action => action.label === 'Продать'), false, 'уникальную печать без цены нельзя продать');
+});
+
+test('регрессия уникальных предметов: Запечатать документ связывает токен и хранит независимые ресурсы', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const legerem = e.buildLegerem(), seal = legerem.inventory.find(x => x.itemId === 'it_korlinn_seal'), item = items.find(x => x.id === seal.itemId);
+  const ringSlot = Object.keys(legerem.equipment).find(slot => legerem.equipment[slot] === seal.id);
+  if (ringSlot) delete legerem.equipment[ringSlot];
+  e.setState({chars: [legerem], items, abilities, classes, activeCharId: legerem.id});
+  delete legerem.equipment.RING_L;
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'seal_document'), false,
+    'документу нужен устойчивый контекст, хотя кольцо можно достать из инвентаря');
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'seal_document',
+    {documentContext: '  Order   #17  '}), true, 'Запечатать документ намеренно не требует экипировки');
+  assert.equal(seal.sealDocumentUsed, true);
+  assert.equal(e.rollFxEntries(legerem, 'skill.Убеждение', ['sealedDocument:other']).some(f => f.mode === 'adv'), false);
+  const documentTag = `sealedDocument:${e.itemContextToken('  Order   #17  ')}`;
+  const documentFx = e.rollFxEntries(legerem, 'skill.Убеждение', [documentTag]);
+  assert.equal(documentFx.some(f => f.mode === 'adv'), true);
+  e.consumeRollFx(legerem, documentFx.map(f => f.sourceUid));
+  assert.equal(e.rollFxEntries(legerem, 'skill.Убеждение', [documentTag]).some(f => f.mode === 'adv'), false);
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'seal_document', {documentContext: 'order #18'}), false,
+    'одноразовый эффект и ресурс короткого отдыха — разные состояния');
+
+  legerem.equipment.RING_L = seal.id;
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'martial_resolve'), true,
+    'израсходованный документ не блокирует отдельную Стойкость рода');
+  assert.equal(seal.sealResolveUsed, true);
+  e.refreshShortRestResources(legerem);
+  assert.equal(seal.sealDocumentUsed, undefined); assert.equal(seal.sealResolveUsed, undefined);
+  assert.equal(e.itemActions(legerem, seal, item).some(action => action.label === 'Продать'), false, 'уникальную печать без цены нельзя продать');
+});
+
+test('регрессия уникальных предметов: проверка печати сочетает Вес имени и связанный документ', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB();
+  const legerem = e.buildLegerem(), seal = legerem.inventory.find(x => x.itemId === 'it_korlinn_seal');
+  legerem.equipment.RING_L = seal.id;
+  e.setState({chars: [legerem], items, abilities, classes, activeCharId: legerem.id});
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'name_weight',
+    {contextConfirmed: true, contextTags: ['soldier']}), true);
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'seal_document',
+    {documentContext: {token: 'order-17', label: 'Приказ 17'}}), true);
+  assert.equal(legerem.activeFx.filter(x => x.id === 'it_korlinn_seal').length, 2);
+
+  e.setConfirmResults([true, true]);
+  e.rollCheck('Убеждение по приказу', 0, 'skill.Убеждение');
+  const formula = e.pendingRollSpec(); assert.ok(formula);
+  assert.equal(formula.rows.filter(row => row.key === 'a' || row.key === 'b').length, 2,
+    'документ дает преимущество, даже если первым активирован Вес имени');
+  assert.match(formula.compute({a: 7, b: 12}), /= 13$/,
+    'формула сочетает лучший d20 и структурированный +1');
+  formula.apply({a: 7, b: 12});
+  assert.equal(legerem.activeFx.some(x => x.id === 'it_korlinn_seal'), false,
+    'подтвержденный бросок расходует оба участвовавших одноразовых эффекта');
+});
+
+test('регрессия уникальных предметов: неизвестное campaignRule не проходит схему', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), seal = items.find(x => x.id === 'it_korlinn_seal');
+  assert.deepEqual(plain(e.itemCampaignRuleSchemaErrors(seal.mechanics.campaignRules)), []);
+  const errors = e.itemCampaignRuleSchemaErrors({...plain(seal.mechanics.campaignRules), teleportWhenNamed: {distanceM: 99}});
+  assert.match(errors.join(' '), /неизвестное campaignRule «teleportWhenNamed» без runtime handler/);
+});
+
+test('регрессия уникальных предметов: реакции на спасбросок планируются inline и коммитятся только с d20', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const legerem = e.buildLegerem(), caster = hero('inline-fear-caster', {cls: 'Волшебник', level: 5,
+    ab: {str: 10, dex: 10, con: 10, int: 18, wis: 10, cha: 10}}), foe = foes.find(x => x.id === 'foe_eye_warden');
+  const seal = legerem.inventory.find(x => x.itemId === 'it_korlinn_seal'), fear = spells.find(x => x.n === 'Страх');
+  e.setState({chars: [legerem, caster], items, spells, abilities, classes, foes: [foe], activeCharId: legerem.id});
+  e.combatStart([{kind: 'foe', id: foe.id, nat: 20}, {kind: 'ally', id: legerem.id, nat: 10}], 'Inline-печать');
+  const sealItem = items.find(x => x.id === seal.itemId), directAction = e.itemActions(legerem, seal, sealItem).find(x => x.label === 'Стойкость рода');
+  assert.ok(directAction); assert.match(directAction.fn, /itemTriggerExplain/); assert.doesNotMatch(directAction.fn, /itemCastFx/,
+    'реакцию на спасбросок нельзя заранее вооружить обычной кнопкой предмета');
+  assert.equal(e.useItemApply(seal.id, legerem.id, `ally:${legerem.id}`, null, 'martial_resolve'), false,
+    'прямой runtime-вызов в бою тоже не обходит inline-событие и расход реакции');
+  assert.equal(seal.sealResolveUsed, undefined);
+  assert.equal(e.state().combat.order.find(row => row.id === legerem.id).reactionUsed, false);
+  const ti = e.targetInfoOf(`ally:${legerem.id}`), spec = e.rollSpecOf(fear, {caster, kind: 'spell', slotLvl: 3, target: ti});
+  const sealChoice = e.inlineSaveItemCandidates(spec, ti).find(x => x.kind === 'sealResolve');
+  assert.ok(sealChoice, 'подходящая магическая угроза предлагает печать до спасброска');
+  const selected = e.applyInlineSaveDecision(spec, ti, sealChoice);
+  assert.equal(selected.ok, true); assert.equal(spec.rows.find(r => r.key === 'save').adv, 1);
+  assert.equal(seal.sealResolveUsed, undefined, 'выбор до d20 еще не тратит ресурс');
+  assert.equal(e.state().combat.order.find(row => row.id === legerem.id).reactionUsed, false);
+  const p = selected.plan;
+  e.applyRollsToTarget(`ally:${legerem.id}`, {reactionUses: [{kind: 'item-save', actorKey: p.actorKey, entryId: p.entryId,
+    itemId: p.itemId, useId: p.useId, label: p.label, eventKey: p.eventKey}], notes: []}, 'inline save d20');
+  assert.equal(seal.sealResolveUsed, true); assert.equal(e.state().combat.order.find(row => row.id === legerem.id).reactionUsed, true,
+    'подтвержденный save event атомарно тратит reaction и независимый short-rest ресурс');
+
+  e.refreshShortRestResources(legerem); e.state().combat.order.find(row => row.id === legerem.id).reactionUsed = false;
+  const fresh = e.rollSpecOf(fear, {caster, kind: 'spell', slotLvl: 3, target: ti}), freshChoice = e.inlineSaveItemCandidates(fresh, ti).find(x => x.kind === 'sealResolve');
+  assert.ok(freshChoice); const stale = e.applyInlineSaveDecision(fresh, ti, freshChoice);
+  Object.keys(legerem.equipment).forEach(slot => { if (legerem.equipment[slot] === seal.id) delete legerem.equipment[slot]; });
+  assert.equal(e.inlineSavePlanCheck(stale.plan).ok, false, 'снятая между планом и d20 печать делает план stale без расхода');
 });
