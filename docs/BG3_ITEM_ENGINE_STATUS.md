@@ -207,13 +207,19 @@ A33 никогда сам по себе не вызывает `Summon`. Изуч
 всего исторического набора тестов эти архивные каталоги нужно предоставить
 локально. Сам сайт и активный v8-каталог от них не зависят.
 
-Финальные SHA-256 этого среза:
+Финальные SHA-256 опубликованных Git-объектов этого среза:
+
+`index.html` и `tests/effect-engine.test.mjs` до коммита имели смешанные
+Windows-переносы строк и рабочие SHA-256 `136c8d7a…71a4` и
+`5f4f4340…40fd6`. Git нормализовал только переносы строк в LF; нормализованный
+текст побайтно совпадает, а опубликованные SHA ниже соответствуют и GitHub
+source, и фактическому Pages-сайту.
 
 | Артефакт | SHA-256 |
 | --- | --- |
 | `data/bg3/bg3-24532579-v8/manifest.json` | `8db8b170c1d03a75876a7c9111b33a00fd89976cc69dbd85f31762eb419c06f0` |
-| `index.html` | `136c8d7a4444090157b323c509f7302823abc54831433318e9137195370371a4` |
-| `tests/effect-engine.test.mjs` | `5f4f4340f68ebcf68155329e7a5c4a066d8e0f21fccacb747f16775d01140fd6` |
+| `index.html` | `ff2668c0b6a8de171bdfe7725dba94cc32e55c7c5ca148979d481de4c3308f4b` |
+| `tests/effect-engine.test.mjs` | `d0dbee86e31fce9dfff2938f1c64fe105ed32fe4c94a6e952aad1b2b3ccabd8c` |
 | `tests/bg3-root-actions-causal.test.mjs` | `47c060702a8abbf9d64f78553d614abd91c71144ec2d978d81a041125bc9389f` |
 | `tests/bg3-summon-runtime.test.mjs` | `034d42e4da037355916e46a8d51e3661776c02e193eecc81807a4702836a11fb` |
 | `tests/bg3-action-boundary-causal.test.mjs` | `08b4cf4e15e7d5cd5e0d5a12d77c472bef20e70f621549d36305ce17ca4e8942` |
