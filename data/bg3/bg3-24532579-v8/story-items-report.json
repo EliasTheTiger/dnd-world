@@ -1,0 +1,1873 @@
+{
+  "schemaVersion": "bg3-story-items-report/1",
+  "catalogVersion": "bg3-24532579-v8",
+  "counts": {
+    "rawGoalFiles": 975,
+    "effectiveGoalFiles": 946,
+    "standardGoals": 944,
+    "honourGoals": 946,
+    "linkedBlocks": 6092,
+    "linkedItems": 2360,
+    "referenceKinds": {
+      "placed-item": 11200,
+      "root-template": 980
+    },
+    "referenceRoles": {
+      "consequence-result": 137,
+      "consequence-target": 4373,
+      "event-subject": 541,
+      "guard-subject": 2786,
+      "static-data": 6652
+    },
+    "storyEntrypoints": 255,
+    "completeCausalEntrypoints": 203,
+    "executableCausalEntrypoints": 10,
+    "incompleteCausalEntrypoints": 52,
+    "causalEntrypointModes": {
+      "blocked": 52,
+      "manual": 137,
+      "mixed": 55,
+      "typed": 11
+    },
+    "causalEntrypointsByEventKind": {
+      "book-closed": 97,
+      "item-use-finished": 57,
+      "item-use-started": 67,
+      "items-combined": 1,
+      "template-use-finished": 19,
+      "template-use-started": 12,
+      "templates-combined": 2
+    },
+    "completeCausalEntrypointsByActionType": {
+      "11": 105,
+      "19": 2,
+      "23": 3,
+      "30": 0,
+      "31": 0,
+      "8": 93
+    },
+    "levelItems": {
+      "schemaVersion": "bg3-story-placement-resolution/1",
+      "source": "item-placements.json",
+      "sourceCounts": {
+        "conflictingInstanceDefinitions": 3,
+        "definitions": 59023,
+        "duplicateInstanceUuids": 3,
+        "files": 401,
+        "honourDirectStatsOccurrences": 1290,
+        "honourDirectTemplateStatsPairs": 608,
+        "honourEffectiveInstances": 59020,
+        "standardDirectStatsOccurrences": 1290,
+        "standardDirectTemplateStatsPairs": 608,
+        "standardEffectiveInstances": 59019,
+        "uniqueInstances": 59020,
+        "placements": 59020,
+        "profiles": {
+          "standard": 59019,
+          "honour": 59020
+        },
+        "variantResolution": {
+          "level-instance.stats": 2580,
+          "root-template.stats": 115457,
+          "unique-root-variant": 2
+        },
+        "unresolvedCatalogRoots": 0,
+        "unresolvedDirectStatsPairs": 0,
+        "ambiguousPlacementVariants": 0,
+        "resolvedCollisionInstances": 3,
+        "directActionProgramSets": 6124,
+        "directActionPrograms": 2641,
+        "directActionProgramModes": {
+          "manual": 2243,
+          "typed": 398
+        },
+        "directActionTypes": {
+          "1": 192,
+          "10": 15,
+          "11": 679,
+          "12": 20,
+          "14": 36,
+          "15": 21,
+          "16": 12,
+          "18": 3,
+          "19": 4,
+          "23": 9,
+          "24": 2,
+          "26": 86,
+          "27": 4,
+          "28": 3,
+          "3": 398,
+          "30": 1,
+          "31": 5,
+          "32": 2,
+          "34": 1,
+          "35": 42,
+          "4": 2,
+          "5": 78,
+          "7": 11,
+          "8": 950,
+          "9": 65
+        },
+        "directScriptDeclarations": 3771,
+        "directScriptOverrideDeclarations": 340
+      },
+      "profiles": {
+        "standard": 59019,
+        "honour": 59020
+      },
+      "exactVariantBindings": {
+        "honour": 59020,
+        "standard": 59019
+      },
+      "unresolvedVariantBindings": {},
+      "instanceVariantCardinality": "zero-or-one-per-profile",
+      "rootVariantBroadening": false
+    },
+    "directParentStoryPropagation": {
+      "candidateItems": 21,
+      "derivedLinkAssociations": 435
+    }
+  },
+  "topConditions": [
+    [
+      "DB_GlobalFlag",
+      821
+    ],
+    [
+      "DB_Players",
+      544
+    ],
+    [
+      "QRY_OnlyOnce",
+      399
+    ],
+    [
+      "FlagSet",
+      274
+    ],
+    [
+      "UseStarted",
+      223
+    ],
+    [
+      "TextEvent",
+      184
+    ],
+    [
+      "UseFinished",
+      151
+    ],
+    [
+      "EntityEvent",
+      151
+    ],
+    [
+      "PROC_ApplySavegamePatchInLevel",
+      149
+    ],
+    [
+      "AddedTo",
+      139
+    ],
+    [
+      "DB_PermaDefeated",
+      134
+    ],
+    [
+      "PROC_BlockUseOfItem",
+      130
+    ],
+    [
+      "GetFlag",
+      127
+    ],
+    [
+      "PROC_ApplySavegamePatches",
+      122
+    ],
+    [
+      "QRY_StartDialog_Fixed",
+      117
+    ],
+    [
+      "GetHostCharacter",
+      109
+    ],
+    [
+      "IsInInventoryOf",
+      103
+    ],
+    [
+      "DestroyedBy",
+      99
+    ],
+    [
+      "GameBookInterfaceClosed",
+      98
+    ],
+    [
+      "DB_PartyMembers",
+      88
+    ],
+    [
+      "DB_OnlyOnce",
+      87
+    ],
+    [
+      "GetPosition",
+      85
+    ],
+    [
+      "DB_InRegion",
+      82
+    ],
+    [
+      "QRY_BG3_SaveGameIsOlderThan",
+      82
+    ],
+    [
+      "IsLocked",
+      79
+    ],
+    [
+      "DB_CurrentLevel",
+      78
+    ],
+    [
+      "DialogEnded",
+      70
+    ],
+    [
+      "HasActiveStatus",
+      69
+    ],
+    [
+      "IsInTrigger",
+      68
+    ],
+    [
+      "DB_Avatars",
+      64
+    ],
+    [
+      "DB_Defeated",
+      64
+    ],
+    [
+      "DB_Is_InCombat",
+      61
+    ],
+    [
+      "DB_State_Current",
+      60
+    ],
+    [
+      "IsDestroyed",
+      58
+    ],
+    [
+      "Opened",
+      58
+    ],
+    [
+      "QRY_EPI_Epilogue_LetterIsValid",
+      58
+    ],
+    [
+      "Unlocked",
+      56
+    ],
+    [
+      "IsOnStage",
+      55
+    ],
+    [
+      "IsOpened",
+      52
+    ],
+    [
+      "AttackedBy",
+      51
+    ]
+  ],
+  "topConsequences": [
+    [
+      "SetFlag",
+      516
+    ],
+    [
+      "ToInventory",
+      321
+    ],
+    [
+      "PROC_SetOnStage",
+      319
+    ],
+    [
+      "SetOnStage",
+      312
+    ],
+    [
+      "TeleportTo",
+      245
+    ],
+    [
+      "PROC_TryStartAD",
+      217
+    ],
+    [
+      "DB_NOOP",
+      198
+    ],
+    [
+      "SetCanInteract",
+      176
+    ],
+    [
+      "QuestUpdate",
+      168
+    ],
+    [
+      "ClearFlag",
+      160
+    ],
+    [
+      "DB_BUGFIX_Marker",
+      154
+    ],
+    [
+      "ApplyStatus",
+      151
+    ],
+    [
+      "PROC_GlobalSetFlagAndCache",
+      141
+    ],
+    [
+      "RemoveStatus",
+      120
+    ],
+    [
+      "DB_CustomUseItemResponse",
+      117
+    ],
+    [
+      "Die",
+      113
+    ],
+    [
+      "ClearOwnership",
+      111
+    ],
+    [
+      "TemplateAddTo",
+      100
+    ],
+    [
+      "SetEntityEvent",
+      93
+    ],
+    [
+      "Open",
+      92
+    ],
+    [
+      "Unlock",
+      89
+    ],
+    [
+      "StartVoiceBark",
+      75
+    ],
+    [
+      "PROC_ToInventoryAndOnStage",
+      65
+    ],
+    [
+      "PROC_SavegamePatch_GUS302508_FixBrokenChest",
+      61
+    ],
+    [
+      "PROC_SavegamePatch_GUS302508_FixBrokenMound",
+      61
+    ],
+    [
+      "Close",
+      59
+    ],
+    [
+      "TeleportToPosition",
+      58
+    ],
+    [
+      "PROC_StopLoopEffect",
+      56
+    ],
+    [
+      "TimerLaunch",
+      55
+    ],
+    [
+      "Use",
+      53
+    ],
+    [
+      "ObjectTimerLaunch",
+      53
+    ],
+    [
+      "PROC_ItemUnlockAndOpen",
+      52
+    ],
+    [
+      "PlaySound",
+      51
+    ],
+    [
+      "Equip",
+      50
+    ],
+    [
+      "Transform",
+      49
+    ],
+    [
+      "PROC_State_Progress",
+      47
+    ],
+    [
+      "PROC_LoopEffect",
+      44
+    ],
+    [
+      "PROC_TriggerUnregisterForPlayers",
+      44
+    ],
+    [
+      "SetForceUpdate",
+      42
+    ],
+    [
+      "DB_Dialogs",
+      39
+    ]
+  ],
+  "topInitialization": [
+    [
+      "DB_ItemDialog_NarratorAD",
+      551
+    ],
+    [
+      "DB_GLO_FireBowls",
+      309
+    ],
+    [
+      "DB_HasItemEvent",
+      199
+    ],
+    [
+      "SetOnStage",
+      198
+    ],
+    [
+      "DB_GiveItemToEvent",
+      115
+    ],
+    [
+      "PROC_SetOnStage",
+      115
+    ],
+    [
+      "DB_ShovelArea",
+      111
+    ],
+    [
+      "DB_Dialogs",
+      105
+    ],
+    [
+      "DB_WYR_Smugglers_Goods",
+      104
+    ],
+    [
+      "DB_QuestDef_State",
+      101
+    ],
+    [
+      "DB_WYR_Chess_Tile",
+      64
+    ],
+    [
+      "DB_ItemOwnerShipClearItem",
+      57
+    ],
+    [
+      "DB_WYR_Chess_StartPos",
+      57
+    ],
+    [
+      "DB_EPI_Epilogue_Letters",
+      56
+    ],
+    [
+      "DB_BookFlags",
+      55
+    ],
+    [
+      "SetCanInteract",
+      50
+    ],
+    [
+      "DB_CampBed",
+      44
+    ],
+    [
+      "DB_Act3_GLO_Gazette_OwnedPapers",
+      42
+    ],
+    [
+      "DB_EPI_Epilogue_PartyEquipment",
+      40
+    ],
+    [
+      "DB_WaypointInfo",
+      40
+    ],
+    [
+      "DB_DEN_AttackOnDen_LeaveObjects",
+      39
+    ],
+    [
+      "DB_HasItemTemplateScriptFlag",
+      39
+    ],
+    [
+      "DB_UND_ArcaneTower_Lights",
+      39
+    ],
+    [
+      "SetVisible",
+      38
+    ],
+    [
+      "DB_SHA_Trials_PassedTrialsCandles",
+      37
+    ],
+    [
+      "DB_QuestDef_BookReadState",
+      36
+    ],
+    [
+      "DB_COL_NecromancerLab_CageWalls",
+      36
+    ],
+    [
+      "DB_LOW_OskarBeloved_KitchenThrowableObjects",
+      34
+    ],
+    [
+      "DB_SHA_NightsongPrison_Lights",
+      33
+    ],
+    [
+      "DB_PLA_ZhentDungeon_Fuses",
+      32
+    ],
+    [
+      "PROC_TriggerRegisterForPlayers",
+      30
+    ],
+    [
+      "DB_MOO_ZhentVendor_DefeatItems",
+      30
+    ],
+    [
+      "DB_DEN_AttackOnDen_PrepObjects",
+      29
+    ],
+    [
+      "DB_ItemOwnerShipTriggers",
+      29
+    ],
+    [
+      "DB_GOB_TempleAccess_CurrentState",
+      28
+    ],
+    [
+      "DB_MOO_Assault_DynamicObject",
+      27
+    ],
+    [
+      "DB_LOW_OskarsBeloved_HauntLights",
+      27
+    ],
+    [
+      "DB_DEN_Lockdown_Barrier",
+      26
+    ],
+    [
+      "DB_KnowledgeCheckItem_AD",
+      26
+    ],
+    [
+      "DB_MOO_ZhentVendor_AliveItems",
+      26
+    ]
+  ],
+  "storyProgramModes": {
+    "manual": 4545,
+    "mixed": 1547
+  },
+  "typedStoryOpcodes": {
+    "addStoryTag": 26,
+    "applyStatus": 151,
+    "clearStoryFlag": 160,
+    "closeStoryEntity": 59,
+    "deleteStoryEntity": 22,
+    "dropItem": 9,
+    "grantTemplateItem": 100,
+    "lockStoryEntity": 24,
+    "moveItemToInventory": 321,
+    "openStoryEntity": 92,
+    "removeStatus": 120,
+    "removeStoryTag": 16,
+    "setStoryEntityActive": 312,
+    "setStoryFlag": 516,
+    "transformItem": 49,
+    "unlockStoryEntity": 89,
+    "updateQuest": 168
+  },
+  "causalEntrypointModes": {
+    "blocked": 52,
+    "manual": 137,
+    "mixed": 55,
+    "typed": 11
+  },
+  "causalEntrypointsByEventKind": {
+    "book-closed": 97,
+    "item-use-finished": 57,
+    "item-use-started": 67,
+    "items-combined": 1,
+    "template-use-finished": 19,
+    "template-use-started": 12,
+    "templates-combined": 2
+  },
+  "completeCausalEntrypointsByActionType": {
+    "11": 105,
+    "19": 2,
+    "23": 3,
+    "30": 0,
+    "31": 0,
+    "8": 93
+  },
+  "incompleteCausalEntrypointReasons": {
+    "unbound-event-actor": 50,
+    "ambiguous-root-action": 2
+  },
+  "topUnsupportedStoryCalls": [
+    [
+      "__source_fragment__",
+      856
+    ],
+    [
+      "DB_GlobalFlag",
+      821
+    ],
+    [
+      "DB_ItemDialog_NarratorAD",
+      578
+    ],
+    [
+      "DB_Players",
+      545
+    ],
+    [
+      "PROC_SetOnStage",
+      434
+    ],
+    [
+      "QRY_OnlyOnce",
+      399
+    ],
+    [
+      "DB_GLO_FireBowls",
+      324
+    ],
+    [
+      "FlagSet",
+      274
+    ],
+    [
+      "TeleportTo",
+      245
+    ],
+    [
+      "SetCanInteract",
+      226
+    ],
+    [
+      "UseStarted",
+      224
+    ],
+    [
+      "DB_HasItemEvent",
+      219
+    ],
+    [
+      "PROC_TryStartAD",
+      219
+    ],
+    [
+      "SetOnStage",
+      198
+    ],
+    [
+      "DB_NOOP",
+      198
+    ],
+    [
+      "TextEvent",
+      184
+    ],
+    [
+      "DB_BUGFIX_Marker",
+      170
+    ],
+    [
+      "UseFinished",
+      151
+    ],
+    [
+      "EntityEvent",
+      151
+    ],
+    [
+      "DB_Dialogs",
+      149
+    ],
+    [
+      "PROC_ApplySavegamePatchInLevel",
+      149
+    ],
+    [
+      "PROC_GlobalSetFlagAndCache",
+      143
+    ],
+    [
+      "AddedTo",
+      140
+    ],
+    [
+      "DB_GiveItemToEvent",
+      138
+    ],
+    [
+      "DB_PermaDefeated",
+      134
+    ],
+    [
+      "PROC_BlockUseOfItem",
+      130
+    ],
+    [
+      "DB_CustomUseItemResponse",
+      128
+    ],
+    [
+      "GetFlag",
+      127
+    ],
+    [
+      "ClearOwnership",
+      125
+    ],
+    [
+      "DB_OnlyOnce",
+      124
+    ],
+    [
+      "PROC_ApplySavegamePatches",
+      122
+    ],
+    [
+      "DB_ShovelArea",
+      118
+    ],
+    [
+      "QRY_StartDialog_Fixed",
+      117
+    ],
+    [
+      "Die",
+      115
+    ],
+    [
+      "DB_QuestDef_State",
+      109
+    ],
+    [
+      "GetHostCharacter",
+      109
+    ],
+    [
+      "DB_WYR_Smugglers_Goods",
+      104
+    ],
+    [
+      "IsInInventoryOf",
+      103
+    ],
+    [
+      "DestroyedBy",
+      99
+    ],
+    [
+      "GameBookInterfaceClosed",
+      98
+    ],
+    [
+      "SetEntityEvent",
+      94
+    ],
+    [
+      "DB_PartyMembers",
+      88
+    ],
+    [
+      "GetPosition",
+      85
+    ],
+    [
+      "DB_InRegion",
+      82
+    ],
+    [
+      "QRY_BG3_SaveGameIsOlderThan",
+      82
+    ],
+    [
+      "IsLocked",
+      79
+    ],
+    [
+      "DB_CurrentLevel",
+      78
+    ],
+    [
+      "StartVoiceBark",
+      75
+    ],
+    [
+      "Equip",
+      71
+    ],
+    [
+      "DialogEnded",
+      70
+    ],
+    [
+      "SetVisible",
+      70
+    ],
+    [
+      "HasActiveStatus",
+      69
+    ],
+    [
+      "IsInTrigger",
+      68
+    ],
+    [
+      "DB_BookFlags",
+      66
+    ],
+    [
+      "Use",
+      65
+    ],
+    [
+      "PROC_ToInventoryAndOnStage",
+      65
+    ],
+    [
+      "DB_Avatars",
+      64
+    ],
+    [
+      "DB_Defeated",
+      64
+    ],
+    [
+      "DB_WYR_Chess_Tile",
+      64
+    ],
+    [
+      "DB_State_Current",
+      63
+    ],
+    [
+      "TeleportToPosition",
+      62
+    ],
+    [
+      "DB_ItemOwnerShipClearItem",
+      62
+    ],
+    [
+      "DB_Is_InCombat",
+      61
+    ],
+    [
+      "PROC_SavegamePatch_GUS302508_FixBrokenChest",
+      61
+    ],
+    [
+      "PROC_SavegamePatch_GUS302508_FixBrokenMound",
+      61
+    ],
+    [
+      "PROC_StopLoopEffect",
+      59
+    ],
+    [
+      "IsDestroyed",
+      58
+    ],
+    [
+      "Opened",
+      58
+    ],
+    [
+      "QRY_EPI_Epilogue_LetterIsValid",
+      58
+    ],
+    [
+      "DB_WYR_Chess_StartPos",
+      57
+    ],
+    [
+      "DB_EPI_Epilogue_Letters",
+      57
+    ],
+    [
+      "Unlocked",
+      56
+    ],
+    [
+      "PROC_LoopEffect",
+      56
+    ],
+    [
+      "TimerLaunch",
+      55
+    ],
+    [
+      "IsOnStage",
+      55
+    ],
+    [
+      "ObjectTimerLaunch",
+      54
+    ],
+    [
+      "DB_EPI_Epilogue_PartyEquipment",
+      54
+    ],
+    [
+      "PROC_ItemUnlockAndOpen",
+      53
+    ],
+    [
+      "SetForceUpdate",
+      52
+    ],
+    [
+      "PROC_TriggerRegisterForPlayers",
+      52
+    ],
+    [
+      "IsOpened",
+      52
+    ],
+    [
+      "AttackedBy",
+      51
+    ],
+    [
+      "PlaySound",
+      51
+    ],
+    [
+      "ObjectTimerFinished",
+      51
+    ],
+    [
+      "Exists",
+      50
+    ],
+    [
+      "DualEntityEvent",
+      49
+    ],
+    [
+      "PROC_State_Progress",
+      48
+    ],
+    [
+      "DB_Act3_GLO_Gazette_OwnedPapers",
+      48
+    ],
+    [
+      "TimerFinished",
+      47
+    ],
+    [
+      "EnteredTrigger",
+      47
+    ],
+    [
+      "DB_HasItemTemplateScriptFlag",
+      47
+    ],
+    [
+      "IsTagged",
+      46
+    ],
+    [
+      "PROC_TriggerUnregisterForPlayers",
+      44
+    ],
+    [
+      "DB_CampBed",
+      44
+    ],
+    [
+      "PROC_GlobalFlagReactionAfterDialog",
+      43
+    ],
+    [
+      "DB_QuestDef_BookReadState",
+      42
+    ],
+    [
+      "IsInInventory",
+      42
+    ],
+    [
+      "DB_DialogPlayers",
+      42
+    ],
+    [
+      "CreateAtObject",
+      42
+    ],
+    [
+      "DB_LevelLoadedOnce",
+      42
+    ]
+  ],
+  "itemsWithMostCausalStoryEntrypoints": [
+    {
+      "itemId": "bg3:item:rt:4d69834f-af2a-4197-9454-789049667b23:stats:T0JKX1Njcm9sbA",
+      "links": 13
+    },
+    {
+      "itemId": "bg3:item:rt:bc8b4bf8-71cb-4ec5-8f97-25b567db79a7:stats:T0JKX1Njcm9sbA",
+      "links": 11
+    },
+    {
+      "itemId": "bg3:item:rt:ccd075e6-b9fa-4607-b14a-b72fee5fcbe6:stats:T0JKX0dlbmVyaWNJbW11dGFibGVBdHRhY2thYmxlT2JqZWN0",
+      "links": 8
+    },
+    {
+      "itemId": "bg3:item:rt:c0e41765-dda2-49c3-9e72-bd3b8fa45698:stats:T0JKX1Njcm9sbA",
+      "links": 6
+    },
+    {
+      "itemId": "bg3:item:rt:02a42dd9-84b8-49f5-ae01-66a6716715fe:stats:T0JKX0xldmVyX0FjdGlvbg",
+      "links": 5
+    },
+    {
+      "itemId": "bg3:item:rt:303e82a4-74e7-43de-812e-9a6779971848:stats:T0JKX0xldmVyX0FjdGlvbg",
+      "links": 4
+    },
+    {
+      "itemId": "bg3:item:rt:3d15ba43-7fe8-4208-ac0a-b5a22fe5a899:stats:T0JKX0Jvb2s",
+      "links": 4
+    },
+    {
+      "itemId": "bg3:item:rt:4a82e6f2-839f-434e-addf-b07dd1578194:stats:T0JKX0dlbmVyaWNMb290SXRlbQ",
+      "links": 4
+    },
+    {
+      "itemId": "bg3:item:rt:5ffe11b1-4949-47cd-ab49-80053db261f9:stats:VU5JX0xPV19CYWxkdXJzTW91dGhfRGFpbHlQYXBlcg",
+      "links": 4
+    },
+    {
+      "itemId": "bg3:item:rt:8e973459-c0ef-44e2-b118-e967ab018731:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 4
+    },
+    {
+      "itemId": "bg3:item:rt:db9d139f-5e81-4405-896b-125660bd0a29:stats:T0JKX0Jvb2s",
+      "links": 4
+    },
+    {
+      "itemId": "bg3:item:rt:43570a53-3f94-442c-9317-f964ed76fdf0:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 3
+    },
+    {
+      "itemId": "bg3:item:rt:486a1a14-2d67-4b9c-a2dc-7858c2a6a473:stats:TE9XX1NvcmNlcm91c1N1bmRyaWVzX1JhcmVUb21l",
+      "links": 3
+    },
+    {
+      "itemId": "bg3:item:rt:7e96fdb9-0c68-4728-9d04-61ff06df0811:stats:T0JKX0Jvb2s",
+      "links": 3
+    },
+    {
+      "itemId": "bg3:item:rt:a1087b26-dbe3-43dd-9bc6-7fb4621b985f:stats:UVVFU1RfSW5kZXN0cnVjdGlibGU",
+      "links": 3
+    },
+    {
+      "itemId": "bg3:item:rt:c0de891b-f804-4d89-953d-97c5dcd54946:stats:T0JKX1Njcm9sbA",
+      "links": 3
+    },
+    {
+      "itemId": "bg3:item:rt:f458670f-17b9-43ad-9a84-072260de6281:stats:T0JKX0Jvb2s",
+      "links": 3
+    },
+    {
+      "itemId": "bg3:item:rt:0271f69c-ef7f-4246-9286-41036fd2e235:stats:R09CX0R3YXJmc1BvZW0",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:0a6395dd-8703-497e-8221-d4ccb691cc11:stats:T0JKX1Njcm9sbA",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:1f4773b1-a218-46d6-ab3e-a5cd13dcc697:stats:T0JKX0Jvb2s",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:29bdbdd1-3f74-46b0-b42b-41bea7d6f94a:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:3304746a-8315-4644-8c1c-841ad23a29c1:stats:TE9XX1NvcmNlcm91c1N1bmRyaWVzX1JhcmVUb21l",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:435685c4-f7ec-4720-8d3c-c297b75267ea:stats:T0JKX1Njcm9sbA",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:464b3b5a-e210-4666-983f-8a9e7b3af796:stats:T0JKX0ltbXV0YWJsZUNvbnRhaW5lcg",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:576d4f64-154f-4bd7-90a4-1fa2c06a201b:stats:T0JKX0xldmVyX0FjdGlvbg",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:61768222-b1d1-4db3-adf6-52220271ff51:stats:T0JKX0xldmVyX0FjdGlvbg",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:61768222-b1d1-4db3-adf6-52220271ff51:stats:U0hBX0ZpeGVkTGV2ZXI",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:680af999-dd77-4235-90b8-3196a16eebcd:stats:T0JKX0Jvb2s",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:6d0e45de-186b-4569-b26d-7aa06fd20066:stats:T0JKX1Njcm9sbA",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:71ad78ed-c03b-4304-8d40-efc10adba0fb:stats:T0JKX0Jvb2s",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:7b3270a1-2e7c-45b3-92a3-3aea6791d05e:stats:T0JKX0xldmVyX0FjdGlvbg",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:85c04e3d-1a3f-4030-a731-545b081a6b76:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3RIZWF2eQ",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:927b4ffe-f8f3-4020-bf5e-0bb87bdff31f:stats:T0JKX1Njcm9sbA",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:92cc315c-e5dd-47c5-8e02-03d5d382a19b:stats:T0JKX0xldmVyX0FjdGlvbg",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:9933f646-b5e5-441b-9941-d6d44017b302:stats:T0JKX1Njcm9sbA",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:9ee5433b-ce71-4de4-871d-04f918c318ae:stats:V1lSX0NpcmN1c19QaXRjaGVy",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:a650d5b8-4c83-4f6d-87bc-8ef74fc68624:stats:T0JKX0xldmVyX0FjdGlvbg",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:b2f9489a-c539-4eb5-b77d-d365797d1a42:stats:T0JKX0Jvb2s",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:b4d60093-28b0-4076-b2f4-c7c3d3aa9d50:stats:T0JKX0Jvb2s",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:d24a6767-10d1-49ab-a956-d004c1d34fa9:stats:T0JKX0xldmVyX0FjdGlvbg",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:d3ba75f2-9fe3-4a24-b0f2-956ce5a16adc:stats:T0JKX0Jvb2s",
+      "links": 2
+    },
+    {
+      "itemId": "bg3:item:rt:015ac04c-2568-4668-a672-339448c58154:stats:UVVFU1RfR09CX0dvYmxpbkJvb3plVHViX1BvaXNvbmVk",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:073d723d-0743-49b2-96dc-1cec58bf00c8:stats:T0JKX0Jvb2s",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:1064fce3-46ff-448e-9768-d6460bfe6fcb:stats:T0JKX0NoZXN0X1dpY2tlcl9TbWFsbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:10d32d82-4b92-407e-86c9-4e4ba0ed4ff2:stats:T0JKX0dlbmVyaWNMb290SXRlbQ",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:11f6de17-4682-419c-808f-8a328d2cce15:stats:QUxDSF9JbmdyZWRpZW50X0hlcmJfTmlnaHRPcmNoaWQ",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:129dcec4-6446-48c1-9c9c-4dfb0e20bdbd:stats:UVVFU1RfTE9XX0d1aWxkaGFsbFJpbmdMb2Nr",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:13dd4822-68e1-4ccf-a0dd-4f83e986518c:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:15dd6e1a-df7a-4cf8-b189-6cfb580fd42b:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:17db7a51-8c8a-4e9e-be58-79a888606bb1:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:26b29e36-7f64-422c-8513-4109d356ba4a:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:26b29e36-7f64-422c-8513-4109d356ba4a:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3RIZWF2eQ",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:29c33712-1e90-486c-b3f0-a0f43b759f52:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:2c99f1f1-776b-45dd-a9d7-06e6a8e14b3f:stats:UXVlc3RfVU5EX01vb25sYW50ZXJuX0Jyb2tlbg",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:2dab7df1-7914-4748-b329-b4fe8b60fcc9:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:31ee023c-d151-40f6-917e-84066772783b:stats:T0JKX0Jvb2s",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:33ca3178-44fe-432e-a1f0-7e37ca4aa4c3:stats:T0JKX0xldmVyX0FjdGlvbg",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:3adc01f3-2559-437d-a869-ab00acb51c74:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:3d15ba43-7fe8-4208-ac0a-b5a22fe5a899:stats:T0JKX0luZGVzdHJ1Y3RpYmxlX0xpZ2h0",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:4735acba-ab0f-4e75-b2ca-074a58b86b19:stats:T0JKX0Jvb2s",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:5806af5c-c288-4ed1-9533-beac7d05b18c:stats:T0JKX0Jvb2tfSW5kZXN0cnVjdGlibGU",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:5930b56a-2c0a-49a2-b208-850f5dfcdbf1:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:59e30a7b-355e-4373-a482-678f8826774c:stats:T0JKX0Jvb2s",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:5b4b20c7-3b27-4237-8a1f-611c896b3239:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:5b54b9d6-f9a8-4ac4-a34e-939dd6269eb9:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:5eba9f0a-f68e-45df-80c7-178d7ac975c3:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:600e69e3-78a6-4acf-8e00-648ff291a5fd:stats:T0JKX0dlbmVyaWNJbW11dGFibGVBdHRhY2thYmxlT2JqZWN0",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:647d5ba5-d206-4656-bb44-3a8c3d2014c0:stats:UVVFU1RfSW5kZXN0cnVjdGlibGU",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:661da3b2-a943-4c2c-9913-269b9503763d:stats:T0JKX0Jvb2s",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:6740236f-c6ba-4d38-81fc-1798268a70a1:stats:REVOX0VtcHR5UnVuZVNvY2tldA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:67815b6b-dbbf-4db3-b869-0df1bdf33db6:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:679e625f-e5f7-4547-9ec1-961ed8d3f1e5:stats:T0JKX0Jvb2s",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:686cf791-804a-420f-9dde-7ae22cb21f26:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:71bf8e1d-5b9c-40ad-9a24-cd38a7416bec:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:72ae7a39-d0ce-4cb6-8d74-ebdf7cdccf91:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:735997bc-d726-40d2-abcc-c6ac72f9429a:stats:T0JKX0dlbmVyaWNJbW11dGFibGVBdHRhY2thYmxlT2JqZWN0X0hlYXZ5",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:7ac261db-55f8-455f-a79d-5298ce1c4e50:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:7eaa022b-ebf2-4340-bb76-59820bb3b7d8:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:80061337-21ef-4d4e-8b39-5fca340b12df:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:80162ccc-b7d6-437f-b727-53478594694f:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:8842b1d9-d36b-4d79-807e-20ce3533d376:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:896119eb-6303-4faf-8263-42d2c8648572:stats:T0JKX0dlbmVyaWNJbW11dGFibGVBdHRhY2thYmxlT2JqZWN0",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:8adaee86-eb93-4f7f-917e-c4f44ffeda3c:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3RIZWF2eQ",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:8df19728-fcdc-4875-a015-128b1a2f2f36:stats:T0JKX0dlbmVyaWNJbW11dGFibGVBdHRhY2thYmxlT2JqZWN0",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:9b8d7b37-91fd-4884-a0c4-38922b752f1f:stats:T0JKX0xldmVyX0FjdGlvbg",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:9be43b61-6cd4-42d7-ad3b-a7febcd68bfc:stats:T0JKX0Jvb2s",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:a02829b9-163e-47ba-b45b-19bf19a04698:stats:UVVFU1RfREVOX0dhdGVNZWNoYW5pc20",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:a26ae9d0-6a7a-448e-82e8-66d79eb5e6a0:stats:VU5JX09CSl9CZWVyQmFycmVsX1BvaXNvbmVk",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:a313a568-9b27-4b94-8ad8-50fcc374179f:stats:T0JKX0JvdHRsZV9Qb3Rpb24",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:ac8eeb6f-a7cd-4dfb-991c-14162b35d81d:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:afa7ea64-dc19-4b2c-81b7-5d5244b1355b:stats:T0JKX0ltbXV0YWJsZUNvbnRhaW5lcg",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:b269ae5b-54d7-4558-9d4a-c288aaaa6b79:stats:Rk9SX0JsYWNrc21pdGhGb3JnZQ",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:b269ae5b-54d7-4558-9d4a-c288aaaa6b79:stats:Rk9SX0ZvcmdlV2l0aFN1c3N1ckJhcms",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:b789159c-025a-4190-aa75-c923d7a8c32b:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:bdc5b731-f88c-4506-afac-3ed47999d29a:stats:T0JKX0Jvb2s",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:bf6d9682-47cd-460c-972c-7a5d22514fdc:stats:T0JKX0Jvb2s",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:c220fbb7-3d0b-4109-a39a-7549a9ae91ab:stats:T0JKX0Jvb2s",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:c6555b5d-4d26-41ce-bcd6-d31ed7bed86b:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:cac0bc53-ce64-4ddc-a341-8279ea1c4932:stats:T0JKX1Njcm9sbA",
+      "links": 1
+    },
+    {
+      "itemId": "bg3:item:rt:ce5f4e40-f644-41b4-a4a1-44a7aee5e13e:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 1
+    }
+  ],
+  "itemsWithMostStoryBlocks": [
+    {
+      "itemId": "bg3:item:rt:c13a872b-7d9b-4c1d-8c65-f672333b0c11:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 186
+    },
+    {
+      "itemId": "bg3:item:rt:4cc75168-a81e-4a5c-85cd-1bab8d7bb641:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 117
+    },
+    {
+      "itemId": "bg3:item:rt:338e7253-5336-4b73-9dad-328f3ce5f9bb:stats:T0JKX0NoZXN0X1dvb2Q",
+      "links": 105
+    },
+    {
+      "itemId": "bg3:item:rt:c0de891b-f804-4d89-953d-97c5dcd54946:stats:T0JKX1Njcm9sbA",
+      "links": 103
+    },
+    {
+      "itemId": "bg3:item:rt:17db7a51-8c8a-4e9e-be58-79a888606bb1:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 77
+    },
+    {
+      "itemId": "bg3:item:rt:961c7780-3647-458d-bcaa-8b5f3ffe2380:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 75
+    },
+    {
+      "itemId": "bg3:item:rt:4d69834f-af2a-4197-9454-789049667b23:stats:T0JKX1Njcm9sbA",
+      "links": 59
+    },
+    {
+      "itemId": "bg3:item:rt:e08b2a75-424d-4827-a9c8-adf00a314f2b:stats:T0JKX0NoZXN0X0hlYXZ5X1NtYWxs",
+      "links": 59
+    },
+    {
+      "itemId": "bg3:item:rt:3301071e-be9c-4473-92c0-4eb1c51b66e3:stats:VU5JX0NPTlRfREVWSUxfUHV6emxlQm94X0E",
+      "links": 52
+    },
+    {
+      "itemId": "bg3:item:rt:bc8b4bf8-71cb-4ec5-8f97-25b567db79a7:stats:T0JKX1Njcm9sbA",
+      "links": 50
+    },
+    {
+      "itemId": "bg3:item:rt:c0e41765-dda2-49c3-9e72-bd3b8fa45698:stats:T0JKX1Njcm9sbA",
+      "links": 49
+    },
+    {
+      "itemId": "bg3:item:rt:70910077-1457-46e4-828b-20b79577eeb7:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 43
+    },
+    {
+      "itemId": "bg3:item:rt:fd3fd8a9-a5fc-4726-9b6e-77f5ecf54cea:stats:UVVFU1RfU0hBX1RyaWFsR2Vt",
+      "links": 43
+    },
+    {
+      "itemId": "bg3:item:rt:1c14fa1e-ca83-4f38-8d25-8e9104c84109:stats:T0JKX0dpdGh5YW5raUVnZw",
+      "links": 39
+    },
+    {
+      "itemId": "bg3:item:rt:87918b9b-8551-476b-8544-68a2a3ce9e2e:stats:Rk9SX0Rhbmdlcm91c0Jvb2s",
+      "links": 38
+    },
+    {
+      "itemId": "bg3:item:rt:f2a13db1-1dd7-4b5e-9d22-549d4cb803c6:stats:Rk9SX0Rhbmdlcm91c0Jvb2s",
+      "links": 38
+    },
+    {
+      "itemId": "bg3:item:rt:feecea9b-c091-46fd-9795-738e9c0e3019:stats:Rk9SX0Rhbmdlcm91c0Jvb2s",
+      "links": 38
+    },
+    {
+      "itemId": "bg3:item:rt:04838ed0-5989-4dc3-a9f8-f76402371a8f:stats:UXVlc3RfU0NMX01vb25sYW50ZXJuV2l0aFBpeGll",
+      "links": 36
+    },
+    {
+      "itemId": "bg3:item:rt:530fd43f-4587-47ec-868d-e9120d6610f8:stats:VG95X1NtYWxsQmFsbA",
+      "links": 36
+    },
+    {
+      "itemId": "bg3:item:rt:15b05b8f-3a8f-485f-9e22-97b54d899b08:stats:UFVaX0tleQ",
+      "links": 33
+    },
+    {
+      "itemId": "bg3:item:rt:17f6e173-e58e-4e25-81c2-783ca3ca98df:stats:UFVaX0tleQ",
+      "links": 33
+    },
+    {
+      "itemId": "bg3:item:rt:1a00cf0b-e8ea-467f-b122-0bea5f0c3ff2:stats:UFVaX0tleQ",
+      "links": 33
+    },
+    {
+      "itemId": "bg3:item:rt:6d0d9e73-a922-47e8-88b8-842b977ecb20:stats:UFVaX0tleQ",
+      "links": 33
+    },
+    {
+      "itemId": "bg3:item:rt:84ca1d52-252d-4a86-b9aa-10d5181e7bbc:stats:UFVaX0tleQ",
+      "links": 33
+    },
+    {
+      "itemId": "bg3:item:rt:9f61d4c0-92f0-48f5-97bc-e4b8a5482a03:stats:T0JKX0NoZXN0X0pld2VsQm94",
+      "links": 33
+    },
+    {
+      "itemId": "bg3:item:rt:d6622a6a-47a5-4fd3-8dc1-4fae24099ecb:stats:UFVaX0tleQ",
+      "links": 33
+    },
+    {
+      "itemId": "bg3:item:rt:d7fdb70e-75b3-487a-8ece-3e7d4b3a8370:stats:UFVaX0tleQ",
+      "links": 33
+    },
+    {
+      "itemId": "bg3:item:rt:ff40388c-579e-452c-9d5a-4ec7d11c4625:stats:UFVaX0tleQ",
+      "links": 33
+    },
+    {
+      "itemId": "bg3:item:rt:863f03cf-0a6c-41ae-99da-8c5dcd0a23b3:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 32
+    },
+    {
+      "itemId": "bg3:item:rt:51af5280-5044-4c27-8509-4481f6b8a531:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 31
+    },
+    {
+      "itemId": "bg3:item:rt:57205d8e-f176-433e-8156-c7406d606142:stats:SEFWX1NoYWRvd1BvcnRhbA",
+      "links": 31
+    },
+    {
+      "itemId": "bg3:item:rt:cdb69de5-d603-49be-b4d1-ca0272adb2f6:stats:VU5JX0JMRF9BZGFtYW50aW5lRm9yZ2VfQ3J1Y2libGU",
+      "links": 30
+    },
+    {
+      "itemId": "bg3:item:rt:3619f144-654a-4d39-a9f9-8f25b0babc19:stats:T0JKX0Rvb3I",
+      "links": 29
+    },
+    {
+      "itemId": "bg3:item:rt:ba9f88f5-c9ee-4aa6-a0de-5d721cf28437:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 29
+    },
+    {
+      "itemId": "bg3:item:rt:c13a872b-7d9b-4c1d-8c65-f672333b0c11:stats:T0JKX0luZGVzdHJ1Y3RpYmxlX0hlYXZ5",
+      "links": 29
+    },
+    {
+      "itemId": "bg3:item:rt:086ae8fd-c44e-43a7-b8be-777b551a06d6:stats:VU5EX01vbmtBbXVsZXRfQW11bGV0",
+      "links": 28
+    },
+    {
+      "itemId": "bg3:item:rt:fd478b08-4cb5-4979-b9eb-4ee9397d486f:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3RIZWF2eQ",
+      "links": 28
+    },
+    {
+      "itemId": "bg3:item:rt:3e6aac21-333b-4812-a554-376c2d157ba9:stats:T0JKX0dlbmVyaWNMb290SXRlbQ",
+      "links": 27
+    },
+    {
+      "itemId": "bg3:item:rt:4b6b4924-a9ec-47c7-b3cd-b62d37829bcd:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 27
+    },
+    {
+      "itemId": "bg3:item:rt:abc4056e-f96d-473c-bfa8-0da70b8d2d8a:stats:T0JKX0NoZXN0X1dvb2Q",
+      "links": 27
+    },
+    {
+      "itemId": "bg3:item:rt:2e847a61-46ef-4e0d-a988-b8cb41a10bbc:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 26
+    },
+    {
+      "itemId": "bg3:item:rt:8df19728-fcdc-4875-a015-128b1a2f2f36:stats:T0JKX0dlbmVyaWNJbW11dGFibGVBdHRhY2thYmxlT2JqZWN0",
+      "links": 26
+    },
+    {
+      "itemId": "bg3:item:rt:6390aed0-b446-4b75-ba35-71886bfb00c8:stats:T0JKX01ldGFsRG9vcg",
+      "links": 25
+    },
+    {
+      "itemId": "bg3:item:rt:6f02fb92-21da-439b-a00c-ed9888aa5f0e:stats:T0JKX0Nyb3duQ29udHJvbGxlcl9LZXRoZXJpYw",
+      "links": 25
+    },
+    {
+      "itemId": "bg3:item:rt:99d576b9-46b5-4da6-b9c4-197d17c668a4:stats:T0JKX0Nyb3duQ29udHJvbGxlcl9LZXRoZXJpYw",
+      "links": 25
+    },
+    {
+      "itemId": "bg3:item:rt:b1487efd-4ae8-4747-866d-717df74169cd:stats:T0JKX0NoZXN0X1dvb2Q",
+      "links": 25
+    },
+    {
+      "itemId": "bg3:item:rt:0b183417-653a-4b85-948a-1e8efac6ce79:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 24
+    },
+    {
+      "itemId": "bg3:item:rt:1f4773b1-a218-46d6-ab3e-a5cd13dcc697:stats:T0JKX0Jvb2s",
+      "links": 24
+    },
+    {
+      "itemId": "bg3:item:rt:41eaaadb-51f4-496c-a867-84b984d61e9a:stats:T0JKX0Rvb3I",
+      "links": 23
+    },
+    {
+      "itemId": "bg3:item:rt:5ffe11b1-4949-47cd-ab49-80053db261f9:stats:VU5JX0xPV19CYWxkdXJzTW91dGhfRGFpbHlQYXBlcg",
+      "links": 23
+    },
+    {
+      "itemId": "bg3:item:rt:987b5a8d-1300-4f32-9e01-c07313b17a11:stats:UVVFU1RfTE9XX0hhZ1N1cnZpdm9yc19Wb29kb29Eb2xs",
+      "links": 23
+    },
+    {
+      "itemId": "bg3:item:rt:bdff1cd7-65b8-4459-a41c-9ad937723649:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 23
+    },
+    {
+      "itemId": "bg3:item:rt:ccd075e6-b9fa-4607-b14a-b72fee5fcbe6:stats:T0JKX0dlbmVyaWNJbW11dGFibGVBdHRhY2thYmxlT2JqZWN0",
+      "links": 23
+    },
+    {
+      "itemId": "bg3:item:rt:e7bd4fe8-a8c6-4f3e-b377-e41796700cb5:stats:T0JKX0dlbmVyaWNJbW11dGFibGVBdHRhY2thYmxlT2JqZWN0",
+      "links": 23
+    },
+    {
+      "itemId": "bg3:item:rt:b2f9489a-c539-4eb5-b77d-d365797d1a42:stats:T0JKX0Jvb2s",
+      "links": 21
+    },
+    {
+      "itemId": "bg3:item:rt:377620bf-b923-4311-a219-d28e4eb7afaa:stats:UVVFU1RfV1lSX0ZhdGhlckNhcnJpb25KYXI",
+      "links": 20
+    },
+    {
+      "itemId": "bg3:item:rt:97fb4f34-d19b-4624-96c1-ffee45a584b4:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3RIZWF2eQ",
+      "links": 20
+    },
+    {
+      "itemId": "bg3:item:rt:1e6493db-69d7-42f2-8bc8-6cf844716eba:stats:UVVFU1RfSW5kZXN0cnVjdGlibGU",
+      "links": 19
+    },
+    {
+      "itemId": "bg3:item:rt:2d2c3244-cc93-4c9b-9d60-0804768ee4e9:stats:T0JKX0dlbmVyaWNfSGVhdnk",
+      "links": 19
+    },
+    {
+      "itemId": "bg3:item:rt:47805d79-88f1-4933-86eb-f78f67cbc33f:stats:T0JKX0JhY2twYWNr",
+      "links": 19
+    },
+    {
+      "itemId": "bg3:item:rt:64808a8d-c7c5-4c4c-a30d-bf72fa01644a:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 19
+    },
+    {
+      "itemId": "bg3:item:rt:bd8795e9-7daa-4d92-bac4-93f5dd8f66b2:stats:T0JKX0lkb2xfV29vZA",
+      "links": 19
+    },
+    {
+      "itemId": "bg3:item:rt:cab4d1fc-5f3b-404f-9f41-1d85bdea5e56:stats:T0JKXyBTYXJjb3BoYWd1c19MaWQ",
+      "links": 19
+    },
+    {
+      "itemId": "bg3:item:rt:db9d139f-5e81-4405-896b-125660bd0a29:stats:T0JKX0Jvb2s",
+      "links": 19
+    },
+    {
+      "itemId": "bg3:item:rt:0a0c1e0f-60a9-493f-a98b-d761187c7d38:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 18
+    },
+    {
+      "itemId": "bg3:item:rt:0d2a751c-0a00-4b7d-b974-35398e41074d:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 18
+    },
+    {
+      "itemId": "bg3:item:rt:20cc1c5c-65d8-486f-ad59-3188adabb249:stats:T0JKX0NvZmZpbg",
+      "links": 18
+    },
+    {
+      "itemId": "bg3:item:rt:221993ca-1acb-4aba-a721-337c838e8fa5:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 18
+    },
+    {
+      "itemId": "bg3:item:rt:85c04e3d-1a3f-4030-a731-545b081a6b76:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3RIZWF2eQ",
+      "links": 18
+    },
+    {
+      "itemId": "bg3:item:rt:9ff968d4-08ff-4da1-a288-959ac8d7abe1:stats:TE9XX09ycGhpY0hhbW1lcg",
+      "links": 18
+    },
+    {
+      "itemId": "bg3:item:rt:aaf786d8-32a0-4b0b-bb78-3395f121fe08:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 18
+    },
+    {
+      "itemId": "bg3:item:rt:c6b35f62-4c6a-42df-b59c-54b88a78933a:stats:T0JKX0dlbmVyaWNfSGVhdnk",
+      "links": 18
+    },
+    {
+      "itemId": "bg3:item:rt:d888727b-07cb-482b-84a6-70757ddfcf77:stats:T0JKX0JvZHlQYXJ0X0dlbmVyaWNfTGVn",
+      "links": 18
+    },
+    {
+      "itemId": "bg3:item:rt:2228a6ab-4c34-46be-8bc9-e7c6b76e3c5b:stats:VFdOX05pZ2h0ZG9tZQ",
+      "links": 17
+    },
+    {
+      "itemId": "bg3:item:rt:2cdf1ad6-a09e-4908-b53d-9b7d91722d20:stats:TU9PX0JhbHRoYXphckxhYl9DaXJjbGU",
+      "links": 17
+    },
+    {
+      "itemId": "bg3:item:rt:5dfb8f07-f800-45e1-b114-18b797523ab2:stats:T0JKX0NvZmZpbg",
+      "links": 17
+    },
+    {
+      "itemId": "bg3:item:rt:c5fa6547-2b19-42a8-9b53-6f4a537e5e3a:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 17
+    },
+    {
+      "itemId": "bg3:item:rt:fa72294f-42f4-447c-ae09-eac3c20b4ed5:stats:T0JKX0dlbmVyaWNfSGVhdnk",
+      "links": 17
+    },
+    {
+      "itemId": "bg3:item:rt:feff9843-9739-476e-b5da-6a9a86994ef2:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3RIZWF2eQ",
+      "links": 17
+    },
+    {
+      "itemId": "bg3:item:rt:0eeacb8e-58db-4b57-a6fa-f54045fe3cb1:stats:T0JKX1ByZXNzdXJlUGxhdGU",
+      "links": 16
+    },
+    {
+      "itemId": "bg3:item:rt:2ce0dda2-06a0-4794-aac4-ecbeef2bac07:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 16
+    },
+    {
+      "itemId": "bg3:item:rt:2dab7df1-7914-4748-b329-b4fe8b60fcc9:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
+      "links": 16
+    },
+    {
+      "itemId": "bg3:item:rt:4668297e-7fc8-4384-af34-165813e9abe1:stats:V1BOX1RvcmNoX0JsdWU",
+      "links": 16
+    },
+    {
+      "itemId": "bg3:item:rt:48c679c1-b713-4d2f-9bba-1c43ed654404:stats:VU5EX05vYmxlc3RhbGs",
+      "links": 16
+    },
+    {
+      "itemId": "bg3:item:rt:5af7fc30-cc25-41af-964a-1e2f92bb71cc:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 16
+    },
+    {
+      "itemId": "bg3:item:rt:680af999-dd77-4235-90b8-3196a16eebcd:stats:T0JKX0Jvb2s",
+      "links": 16
+    },
+    {
+      "itemId": "bg3:item:rt:8c5b446c-8114-4e3b-ad3e-d85d70d110ca:stats:UVVFU1RfR09CX0dvYmxpbkJvb3plVHVi",
+      "links": 16
+    },
+    {
+      "itemId": "bg3:item:rt:981d4613-da6e-4ef7-b952-019fd9659a39:stats:T0JKX0JlZA",
+      "links": 16
+    },
+    {
+      "itemId": "bg3:item:rt:25fea821-5ec1-4052-bd6c-60c249e72a79:stats:REVOX0FwcHJlbnRpY2VfQW50aWRvdGU",
+      "links": 15
+    },
+    {
+      "itemId": "bg3:item:rt:2e40240b-77d3-400b-bd6a-caff66a85833:stats:T0JKX0dlbmVyaWNMb290SXRlbQ",
+      "links": 15
+    },
+    {
+      "itemId": "bg3:item:rt:369c04b5-992b-4bde-8451-1eac0a3376ea:stats:R0xPX0N1cnNlZElyb25GbGFzaw",
+      "links": 15
+    },
+    {
+      "itemId": "bg3:item:rt:4977e2b7-7b0b-4a8e-8452-55d5ddb1789d:stats:T0JKX0Nyb3duQ29udHJvbGxlcl9LZXRoZXJpYw",
+      "links": 15
+    },
+    {
+      "itemId": "bg3:item:rt:61768222-b1d1-4db3-adf6-52220271ff51:stats:T0JKX0xldmVyX0FjdGlvbg",
+      "links": 15
+    },
+    {
+      "itemId": "bg3:item:rt:69b3af8a-2518-48dc-9622-4bee7211e025:stats:RU5EX0Nyb3du",
+      "links": 15
+    },
+    {
+      "itemId": "bg3:item:rt:6dad7615-2100-4a47-b695-61338e579432:stats:T0JKX1ByZXNzdXJlUGxhdGU",
+      "links": 15
+    },
+    {
+      "itemId": "bg3:item:rt:7b961f08-46c1-46b1-99bc-c59283831a0b:stats:Q1JFX0Jsb29kT2ZMYXRoYW5kZXI",
+      "links": 15
+    },
+    {
+      "itemId": "bg3:item:rt:8258b6cb-13d5-495e-ba15-b678c9fed6c2:stats:T0JKX0Rvb3JfSGVhdnk",
+      "links": 15
+    },
+    {
+      "itemId": "bg3:item:rt:91dcff74-81db-4d14-9242-7f38c3f6b011:stats:T0JKX0Nyb3duQ29udHJvbGxlcl9LZXRoZXJpYw",
+      "links": 15
+    },
+    {
+      "itemId": "bg3:item:rt:a4d0f47f-f20b-4eec-bbe9-371c5199693a:stats:T0JKX0Rvb3JJbmRlc3RydWN0aWJsZQ",
+      "links": 15
+    },
+    {
+      "itemId": "bg3:item:rt:a6d9536c-ce6f-4cab-bd08-6aede900ba33:stats:T0JKX0Rvb3I",
+      "links": 15
+    }
+  ]
+}
