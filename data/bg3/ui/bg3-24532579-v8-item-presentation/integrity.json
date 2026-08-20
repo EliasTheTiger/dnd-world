@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "bg3-ui-item-presentation-integrity/1",
+  "catalogVersion": "bg3-24532579-v8",
+  "manifest": {
+    "path": "manifest.json",
+    "bytes": 1176897,
+    "sha256": "fa38925364c291025f12c099ee45a2c379f808e8c401fa4ae9585c351a68c1c8"
+  },
+  "detailSetSha256": "681964bbb82c905a1b4e8d9b9cfd20c5c2ce69df6ace60c7432d1878903d3a4a",
+  "searchSetSha256": "acc868679cc031acb9674f6db3030595a25006db21f4a5b325e00baa2163f773",
+  "generatedFileSetSha256": "c9cdaf168dc57aba306315d042b4023d0acd314a805718ae0343b591a3e83a36"
+}

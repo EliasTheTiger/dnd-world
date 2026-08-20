@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "bg3-ui-placement-browser-integrity/1",
+  "catalogVersion": "bg3-24532579-v8",
+  "manifest": {
+    "path": "manifest.json",
+    "bytes": 3463815,
+    "sha256": "885ae10a72fdcffb09d135aac681c239ec2a04a99cd9cb66bfba2ea227139a7b"
+  },
+  "detailSetSha256": "af34a8351f6ce44c15d0ce6818379941870e3a3e53ed2183727f6fff08323378",
+  "generatedFileSetSha256": "5959658f8154c103fa40649045dffa7333be47891812d1655f5f6e0e141ba366"
+}
