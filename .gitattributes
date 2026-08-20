@@ -1,1 +1,7 @@
-data/bg3/bg3-24532579-v8/item-placements-report.md whitespace=-blank-at-eol
+*.html text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.webp -text
+data/bg3/bg3-24532579-v8/item-placements-report.md -text whitespace=-blank-at-eol
