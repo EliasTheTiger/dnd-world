@@ -260,6 +260,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       mergeSystemItemDefinition, patchSpellSemanticSaveTags, attackRangeBandAt, invEquipToggle, clearEquipmentEntry, equipmentHabitReset,
       abilityEditorHTML,saveAbilityEd,abilityCardHTML,
       engineVersion() { return ENGINE_VERSION; }, engineLabel() { return ENGINE_LABEL; },
+      localItemCatalogOpenSet(value){localItemCatalogOpen=value===true;return localItemCatalogOpen;},localItemFilterInput,
       itemDataMigrationId() { return ITEM_DATA_MIGRATION_ID; },
       itemExpansion() { return ITEM_EXPANSION_V45; },
       itemRecipes() { return ITEM_RECIPES_V45; },
@@ -3759,8 +3760,8 @@ test('выпуск 4.1 объединяет локальную и облачну
 
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /const CLOUD_PAUSED=false/);
-  assert.equal(e.engineVersion(), '4.6');
-  assert.equal(e.engineLabel(), `Движок ${e.engineVersion()} · единый контракт предметов`);
+  assert.equal(e.engineVersion(), '5.0');
+  assert.equal(e.engineLabel(), `Движок ${e.engineVersion()} · BG3 v8`);
 });
 
 test('формулы v2 не содержат броска мастера, ручного попадания или изменяемого преимущества', () => {
@@ -5231,6 +5232,7 @@ function bg3CatalogUpgradeFixture(options={}) {
   if(options.missingSha)delete control.pointer.manifestSha256;
   const fetch=async (url,init)=>{requests.push({url,cache:init&&init.cache});
     if(url==='data/bg3/current.json')return {ok:true,json:async()=>plain(control.pointer)};
+    if(options.oldUnavailable&&String(url).startsWith(`data/bg3/${oldVersion}/`))return {ok:false,status:404,text:async()=>'',json:async()=>({})};
     if(url===`data/bg3/${oldVersion}/manifest.json`)return response(oldManifestRaw);
     if(url===`data/bg3/${oldVersion}/search-index.json`)return response(oldIndexRaw);
     if(url===`data/bg3/${oldVersion}/items/aa.json`)return response(oldShardRaw);
@@ -5250,11 +5252,11 @@ async function bg3CatalogUpgradeEngine(fixture,options={}) {
     ruleId:fixture.ruleId,programId:fixture.programId,artifact:fixture.oldSpellArtifact,castResource:{cost:'action',slotLevel:1,sourceKind:'UseCosts',sourceRaw:'ActionPoint:1;SpellSlotsGroup:1',requiresOutOfCombat:false},
     icon:null,classDescriptionUuid:'class-test',progressionTableUuid:'progression-test',learningStrategy:'AddChildren',eligibilityEvidence:'wizard-class-profile',
     learnedFrom:{itemId:fixture.itemA,entryId:'upgrade-a',useId:'learn_spell',rootProgramId:'root-test',rootArtifact:'root-template-programs/aa.json'},costGp:50,rateGpPerLevel:50,learnedAtRound:1,
-    catalogVersion:fixture.oldVersion,manifestSha256:fixture.oldManifestSha256,profile:fixture.profile}],actor=hero('catalog-upgrade-owner',{inventory:[{id:'upgrade-a',itemId:fixture.itemA,qty:1}],bg3LearnedSpells:learned}),
+    catalogVersion:fixture.oldVersion,manifestSha256:fixture.oldManifestSha256,profile:fixture.profile}],actor=hero('catalog-upgrade-owner',{inventory:[{id:'upgrade-a',itemId:fixture.itemA,qty:1}],bg3LearnedSpells:learned,activeEffectsSchemaVersion:1}),
     e=loadEngine(()=>{throw new Error('catalog upgrade never rolls');},fixture.fetch);
   e.setState({chars:[actor],items:[],activeCharId:actor.id});const oldRef={id:'bg3',version:fixture.oldVersion,profile:fixture.profile};
   if(!fixture.oldVersion.endsWith('-v1'))oldRef.manifestSha256=fixture.oldManifestSha256;assert.equal(e.bg3CatalogUseRefs([oldRef]),true);
-  await e.bg3CatalogEnsureIndex();await e.bg3CatalogHydrate([fixture.itemB]);return {e,actor};
+  if(options.loadOld!==false){await e.bg3CatalogEnsureIndex();await e.bg3CatalogHydrate([fixture.itemB]);}return {e,actor};
 }
 
 test('BG3 saved v1 catalog upgrades only by an explicit GM v2 plan and persists the exact immutable ref', async () => {
@@ -5276,6 +5278,25 @@ test('BG3 saved v1 catalog upgrades only by an explicit GM v2 plan and persists 
   const replay=await e.bg3CatalogUpgradeCommit(plan);assert.equal(replay.ok,false);assert.equal(replay.replay,true);assert.deepEqual(plain(e.bg3CatalogRefs()),plain(JSON.parse(e.storedValue('dndworld2:catalog-refs'))));
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');assert.match(html,/Мастеру: проверить обновление каталога/);assert.match(html,/До отдельного подтверждения сохранённая версия не изменится/);
   assert.match(html,/bg3CatalogUpgradeVersionIdentity\(bg3Catalog\.preferredVersion\)/,'the GM upgrade control is offered for every pinned catalog revision, not only v1');
+});
+
+test('BG3 production-only v8 recovery upgrades saved v1 and v7 refs after retired assets return 404', async () => {
+  for(const oldVersion of ['bg3-24532579-v1','bg3-24532579-v7']){
+    const fixture=bg3CatalogUpgradeFixture({oldVersion,version:'bg3-24532579-v8',oldUnavailable:true}),
+      learned=oldVersion.endsWith('-v7'),{e,actor}=await bg3CatalogUpgradeEngine(fixture,{learned,loadOld:false});
+    actor.inventory.push({id:'upgrade-b',itemId:fixture.itemB,qty:1});
+    await assert.rejects(e.bg3CatalogEnsureIndex(),/HTTP 404/);assert.equal(e.bg3CatalogSnapshot().index,null);
+    const unavailableHtml=e.renderWorld().itemsdb;assert.match(unavailableHtml,/Каталог недоступен/);assert.match(unavailableHtml,/Мастеру: восстановить на production BG3 v8/,'recovery remains reachable from the retired-catalog error state');
+    assert.deepEqual(plain(e.bg3CatalogUpgradeReferencedIds()),[fixture.itemA,fixture.itemB],'world refs cannot depend on a retired summary cache');
+    const before={refs:plain(e.bg3CatalogRefs()),world:plain(e.state())},plan=await e.bg3CatalogUpgradePlanFor({gmConfirmed:true});
+    assert.equal(plan.ok,true,plan.reason);assert.deepEqual(plain(plan.referencedIds),[fixture.itemA,fixture.itemB]);
+    assert.deepEqual(plain(e.bg3CatalogRefs()),before.refs);assert.deepEqual(plain(e.state()),before.world,'preflight stays mutation-free');
+    const done=await e.bg3CatalogUpgradeCommit(plan);assert.equal(done.ok,true,done.reason);
+    assert.deepEqual(plain(e.bg3CatalogRefs()),[{id:'bg3',version:fixture.version,profile:'standard',manifestSha256:fixture.manifestSha256}]);
+    if(learned){const spell=e.state().chars[0].bg3LearnedSpells[0];assert.equal(done.learnedSpellCount,1);assert.equal(spell.catalogVersion,fixture.version);assert.equal(spell.manifestSha256,fixture.manifestSha256);assert.equal(spell.artifact,fixture.spellArtifact);assert.equal(spell.learnedFrom.useId,fixture.useId);assert.equal(spell.learnedFrom.rootProgramId,fixture.rootProgramId);assert.equal(spell.learnedFrom.rootArtifact,fixture.rootArtifact);}
+    else assert.deepEqual(plain(e.state()),before.world,'commit only repins the catalog when no learned A33 entries exist');
+    assert.equal((await e.bg3CatalogHydrate([fixture.itemA,fixture.itemB])).length,2);
+  }
 });
 
 test('BG3 explicit immutable upgrade supports both v1→v3 and v2→v3 and atomically moves learned A33 root/use/rule shards', async () => {
@@ -9443,6 +9464,30 @@ function selectedBg3FileFetch(manifestRawOverride=''){
     }catch(_error){return {ok:false,status:404,text:async()=>'',json:async()=>({})};}
   };
 }
+
+test('вкладка предметов показывает BG3 v8 первой, 40 строк на странице и сворачивает 193 локальные записи', async () => {
+  const e=loadEngine(()=>0,selectedBg3FileFetch()),localItems=e.seedItemsDB(),counts=selectedBg3Catalog.manifest.counts,
+    profile=selectedBg3Catalog.current.defaultRulesProfile||'standard',available=counts.universe[profile],fmt=value=>(+value).toLocaleString('ru-RU');
+  assert.equal(localItems.length,193,'контроль локальной базы кампании');e.setState({items:localItems});
+  assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);
+  await e.bg3CatalogEnsureIndex();const html=e.renderWorld().itemsdb,heroStart=html.indexOf('id="bg3CatalogPrimary"'),localStart=html.indexOf('id="localItemsCatalog"');
+  assert.equal(e.engineVersion(),'5.0');assert.equal(e.engineLabel(),'Движок 5.0 · BG3 v8');
+  assert.equal(e.elementText('releaseBadge'),`${e.engineLabel()} · ${fmt(available)} предмета`);
+  assert.equal(e.elementText('itemsTabButton'),`Предметы · BG3 v8 · ${fmt(available)}`);
+  assert.ok(heroStart>=0,'есть первичный BG3-блок');assert.ok(localStart>heroStart,'локальная база расположена после BG3');
+  const primary=html.slice(heroStart,localStart),pages=Math.ceil(available/40);
+  assert.match(primary,new RegExp(`data-available="${available}"[^>]*data-archive="${counts.items}"[^>]*data-structured="${counts.mechanicsModes.structured}"[^>]*data-actions="${counts.itemRuleActions.actions}"[^>]*data-lifecycle="${counts.itemLifecyclePrograms.programs}"[^>]*data-rules="${counts.rulePrograms}"`));
+  assert.ok(primary.includes(`<b>${fmt(available)}</b>доступно в Standard`));assert.ok(primary.includes(`<b>${fmt(counts.items)}</b>варианта в архиве`));
+  assert.ok(primary.includes(`<b>${fmt(counts.itemRuleActions.actions)}</b>предметных действий`));assert.ok(primary.includes(`<b>${fmt(counts.itemLifecyclePrograms.programs)}</b>lifecycle-программ`));
+  assert.equal((primary.match(/class="bg3-summary"/g)||[]).length,40,'ленивая первая страница не разворачивает 10k карточек');
+  assert.match(primary,/ · playable/);assert.doesNotMatch(primary,/ · technical/,'первая страница состоит из игровых записей, а не технических шаблонов');
+  assert.ok(primary.includes(`<span>1 / ${pages}</span>`),`ожидается 1 / ${pages}`);
+  const detailsTag=html.match(/<details\b[^>]*\bid="localItemsCatalog"[^>]*>/)?.[0];assert.ok(detailsTag,'есть вторичный каталог кампании');
+  assert.doesNotMatch(detailsTag,/(?:^|\s)open(?:\s|=|>)/,'193 локальные карточки по умолчанию свернуты');
+  assert.match(html.slice(localStart),/Предметы кампании[^<]{0,30}193/);
+  e.localItemCatalogOpenSet(true);e.localItemFilterInput('меч');const filtered=e.renderWorld().itemsdb,
+    filteredTag=filtered.match(/<details\b[^>]*\bid="localItemsCatalog"[^>]*>/)?.[0];assert.match(filteredTag||'',/(?:^|\s)open(?:\s|=|>)/,'раскрытая база кампании остаётся раскрытой после поиска');assert.match(filtered,/id="localItemSearchInput"[^>]*value="меч"/);
+});
 
 const REAL_BG3_ARROW_MANY_TARGETS=Object.freeze({
   itemId:'bg3:item:rt:b11b3f7f-d8ec-41db-93b9-24474aea31e3:stats:T0JKX0Fycm93T2ZSaWNvY2hldA',

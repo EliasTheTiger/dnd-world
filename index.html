@@ -342,6 +342,15 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 .bg3-summary-meta{font-size:12.5px;color:var(--ink-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .catalog-state{border:1px dashed var(--frame);background:rgba(255,250,235,.46);padding:8px 10px;margin:8px 0;font-size:13.5px;color:var(--ink-soft)}
 .catalog-pages{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px 0}
+.bg3-release-hero{border:2px solid var(--gold);background:linear-gradient(135deg,rgba(93,33,26,.11),rgba(217,180,83,.13)),var(--sheet);
+  box-shadow:0 3px 14px rgba(60,40,10,.14);padding:14px 16px;margin:8px 0 12px}
+.bg3-release-head{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:baseline}.bg3-release-title{font-family:var(--disp);font-size:25px;color:var(--rubric)}
+.bg3-release-sub{font-size:14px;color:var(--ink-soft)}.bg3-release-metrics{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:7px;margin-top:10px}
+.bg3-release-metric{border:1px solid rgba(93,69,35,.38);background:rgba(255,250,235,.58);padding:7px 8px;font-size:12.5px;color:var(--ink-soft)}
+.bg3-release-metric b{display:block;font-family:var(--disp);font-size:19px;color:var(--rubric);font-weight:400}
+.campaign-catalog{border-top:2px solid var(--frame);margin-top:22px;padding-top:8px}.campaign-catalog>summary{cursor:pointer;font-family:var(--disp);font-size:20px;color:var(--ink-soft);padding:8px 2px}
+.campaign-catalog[open]>summary{color:var(--rubric);margin-bottom:10px}
+@media(max-width:760px){.bg3-release-metrics{grid-template-columns:repeat(2,minmax(110px,1fr))}}
 .bg3-asset-tabs{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.bg3-asset-card{border:1px solid var(--frame);background:var(--sheet);padding:9px 10px;margin:7px 0}
 .bg3-ref-icons{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0}.bg3-ref{display:inline-flex;align-items:center;gap:5px;max-width:270px;padding:3px 5px;border:1px solid rgba(93,69,35,.35);font-size:12px}
 .bg3-ref span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.bg3-manual{color:#8a3b24;font-style:italic}.bg3-weight{font-family:monospace;font-size:11.5px;color:var(--ink-faint)}
@@ -588,7 +597,7 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
   <span class="corner bl">✠</span><span class="corner br">✠</span>
   <h1 class="title">D&amp;D World</h1>
   <div class="subtitle">Летопись развития персонажей · настольная книга гейм-мастера · единое издание с «D&amp;D Нексус»</div>
-  <div class="release-badge" id="releaseBadge" title="Формулы v2 принимают только объявленные реальные броски; предметы, компоненты, инструменты и ремесло имеют структурированные контракты">Движок · единый контракт предметов</div>
+  <div class="release-badge" id="releaseBadge" title="BG3 v8: неизменяемый каталог, точные профили Standard/Honour и атомарные предметные механики">Движок 5.0 · BG3 v8</div>
   <div class="rule-flourish">❦</div>
   <div class="toolrow">
     <div class="dicebox">
@@ -620,7 +629,7 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
   <button class="tab" data-tab="races" onclick="switchTab('races')">Расы</button>
   <button class="tab" data-tab="classes" onclick="switchTab('classes')">Классы</button>
   <button class="tab" data-tab="spellsdb" onclick="switchTab('spellsdb')">Заклинания</button>
-  <button class="tab" data-tab="itemsdb" onclick="switchTab('itemsdb')">Предметы</button>
+  <button class="tab" id="itemsTabButton" data-tab="itemsdb" onclick="switchTab('itemsdb')">Предметы · BG3 v8</button>
   <button class="tab" data-tab="abilitiesdb" onclick="switchTab('abilitiesdb')">Способности</button>
   <button class="tab" data-tab="foes" onclick="switchTab('foes')">Противники</button>
   <button class="tab" data-tab="rules" onclick="switchTab('rules')">Справочник</button>
@@ -6258,8 +6267,8 @@ const SAVE_AB_KEY={'силы':'str','ловкости':'dex','телосложе
 /* Версия продукта не является идентификатором миграции. Менять
    ENGINE_VERSION безопасно: STRUCTURED_RELEASE ниже остается одноразовым
    ключом старого облачного развертывания и не запускается повторно. */
-const ENGINE_VERSION='4.6';
-const ENGINE_LABEL='Движок '+ENGINE_VERSION+' · единый контракт предметов';
+const ENGINE_VERSION='5.0';
+const ENGINE_LABEL='Движок '+ENGINE_VERSION+' · BG3 v8';
 const engineBadge=document.getElementById('releaseBadge');if(engineBadge) engineBadge.textContent=ENGINE_LABEL;
 const GAME_MECHANICS_SCHEMA_VERSION=1;
 const ROLL_FORMULA_SCHEMA_VERSION=2;
@@ -18536,9 +18545,12 @@ function abilityCardHTML(ab, extra){
 
 /* ═══════════════ БАЗА: ЗАКЛИНАНИЯ ═══════════════ */
 const dbFlt={ sp:{q:'',l:'',s:''}, it:{q:'',type:'',tag:''}, ab:{q:'',type:''} };
+const localItemFlt={q:'',type:'',tag:''};
 let editing={sp:null,it:null,ab:null}; /* null=закрыт, ''=новая запись, id=правка */
 let itemAuditView=null;
 let itemIntegrationView=null;
+let localItemSearchTimer=null;
+let localItemCatalogOpen=false;
 
 /* ═══════════════ BG3: НЕИЗМЕНЯЕМЫЙ ЛЕНИВЫЙ КАТАЛОГ ═══════════════
    Полные записи не попадают в itemsDB/localStorage/Firebase. Мир хранит лишь
@@ -24007,7 +24019,7 @@ function bg3CatalogUpgradeWorldRelevant(){
 }
 function bg3CatalogUpgradeReferencedIds(){
   const ids=new Set(),seen=new WeakSet(),walk=value=>{
-    if(typeof value==='string'&&bg3CatalogIsId(value)&&(bg3Catalog.summaries.has(value)||bg3Catalog.items.has(value))){ids.add(value);return;}
+    if(typeof value==='string'&&bg3CatalogIsId(value)){ids.add(value);return;}
     if(!value||typeof value!=='object'||seen.has(value))return;seen.add(value);
     if(Array.isArray(value))value.forEach(walk);else Object.values(value).forEach(walk);
   };
@@ -24125,9 +24137,10 @@ function bg3CatalogUpgradeOldStateSame(old){
 }
 async function bg3CatalogUpgradePlanFor(options){
   options=options||{};if(options.gmConfirmed!==true)return {ok:false,reason:'Обновление каталога должен явно подтвердить мастер.'};
-  try{await bg3CatalogEnsureIndex();}catch(error){return {ok:false,reason:'Сначала нужно без ошибок открыть сохранённый каталог BG3: '+String(error&&error.message||error)};}
+  let savedCatalogError='';try{await bg3CatalogEnsureIndex();}catch(error){savedCatalogError=String(error&&error.message||error);}
   const old=bg3CatalogUpgradeOldState(),oldRef=old.refs.find(row=>row&&row.id==='bg3');
-  const oldIdentity=bg3CatalogUpgradeVersionIdentity(oldRef&&oldRef.version);if(!oldRef||!oldIdentity)return {ok:false,reason:'Кампания не содержит точную версию каталога BG3.'};
+  const oldIdentity=bg3CatalogUpgradeVersionIdentity(oldRef&&oldRef.version);if(!oldRef||!oldIdentity)return {ok:false,reason:savedCatalogError
+    ?'Сохранённый каталог BG3 недоступен, а точная ссылка версии отсутствует: '+savedCatalogError:'Кампания не содержит точную версию каталога BG3.'};
   if(oldIdentity.revision>1&&!/^[0-9a-f]{64}$/.test(String(oldRef.manifestSha256||'')))return {ok:false,reason:'Сохранённый неизменяемый каталог BG3 не закреплён SHA-256 manifest.'};
   const profile=['standard','honour'].includes(oldRef.profile)?oldRef.profile:'standard';
   try{
@@ -24205,18 +24218,51 @@ function bg3CatalogSearchText(row){
 }
 function bg3CatalogSearch(query,opts){
   if(!bg3Catalog.index)return [];
-  opts=opts||{};const q=String(query||'').trim().toLocaleLowerCase('ru'),type=opts.type||'',tag=opts.tag||'',classification=opts.classification||'';
+  opts=opts||{};const q=String(query||'').trim().toLocaleLowerCase('ru'),type=opts.type||'',tag=opts.tag||'',classification=opts.classification||'',
+    classRanks={playable:0,'world-object':1,'needs-review':2,duplicate:3,technical:4},classRank=row=>classRanks[row&&row.classification]??5;
   const rank=row=>{
     const ru=String(row.names&&row.names.ru||'').trim().toLocaleLowerCase('ru'),en=String(row.names&&row.names.en||'').trim().toLowerCase(),stats=String(row.statsId||'').trim().toLowerCase(),id=String(row.id||'').trim().toLowerCase(),all=bg3CatalogSearchText(row);
     if(!q)return 11;if(id===q)return 0;if(stats===q)return 1;if(ru===q)return 2;if(en===q)return 3;if(id.startsWith(q)||stats.startsWith(q))return 4;if(ru.startsWith(q))return 5;if(en.startsWith(q))return 6;if(id.includes(q)||stats.includes(q))return 7;if(ru.includes(q))return 8;if(en.includes(q))return 9;if(all.includes(q))return 10;return 99;
   };
   return bg3Catalog.index.items.map(row=>({row,rank:rank(row)})).filter(x=>x.rank<99&&bg3CatalogAvailable(x.row)
       &&(!type||x.row.type===type)&&(!tag||(x.row.tags||[]).includes(tag))&&(!classification||x.row.classification===classification))
-    .sort((a,b)=>a.rank-b.rank||String(a.row.names.ru||a.row.names.en||'').trim().localeCompare(String(b.row.names.ru||b.row.names.en||'').trim(),'ru')||a.row.id.localeCompare(b.row.id)).map(x=>x.row);
+    .sort((a,b)=>a.rank-b.rank||classRank(a.row)-classRank(b.row)||String(a.row.names.ru||a.row.names.en||'').trim().localeCompare(String(b.row.names.ru||b.row.names.en||'').trim(),'ru')||a.row.id.localeCompare(b.row.id)).map(x=>x.row);
 }
-function bg3CatalogFilterInput(value){
+function bg3Count(value){return Number.isFinite(+value)?(+value).toLocaleString('ru-RU'):'—';}
+function bg3ReleaseSummaryHTML(){
+  const counts=bg3Catalog.manifest&&bg3Catalog.manifest.counts||{},universe=counts.universe||{},actions=counts.itemRuleActions||{},lifecycle=counts.itemLifecyclePrograms||{},modes=counts.mechanicsModes||{};
+  const archive=+counts.items||+universe.union||bg3Catalog.index&&+bg3Catalog.index.count||0,
+    available=bg3Catalog.index?bg3Catalog.index.items.filter(row=>bg3CatalogAvailable(row)).length:+universe[bg3Catalog.preferredProfile||'standard']||0,
+    version=bg3Catalog.current&&bg3Catalog.current.catalogVersion||bg3Catalog.preferredVersion||'bg3-24532579-v8',profile=bg3Catalog.preferredProfile||'standard';
+  return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-available="'+(available||10282)+'" data-archive="'+(archive||10284)+'" data-structured="'+(modes.structured||9757)+'" data-actions="'+(actions.actions||5178)+'" data-lifecycle="'+(lifecycle.programs||2498)+'" data-rules="'+(counts.rulePrograms||5898)+'" aria-label="Состояние каталога BG3 v8"><div class="bg3-release-head"><span class="bg3-release-title">Каталог BG3 v8</span>'
+    +'<span class="bg3-release-sub">build 24532579 · профиль '+esc(profile==='honour'?'Honour':'Standard')+' · '+esc(version)+'</span></div>'
+    +'<div class="bg3-release-metrics"><div class="bg3-release-metric"><b>'+bg3Count(available||10282)+'</b>доступно в '+esc(profile==='honour'?'Honour':'Standard')+'</div>'
+    +'<div class="bg3-release-metric"><b>'+bg3Count(archive||10284)+'</b>варианта в архиве</div>'
+    +'<div class="bg3-release-metric"><b>'+bg3Count(actions.actions||5178)+'</b>предметных действий</div>'
+    +'<div class="bg3-release-metric"><b>'+bg3Count(lifecycle.programs||2498)+'</b>lifecycle-программ</div></div>'
+    +'<div class="note-ital" style="margin-top:8px">Структурированные механики: '+bg3Count(modes.structured||9757)+' · ручная проверка: '+bg3Count(modes.manual||527)
+    +' · rule-программы: '+bg3Count(counts.rulePrograms||5898)+' · на странице не более '+BG3_CATALOG_PAGE_SIZE+' записей.</div></section>';
+}
+function refreshBg3ReleaseLabels(){
+  const count=bg3Catalog.index?bg3Catalog.index.items.filter(row=>bg3CatalogAvailable(row)).length:0,badge=document.getElementById('releaseBadge'),tab=document.getElementById('itemsTabButton');
+  if(badge)badge.textContent=ENGINE_LABEL+(count?' · '+bg3Count(count)+' предмета':'');
+  if(tab)tab.textContent='Предметы · BG3 v8'+(count?' · '+bg3Count(count):'');
+}
+function bg3CatalogRestoreFilterFocus(id,start,end){
+  const input=document.getElementById(id);if(!input||typeof input.focus!=='function')return;
+  input.focus();if(typeof input.setSelectionRange==='function'&&Number.isInteger(start)&&Number.isInteger(end))input.setSelectionRange(start,end);
+}
+function bg3CatalogFilterInput(value,input){
+  const start=input&&Number.isInteger(input.selectionStart)?input.selectionStart:null,end=input&&Number.isInteger(input.selectionEnd)?input.selectionEnd:null;
   dbFlt.it.q=value;bg3Catalog.page=0;clearTimeout(bg3CatalogSearchTimer);
-  bg3CatalogSearchTimer=setTimeout(()=>renderItemsDB(),120);
+  bg3CatalogSearchTimer=setTimeout(()=>{renderItemsDB();bg3CatalogRestoreFilterFocus('bg3CatalogSearchInput',start,end);},120);
+}
+function localItemCatalogToggle(open){localItemCatalogOpen=open===true;}
+function localItemFilterInput(value,input){
+  const start=input&&Number.isInteger(input.selectionStart)?input.selectionStart:null,end=input&&Number.isInteger(input.selectionEnd)?input.selectionEnd:null;
+  localItemCatalogOpen=true;
+  localItemFlt.q=value;clearTimeout(localItemSearchTimer);
+  localItemSearchTimer=setTimeout(()=>{renderItemsDB();bg3CatalogRestoreFilterFocus('localItemSearchInput',start,end);},120);
 }
 function bg3CatalogRetryIndex(){
   if(bg3Catalog.refError)return;
@@ -24724,37 +24770,11 @@ function itemAuditViewHTML(){
   return h+'</div>';
 }
 function renderItemsDB(openBg3Id){
-  const box=document.getElementById('tab-itemsdb'); const f=dbFlt.it;
-  let h='<h2 class="rubric">Арсенал мира — база предметов</h2>'
-   +'<div class="db-bar">'
-   +'<input type="text" placeholder="Поиск предметов…" value="'+esc(f.q)+'" oninput="bg3CatalogFilterInput(this.value)">'
-   +'<select onchange="dbFlt.it.type=this.value;bg3Catalog.page=0;renderItemsDB()"><option value="">Все типы</option>'
-   +Object.keys(ITEM_TYPES).map(t=>'<option value="'+t+'"'+(f.type===t?' selected':'')+'>'+ITEM_TYPES[t]+'</option>').join('')+'</select>'
-   +'<select onchange="dbFlt.it.tag=this.value;bg3Catalog.page=0;renderItemsDB()"><option value="">Все ярлыки</option>'
-   +Object.keys(ITEM_TAGS).map(t=>'<option value="'+t+'"'+(f.tag===t?' selected':'')+'>'+ITEM_TAGS[t].ru+'</option>').join('')+'</select>'
-   +'<button class="btn ghost" onclick="runItemAuditView()">✓ Комплексный тест '+ENGINE_VERSION+'</button>'
-   +'<button class="btn rub" onclick="openItemEd(\'\')">✚ Новый предмет</button></div>'
-   +itemAuditViewHTML();
-  if(editing.it!==null) h+=itemEditorHTML();
-  const arr=itemsDB.filter(it=>
-    (!f.q || it.n.toLowerCase().includes(f.q.toLowerCase()) || (it.desc||'').toLowerCase().includes(f.q.toLowerCase()))
-    && (!f.type || it.type===f.type) && (!f.tag || (it.tags||[]).includes(f.tag))
-  ).sort((a,b)=>a.n.localeCompare(b.n,'ru'));
-  h+='<p class="note-ital" style="font-size:14px">Записей: '+arr.length+' из '+itemsDB.length+'</p>';
-  arr.forEach(it=>{
-    const ritual=(typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).find(r=>r.result.itemId===it.id&&r.requirements&&r.requirements.ritualCaster);
-    const pendingHazard=activeCharId&&getCh(activeCharId)&&pendingHarvestRecord(getCh(activeCharId),it.id),
-      worldActions=(pendingHazard?'<button class="btn rub sm" title="Завершить сохраненную опасную попытку" onclick="resumeHarvestHazard(\''+it.id+'\',\''+activeCharId+'\')">☠ Завершить опасность</button> ':'')
-      +(activeCharId&&itemMaterialMeta(it)&&itemMaterialMeta(it).harvest&&!pendingHazard?'<button class="btn ghost sm" title="Проверка сбора реальными костями" onclick="harvestItem(\''+it.id+'\',\''+activeCharId+'\')">🌿 Собрать</button>':'')
-      +(activeCharId&&ritual?'<button class="btn ghost sm" title="Структурированный обряд" onclick="craftDirect(\''+ritual.id+'\',\''+activeCharId+'\')">✦ Освятить</button>':'');
-    h+=itemCardHTML(it,
-      worldActions+'<button class="btn ghost sm" onclick="openItemEd(\''+it.id+'\')">✎</button>'
-      +'<button class="del-x" onclick="delItemDB(\''+it.id+'\')">✕</button>');
-  });
-  h+='<h3 class="rubric" style="font-size:22px;margin-top:18px">Baldur’s Gate 3 — каталог '+(bg3Catalog.current?esc(bg3Catalog.current.catalogVersion):'')+'</h3>';
-  h+=bg3RuntimeTabsHTML();
+  const box=document.getElementById('tab-itemsdb'),f=dbFlt.it,local=localItemFlt;
+  let h='<section id="bg3CatalogPrimary"><h2 class="rubric">Арсенал Baldur’s Gate 3</h2>'+bg3ReleaseSummaryHTML()+bg3RuntimeTabsHTML();
   if(bg3Catalog.error) h+='<div class="catalog-state">✕ Каталог недоступен: '+esc(bg3Catalog.error)+'. Существующие ссылки инвентаря сохранены.'
-    +(bg3Catalog.refError?'':' <button class="btn ghost sm" onclick="bg3CatalogRetryIndex()">повторить</button>')+'</div>';
+    +(bg3Catalog.refError?'':' <button class="btn ghost sm" onclick="bg3CatalogRetryIndex()">повторить</button>')
+    +(bg3CatalogUpgradeVersionIdentity(bg3Catalog.preferredVersion)?' <button class="btn rub sm" onclick="bg3CatalogUpgradeUI()">Мастеру: восстановить на production BG3 v8</button>':'')+'</div>';
   else if(!bg3Catalog.index){
     h+='<div class="catalog-state">'+(activeWorldTab==='itemsdb'?'Загружается компактный индекс BG3…':'Индекс BG3 загрузится при открытии этой вкладки.')+'</div>';
     if(activeWorldTab==='itemsdb'&&!bg3Catalog.loading) bg3CatalogEnsureIndex().then(()=>renderItemsDB(openBg3Id)).catch(()=>renderItemsDB());
@@ -24762,6 +24782,11 @@ function renderItemsDB(openBg3Id){
   else if(bg3RuntimeView==='recipes') h+=bg3RecipesPanelHTML();
   else if(bg3RuntimeView==='treasure') h+=bg3TreasurePanelHTML();
   else {
+    h+='<div class="db-bar"><input id="bg3CatalogSearchInput" type="text" placeholder="Поиск по 10 000+ предметам BG3…" value="'+esc(f.q)+'" oninput="bg3CatalogFilterInput(this.value,this)">'
+      +'<select onchange="dbFlt.it.type=this.value;bg3Catalog.page=0;renderItemsDB()"><option value="">Все типы BG3</option>'
+      +Object.keys(ITEM_TYPES).map(t=>'<option value="'+t+'"'+(f.type===t?' selected':'')+'>'+ITEM_TYPES[t]+'</option>').join('')+'</select>'
+      +'<select onchange="dbFlt.it.tag=this.value;bg3Catalog.page=0;renderItemsDB()"><option value="">Все ярлыки BG3</option>'
+      +Object.keys(ITEM_TAGS).map(t=>'<option value="'+t+'"'+(f.tag===t?' selected':'')+'>'+ITEM_TAGS[t].ru+'</option>').join('')+'</select></div>';
     if(bg3Catalog.shardErrors.size) h+='<div class="catalog-state">⚠ Не удалось загрузить отдельные карточки: '+esc([...bg3Catalog.shardErrors.values()].slice(0,2).join(' · '))+'. Поиск доступен; нажмите «открыть» повторно.</div>';
     if(openBg3Id&&bg3Catalog.items.has(openBg3Id)){
       const opened=bg3Catalog.items.get(openBg3Id);
@@ -24777,11 +24802,34 @@ function renderItemsDB(openBg3Id){
     h+=rows.map(row=>bg3CatalogSummaryHTML(row,'bg3CatalogOpen('+JSON.stringify(row.id)+')')).join('');
     if(pages>1) h+='<div class="catalog-pages"><button class="btn ghost sm" '+(bg3Catalog.page?'onclick="bg3Catalog.page--;renderItemsDB()"':'disabled')+'>←</button><span>'+(bg3Catalog.page+1)+' / '+pages+'</span><button class="btn ghost sm" '+(bg3Catalog.page<pages-1?'onclick="bg3Catalog.page++;renderItemsDB()"':'disabled')+'>→</button></div>';
   }
-  box.innerHTML=h;
+  const arr=itemsDB.filter(it=>(!local.q||it.n.toLowerCase().includes(local.q.toLowerCase())||(it.desc||'').toLowerCase().includes(local.q.toLowerCase()))
+    &&(!local.type||it.type===local.type)&&(!local.tag||(it.tags||[]).includes(local.tag))).sort((a,b)=>a.n.localeCompare(b.n,'ru')),
+    localOpen=localItemCatalogOpen||editing.it!==null||!!itemAuditView||!!itemIntegrationView;
+  h+='</section><details class="campaign-catalog" id="localItemsCatalog" ontoggle="localItemCatalogToggle(this.open)"'+(localOpen?' open':'')+'><summary>Предметы кампании · '+itemsDB.length+' локальных записей</summary>'
+    +'<p class="note-ital">Это пользовательская база текущей кампании. Она хранится отдельно и не ограничивает каталог BG3 v8 выше.</p>'
+    +'<div class="db-bar"><input id="localItemSearchInput" type="text" placeholder="Поиск по предметам кампании…" value="'+esc(local.q)+'" oninput="localItemFilterInput(this.value,this)">'
+    +'<select onchange="localItemCatalogOpen=true;localItemFlt.type=this.value;renderItemsDB()"><option value="">Все типы кампании</option>'
+    +Object.keys(ITEM_TYPES).map(t=>'<option value="'+t+'"'+(local.type===t?' selected':'')+'>'+ITEM_TYPES[t]+'</option>').join('')+'</select>'
+    +'<select onchange="localItemCatalogOpen=true;localItemFlt.tag=this.value;renderItemsDB()"><option value="">Все ярлыки кампании</option>'
+    +Object.keys(ITEM_TAGS).map(t=>'<option value="'+t+'"'+(local.tag===t?' selected':'')+'>'+ITEM_TAGS[t].ru+'</option>').join('')+'</select>'
+    +'<button class="btn ghost" onclick="runItemAuditView()">✓ Комплексный тест '+ENGINE_VERSION+'</button>'
+    +'<button class="btn rub" onclick="openItemEd(\'\')">✚ Новый предмет кампании</button></div>'+itemAuditViewHTML();
+  if(editing.it!==null)h+=itemEditorHTML();
+  h+='<p class="note-ital" style="font-size:14px">Локальных записей: '+arr.length+' из '+itemsDB.length+'</p>';
+  arr.forEach(it=>{
+    const ritual=(typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).find(r=>r.result.itemId===it.id&&r.requirements&&r.requirements.ritualCaster),
+      pendingHazard=activeCharId&&getCh(activeCharId)&&pendingHarvestRecord(getCh(activeCharId),it.id),
+      worldActions=(pendingHazard?'<button class="btn rub sm" title="Завершить сохраненную опасную попытку" onclick="resumeHarvestHazard(\''+it.id+'\',\''+activeCharId+'\')">☠ Завершить опасность</button> ':'')
+      +(activeCharId&&itemMaterialMeta(it)&&itemMaterialMeta(it).harvest&&!pendingHazard?'<button class="btn ghost sm" title="Проверка сбора реальными костями" onclick="harvestItem(\''+it.id+'\',\''+activeCharId+'\')">🌿 Собрать</button>':'')
+      +(activeCharId&&ritual?'<button class="btn ghost sm" title="Структурированный обряд" onclick="craftDirect(\''+ritual.id+'\',\''+activeCharId+'\')">✦ Освятить</button>':'');
+    h+=itemCardHTML(it,worldActions+'<button class="btn ghost sm" onclick="openItemEd(\''+it.id+'\')">✎</button><button class="del-x" onclick="delItemDB(\''+it.id+'\')">✕</button>');
+  });
+  box.innerHTML=h+'</details>';refreshBg3ReleaseLabels();
 }
 function openItemEd(id){
   if(bg3CatalogIsId(id)){ bg3CatalogOpen(id); return; }
-  editing.it=id; renderItemsDB(); window.scrollTo({top:0,behavior:'smooth'});
+  editing.it=id;localItemCatalogOpen=true;renderItemsDB();const local=document.getElementById('localItemsCatalog');if(local)local.open=true;
+  if(local&&typeof local.scrollIntoView==='function')local.scrollIntoView({behavior:'smooth',block:'start'});else window.scrollTo({top:0,behavior:'smooth'});
 }
 function itemEditorHTML(){
   const it=itemsDB.find(x=>x.id===editing.it)||{n:'',type:'equipment',rarity:'обычный',tags:[],slot:null,weight:'',cost:'',dmg:'',dmgType:'',ac:'',desc:'',props:''};
