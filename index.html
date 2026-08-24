@@ -24365,6 +24365,7 @@ async function bg3CatalogUpgradeUI(){
   const done=await bg3CatalogUpgradeCommit(plan);setStatus(done.ok?'✓ Каталог кампании обновлён до '+done.version+'.':'Каталог BG3 не обновлён: '+done.reason,!done.ok);renderItemsDB();return !!done.ok;
 }
 function bg3CatalogNeedsProductionRecovery(){const version=bg3Catalog.current&&bg3Catalog.current.catalogVersion||bg3Catalog.preferredVersion||'';return !!(bg3CatalogUpgradeVersionIdentity(version)&&version!=='bg3-24532579-v8');}
+const ITEM_SEARCH_COLLATOR=new Intl.Collator('ru');
 function itemSearchNormalize(value){return String(value==null?'':value).trim().toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[^\p{L}\p{N}:_+\-]+/gu,' ').replace(/\s+/g,' ').trim();}
 function itemSearchTokens(value){const normalized=itemSearchNormalize(value);return normalized?normalized.split(' ').filter(Boolean):[];}
 function itemSearchDocument(values){return itemSearchNormalize(bg3Array(values).flat(Infinity).filter(value=>value!=null&&value!=='').join(' '));}
@@ -24424,17 +24425,40 @@ function bg3CatalogSearchCacheEnsure(){
   const profile=bg3Catalog.preferredProfile||'standard',index=bg3Catalog.index;
   if(!index)return bg3CatalogSearchCache;
   if(bg3CatalogSearchCache.epoch===bg3Catalog.epoch&&bg3CatalogSearchCache.profile===profile&&bg3CatalogSearchCache.index===index)return bg3CatalogSearchCache;
-  const classRanks={playable:0,'world-object':1,'needs-review':2,duplicate:3,technical:4},docs=new Map(),facets={types:new Set(),kinds:new Set(),categories:new Set(),rarities:new Set(),tags:new Set(),classes:new Set()},rows=index.items.filter(row=>bg3CatalogAvailable(row,profile));
-  for(const row of rows){docs.set(row.id,bg3CatalogSearchText(row));facets.types.add(row.type);facets.kinds.add(row.kind);facets.categories.add(row.category);facets.rarities.add(row.rarity);facets.classes.add(row.classification);for(const tag of bg3Array(row.tags))facets.tags.add(tag);}
-  rows.sort((a,b)=>(classRanks[a.classification]??5)-(classRanks[b.classification]??5)||String(a.names&&a.names.ru||a.names&&a.names.en||a.statsId||a.id).trim().localeCompare(String(b.names&&b.names.ru||b.names&&b.names.en||b.statsId||b.id).trim(),'ru')||a.id.localeCompare(b.id));
-  bg3CatalogSearchCache={epoch:bg3Catalog.epoch,profile,index,rows,docs,availableCount:rows.length,facets};return bg3CatalogSearchCache;
+  const classRanks={playable:0,'world-object':1,'needs-review':2,duplicate:3,technical:4},docs=new Map(),pre=new Map(),facets={types:new Set(),kinds:new Set(),categories:new Set(),rarities:new Set(),tags:new Set(),classes:new Set()},rows=index.items.filter(row=>bg3CatalogAvailable(row,profile));
+  let playableCount=0;
+  for(const row of rows){
+    docs.set(row.id,bg3CatalogSearchText(row));
+    const name=String(row.names&&row.names.ru||row.names&&row.names.en||row.statsId||row.id);
+    pre.set(row.id,{listName:name.trim(),sortName:String(row.names&&row.names.ru||row.names&&row.names.en||'').trim(),nameN:itemSearchNormalize(name),idL:String(row.id||'').toLocaleLowerCase('ru'),idN:itemSearchNormalize(row.id),statsL:String(row.statsId||'').toLocaleLowerCase('ru'),statsN:itemSearchNormalize(row.statsId)});
+    if(row.classification==='playable')playableCount++;
+    facets.types.add(row.type);facets.kinds.add(row.kind);facets.categories.add(row.category);facets.rarities.add(row.rarity);facets.classes.add(row.classification);for(const tag of bg3Array(row.tags))facets.tags.add(tag);
+  }
+  rows.sort((a,b)=>(classRanks[a.classification]??5)-(classRanks[b.classification]??5)||ITEM_SEARCH_COLLATOR.compare(pre.get(a.id).listName,pre.get(b.id).listName)||a.id.localeCompare(b.id));
+  bg3CatalogSearchCache={epoch:bg3Catalog.epoch,profile,index,rows,docs,pre,availableCount:rows.length,playableCount,facets,combined:null,combinedSource:null};return bg3CatalogSearchCache;
+}
+function bg3CatalogSearchDocs(cache){
+  cache=cache||bg3CatalogSearchCacheEnsure();
+  const source=bg3ItemPresentation.searchDocs;
+  if(!source||!source.size)return cache.docs;
+  if(cache.combined&&cache.combinedSource===source)return cache.combined;
+  const combined=new Map();
+  for(const row of cache.rows)combined.set(row.id,(cache.docs.get(row.id)||'')+' '+(source.get(row.id)||''));
+  cache.combined=combined;cache.combinedSource=source;return combined;
 }
 function bg3CatalogSearch(query,opts){
   if(!bg3Catalog.index)return [];
-  opts=opts||{};const cache=bg3CatalogSearchCacheEnsure(),type=opts.type||'',kind=opts.kind||'',category=opts.category||'',tag=opts.tag||'',classification=opts.classification||'',rarity=opts.rarity||'',content=opts.content||'',raw=String(query||'').trim().toLocaleLowerCase('ru'),q=itemSearchNormalize(query),ranked=[];
+  opts=opts||{};const cache=bg3CatalogSearchCacheEnsure(),type=opts.type||'',kind=opts.kind||'',category=opts.category||'',tag=opts.tag||'',classification=opts.classification||'',rarity=opts.rarity||'',content=opts.content||'',raw=String(query||'').trim().toLocaleLowerCase('ru'),q=itemSearchNormalize(query),tokens=q?q.split(' ').filter(Boolean):[],docsMap=bg3CatalogSearchDocs(cache),ranked=[];
   for(const row of cache.rows){if(type&&row.type!==type||kind&&row.kind!==kind||category&&row.category!==category||tag&&!bg3Array(row.tags).includes(tag)||classification&&row.classification!==classification||rarity&&row.rarity!==rarity||content&&!bg3ItemPresentationContentMatch(row.id,content))continue;
-    const documentText=(cache.docs.get(row.id)||'')+' '+(bg3ItemPresentation.searchDocs.get(row.id)||''),exactRaw=raw&&(String(row.id||'').toLocaleLowerCase('ru')===raw||String(row.statsId||'').toLocaleLowerCase('ru')===raw),rank=exactRaw?0:itemSearchRank(row.names&&row.names.ru||row.names&&row.names.en||row.statsId||row.id,row.id,row.statsId,documentText,q);if(rank<99)ranked.push({row,rank});}
-  if(q)ranked.sort((a,b)=>a.rank-b.rank||String(a.row.names&&a.row.names.ru||a.row.names&&a.row.names.en||'').trim().localeCompare(String(b.row.names&&b.row.names.ru||b.row.names&&b.row.names.en||'').trim(),'ru')||a.row.id.localeCompare(b.row.id));
+    const pre=cache.pre.get(row.id);let rank;
+    if(raw&&(pre.idL===raw||pre.statsL===raw))rank=0;
+    else if(!q)rank=20;
+    else if(pre.idN===q)rank=0;else if(pre.statsN===q)rank=1;else if(pre.nameN===q)rank=2;
+    else if(pre.idN.startsWith(q)||pre.statsN.startsWith(q))rank=3;else if(pre.nameN.startsWith(q))rank=4;
+    else if(pre.idN.includes(q)||pre.statsN.includes(q))rank=5;else if(pre.nameN.includes(q))rank=6;
+    else rank=tokens.every(token=>(docsMap.get(row.id)||'').includes(token))?7:99;
+    if(rank<99)ranked.push({row,rank});}
+  if(q)ranked.sort((a,b)=>a.rank-b.rank||ITEM_SEARCH_COLLATOR.compare(cache.pre.get(a.row.id).sortName,cache.pre.get(b.row.id).sortName)||a.row.id.localeCompare(b.row.id));
   return ranked.map(value=>value.row);
 }
 function itemWorkspaceLocalKind(it){const profile=itemProfile(it);if(profile.kind&&ITEM_KIND_RU[profile.kind])return profile.kind;if(it.type==='weapon')return 'weapon';if(it.type==='armor')return 'armor';if(it.type==='potion')return 'potion';if(it.type==='scroll')return 'scroll';return 'campaign';}
@@ -24442,11 +24466,17 @@ function itemWorkspaceRowFromBg3(row){const loaded=bg3Catalog.items.get(row.id),
 function itemWorkspaceRowFromLocal(it){return {id:it.id,source:'campaign',name:String(it.n||it.id).trim(),en:it.i18n&&it.i18n.en&&it.i18n.en.name||'',type:it.type||'',kind:itemWorkspaceLocalKind(it),category:it.type||'',classification:'campaign',rarity:it.rarity||'обычный',tags:bg3Array(it.tags),icon:it.icon||null,statsId:'',description:String(it.desc||''),row:null,item:it};}
 function itemWorkspaceLocalDocument(it){const kind=itemWorkspaceLocalKind(it);return itemSearchDocument([it.n,it.i18n&&it.i18n.en&&it.i18n.en.name,it.id,it.desc,it.props,it.text,it.type,ITEM_TYPES[it.type],it.rarity,it.tags,bg3Array(it.tags).map(tag=>ITEM_TAGS[tag]&&ITEM_TAGS[tag].ru||tag),kind,ITEM_KIND_LABELS[kind],'campaign','Кампания']);}
 function itemWorkspaceSearch(){
-  const f=dbFlt.it,query=f.q||'',classification=f.classification||'all',campaignFingerprint=itemsDB.map(it=>{const mechanics=bg3CatalogItemMechanicsSummary(it);return [it.id,it.n,it.i18n&&it.i18n.en&&it.i18n.en.name,it.type,it.rarity,bg3Array(it.tags).join(','),it.desc,it.text,it.props,mechanics.actions,mechanics.interactions,mechanics.lifecycle].join('\u0001');}).join('\u0002'),cacheKey=[bg3Catalog.epoch,bg3Catalog.index?1:0,bg3ItemPresentation.root?1:0,bg3ItemPresentation.searchReady?1:0,JSON.stringify(f),campaignFingerprint].join('|');if(itemWorkspaceSearchResultCache.key===cacheKey)return itemWorkspaceSearchResultCache.rows;const rows=[];
+  const f=dbFlt.it,query=f.q||'',classification=f.classification||'all',campaignFingerprint=itemsDB.map(it=>{const mechanics=it&&it.mechanics||{};return [it.id,it.n,it.i18n&&it.i18n.en&&it.i18n.en.name,it.type,it.rarity,bg3Array(it.tags).join(','),it.desc,it.text,it.props,bg3Array(mechanics.actions).length,bg3Array(mechanics.interactions).length,bg3Array(mechanics.lifecyclePrograms).length].join('\u0001');}).join('\u0002'),cacheKey=[bg3Catalog.epoch,bg3Catalog.index?1:0,bg3ItemPresentation.root?1:0,bg3ItemPresentation.searchReady?1:0,JSON.stringify(f),campaignFingerprint].join('|');if(itemWorkspaceSearchResultCache.key===cacheKey)return itemWorkspaceSearchResultCache.rows;const rows=[];
   if(f.source!=='campaign'&&classification!=='campaign'&&bg3Catalog.index){const bg3Class=classification==='usable'?'playable':(classification==='all'?'':classification);for(const row of bg3CatalogSearch(query,{type:f.type,kind:f.kind,category:f.category,rarity:f.rarity,tag:f.tag,classification:bg3Class,content:f.content}))rows.push(itemWorkspaceRowFromBg3(row));}
   if(f.source!=='bg3'&&['usable','all','campaign'].includes(classification))for(const it of itemsDB){const row=itemWorkspaceRowFromLocal(it),documentText=itemWorkspaceLocalDocument(it),summary=bg3CatalogItemMechanicsSummary(it),contentOk=!f.content||(f.content==='description'&&!!String(it.desc||it.text||'').trim())||(f.content==='actions'&&summary.actions>0)||(f.content==='interactions'&&summary.interactions>0)||(f.content==='lifecycle'&&summary.lifecycle>0)||(f.content==='mechanics'&&(summary.actions+summary.interactions+summary.lifecycle)>0);if(f.type&&row.type!==f.type||f.kind&&row.kind!==f.kind||f.category&&row.category!==f.category||f.rarity&&row.rarity!==f.rarity||f.tag&&!row.tags.includes(f.tag)||!contentOk||!itemSearchMatches(documentText,query))continue;rows.push(row);}
   const rarityRank={'обычный':0,'необычный':1,'редкий':2,'очень редкий':3,'легендарный':4,'артефакт':5},classRank={campaign:0,playable:0,'world-object':1,'needs-review':2,duplicate:3,technical:4},sort=f.sort||'name',q=itemSearchNormalize(query);
-  rows.sort((a,b)=>sort==='source'?a.source.localeCompare(b.source)||a.name.localeCompare(b.name,'ru'):sort==='type'?(ITEM_KIND_LABELS[a.kind]||a.kind).localeCompare(ITEM_KIND_LABELS[b.kind]||b.kind,'ru')||a.name.localeCompare(b.name,'ru'):sort==='rarity'?(rarityRank[b.rarity]??-1)-(rarityRank[a.rarity]??-1)||a.name.localeCompare(b.name,'ru'):q?itemSearchRank(a.name,a.id,a.statsId,a.source==='bg3'?(bg3CatalogSearchCache.docs.get(a.id)||'')+' '+(bg3ItemPresentation.searchDocs.get(a.id)||''):itemWorkspaceLocalDocument(a.item),q)-itemSearchRank(b.name,b.id,b.statsId,b.source==='bg3'?(bg3CatalogSearchCache.docs.get(b.id)||'')+' '+(bg3ItemPresentation.searchDocs.get(b.id)||''):itemWorkspaceLocalDocument(b.item),q)||a.name.localeCompare(b.name,'ru'):(classRank[a.classification]??5)-(classRank[b.classification]??5)||a.name.localeCompare(b.name,'ru')||a.id.localeCompare(b.id));
+  let rankOf=null;
+  if(q&&sort!=='source'&&sort!=='type'&&sort!=='rarity'){
+    const docsMap=bg3Catalog.index?bg3CatalogSearchDocs():null;
+    rankOf=new Map();
+    for(const row of rows)rankOf.set(row,itemSearchRank(row.name,row.id,row.statsId,row.source==='bg3'?(docsMap&&docsMap.get(row.id)||''):itemWorkspaceLocalDocument(row.item),q));
+  }
+  rows.sort((a,b)=>sort==='source'?a.source.localeCompare(b.source)||ITEM_SEARCH_COLLATOR.compare(a.name,b.name):sort==='type'?ITEM_SEARCH_COLLATOR.compare(ITEM_KIND_LABELS[a.kind]||a.kind,ITEM_KIND_LABELS[b.kind]||b.kind)||ITEM_SEARCH_COLLATOR.compare(a.name,b.name):sort==='rarity'?(rarityRank[b.rarity]??-1)-(rarityRank[a.rarity]??-1)||ITEM_SEARCH_COLLATOR.compare(a.name,b.name):q?rankOf.get(a)-rankOf.get(b)||ITEM_SEARCH_COLLATOR.compare(a.name,b.name):(classRank[a.classification]??5)-(classRank[b.classification]??5)||ITEM_SEARCH_COLLATOR.compare(a.name,b.name)||a.id.localeCompare(b.id));
   itemWorkspaceSearchResultCache={key:cacheKey,rows};return rows;
 }
 function itemWorkspaceClassLabel(value){return ITEM_CLASS_LABELS[value]||value||'—';}
@@ -24456,9 +24486,10 @@ function itemWorkspaceTagLabel(value){return ITEM_TAG_LABELS_BG3[value]||ITEM_TA
 function bg3Count(value){return Number.isFinite(+value)?(+value).toLocaleString('ru-RU'):'—';}
 function bg3ReleaseSummaryHTML(){
   const counts=bg3Catalog.manifest&&bg3Catalog.manifest.counts||{},universe=counts.universe||{},actions=counts.itemRuleActions||{},lifecycle=counts.itemLifecyclePrograms||{},modes=counts.mechanicsModes||{};
-  const archive=+counts.items||+universe.union||bg3Catalog.index&&+bg3Catalog.index.count||0,
-    available=bg3Catalog.index?bg3Catalog.index.items.filter(row=>bg3CatalogAvailable(row)).length:+universe[bg3Catalog.preferredProfile||'standard']||0,
-    playable=bg3Catalog.index?bg3Catalog.index.items.filter(row=>bg3CatalogAvailable(row)&&row.classification==='playable').length:5858,
+  const searchCache=bg3Catalog.index?bg3CatalogSearchCacheEnsure():null,
+    archive=+counts.items||+universe.union||bg3Catalog.index&&+bg3Catalog.index.count||0,
+    available=searchCache?searchCache.availableCount:+universe[bg3Catalog.preferredProfile||'standard']||0,
+    playable=searchCache?searchCache.playableCount:5858,
     version=bg3Catalog.current&&bg3Catalog.current.catalogVersion||bg3Catalog.preferredVersion||'bg3-24532579-v8',profile=bg3Catalog.preferredProfile||'standard';
   return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-available="'+(available||10282)+'" data-playable="'+playable+'" data-archive="'+(archive||10284)+'" data-structured="'+(modes.structured||9757)+'" data-actions="'+(actions.actions||5178)+'" data-lifecycle="'+(lifecycle.programs||2498)+'" data-rules="'+(counts.rulePrograms||5898)+'" aria-label="Состояние каталога BG3 v8"><div class="bg3-release-head"><span class="bg3-release-title">Единый арсенал · BG3 v8</span>'
     +'<span class="bg3-release-sub">build 24532579 · профиль '+esc(profile==='honour'?'Honour':'Standard')+' · '+esc(version)+'</span></div>'
@@ -24471,7 +24502,7 @@ function bg3ReleaseSummaryHTML(){
     +' · rule-программы: '+bg3Count(counts.rulePrograms||5898)+' · в едином списке не более '+ITEM_WORKSPACE_PAGE_SIZE+' записей на страницу.</div></section>';
 }
 function refreshBg3ReleaseLabels(){
-  const count=bg3Catalog.index?bg3Catalog.index.items.filter(row=>bg3CatalogAvailable(row)).length:0,badge=document.getElementById('releaseBadge'),tab=document.getElementById('itemsTabButton');
+  const count=bg3Catalog.index?bg3CatalogSearchCacheEnsure().availableCount:0,badge=document.getElementById('releaseBadge'),tab=document.getElementById('itemsTabButton');
   if(badge)badge.textContent=ENGINE_LABEL+(count?' · '+bg3Count(count)+' предмета':'');
   if(tab)tab.textContent='Предметы · BG3 v8'+(count?' · '+bg3Count(count):'');
 }
