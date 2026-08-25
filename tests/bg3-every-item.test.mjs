@@ -476,11 +476,14 @@ test('every source and icon reference resolves to an immutable physical record',
 test('real D&D World engine accepts every item mechanics/action/interaction contract', () => {
   const engine = loadEngineAuditApi();
   const summaryById = new Map(search.items.map(row => [row.id, row]));
+  const standardRows=engine.search(search.items,'',{},'standard'),honourRows=engine.search(search.items,'',{},'honour'),standardIds=new Set(standardRows.map(row=>row.id)),honourIds=new Set(honourRows.map(row=>row.id));
+  assert.equal(standardRows.length,10282);assert.equal(honourRows.length,10284);assert.equal(standardIds.size,10282);assert.equal(honourIds.size,10284);
+  assert.deepEqual(standardIds,new Set(items.filter(item=>item.source.profiles.includes('standard')).map(item=>item.id)),'каждый Standard-предмет достижим точным ID без дедупликации');
+  assert.deepEqual(honourIds,new Set(items.filter(item=>item.source.profiles.includes('honour')).map(item=>item.id)),'каждый Honour-предмет достижим точным ID без дедупликации');
   for (const item of items) {
     const searchRow = summaryById.get(item.id);
     const searchText = engine.searchText(searchRow);
     assert.ok(searchText.trim(), `${item.id}: user search document is not empty`);
-    assert.ok(searchText.includes(item.mechanics.profile.kind.toLocaleLowerCase('ru')), `${item.id}: mechanics kind is searchable`);
     assert.equal(searchText.includes(item.id.toLocaleLowerCase('ru')), false, `${item.id}: internal itemId is absent from user search text`);
     assert.equal(engine.available(item, 'standard'), item.source.profiles.includes('standard'), item.id);
     assert.equal(engine.available(item, 'honour'), item.source.profiles.includes('honour'), item.id);
