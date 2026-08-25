@@ -479,10 +479,9 @@ test('real D&D World engine accepts every item mechanics/action/interaction cont
   for (const item of items) {
     const searchRow = summaryById.get(item.id);
     const searchText = engine.searchText(searchRow);
-    assert.ok(searchText.includes(item.id.toLocaleLowerCase('ru')), `${item.id}: canonical itemId is searchable`);
+    assert.ok(searchText.trim(), `${item.id}: user search document is not empty`);
     assert.ok(searchText.includes(item.mechanics.profile.kind.toLocaleLowerCase('ru')), `${item.id}: mechanics kind is searchable`);
-    assert.ok(searchText.includes(item.source.classification.toLocaleLowerCase('ru')), `${item.id}: classification is searchable`);
-    if (item.source.statsId) assert.ok(searchText.includes(item.source.statsId.toLocaleLowerCase('ru')), `${item.id}: statsId is searchable`);
+    assert.equal(searchText.includes(item.id.toLocaleLowerCase('ru')), false, `${item.id}: internal itemId is absent from user search text`);
     assert.equal(engine.available(item, 'standard'), item.source.profiles.includes('standard'), item.id);
     assert.equal(engine.available(item, 'honour'), item.source.profiles.includes('honour'), item.id);
     for (const profile of item.source.profiles) {
@@ -614,16 +613,17 @@ test('catalog lifecycle readiness rejects blocked interrupts and accepts a compl
   assert.equal(plain(engine.mechanicsSummary(malformed)).lifecycleContracts[readyIndex].state, 'blocked', 'interrupt blocker fails closed');
 });
 
-test('catalog cards explicitly distinguish source records without localized descriptions', () => {
+test('catalog cards disclose missing descriptions without exposing internal source identity', () => {
   const engine = loadEngineAuditApi();
   const missing = items.find(item => !String(item.desc || '').trim());
   const described = items.find(item => String(item.desc || '').trim());
   assert.ok(missing && described, 'catalog contains both description shapes');
   const missingHtml = engine.cardHtml(missing);
   const describedHtml = engine.cardHtml(described);
-  assert.ok(missingHtml.includes('нет отдельного локализованного описания'), 'missing source text is disclosed, not invented');
-  assert.ok(missingHtml.includes(missing.id), 'missing-description card still exposes exact identity');
-  assert.equal(describedHtml.includes('нет отдельного локализованного описания'), false, 'real descriptions are shown without the fallback notice');
+  assert.ok(missingHtml.includes('Описание не указано.'), 'missing source text is disclosed, not invented');
+  assert.doesNotMatch(missingHtml,/Технический источник и целостность|Root \/ Stats:|build 24532579/,'missing-description card does not render an internal identity block');
+  assert.equal(describedHtml.includes('Описание не указано.'), false, 'real descriptions are shown without the fallback notice');
+  assert.doesNotMatch(describedHtml,/Технический источник и целостность|Root \/ Stats:|build 24532579/,'described card does not render an internal identity block');
 });
 
 test('every action has an exact causal program, player-entered rolls and one resource commit boundary', () => {
