@@ -58,7 +58,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       upgradeSpell, upgradeAbility, upgradeItem, upgradeRace, upgradeClass, currentMechanics,
       compileSpellMechanics, compileAbilityMechanics, compileItemMechanics, compileRaceMechanics, compileClassMechanics,
       mechanicsErrors, referenceMechanicsErrors, formulaContractErrors, finalizeRollSpec, normalizeResolutionContract,
-      itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemToolSchemaErrors, itemMaterialSchemaErrors,
+      itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemToolSchemaErrors, itemMaterialSchemaErrors,itemEditorAddUse,itemEditorToolConfigure,
       itemInteractionsOf, itemInteractionSchemaErrors, itemToolTasks, toolTaskCheckSpec,
       itemMassKg, legacyItemGoldValue, containerCapacityKg, containerPutPlan, oilUse, lightToggle, focusItemAllowed,
       valuableSell,foodEat,trapScatter,poisonApply,ritualBurn,writingUse,commitWeaponAttackResource,
@@ -9623,6 +9623,11 @@ test('редактор предмета сохраняет точную меха
   assert.match(source,/let savedId=editing\.it\|\|'';/,'редактор фиксирует id существующего предмета до повторной сборки механики');
   assert.match(source,/compileItemMechanics\(Object\.assign\(\{id:savedId\},data\)\)/,'transient id сохраняет специальные действия штатных предметов при no-op save');
   assert.match(source,/dbFlt\.it\.q=n; dbFlt\.it\.source='campaign'; dbFlt\.it\.classification='campaign'; bg3Catalog\.page=0; itemWorkspace\.selectedId=savedId;/,'после создания или переименования поиск и выбранная карточка переходят к сохранённому предмету');
+});
+
+test('расширенные настройки предмета не удаляют задачи инструмента и первое действие включает точный режим',()=>{
+  const e=loadEngine(),list=e.testElement('edItUsesList');list.querySelectorAll=()=>[];list.insertAdjacentHTML=(_position,markup)=>{list.innerHTML+=markup;};e.setElementValue('edItMode','manual');e.itemEditorAddUse();assert.equal(e.testElement('edItMode').value,'structured','первое точное действие не требует ручного переключения режима');assert.match(list.innerHTML,/Новое действие/);
+  const tool={what:'Старое применение',prof:'Старое владение',sk:'Интеллект',tasks:[{id:'primary-task',label:'Первая задача',ability:'int',dc:10},{id:'craft-task',label:'Создать по рецепту',ability:'int',dc:12},{id:'inspect-task',label:'Осмотреть материал',ability:'wis',dc:11}]};e.setElementValue('edItTool',JSON.stringify(tool));e.setPromptResults(['Новое применение','Новое владение','4','Обновлённая первая задача','15']);e.itemEditorToolConfigure();const saved=JSON.parse(e.testElement('edItTool').value);assert.equal(saved.tasks.length,3);assert.equal(saved.tasks[0].id,'primary-task','стабильный id основной задачи сохраняется');assert.equal(saved.tasks[0].label,'Обновлённая первая задача');assert.equal(saved.tasks[0].dc,15);assert.deepEqual(plain(saved.tasks.slice(1)),tool.tasks.slice(1),'дополнительные задачи инструмента не теряются');
 });
 
 test('единый каталог одновременно ищет BG3 v8 и 193 предмета кампании, показывает 18 строк и одну полную карточку', async () => {
