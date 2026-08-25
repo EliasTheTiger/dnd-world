@@ -24609,8 +24609,13 @@ function bg3RefItemsHTML(ids,emptyLabel){
     return '<button type="button" class="bg3-ref" title="Открыть «'+esc(name)+'»" onclick="itemWorkspaceShow('+esc(JSON.stringify(id))+')">'+icon+'<span>'+esc(name)+'</span></button>';}).join('')+(total>visible.length?'<span class="bg3-ref">… ещё '+(total-visible.length)+'</span>':'')+'</div>';
 }
 function itemWorkspaceShow(id){bg3RuntimeView='items';dbFlt.it.q=String(id||'');dbFlt.it.source='bg3';dbFlt.it.classification='usable';dbFlt.it.type='';dbFlt.it.kind='';dbFlt.it.category='';dbFlt.it.rarity='';dbFlt.it.tag='';dbFlt.it.content='';bg3Catalog.page=0;itemWorkspace.selectedId=String(id||'');itemWorkspace.presentationSelectedId=String(id||'');renderItemsDB();itemWorkspaceRevealDetail();itemWorkspaceEnsureHydrated(bg3Catalog.summaries.has(id)?itemWorkspaceRowFromBg3(bg3Catalog.summaries.get(id)):null);}
+let bg3TreasureUserTableCountCache={asset:null,count:0};
+function bg3TreasureUserTableCount(asset){
+  if(!asset)return 0;if(bg3TreasureUserTableCountCache.asset===asset)return bg3TreasureUserTableCountCache.count;
+  const count=bg3TreasureUserTables(bg3TreasureRootTables(asset),asset,'').length;bg3TreasureUserTableCountCache={asset,count};return count;
+}
 function bg3RuntimeTabsHTML(){
-  const rc=bg3Catalog.assets.recipes&&bg3Catalog.assets.recipes.recipes.length,tc=bg3Catalog.assets.treasure&&bg3Catalog.assets.treasure.tables.length,pc=bg3SceneCatalog.root&&bg3SceneCatalog.root.counts.placements;
+  const rc=bg3Catalog.assets.recipes&&bg3Catalog.assets.recipes.recipes.length,tc=bg3TreasureUserTableCount(bg3Catalog.assets.treasure),pc=bg3SceneCatalog.root&&bg3SceneCatalog.root.counts.placements;
   return '<div class="bg3-asset-tabs" role="tablist" aria-label="Разделы единого арсенала"><button role="tab" aria-selected="'+(bg3RuntimeView==='items')+'" class="btn '+(bg3RuntimeView==='items'?'rub':'ghost')+' sm" onclick="bg3CatalogSetRuntimeView(\'items\')">Предметы</button>'
     +'<button role="tab" aria-selected="'+(bg3RuntimeView==='recipes')+'" class="btn '+(bg3RuntimeView==='recipes'?'rub':'ghost')+' sm" onclick="bg3CatalogSetRuntimeView(\'recipes\')">Рецепты'+(rc?' · '+rc:'')+'</button>'
     +'<button role="tab" aria-selected="'+(bg3RuntimeView==='scene')+'" class="btn '+(bg3RuntimeView==='scene'?'rub':'ghost')+' sm" onclick="bg3CatalogSetRuntimeView(\'scene\')">Мир и сцены'+(pc?' · '+bg3Count(pc):'')+'</button>'
