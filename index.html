@@ -25270,7 +25270,8 @@ function saveItemEd(){
     text:(g('edItText')?g('edItText').value:(it.text||'')),
     props:g('edItProps').value, tags:pickedTags('edItTags'), fx:[], passiveFx:parseFxLines(g('edItFx').value),
     schemaVersion:ITEM_SCHEMA_VERSION,useMode,resource,uses,tool,material,manualNote};
-  const mechanics=compileItemMechanics(data); mechanics.origin='explicit';
+  let savedId=editing.it||'';
+  const mechanics=compileItemMechanics(Object.assign({id:savedId},data)); mechanics.origin='explicit';
   if(!(g('edItCompileProfile')&&g('edItCompileProfile').checked)) mechanics.profile=mechanicsClone(profile);
   const finalProfile=mechanics.profile||{},flags=finalProfile.flags||{},armor=finalProfile.armor||{};
   const armorKind=finalProfile.kind==='shield'?'shield':(finalProfile.kind==='armor'?
@@ -25280,9 +25281,9 @@ function saveItemEd(){
   const mechanicErrors=mechanicsErrors(mechanics,'item');
   if(mechanicErrors.length){ console.error(mechanicErrors);alert('Не удалось сохранить предмет: проверьте его характеристики и действия.'); return; }
   data.mechanics=mechanics;
-  if(editing.it){ const it=itemsDB.find(x=>x.id===editing.it); if(!it){ alert('Редактировать можно только предметы основной или пользовательской базы.'); return; } Object.assign(it, data); upgradeItem(it); }
-  else { const it=Object.assign({id:'it_'+uid(), custom:true}, data); upgradeItem(it); itemsDB.push(it); }
-  editing.it=null; itemAuditView=null; scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
+  if(editing.it){ const it=itemsDB.find(x=>x.id===editing.it); if(!it){ alert('Редактировать можно только предметы основной или пользовательской базы.'); return; } Object.assign(it, data); upgradeItem(it); savedId=it.id; }
+  else { const it=Object.assign({id:'it_'+uid(), custom:true}, data); upgradeItem(it); itemsDB.push(it); savedId=it.id; }
+  editing.it=null; itemAuditView=null; dbFlt.it.q=n; dbFlt.it.source='campaign'; dbFlt.it.classification='campaign'; bg3Catalog.page=0; itemWorkspace.selectedId=savedId; itemWorkspace.presentationSelectedId=''; scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
 }
 function delItemDB(id){
   if(bg3CatalogIsId(id)) return;
