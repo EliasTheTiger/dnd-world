@@ -9618,6 +9618,13 @@ test('an active unified item query refreshes as soon as the switched profile ind
   const itemId='bg3:item:rt:8733edb7-f04e-4b6d-ad48-7d49fb782bef:stats:Rk9SX0luY29tcGxldGVNYXN0ZXJ3b3JrX1N1c3N1ckRhZ2dlcg',world=await productionBg3ItemPresentationWorld(productionBg3ItemPresentationObservedFetch()),e=world.e;e.itemWorkspaceTestFilters({q:'Кинжал из суссура',source:'bg3',classification:'all'});assert.ok(e.itemWorkspaceSearch().some(row=>row.id===itemId));assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile:'honour',manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);assert.equal(e.itemWorkspaceSearch().length,0,'loading state may be empty but cannot become a persistent cached result');await e.bg3CatalogEnsureIndex();assert.ok(e.itemWorkspaceSearch().some(row=>row.id===itemId),'published Honour index invalidates the empty loading-state cache without another keystroke');
 });
 
+test('редактор предмета сохраняет точную механику записи и после сохранения оставляет её выбранной',()=>{
+  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8'),start=html.indexOf('function saveItemEd(){'),end=html.indexOf('function delItemDB(',start),source=html.slice(start,end);assert.ok(start>=0&&end>start);
+  assert.match(source,/let savedId=editing\.it\|\|'';/,'редактор фиксирует id существующего предмета до повторной сборки механики');
+  assert.match(source,/compileItemMechanics\(Object\.assign\(\{id:savedId\},data\)\)/,'transient id сохраняет специальные действия штатных предметов при no-op save');
+  assert.match(source,/dbFlt\.it\.q=n; dbFlt\.it\.source='campaign'; dbFlt\.it\.classification='campaign'; bg3Catalog\.page=0; itemWorkspace\.selectedId=savedId;/,'после создания или переименования поиск и выбранная карточка переходят к сохранённому предмету');
+});
+
 test('единый каталог одновременно ищет BG3 v8 и 193 предмета кампании, показывает 18 строк и одну полную карточку', async () => {
   const e=loadEngine(()=>0,selectedBg3FileFetch()),localItems=e.seedItemsDB(),recipient=hero('unified-catalog-recipient',{inventory:[]}),counts=selectedBg3Catalog.manifest.counts,
     profile=selectedBg3Catalog.current.defaultRulesProfile||'standard',available=counts.universe[profile],fmt=value=>(+value).toLocaleString('ru-RU');
