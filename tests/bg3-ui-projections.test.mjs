@@ -247,6 +247,8 @@ test('item presentation полностью согласована с compact row
     profileMaterializedInteractions: 7_216,
     itemsWithLifecycle: 1_245,
     profileMaterializedLifecyclePrograms: 4_984,
+    itemsWithEffects: 275,
+    profileMaterializedEffects: 582,
     relationSources: {
       recipeRecords: 3_941,
       treasureTables: 8_885,
@@ -286,6 +288,8 @@ test('item presentation полностью согласована с compact row
     profileMaterializedInteractions: 0,
     itemsWithLifecycle: 0,
     profileMaterializedLifecyclePrograms: 0,
+    itemsWithEffects: 0,
+    profileMaterializedEffects: 0,
     recipeRecords: 0,
     treasureTables: 0,
     placements: {standard: 0, honour: 0},
@@ -293,20 +297,21 @@ test('item presentation полностью согласована с compact row
   };
   for (const row of manifest.items) {
     assert.equal(Array.isArray(row), true);
-    assert.equal(row.length, 12, row[0]);
+    assert.equal(row.length, 13, row[0]);
     const [itemId, detailShard, flags, descriptionCount, actionCount, interactionCount,
-      lifecycleCount, recipeRecords, treasureTables, standardPlacements, honourPlacements,
+      lifecycleCount, effectCount, recipeRecords, treasureTables, standardPlacements, honourPlacements,
       profileMask] = row;
     assert.equal(rowByItem.has(itemId), false, itemId);
     rowByItem.set(itemId, row);
     rowByIndex.push(row);
     for (const value of row.slice(2)) assert.equal(Number.isSafeInteger(value) && value >= 0, true, itemId);
-    assert.equal(flags <= 15, true, itemId);
+    assert.equal(flags <= 31, true, itemId);
     assert.equal(profileMask >= 1 && profileMask <= 3, true, itemId);
     assert.equal(Boolean(flags & 1), descriptionCount > 0, itemId);
     assert.equal(Boolean(flags & 2), actionCount > 0, itemId);
     assert.equal(Boolean(flags & 4), interactionCount > 0, itemId);
     assert.equal(Boolean(flags & 8), lifecycleCount > 0, itemId);
+    assert.equal(Boolean(flags & 16), effectCount > 0, itemId);
     if (detailShard !== null) {
       assert.match(detailShard, /^[0-9]{4}$/, itemId);
       rowCounts.detailItems++;
@@ -317,9 +322,11 @@ test('item presentation полностью согласована с compact row
     if (flags & 2) rowCounts.itemsWithActions++;
     if (flags & 4) rowCounts.itemsWithInteractions++;
     if (flags & 8) rowCounts.itemsWithLifecycle++;
+    if (flags & 16) rowCounts.itemsWithEffects++;
     rowCounts.profileMaterializedActions += actionCount;
     rowCounts.profileMaterializedInteractions += interactionCount;
     rowCounts.profileMaterializedLifecyclePrograms += lifecycleCount;
+    rowCounts.profileMaterializedEffects += effectCount;
     rowCounts.recipeRecords += recipeRecords;
     rowCounts.treasureTables += treasureTables;
     rowCounts.placements.standard += standardPlacements;
@@ -335,6 +342,8 @@ test('item presentation полностью согласована с compact row
   assert.equal(rowCounts.profileMaterializedInteractions, manifest.counts.profileMaterializedInteractions);
   assert.equal(rowCounts.itemsWithLifecycle, manifest.counts.itemsWithLifecycle);
   assert.equal(rowCounts.profileMaterializedLifecyclePrograms, manifest.counts.profileMaterializedLifecyclePrograms);
+  assert.equal(rowCounts.itemsWithEffects, manifest.counts.itemsWithEffects);
+  assert.equal(rowCounts.profileMaterializedEffects, manifest.counts.profileMaterializedEffects);
   assert.equal(rowCounts.recipeRecords, manifest.counts.relationSources.recipeRecords);
   assert.equal(rowCounts.treasureTables, manifest.counts.relationSources.treasureTables);
   assert.deepEqual(rowCounts.placements, manifest.counts.relationSources.placements);
@@ -359,8 +368,8 @@ test('item presentation полностью согласована с compact row
       assert.equal(descriptions.length, row[3], item.itemId);
       for (const language of descriptions) localizedDescriptions[language]++;
       const expectedProfiles = [];
-      if (row[11] & 1) expectedProfiles.push('standard');
-      if (row[11] & 2) expectedProfiles.push('honour');
+      if (row[12] & 1) expectedProfiles.push('standard');
+      if (row[12] & 2) expectedProfiles.push('honour');
       assert.deepEqual(Object.keys(item.profiles), expectedProfiles, item.itemId);
       assert.equal(
         Object.values(item.profiles).reduce((sum, profile) => sum + profile.actionCount, 0),
@@ -375,6 +384,11 @@ test('item presentation полностью согласована с compact row
       assert.equal(
         Object.values(item.profiles).reduce((sum, profile) => sum + profile.lifecycleCount, 0),
         row[6],
+        item.itemId,
+      );
+      assert.equal(
+        Object.values(item.profiles).reduce((sum, profile) => sum + profile.effectCount, 0),
+        row[7],
         item.itemId,
       );
       for (const profile of Object.values(item.profiles)) {

@@ -426,6 +426,7 @@ function projectItem(item, searchRow, observedActionTypes) {
   const actionCount = Object.values(profileData).reduce((sum, profile) => sum + profile.actionCount, 0);
   const interactionCount = Object.values(profileData).reduce((sum, profile) => sum + profile.interactionCount, 0);
   const lifecycleCount = Object.values(profileData).reduce((sum, profile) => sum + profile.lifecycleCount, 0);
+  const effectCount = Object.values(profileData).reduce((sum, profile) => sum + profile.effectCount, 0);
   return {
     itemId: item.id,
     description,
@@ -437,6 +438,8 @@ function projectItem(item, searchRow, observedActionTypes) {
     interactionCount,
     hasLifecycle: lifecycleCount > 0,
     lifecycleCount,
+    hasEffects: effectCount > 0,
+    effectCount,
     relations: relationProjection(item),
     profiles: profileData,
     searchTermsByProfile,
@@ -455,6 +458,8 @@ function countRows(items) {
     profileMaterializedInteractions: 0,
     itemsWithLifecycle: 0,
     profileMaterializedLifecyclePrograms: 0,
+    itemsWithEffects: 0,
+    profileMaterializedEffects: 0,
     relationSources: {
       recipeRecords: 0,
       treasureTables: 0,
@@ -471,6 +476,8 @@ function countRows(items) {
     counts.profileMaterializedInteractions += item.interactionCount;
     if (item.hasLifecycle) counts.itemsWithLifecycle += 1;
     counts.profileMaterializedLifecyclePrograms += item.lifecycleCount;
+    if (item.hasEffects) counts.itemsWithEffects += 1;
+    counts.profileMaterializedEffects += item.effectCount;
     counts.relationSources.recipeRecords += item.relations.recipeRecordSources;
     counts.relationSources.treasureTables += item.relations.treasureTableSources;
     for (const profile of PROFILE_ORDER) counts.relationSources.placements[profile] += item.relations.placements[profile];
@@ -607,7 +614,8 @@ function compactItem(item, shardByItemId) {
   const flags = (item.hasDescription ? 1 : 0)
     | (item.hasActions ? 2 : 0)
     | (item.hasInteractions ? 4 : 0)
-    | (item.hasLifecycle ? 8 : 0);
+    | (item.hasLifecycle ? 8 : 0)
+    | (item.hasEffects ? 16 : 0);
   const profileMask = (item.profiles.standard ? 1 : 0) | (item.profiles.honour ? 2 : 0);
   return [
     item.itemId,
@@ -617,6 +625,7 @@ function compactItem(item, shardByItemId) {
     item.actionCount,
     item.interactionCount,
     item.lifecycleCount,
+    item.effectCount,
     item.relations.recipeRecordSources,
     item.relations.treasureTableSources,
     item.relations.placements.standard,

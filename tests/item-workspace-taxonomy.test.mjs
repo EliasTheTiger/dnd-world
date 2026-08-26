@@ -265,7 +265,7 @@ test('missing BG3 descriptions render source-backed status and structured facts'
   assert.match(technical, /непереносимый объект/);
   assert.match(technical, /вес — 12 кг/);
   assert.match(technical, /стоимость — 5 зм/);
-  assert.match(technical, /ручной режим; последствия определяет мастер/);
+  assert.match(technical, /неподдержанные операции не исполняются автоматически/);
 
   const world = api.card(bg3MissingDescriptionItem('world-object'));
   assert.match(world, /объект мира или сцены BG3/);
