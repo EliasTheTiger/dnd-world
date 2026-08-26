@@ -9,7 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 
 /*
- * Exact active-v8 certificate for the first bounded BG3 Summon runtime slice.
+ * Exact active-v10 certificate for the first bounded BG3 Summon runtime slice.
  *
  * Three populations must remain separate:
  *
@@ -40,7 +40,7 @@ const REQUIRED_ROLES = Object.freeze([
 ]);
 
 const EXPECTED = Object.freeze({
-  version: 'bg3-24532579-v8',
+  version: 'bg3-24532579-v10',
   summonProgramProfiles: 144,
   summonRules: 72,
   summonOpcodeOccurrences: 158,
@@ -68,7 +68,7 @@ const TYPED_SOURCES = Object.freeze([
     ruleId: 'bg3:rule:spell:UHJvamVjdGlsZV9BTENIX1NvbHV0aW9uX0dyZW5hZGVfTGlnaHQ',
     itemId: 'bg3:item:rt:c3236e6e-21e4-4e39-a5b4-fda105d8ce3f:stats:QUxDSF9Tb2x1dGlvbl9HcmVuYWRlX0xpZ2h0',
     statsId: 'ALCH_Solution_Grenade_Light',
-    itemShard: 'items/9a-0001.json',
+    itemShard: 'items/9a-0003.json',
     rootArtifact: 'root-template-programs/9a-0000.json',
     ruleArtifact: 'rules/spells/e2.json',
     context: 'throw',
@@ -90,7 +90,7 @@ const TYPED_SOURCES = Object.freeze([
     ruleId: 'bg3:rule:spell:VGFyZ2V0X0FyY2FuZUV5ZQ',
     itemId: 'bg3:item:rt:5314d1eb-5771-47b5-80a7-2ee093ef4618:stats:T0JKX1Njcm9sbF9BcmNhbmVFeWU',
     statsId: 'OBJ_Scroll_ArcaneEye',
-    itemShard: 'items/3d-0000.json',
+    itemShard: 'items/3d-0001.json',
     rootArtifact: 'root-template-programs/3d-0000.json',
     ruleArtifact: 'rules/spells/cb.json',
     context: 'scroll',
@@ -113,7 +113,7 @@ const TYPED_SOURCES = Object.freeze([
     ruleId: 'bg3:rule:spell:VGFyZ2V0X0Nsb3VkT2ZEYWdnZXJz',
     itemId: 'bg3:item:rt:33421d4f-1cac-4196-a85e-0b07bcb3ecf2:stats:T0JKX1Njcm9sbF9DbG91ZE9mRGFnZ2Vycw',
     statsId: 'OBJ_Scroll_CloudOfDaggers',
-    itemShard: 'items/cf-0000.json',
+    itemShard: 'items/cf-0001.json',
     rootArtifact: 'root-template-programs/cf-0000.json',
     ruleArtifact: 'rules/spells/6a.json',
     context: 'scroll',
@@ -136,7 +136,7 @@ const TYPED_SOURCES = Object.freeze([
     ruleId: 'bg3:rule:spell:VGFyZ2V0X0Nvbmp1cmVJbnRlbGxlY3REZXZvdXI',
     itemId: 'bg3:item:rt:dbc5b484-26d6-41f3-bd50-dc74b8f9cc9b:stats:T0JKX0dlbmVyaWNMb290SXRlbQ',
     statsId: 'OBJ_GenericLootItem',
-    itemShard: 'items/05-0001.json',
+    itemShard: 'items/05-0004.json',
     rootArtifact: 'root-template-programs/05-0001.json',
     ruleArtifact: 'rules/spells/7a.json',
     context: 'generic',
@@ -158,7 +158,7 @@ const TYPED_SOURCES = Object.freeze([
     ruleId: 'bg3:rule:spell:VGFyZ2V0X0N1cnNlZFRvbWVfU2VlbGllX1N1bW1vbg',
     itemId: 'bg3:item:rt:b627f83f-8533-4440-95a0-ad2f319fe4ed:stats:VU5JX0xPV19CZXN0aWFsQ29tbXVuaW9uU2Nyb2xs',
     statsId: 'UNI_LOW_BestialCommunionScroll',
-    itemShard: 'items/c1-0000.json',
+    itemShard: 'items/c1-0002.json',
     rootArtifact: 'root-template-programs/c1-0000.json',
     ruleArtifact: 'rules/spells/23.json',
     context: 'generic',
@@ -204,7 +204,7 @@ const TYPED_SOURCES = Object.freeze([
     ruleId: 'bg3:rule:spell:VGFyZ2V0X0dsb2JlT2ZJbnZ1bG5lcmFiaWxpdHk',
     itemId: 'bg3:item:rt:8d4c06d1-e504-49b0-a4fa-5179ab717f1e:stats:T0JKX1Njcm9sbF9HbG9iZU9mSW52dWxuZXJhYmlsaXR5',
     statsId: 'OBJ_Scroll_GlobeOfInvulnerability',
-    itemShard: 'items/7d-0001.json',
+    itemShard: 'items/7d-0002.json',
     rootArtifact: 'root-template-programs/7d-0000.json',
     ruleArtifact: 'rules/spells/01.json',
     context: 'scroll',
@@ -227,7 +227,7 @@ const TYPED_SOURCES = Object.freeze([
     ruleId: 'bg3:rule:spell:VGFyZ2V0X0hBR19IYWdzcGF3bl9TdW1tb25IdXNiYW5k',
     itemId: 'bg3:item:rt:b1b872db-43f0-45f7-b34f-d814ef9cb64c:stats:VU5JX0hBR19XYW5kX1N1bW1vbkh1c2JhbmQ',
     statsId: 'UNI_HAG_Wand_SummonHusband',
-    itemShard: 'items/19-0001.json',
+    itemShard: 'items/19-0002.json',
     rootArtifact: 'root-template-programs/19-0000.json',
     ruleArtifact: 'rules/spells/1f.json',
     context: 'generic',
@@ -249,7 +249,7 @@ const TYPED_SOURCES = Object.freeze([
     ruleId: 'bg3:rule:spell:VGFyZ2V0X1Njcnlpbmc',
     itemId: 'bg3:item:rt:b2da7238-a197-4ecc-9c6d-29035f2dc520:stats:UkVGX1ByaW1pdGl2ZXM',
     statsId: 'REF_Primitives',
-    itemShard: 'items/dc-0000.json',
+    itemShard: 'items/dc-0002.json',
     rootArtifact: 'root-template-programs/dc-0001.json',
     ruleArtifact: 'rules/spells/5b.json',
     context: 'generic',
@@ -272,7 +272,7 @@ const TYPED_SOURCES = Object.freeze([
     ruleId: 'bg3:rule:spell:VGFyZ2V0X1NsZWV0U3Rvcm0',
     itemId: 'bg3:item:rt:be05f7d0-ffa0-46e3-a0d6-66e3333159f1:stats:T0JKX1Njcm9sbF9TbGVldFN0b3Jt',
     statsId: 'OBJ_Scroll_SleetStorm',
-    itemShard: 'items/5b-0001.json',
+    itemShard: 'items/5b-0002.json',
     rootArtifact: 'root-template-programs/5b-0000.json',
     ruleArtifact: 'rules/spells/7b.json',
     context: 'scroll',
@@ -339,43 +339,43 @@ const MIXED_SOURCES = Object.freeze([
   {
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_GiantSpiderEggSack',
     itemId: 'bg3:item:rt:3c65dc67-b235-4af3-9ffe-f078e58a8391:stats:T0JKX1RIUl9HaWFudFNwaWRlckVnZ1NhY2s',
-    itemShard: 'items/0e-0000.json', rootArtifact: 'root-template-programs/0e-0000.json', ruleArtifact: 'rules/spells/45.json',
+    itemShard: 'items/0e-0001.json', rootArtifact: 'root-template-programs/0e-0000.json', ruleArtifact: 'rules/spells/45.json',
     actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-6bc597a8af5afdab3ade', honour: 'bg3-use-e9e30604c85de2218e68'},
   },
   {
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_GiantSpiderEggSack',
     itemId: 'bg3:item:rt:8e269d9d-d21f-48a9-8b9d-32d20e132823:stats:T0JKX1RIUl9HaWFudFNwaWRlckVnZ1NhY2s',
-    itemShard: 'items/19-0000.json', rootArtifact: 'root-template-programs/19-0000.json', ruleArtifact: 'rules/spells/45.json',
+    itemShard: 'items/19-0001.json', rootArtifact: 'root-template-programs/19-0000.json', ruleArtifact: 'rules/spells/45.json',
     actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-dd95a182fe536478a63f', honour: 'bg3-use-cb187de7a9425552def4'},
   },
   {
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_LOW_IronThrone_Mizora_SpiderSac',
     itemId: 'bg3:item:rt:93f8c64b-2d55-4784-aca5-077f75a7ee4d:stats:T0JKX1RIUl9MT1dfSXJvblRocm9uZV9NaXpvcmFfU3BpZGVyU2Fj',
-    itemShard: 'items/74-0001.json', rootArtifact: 'root-template-programs/74-0000.json', ruleArtifact: 'rules/spells/45.json',
+    itemShard: 'items/74-0002.json', rootArtifact: 'root-template-programs/74-0000.json', ruleArtifact: 'rules/spells/45.json',
     actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-18155bec6b599a49271b', honour: 'bg3-use-b99b72565d0ed1bd0abb'},
   },
   {
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_SpiderEggSack',
     itemId: 'bg3:item:rt:93f8c64b-2d55-4784-aca5-077f75a7ee4d:stats:T0JKX1RIUl9TcGlkZXJFZ2dTYWNr',
-    itemShard: 'items/a4-0000.json', rootArtifact: 'root-template-programs/a4-0000.json', ruleArtifact: 'rules/spells/45.json',
+    itemShard: 'items/a4-0002.json', rootArtifact: 'root-template-programs/a4-0000.json', ruleArtifact: 'rules/spells/45.json',
     actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-1c22e1fe1ad718c817de', honour: 'bg3-use-8c8e1951cafc8eb8501f'},
   },
   {
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_GiantSpiderEggSack',
     itemId: 'bg3:item:rt:a2206554-7a9f-49c0-a274-84279cc9afa4:stats:T0JKX1RIUl9HaWFudFNwaWRlckVnZ1NhY2s',
-    itemShard: 'items/9a-0001.json', rootArtifact: 'root-template-programs/9a-0000.json', ruleArtifact: 'rules/spells/45.json',
+    itemShard: 'items/9a-0003.json', rootArtifact: 'root-template-programs/9a-0000.json', ruleArtifact: 'rules/spells/45.json',
     actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-b43d37584aee5e8ac1b0', honour: 'bg3-use-9311e7bc20a7605d3a52'},
   },
   {
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_GiantSpiderEggSack',
     itemId: 'bg3:item:rt:b266897b-065d-4a23-bfab-c6f82f6512a7:stats:T0JKX1RIUl9HaWFudFNwaWRlckVnZ1NhY2s',
-    itemShard: 'items/7d-0001.json', rootArtifact: 'root-template-programs/7d-0001.json', ruleArtifact: 'rules/spells/45.json',
+    itemShard: 'items/7d-0002.json', rootArtifact: 'root-template-programs/7d-0001.json', ruleArtifact: 'rules/spells/45.json',
     actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-f92fc542a838248bf900', honour: 'bg3-use-7b443f9ae5c6f3641026'},
   },
   {
     spellId: 'Target_FOR_ThayanCellar_SummonQuasit', statsId: 'OBJ_Scroll_SummonQuasit',
     itemId: 'bg3:item:rt:6b881dce-b87f-4c3c-aa98-7ba4b07c009b:stats:T0JKX1Njcm9sbF9TdW1tb25RdWFzaXQ',
-    itemShard: 'items/31-0000.json', rootArtifact: 'root-template-programs/31-0000.json', ruleArtifact: 'rules/spells/72.json',
+    itemShard: 'items/31-0001.json', rootArtifact: 'root-template-programs/31-0000.json', ruleArtifact: 'rules/spells/72.json',
     actionType: 12, target: 'creature', useIds: {standard: 'bg3-use-f934ccab358cca0501d6', honour: 'bg3-use-6391fa905c5987b70205'},
   },
 ]);
@@ -459,7 +459,7 @@ for (const descriptor of manifest.files.rules || []) {
   for (const rule of payload.rules || []) for (const profile of ['standard', 'honour']) {
     const program = rule.programs?.[profile];
     if (!program) continue;
-    // The active-v8 family census is defined by the executable entries in each
+    // The active-v10 family census is defined by the executable entries in each
     // field bytecode array.  Recursing through opcode operands incorrectly turns
     // Summon nodes nested under condition/branch opcodes into additional program
     // carriers (158 profiles / 79 rules / 228 tree occurrences).  Projection
@@ -1053,7 +1053,7 @@ function summonDiagnostic(world) {
     error: world.engine.elementText('castErr'), status: world.engine.elementText('status')});
 }
 
-test('active v8 has 144 summon program profiles but exactly 20 typed and 14 mixed item carriers', () => {
+test('active v10 has 144 summon program profiles but exactly 20 typed and 14 mixed item carriers', () => {
   assert.equal(current.catalogVersion, EXPECTED.version);
 
   const summonPrograms = ruleProgramRecords.filter(record => record.summons.length > 0);
@@ -1090,7 +1090,7 @@ test('active v8 has 144 summon program profiles but exactly 20 typed and 14 mixe
       && Array.isArray(descriptor.projection.unresolved) && descriptor.projection.unresolved.length === 0
       && descriptor.runtimeReady !== false && descriptor.sourceBlocked !== true);
   assert.equal(readyItemOnSpellCastInterrupts.length, EXPECTED.readyItemOnSpellCastInterrupts,
-    'active v8 intentionally has no ready item-linked OnSpellCast interrupt composite');
+    'active v10 intentionally has no ready item-linked OnSpellCast interrupt composite');
 
   const actionTypes = rows => Object.fromEntries([...Map.groupBy(rows,
     row => +row.use.program.sourceAction.primary.actionType).entries()].sort(([a], [b]) => a - b)
@@ -1441,7 +1441,7 @@ test('private runtime commits exactly 18/20 typed carriers with exact overlays a
   assert.deepEqual([...stacks].sort(), ['IntellectDevourStack', 'PlanarAllyStack', 'SleetStorm', 'SummonHusband']);
 });
 
-test('all 14 mixed real-v8 item carriers fail before placement and payment', async () => {
+test('all 14 mixed real-v10 item carriers fail before placement and payment', async () => {
   let blocked = 0;
   for (const profile of ['standard', 'honour']) for (const row of MIXED_SOURCES) {
     const world = await summonWorld({row, profile});

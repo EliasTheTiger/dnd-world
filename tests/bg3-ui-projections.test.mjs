@@ -7,7 +7,7 @@ import test from 'node:test';
 import {fileURLToPath} from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const catalogVersion = 'bg3-24532579-v8';
+const catalogVersion = 'bg3-24532579-v10';
 const sourceBuildId = '24532579';
 const sourceBase = path.join(repo, 'data', 'bg3', catalogVersion);
 const placementBase = path.join(repo, 'data', 'bg3', 'ui', `${catalogVersion}-placement-browser`);
@@ -15,6 +15,40 @@ const presentationBase = path.join(repo, 'data', 'bg3', 'ui', `${catalogVersion}
 
 const compareStrings = (left, right) => left < right ? -1 : left > right ? 1 : 0;
 const plain = value => JSON.parse(JSON.stringify(value));
+const forbiddenDecisionText = /manual(?:-mechanics)?-review(?:-required)?|требуется решение мастера|решени(?:е|я|й) мастера|(?:gm|master) decision/iu;
+const forbiddenPublicProfileKeys = new Set([
+  'actiontype',
+  'activationmodel',
+  'bg3id',
+  'grantedactionids',
+  'grantedinterruptids',
+  'handler',
+  'interruptevents',
+  'labelsource',
+  'mode',
+  'projectionmode',
+  'provenance',
+  'sourceactions',
+  'sourcefield',
+  'sourceruleids',
+  'trigger',
+]);
+const forbiddenPublicProfileText = /(?:^|\s)\S*_\S*(?:\s|$)|[0-9a-f]{8}-[0-9a-f-]{27,}|\b(?:bg3|unlockspell|sourcefield|programid|spellid|interruptid|manual|structured|typed|mixed|object|self|actiontype|boosts|empty|explicit|handler|onusepeaceactions|program|source|target|trigger|unknown)\b|display-only-localization/iu;
+const lifecycleKindLabels = new Set(['пассивное свойство', 'особое действие', 'состояние']);
+const lifecycleGateLabels = new Set([
+  'при экипировке',
+  'в основной руке',
+  'во вспомогательной руке',
+  'при особом действии предмета',
+  'пока находится в инвентаре',
+  'при попадании',
+]);
+const effectOperationLabels = new Set([
+  'модификатор',
+  'преимущество',
+  'помеха',
+  'минимальное значение',
+]);
 const sha256 = value => crypto.createHash('sha256')
   .update(Buffer.isBuffer(value) ? value : fs.readFileSync(value))
   .digest('hex');
@@ -22,6 +56,99 @@ const sha256 = value => crypto.createHash('sha256')
 function readJson(file) {
   const buffer = fs.readFileSync(file);
   return {buffer, value: JSON.parse(buffer)};
+}
+
+function assertExactKeys(value, expected, field) {
+  assert.equal(value && typeof value === 'object' && !Array.isArray(value), true, field);
+  assert.deepEqual(Object.keys(value).sort(compareStrings), [...expected].sort(compareStrings), field);
+}
+
+function assertPublicProfileProjection(value, field) {
+  if (value == null || typeof value === 'number' || typeof value === 'boolean') return;
+  if (typeof value === 'string') {
+    assert.doesNotMatch(value, forbiddenDecisionText, field);
+    assert.doesNotMatch(value, forbiddenPublicProfileText, field);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const [index, entry] of value.entries()) {
+      assertPublicProfileProjection(entry, `${field}[${index}]`);
+    }
+    return;
+  }
+  assert.equal(typeof value, 'object', field);
+  for (const [key, entry] of Object.entries(value)) {
+    assert.equal(
+      forbiddenPublicProfileKeys.has(key.toLocaleLowerCase('en')),
+      false,
+      `${field}.${key}`,
+    );
+    assertPublicProfileProjection(entry, `${field}.${key}`);
+  }
+}
+
+let sourceSearchById;
+const sourceShardCache = new Map();
+
+function exactSourceItem(itemId) {
+  if (!sourceSearchById) {
+    const sourceSearch = readJson(path.join(sourceBase, 'search-index.json')).value;
+    sourceSearchById = new Map(sourceSearch.items.map(row => [row.id, row]));
+  }
+  const summary = sourceSearchById.get(itemId);
+  assert.ok(summary?.shard, `${itemId}: exact source shard`);
+  if (!sourceShardCache.has(summary.shard)) {
+    sourceShardCache.set(
+      summary.shard,
+      readJson(path.join(sourceBase, 'items', `${summary.shard}.json`)).value,
+    );
+  }
+  const item = sourceShardCache.get(summary.shard).items.find(row => row.id === itemId);
+  assert.ok(item, `${itemId}: exact source item`);
+  return item;
+}
+
+function exactSourceProfileItem(itemId, profile = 'standard') {
+  const item = exactSourceItem(itemId);
+  if (profile === 'honour' && item.source.profiles.includes('standard')) {
+    return item.source.honourOverlay.item;
+  }
+  return item;
+}
+
+function exactSourceActionTypes(action) {
+  const sourceAction = action.program?.sourceAction || {};
+  return [sourceAction.primary, ...(sourceAction.aliases || [])]
+    .filter(Boolean)
+    .map(row => row.actionType);
+}
+
+function exactSourceActions(itemId, profile = 'standard') {
+  return exactSourceProfileItem(itemId, profile).mechanics.actions.map(action => {
+    return {
+      label: action.label,
+      actionTypes: exactSourceActionTypes(action),
+    };
+  });
+}
+
+function normalizedLabelTokens(value) {
+  return String(value || '')
+    .toLocaleLowerCase('ru')
+    .replace(/ё/g, 'е')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[^\p{L}\p{N}:_+\-]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+}
+
+function assertSearchContainsLabels(termText, labels, field) {
+  const terms = new Set(String(termText || '').split(' ').filter(Boolean));
+  for (const label of labels) {
+    for (const token of normalizedLabelTokens(label)) assert.equal(terms.has(token), true, `${field}: ${token}`);
+  }
 }
 
 function relativeJsonFiles(base) {
@@ -245,6 +372,11 @@ test('item presentation полностью согласована с compact row
   assert.deepEqual(plain(manifest.contracts.itemRowFlags), {
     hasDescription: 1, hasActions: 2, hasInteractions: 4, hasLifecycle: 8, hasEffects: 16,
   });
+  assert.deepEqual(plain(manifest.contracts.detailActionFields), ['label']);
+  assert.deepEqual(plain(manifest.contracts.detailInteractionFields), ['label']);
+  assert.deepEqual(plain(manifest.contracts.detailLifecycleFields), ['kind', 'gate']);
+  assert.deepEqual(plain(manifest.contracts.detailEffectFields), ['label', 'operation', 'value', 'unit']);
+  assert.equal(Object.hasOwn(manifest, 'sourceActionTypeNames'), false);
   assert.deepEqual(plain(manifest.counts), {
     items: 10_284,
     profileItems: {standard: 10_282, honour: 10_284},
@@ -267,27 +399,7 @@ test('item presentation полностью согласована с compact row
 
   const detailEntries = manifest.storage.detailFiles;
   const searchEntries = manifest.storage.searchFiles;
-  const worldBoundActionMetadata = new Map([
-    [1, 'OpenClose'],
-    [2, 'Destroy'],
-    [3, 'Teleport'],
-    [4, 'CreateSurface'],
-    [9, 'Door'],
-    [10, 'CreatePuddle'],
-    [14, 'Sit'],
-    [15, 'Lie'],
-    [16, 'Insert'],
-    [17, 'Stand'],
-    [22, 'ShowStoryElementUI'],
-    [24, 'Ladder'],
-    [26, 'PlaySound'],
-    [27, 'SpawnCharacter'],
-    [35, 'Unknown35'],
-  ]);
-  for (const [actionType, label] of worldBoundActionMetadata) {
-    assert.equal(Object.hasOwn(manifest.sourceActionTypeNames, String(actionType)), false, label);
-    assert.equal(Object.values(manifest.sourceActionTypeNames).includes(label), false, label);
-  }
+  assert.doesNotMatch(JSON.stringify(manifest), forbiddenDecisionText, 'compact projection has no GM-review fallback');
   for (const [entries, hardLimit] of [
     [detailEntries, manifest.storage.hardLimitBytes],
     [searchEntries, manifest.storage.searchHardLimitBytes],
@@ -379,7 +491,6 @@ test('item presentation полностью согласована с compact row
   assert.deepEqual(rowCounts.placements, manifest.counts.relationSources.placements);
 
   const detailedItems = new Map();
-  const retainedActionCounts = new Map([[18, 0], [20, 0]]);
   const localizedDescriptions = {ru: 0, en: 0};
   for (const entry of detailEntries) {
     const shard = assertExactArtifact(presentationBase, entry);
@@ -390,6 +501,8 @@ test('item presentation полностью согласована с compact row
     assert.equal(shard.items.length, entry.itemCount, entry.path);
     assert.equal(shard.itemCount, entry.itemCount, entry.path);
     for (const item of shard.items) {
+      assertExactKeys(item, ['itemId', 'description', 'profiles'], `${entry.path}/${item.itemId}`);
+      assertExactKeys(item.description, ['ru', 'en'], `${entry.path}/${item.itemId}/description`);
       assert.equal(detailedItems.has(item.itemId), false, item.itemId);
       detailedItems.set(item.itemId, item);
       const row = rowByItem.get(item.itemId);
@@ -422,25 +535,47 @@ test('item presentation полностью согласована с compact row
         row[7],
         item.itemId,
       );
-      for (const profile of Object.values(item.profiles)) {
+      for (const [profileName, profile] of Object.entries(item.profiles)) {
+        const field = `${entry.path}/${item.itemId}/${profileName}`;
+        assertExactKeys(profile, [
+          'actionCount',
+          'interactionCount',
+          'lifecycleCount',
+          'effectCount',
+          'actions',
+          'interactions',
+          'lifecycle',
+          'effects',
+        ], field);
         assert.equal(profile.actions.length, profile.actionCount, item.itemId);
         assert.equal(profile.interactions.length, profile.interactionCount, item.itemId);
         assert.equal(profile.lifecycle.length, profile.lifecycleCount, item.itemId);
         assert.equal(profile.effects.length, profile.effectCount, item.itemId);
-        for (const effect of profile.effects) {
-          assert.equal(Object.hasOwn(effect, 'note'), false, `${item.itemId}: technical effect provenance`);
+        for (const [index, action] of profile.actions.entries()) {
+          assertExactKeys(action, ['label'], `${field}.actions[${index}]`);
+          assert.equal(typeof action.label === 'string' && action.label.trim().length > 0, true, field);
         }
-        for (const action of profile.actions) {
-          for (const sourceAction of action.sourceActions) {
-            assert.equal(worldBoundActionMetadata.has(sourceAction.actionType), false, item.itemId);
-            if (retainedActionCounts.has(sourceAction.actionType)) {
-              retainedActionCounts.set(
-                sourceAction.actionType,
-                retainedActionCounts.get(sourceAction.actionType) + 1,
-              );
-            }
-          }
+        for (const [index, interaction] of profile.interactions.entries()) {
+          assertExactKeys(interaction, ['label'], `${field}.interactions[${index}]`);
+          assert.equal(typeof interaction.label === 'string' && interaction.label.trim().length > 0, true, field);
         }
+        for (const [index, lifecycle] of profile.lifecycle.entries()) {
+          assertExactKeys(lifecycle, ['kind', 'gate'], `${field}.lifecycle[${index}]`);
+          assert.equal(lifecycleKindLabels.has(lifecycle.kind), true, `${field}.lifecycle[${index}].kind`);
+          assert.equal(lifecycleGateLabels.has(lifecycle.gate), true, `${field}.lifecycle[${index}].gate`);
+        }
+        for (const [index, effect] of profile.effects.entries()) {
+          assertExactKeys(effect, ['label', 'operation', 'value', 'unit'], `${field}.effects[${index}]`);
+          assert.equal(typeof effect.label === 'string' && effect.label.trim().length > 0, true, field);
+          assert.equal(effectOperationLabels.has(effect.operation), true, `${field}.effects[${index}].operation`);
+          assert.equal(
+            effect.value == null || typeof effect.value === 'number' || typeof effect.value === 'string',
+            true,
+            `${field}.effects[${index}].value`,
+          );
+          assert.equal(effect.unit == null || typeof effect.unit === 'string', true, `${field}.effects[${index}].unit`);
+        }
+        assertPublicProfileProjection(profile, field);
       }
     }
   }
@@ -449,10 +584,6 @@ test('item presentation полностью согласована с compact row
   for (const [itemId, row] of rowByItem) {
     assert.equal(detailedItems.has(itemId), row[1] !== null, itemId);
   }
-  assert.deepEqual([...retainedActionCounts], [[18, 4], [20, 2]]);
-  assert.equal(manifest.sourceActionTypeNames['18'], 'Lockpick');
-  assert.equal(manifest.sourceActionTypeNames['20'], 'DisarmTrap');
-
   const searchIndexes = new Set();
   let searchRows = 0;
   for (const entry of searchEntries) {
@@ -473,11 +604,7 @@ test('item presentation полностью согласована с compact row
       searchRows++;
       for (const termText of row.slice(2)) {
         if (termText == null) continue;
-        const terms = new Set(termText.split(' '));
-        for (const label of worldBoundActionMetadata.values()) {
-          assert.equal(terms.has(label.toLocaleLowerCase('en')), false, `${entry.path}: ${itemIndex}/${label}`);
-        }
-        assert.equal(terms.has('bg3'), false, `${entry.path}: ${itemIndex}/effect provenance bg3`);
+        assertPublicProfileProjection(termText, `${entry.path}: profile terms for ${itemIndex}`);
       }
     }
   }
@@ -486,7 +613,7 @@ test('item presentation полностью согласована с compact row
   assert.equal(manifest.storage.searchRowCount, manifest.counts.items);
 });
 
-test('item presentation search excludes plot-bound actions and lifecycle IDs without filtering neutral mechanics', () => {
+test('item presentation excludes plot-bound source actions while retaining neutral mechanics as semantic labels', () => {
   const manifest = readJson(path.join(presentationBase, 'manifest.json')).value;
   const compactById = new Map(manifest.items.map((row, itemIndex) => [row[0], {itemIndex, row}]));
   const searchByIndex = new Map();
@@ -509,53 +636,70 @@ test('item presentation search excludes plot-bound actions and lifecycle IDs wit
     if (requireDetail) assert.ok(detail, `${itemId}: focused regression requires a detail row`);
     return {compact: compact.row, detail, search};
   };
+  const profileTerms = (projected, profile) => profile === 'honour'
+    ? (projected.search[3] ?? projected.search[2])
+    : projected.search[2];
 
   const excluded = [
     {
       itemId: 'bg3:item:rt:000cfc9f-b973-48e7-a5c8-f2992a47a943:stats:REVOX1ZvbG9PcGVyYXRpb25fRXJzYXR6RXll',
+      actionTypes: [19],
       leaked: /bg3story|storyuseininventory|actiontype 19|сюжет/i,
     },
     {
       itemId: 'bg3:item:rt:7eaa1331-877c-40d7-9811-8238aee09f68:stats:V1lSX01vbmtBbXVsZXRfQW11bGV0X0FmdGVyQ29tYmF0',
+      actionTypes: [7],
       leaked: /ori_gale_avatar_consumeitem/i,
     },
     {
       itemId: 'bg3:item:rt:1ec327be-3b7f-4502-9586-860e057e09ae:stats:T0JKX1RhZHBvbGVQb3dlckphcg',
+      actionTypes: [31],
       leaked: /bg3tadpole|actiontype 31|кампания/i,
     },
     {
       itemId: 'bg3:item:rt:a313a568-9b27-4b94-8ad8-50fcc374179f:stats:T0JKX0dlbmVyaWNMb290SXRlbQ',
+      actionTypes: [8],
       leaked: /storyuse|actiontype 8/i,
     },
     {
       itemId: 'bg3:item:rt:11d9cef8-0652-441d-bb04-63262dd9ae66:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q',
+      actionTypes: [8],
       leaked: /storyuse|actiontype 8/i,
     },
     {
       itemId: 'bg3:item:rt:8c68e68d-96d4-45d6-804c-5f31ac948ff3:stats:R0xPX1NvdWxDb2lu',
+      actionTypes: [7],
       leaked: /ori_karlach_infernal_fury|really_karlach|actiontype 7/i,
     },
     {
       itemId: 'bg3:item:rt:dc83c211-ef84-4e54-96c4-94aadbd3184a:stats:R09CX1JvYXN0aW5nRHdhcmZfTWVhdA',
+      actionTypes: [7],
       leaked: /gob_roastingdwarf_consume|really_dark_urge|actiontype 7/i,
     },
     {
       itemId: 'bg3:item:rt:84e8df93-cba4-4a0c-b946-73f59258e792:stats:R09CX1JvYXN0aW5nRHdhcmZfTWVhdA',
+      actionTypes: [7],
       leaked: /gob_roastingdwarf_consume|really_dark_urge|actiontype 7/i,
     },
     {
       itemId: 'bg3:item:rt:c245cb1a-ecfb-4dac-b686-26013dbb00d9:stats:R09CX1JvYXN0aW5nRHdhcmZfTWVhdA',
+      actionTypes: [7],
       leaked: /gob_roastingdwarf_consume|really_dark_urge|actiontype 7/i,
     },
   ];
-  for (const {itemId, leaked} of excluded) {
+  for (const {itemId, actionTypes, leaked} of excluded) {
+    assert.deepEqual(
+      exactSourceActions(itemId).flatMap(action => action.actionTypes),
+      actionTypes,
+      `${itemId}: source action evidence`,
+    );
     const {compact, detail, search} = projection(itemId);
     assert.equal(compact[4], 0, `${itemId}: compact action count`);
     for (const profile of Object.values(detail.profiles)) {
       assert.equal(profile.actionCount, 0, `${itemId}: profile action count`);
       assert.deepEqual(profile.actions, [], `${itemId}: projected actions`);
     }
-    assert.doesNotMatch(`${JSON.stringify(detail.profiles)} ${search.slice(1).join(' ')}`, leaked, itemId);
+    assert.doesNotMatch(`${JSON.stringify(detail.profiles)} ${search.slice(2).join(' ')}`, leaked, itemId);
   }
 
   const worldBound = [
@@ -582,6 +726,11 @@ test('item presentation search excludes plot-bound actions and lifecycle IDs wit
     },
   ];
   for (const {itemId, actionType, metadata, eventId} of worldBound) {
+    assert.deepEqual(
+      exactSourceActions(itemId).flatMap(action => action.actionTypes),
+      [actionType],
+      `${itemId}: A${actionType} source evidence`,
+    );
     const {compact, detail, search} = projection(itemId, {requireDetail: false});
     assert.equal(compact[4], 0, `${itemId}: A${actionType} compact action count`);
     if (detail) {
@@ -591,6 +740,7 @@ test('item presentation search excludes plot-bound actions and lifecycle IDs wit
       }
     }
     const terms = search.slice(2).join(' ');
+    assertPublicProfileProjection(search.slice(2), `${itemId}: world-bound profile search`);
     assert.doesNotMatch(terms, new RegExp(`(?:^|\\s)(?:actiontype|${metadata})(?:\\s|$)`, 'i'), itemId);
     if (eventId) assert.doesNotMatch(terms, new RegExp(eventId, 'i'), itemId);
   }
@@ -600,13 +750,16 @@ test('item presentation search excludes plot-bound actions and lifecycle IDs wit
   );
 
   const lightToggle = projection('bg3:item:rt:3ce10950-db66-4e55-a4bc-6567de1bf1a9:stats:T0JKX0NvYWxCYXNrZXQ');
-  assert.equal(lightToggle.compact[4], 2);
-  for (const profile of Object.values(lightToggle.detail.profiles)) {
-    assert.equal(profile.actionCount, 1);
-    assert.deepEqual(profile.actions[0].sourceActions.map(row => row.actionType), [8]);
+  let lightActionCount = 0;
+  for (const [profileName, profile] of Object.entries(lightToggle.detail.profiles)) {
+    const sourceActions = exactSourceActions(lightToggle.compact[0], profileName);
+    assert.deepEqual(sourceActions.flatMap(action => action.actionTypes), [8]);
+    assert.deepEqual(profile.actions.map(action => action.label), sourceActions.map(action => action.label));
+    assertSearchContainsLabels(profileTerms(lightToggle, profileName), sourceActions.map(action => action.label), `${lightToggle.compact[0]}/${profileName}`);
+    lightActionCount += profile.actionCount;
   }
-  assert.match(lightToggle.search.slice(2).join(' '), /bg3lighttoggle/i);
-  assert.doesNotMatch(lightToggle.search.slice(2).join(' '), /storyuse|actiontype 8/i);
+  assert.equal(lightToggle.compact[4], lightActionCount);
+  assert.doesNotMatch(lightToggle.search.slice(2).join(' '), /bg3lighttoggle|storyuse|actiontype/iu);
 
   const storageControls = [
     {
@@ -622,74 +775,83 @@ test('item presentation search excludes plot-bound actions and lifecycle IDs wit
   ];
   for (const {itemId, actionType, metadata} of storageControls) {
     const projected = projection(itemId);
-    assert.equal(projected.compact[4], 2, `${itemId}: retained A${actionType} count`);
-    for (const profile of Object.values(projected.detail.profiles)) {
-      assert.deepEqual(
-        profile.actions.flatMap(action => action.sourceActions.map(row => row.actionType)),
-        [actionType],
-        itemId,
-      );
+    let projectedCount = 0;
+    for (const [profileName, profile] of Object.entries(projected.detail.profiles)) {
+      const sourceActions = exactSourceActions(itemId, profileName);
+      assert.deepEqual(sourceActions.flatMap(action => action.actionTypes), [actionType], itemId);
+      assert.deepEqual(profile.actions.map(action => action.label), sourceActions.map(action => action.label), itemId);
+      const terms = profileTerms(projected, profileName);
+      assertSearchContainsLabels(terms, sourceActions.map(action => action.label), `${itemId}/${profileName}`);
+      assert.doesNotMatch(terms, metadata, itemId);
+      projectedCount += profile.actionCount;
     }
-    assert.match(projected.search.slice(2).join(' '), metadata, itemId);
+    assert.equal(projected.compact[4], projectedCount, `${itemId}: retained A${actionType} count`);
   }
 
-  const volo = projection('bg3:item:rt:000cfc9f-b973-48e7-a5c8-f2992a47a943:stats:REVOX1ZvbG9PcGVyYXRpb25fRXJzYXR6RXll');
-  assert.equal(volo.detail.profiles.standard.lifecycle[0].bg3Id, 'CAMP_Volo_ErsatzEye');
-  assert.deepEqual(volo.detail.profiles.standard.lifecycle[0].sourceRuleIds, ['CAMP_Volo_ErsatzEye']);
-  const gale = projection('bg3:item:rt:7eaa1331-877c-40d7-9811-8238aee09f68:stats:V1lSX01vbmtBbXVsZXRfQW11bGV0X0FmdGVyQ29tYmF0');
-  assert.deepEqual(
-    gale.detail.profiles.standard.lifecycle.map(entry => entry.bg3Id),
-    ['Shout_MAG_Monk_Restore_Ki', 'Target_WYR_SentientAmulet_AmuletAfterCombat'],
-  );
-
-  for (const [itemIndex, search] of searchByIndex) {
-    for (const terms of [search[2], search[3]]) {
-      if (terms == null) continue;
-      assert.doesNotMatch(terms, /(?:^|\s)(?:ori|camp)_[^\s]+(?:\s|$)/i, `search row ${itemIndex}`);
-    }
-  }
-
-  let lifecycleIdentifiersChecked = 0;
-  for (const entry of manifest.storage.detailFiles) {
-    const shard = readJson(resolvedArtifact(presentationBase, entry.path)).value;
-    for (const detail of shard.items) {
-      const compact = compactById.get(detail.itemId);
-      const search = searchByIndex.get(compact.itemIndex);
-      for (const [profileName, profile] of Object.entries(detail.profiles)) {
-        const tokens = new Set(String(search[profileName === 'standard' ? 2 : 3] || '').split(' '));
-        for (const lifecycle of profile.lifecycle) {
-          const identifiers = [
-            lifecycle.bg3Id,
-            ...lifecycle.grantedActionIds,
-            ...lifecycle.grantedInterruptIds,
-            ...lifecycle.sourceRuleIds,
-          ].filter(Boolean);
-          for (const identifier of identifiers) {
-            lifecycleIdentifiersChecked++;
-            assert.equal(
-              tokens.has(identifier.toLocaleLowerCase('ru')),
-              false,
-              `${detail.itemId}/${profileName}: ${identifier}`,
-            );
+  const sourceManifest = readJson(path.join(sourceBase, 'manifest.json')).value;
+  const controlCensus = new Map([[18, []], [20, []]]);
+  for (const sourceEntry of sourceManifest.files.items) {
+    const sourceShard = readJson(path.join(repo, ...sourceEntry.path.split('/'))).value;
+    for (const item of sourceShard.items) {
+      for (const profileName of item.source.profiles) {
+        const profileItem = profileName === 'honour' && item.source.profiles.includes('standard')
+          ? item.source.honourOverlay.item
+          : item;
+        for (const action of profileItem.mechanics.actions) {
+          const actionTypes = exactSourceActionTypes(action);
+          for (const actionType of controlCensus.keys()) {
+            if (actionTypes.includes(actionType)) {
+              controlCensus.get(actionType).push({itemId: item.id, profileName, label: action.label});
+            }
           }
         }
       }
     }
   }
-  assert.ok(lifecycleIdentifiersChecked > 0);
+  assert.deepEqual(
+    [...controlCensus].map(([actionType, entries]) => [actionType, entries.length]),
+    [[18, 4], [20, 2]],
+  );
+  for (const [actionType, entries] of controlCensus) {
+    for (const {itemId, profileName, label} of entries) {
+      const projected = projection(itemId);
+      assert.ok(
+        projected.detail.profiles[profileName].actions.some(action => action.label === label),
+        `${itemId}/${profileName}: retained A${actionType}`,
+      );
+    }
+  }
+
+  for (const itemId of [
+    'bg3:item:rt:000cfc9f-b973-48e7-a5c8-f2992a47a943:stats:REVOX1ZvbG9PcGVyYXRpb25fRXJzYXR6RXll',
+    'bg3:item:rt:7eaa1331-877c-40d7-9811-8238aee09f68:stats:V1lSX01vbmtBbXVsZXRfQW11bGV0X0FmdGVyQ29tYmF0',
+  ]) {
+    const sourceLifecycle = exactSourceProfileItem(itemId).mechanics.lifecyclePrograms;
+    assert.ok(sourceLifecycle.length > 0, `${itemId}: source lifecycle evidence`);
+    assert.match(JSON.stringify(sourceLifecycle), /\S+_\S+/, `${itemId}: source carries technical identities`);
+    const projected = projection(itemId);
+    assert.equal(projected.detail.profiles.standard.lifecycle.length, sourceLifecycle.length, itemId);
+    for (const lifecycle of projected.detail.profiles.standard.lifecycle) {
+      assertExactKeys(lifecycle, ['kind', 'gate'], `${itemId}: public lifecycle`);
+      assert.equal(lifecycleKindLabels.has(lifecycle.kind), true, itemId);
+      assert.equal(lifecycleGateLabels.has(lifecycle.gate), true, itemId);
+    }
+    assertPublicProfileProjection(projected.search.slice(2), `${itemId}: lifecycle search`);
+  }
 
   const ordinary = projection('bg3:item:rt:3c95f8e7-1f68-406e-bbdd-13b6cbfd0c65:stats:T0JKX1Njcm9sbA');
-  assert.equal(ordinary.compact[4], 2);
-  for (const profile of Object.values(ordinary.detail.profiles)) {
-    assert.equal(profile.actionCount, 1);
-    assert.equal(profile.actions[0].label, 'Прочитать: Первый набросок: сюжет');
-    assert.deepEqual(profile.actions[0].sourceActions.map(row => row.actionType), [11]);
+  let ordinaryActionCount = 0;
+  for (const [profileName, profile] of Object.entries(ordinary.detail.profiles)) {
+    const sourceActions = exactSourceActions(ordinary.compact[0], profileName);
+    assert.deepEqual(sourceActions.flatMap(action => action.actionTypes), [11]);
+    assert.deepEqual(profile.actions.map(action => action.label), sourceActions.map(action => action.label));
+    assertSearchContainsLabels(profileTerms(ordinary, profileName), sourceActions.map(action => action.label), `${ordinary.compact[0]}/${profileName}`);
+    ordinaryActionCount += profile.actionCount;
   }
+  assert.equal(ordinary.compact[4], ordinaryActionCount);
   const ordinaryTerms = ordinary.search.slice(2).join(' ');
-  for (const expected of [/actiontype/i, /(?:^|\s)11(?:\s|$)/, /bg3read/i, /сюжет/i]) {
-    assert.match(ordinaryTerms, expected);
-  }
-  assert.doesNotMatch(ordinaryTerms, /low_bibliophile_manuscriptnotes03/i);
+  assert.match(ordinaryTerms, /сюжет/iu);
+  assert.doesNotMatch(ordinaryTerms, /actiontype|(?:^|\s)11(?:\s|$)|bg3read|low_bibliophile_manuscriptnotes03/iu);
 
   const neutralMechanics = [
     {
@@ -699,44 +861,50 @@ test('item presentation search excludes plot-bound actions and lifecycle IDs wit
         'Изучить заклинание: Свиток «Видение невидимого»',
       ],
       actionTypes: [12, 33],
-      useful: [/bg3learnspell/i, /usespell/i, /видение/i],
-      raw: /shout_seeinvisibility/i,
+      useful: [/видение/iu, /невидимого/iu],
+      raw: /bg3learnspell|usespell|shout_seeinvisibility|actiontype/iu,
     },
     {
       itemId: 'bg3:item:rt:ae9a9360-7cbe-4f72-8bea-1dd5747c180d:stats:QUxDSF9Tb2x1dGlvbl9Qb3Rpb25fUmVtZWR5',
       labels: ['Использовать: Целебное зелье'],
       actionTypes: [7],
-      useful: [/consume/i, /potion/i, /целебное/i],
-      raw: /alch_potion_remedy/i,
+      useful: [/целебное/iu, /зелье/iu],
+      raw: /consume|potion|alch_potion_remedy|actiontype/iu,
     },
     {
       itemId: 'bg3:item:rt:8037a20b-a2bf-41c9-b509-bb6b455c778c:stats:T0JKX0NyeXN0YWxfVmlyaWRpYW4',
       labels: ['Объединить: Виридиновый кристалл'],
       actionTypes: [23],
-      useful: [/bg3recipe/i, /combine/i, /кристалл/i],
-      raw: /alch_extract_viridiancrystal/i,
+      useful: [/виридиновый/iu, /кристалл/iu],
+      raw: /bg3recipe|combine|alch_extract_viridiancrystal|actiontype/iu,
     },
     {
       itemId: 'bg3:item:rt:db5ca6a8-89cb-44d8-91d3-b22afbda8a6c:stats:Qk9PS19BbGNoZW15X1BvdGlvbkFuaW1hbFNwZWFraW5n',
       labels: ['Прочитать: Зелье общения с животными'],
       actionTypes: [11, 30],
-      useful: [/bg3read/i, /book/i, /recipe/i, /животными/i],
-      raw: /alch_potion_animalspeaking_acorntruffle|book_alchemy_potionanimalspeaking/i,
+      useful: [/общения/iu, /животными/iu],
+      raw: /bg3read|book|recipe|alch_potion_animalspeaking_acorntruffle|book_alchemy_potionanimalspeaking|actiontype/iu,
     },
   ];
   for (const {itemId, labels, actionTypes, useful, raw} of neutralMechanics) {
     const projected = projection(itemId);
-    for (const profile of Object.values(projected.detail.profiles)) {
-      assert.deepEqual(profile.actions.map(action => action.label), labels, itemId);
+    let projectedActionCount = 0;
+    for (const [profileName, profile] of Object.entries(projected.detail.profiles)) {
+      const sourceActions = exactSourceActions(itemId, profileName);
+      assert.deepEqual(sourceActions.map(action => action.label), labels, `${itemId}/${profileName}: source labels`);
       assert.deepEqual(
-        profile.actions.flatMap(action => action.sourceActions.map(row => row.actionType)),
+        sourceActions.flatMap(action => action.actionTypes),
         actionTypes,
-        itemId,
+        `${itemId}/${profileName}: source action types`,
       );
+      assert.deepEqual(profile.actions.map(action => action.label), labels, `${itemId}/${profileName}: public labels`);
+      const terms = profileTerms(projected, profileName);
+      assertSearchContainsLabels(terms, labels, `${itemId}/${profileName}: semantic search`);
+      for (const expected of useful) assert.match(terms, expected, itemId);
+      assert.doesNotMatch(terms, raw, itemId);
+      projectedActionCount += profile.actionCount;
     }
-    const terms = projected.search.slice(2).join(' ');
-    for (const expected of useful) assert.match(terms, expected, itemId);
-    assert.doesNotMatch(terms, raw, itemId);
+    assert.equal(projected.compact[4], projectedActionCount, `${itemId}: compact neutral action count`);
   }
 });
 

@@ -398,7 +398,7 @@ function loadEngine(storage = new Map()) {
   return api;
 }
 
-test('active v8 executes every standard typed readBook/toggleLight root action causally', async t => {
+test('active v10 executes every standard typed readBook/toggleLight root action causally', async t => {
   assert.equal(cases.length, 1_467);
   assert.deepEqual(plain(Object.fromEntries(Map.groupBy(cases, row => row.opcode).entries()
     .map(([opcode, rows]) => [opcode, rows.length]))), {readBook: 1_218, toggleLight: 249});

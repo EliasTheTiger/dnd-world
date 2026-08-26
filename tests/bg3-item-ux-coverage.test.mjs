@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import {fileURLToPath} from 'node:url';
-import vm from 'node:vm';
 
 import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 
@@ -11,7 +10,7 @@ import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
  * User-facing coverage for the production item catalogue.
  *
  * The immutable source census belongs here only where it identifies the exact
- * v8 input that the UI has to interpret.  Runtime-readiness totals are derived
+ * v10 input that the UI has to interpret. Runtime-readiness totals are derived
  * from the contracts instead of being pinned: making another opcode family
  * executable must improve the census without requiring a test rewrite.
  */
@@ -85,17 +84,6 @@ function sourceSection(startMarker, endMarker) {
   return indexHtml.slice(start, end);
 }
 
-function loadSourceAuditOverrides() {
-  const source = sourceSection(
-    'const BG3_ITEM_SOURCE_AUDIT_OVERRIDES=',
-    'function bg3ItemSourceAuditOverride(',
-  );
-  const context = {};
-  vm.runInNewContext(`${source}\nglobalThis.result=BG3_ITEM_SOURCE_AUDIT_OVERRIDES;`, context,
-    {timeout: 1_000});
-  return JSON.parse(JSON.stringify(context.result));
-}
-
 function classificationAllowLists(source) {
   const found = [];
   const pattern = /\[([^\]]*)\]\.includes\(([^)]*classification[^)]*)\)/g;
@@ -159,29 +147,51 @@ function actionContract(action) {
 }
 
 const items = loadManifestRows('items', 'items');
-const sourceAuditOverrides = loadSourceAuditOverrides();
 const PENDULUM_OF_MALAGARD_ID =
   'bg3:item:rt:4c1143b7-1f07-465a-90a0-64df5c00717d:stats:TE9XX1BlbmR1bHVtT2ZNYWxhZ2FyZA';
 
-test('каждый пользовательский магический предмет имеет source-backed описание или точный путь к подробной проекции', () => {
+function exactSourceInertMagic(item, mechanics) {
+  const coverage = mechanics?.engineCoverage;
+  const counts = coverage?.counts || {};
+  return item.id === PENDULUM_OF_MALAGARD_ID
+    && item.source?.classification === 'playable'
+    && item.source?.category === 'equipment.armor-accessory'
+    && mechanics?.profile?.flags?.portable === true
+    && coverage?.descriptionStatus === 'unresolved-handle'
+    && coverage?.effectStatus === 'source-inert'
+    && coverage?.runtimeState === 'inert'
+    && rows(coverage?.blockerCodes).length === 0
+    && rows(coverage?.characteristicIssues).includes('description-handle-unresolved')
+    && rows(mechanics?.effects).length === 0
+    && rows(mechanics?.actions).length === 0
+    && rows(mechanics?.interactions).length === 0
+    && rows(mechanics?.lifecyclePrograms).length === 0
+    && exactActiveRuleReferences(mechanics).length === 0
+    && counts.readyActions === 0
+    && counts.blockedActions === 0
+    && counts.readyLifecycle === 0
+    && counts.blockedLifecycle === 0
+    && counts.genericInteractions === 0
+    && counts.directEffects === 0
+    && counts.readyRootPrograms === 1
+    && counts.blockedRootPrograms === 0
+    && counts.onDestroyPrograms === 1
+    && rows(coverage?.destructionOperations).length === 1
+    && coverage.destructionOperations[0] === 'playSoundOnDestroy'
+    && /отдельный игровой эффект источником не задан/i.test(String(item.props || ''));
+}
+
+test('каждый пользовательский магический предмет имеет описание, подробную проекцию или точный source-inert контракт без решения мастера', () => {
   const gaps = [];
-  const acceptedOverrides = new Set();
+  const sourceInert = new Set();
   for (const item of items) {
     if (['technical', 'world-object'].includes(item.source?.classification)) continue;
     for (const profile of rows(item.source?.profiles)) {
       const mechanics = effectiveMechanics(item, profile);
       if (mechanics?.profile?.kind !== 'magic') continue;
       if (!exactDescription(item) && !hasDetailedProjectionEvidence(mechanics)) {
-        const override = sourceAuditOverrides[item.id];
-        if (override?.status === 'source-incomplete'
-          && override.policy === 'fail-closed'
-          && override.inventory === false
-          && override.actions === false
-          && override.mode === 'manual'
-          && typeof override.reason === 'string' && override.reason.trim().length >= 80
-          && typeof override.manualInstruction === 'string'
-          && override.manualInstruction.trim().length >= 40) {
-          acceptedOverrides.add(item.id);
+        if (exactSourceInertMagic(item, mechanics)) {
+          sourceInert.add(item.id);
           continue;
         }
         gaps.push({itemId: item.id, name: item.n, profile, classification: item.source.classification});
@@ -190,45 +200,22 @@ test('каждый пользовательский магический пре�
   }
   assert.deepEqual(gaps, [],
     `magic records without exact description or projectable rules:\n${JSON.stringify(gaps, null, 2)}`);
-
-  const overrideIds = Object.keys(sourceAuditOverrides).sort();
-  assert.ok(overrideIds.every(itemId => itemId === PENDULUM_OF_MALAGARD_ID),
-    'source-incomplete mitigation must name the exact audited item, never a category or wildcard');
-  assert.deepEqual(overrideIds, [...acceptedOverrides].sort(),
-    'remove stale overrides as soon as source-backed description or projectable rules exist');
-
-  if (acceptedOverrides.size) {
-    const actionSource = sourceSection('function itemActions(', 'function itemHintHTML(');
-    const fallbackSource = sourceSection(
-      'function bg3ItemSourceFallbackHTML(',
-      'function itemCardHTML(',
-    );
-    const portableSource = sourceSection(
-      'function itemWorkspacePortable(',
-      'function itemWorkspaceHeroToolbarHTML(',
-    );
-    const grantSource = sourceSection(
-      'async function itemWorkspaceGrantPlanFor(',
-      'function itemWorkspaceFillContainerPreview(',
-    );
-    assert.match(actionSource, /bg3ItemSourceAuditAllows\(it,'actions'\)/,
-      'source-incomplete item actions must fail closed before buttons are advertised');
-    assert.match(fallbackSource, /bg3ItemSourceAuditHTML\(it\)/,
-      'the item card must explain the exact source gap and manual mode');
-    assert.match(portableSource, /bg3ItemSourceAuditAllows\(row,'inventory'\)/,
-      'source-incomplete item must not be presented as inventory-safe');
-    assert.match(grantSource, /sourceAudit\.inventory===false/,
-      'the hydrated grant preflight must independently reject the override');
-  }
+  assert.deepEqual([...sourceInert], [PENDULUM_OF_MALAGARD_ID],
+    'the one unresolved description handle is represented as exact inert evidence, not a wildcard');
+  assert.equal(indexHtml.includes(PENDULUM_OF_MALAGARD_ID), false,
+    'the exact item must not be singled out by a runtime deny-list');
+  assert.doesNotMatch(indexHtml,
+    /manual-mechanics-review-required|'manual-review'\s*:\s*'требуется решение мастера'/iu,
+    'public item coverage has no GM-review fallback label');
 });
 
-test('v8 unclassified census отделяет technical от review и review сам по себе не разрешает выдачу', () => {
+test('v10 unclassified census отделяет technical от review и review сам по себе не разрешает выдачу', () => {
   const unclassified = items.filter(item => item.source?.category === 'unclassified');
   const census = Object.fromEntries(['needs-review', 'technical'].map(classification => [
     classification,
     unclassified.filter(item => item.source.classification === classification).length,
   ]));
-  assert.equal(unclassified.length, 134, 'pinned v8 unclassified source census');
+  assert.equal(unclassified.length, 134, 'pinned v10 unclassified source census');
   assert.deepEqual(census, {'needs-review': 67, technical: 67},
     'template-only review rows and technical assets stay distinguishable');
   assert.ok(unclassified.every(item =>

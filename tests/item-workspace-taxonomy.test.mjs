@@ -195,7 +195,7 @@ test('raw BG3 unclassified category is preserved and split into honest workspace
   assert.deepEqual([review.sourceCategory, review.category], ['unclassified', 'world-object.needs-review']);
   assert.deepEqual([classified.sourceCategory, classified.category], ['consumable.potion', 'consumable.potion']);
   assert.equal(api.categoryLabel(technical.category), 'Служебные записи');
-  assert.equal(api.categoryLabel(review.category), 'Объекты мира — требуется проверка');
+  assert.equal(api.categoryLabel(review.category), 'Объекты мира и окружения');
   assert.equal(api.portable(review), false, 'unclassified needs-review is not inventory evidence');
   const reviewedInventory = Object.assign({}, review, {
     sourceCategory: 'equipment.armor-accessory',

@@ -9,7 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 
 /*
- * Immutable active-v8 source certificate for the two exact Scroll of Dethrone
+ * Immutable active-v10 source certificate for the two exact Scroll of Dethrone
  * cast rows.  These tests deliberately grant no runtime authority.  The
  * The private causal boundary below drives the exact source, scroll-check,
  * player-entered roll, single resource commit, consequence and rollback proofs.
@@ -21,9 +21,9 @@ const {current, manifest, manifestPath, catalogRoot} = selected;
 const PROFILES = Object.freeze(['standard', 'honour']);
 
 const EXPECTED = Object.freeze({
-  version: 'bg3-24532579-v8',
-  currentSha256: '3a5cd1eb206f45b1fc153d685d50aa0c5e17a1bcb22bd3458786c4a34bdaec0c',
-  manifestSha256: '8db8b170c1d03a75876a7c9111b33a00fd89976cc69dbd85f31762eb419c06f0',
+  version: 'bg3-24532579-v10',
+  currentSha256: '03dd5a4934cbce33453286a9ba14a02e687d03d21c9f894457f6a47a57f8c899',
+  manifestSha256: '0c9f9ba28daf3f4d2e2466345ea412352e16b7a82b0b093f3ed9a1d579b5dc1b',
   carrierRows: 2,
   carrierItems: 1,
   aggregateBytes: 997,
@@ -31,18 +31,18 @@ const EXPECTED = Object.freeze({
 });
 
 const ARTIFACT_SHA256 = Object.freeze({
-  'items/13-0000.json': '093db5d72036cfe99fb5114508a48879845eee73196ba85c2028b56b83636533',
-  'root-template-programs/13-0000.json': 'bdb7f246f288f0032cebacdd8ecf671e8e857985cef7de89f8db999a0e5c88ce',
-  'rules/spells/fd.json': 'f8c1c226ee94b4048a2f251c193fc7aec07740424c5b5e6ad9c345c934644277',
-  'item-rule-links/13.json': 'ba1137798d6e2d4bfecce9c06c9eb71fa94bc0173c952fe25c0f7d167b2eba1a',
-  'rule-program-index.json': 'e36689137c308278bbf0c75f0ae4a3f8b30051d8e8ead7fa4b7ba202d483097a',
-  'source/item-stats/41.json': '117ab9491f419ff98e0cf2e941dac68ca0dfc41cb50ee5c8749ba26aa4de80eb',
-  'source/root-templates/fb.json': '4274f5a48fa4f0ebd7805526a5a1d2c0cab74ceb5a99acfd66c88e3f38c18e75',
+  'items/13-0002.json': '736af7bb4e8c4e09f50fa02204d638b3c22276770db77c124e68dc51c98a6de4',
+  'root-template-programs/13-0000.json': '394f5292bce5f324aec2e074147ff6917f7f959739df73f201c319983bc8ec99',
+  'rules/spells/fd.json': 'd24d54170dab18c01c8a1be33bc91a6ac6f6e1d7d80996c7071cba1fb685bd3c',
+  'item-rule-links/13.json': '05ba0c16101d9ef4b48789f3dffca7090c5867ce187887f7df779641c08e40c2',
+  'rule-program-index.json': '4578454234e09746d5259698c1c6bfea61d40a5b16f8a009dc284e91e0c82da1',
+  'source/item-stats/41.json': 'e79c0205ab8d696a99e5ea641685bcc80ae9000081ecd8c6775f0ed2c065022f',
+  'source/root-templates/fb.json': 'f6a67c960ce26509ca1c410368c7b2c1e00915758a94f6e29b1c9de092b7a60a',
 });
 
 const DETHRONE = Object.freeze({
   itemId: 'bg3:item:rt:b2e1168a-021d-4a81-a041-6d2e1421a1fb:stats:VU5JX0xPV19EZXRocm9uZVNjcm9sbA',
-  itemArtifact: 'items/13-0000.json',
+  itemArtifact: 'items/13-0002.json',
   statsId: 'UNI_LOW_DethroneScroll',
   statsArtifact: 'source/item-stats/41.json',
   rootTemplateUuid: 'b2e1168a-021d-4a81-a041-6d2e1421a1fb',
@@ -264,7 +264,7 @@ function checkCarrier(row) {
   return {ok: failures.length === 0, failures};
 }
 
-test('active v8 pointer, manifest and exact Dethrone source artifacts retain their frozen SHA-256 identities', () => {
+test('active v10 pointer, manifest and exact Dethrone source artifacts retain their frozen SHA-256 identities', () => {
   assert.equal(current.catalogVersion, EXPECTED.version);
   assert.equal(current.manifestSha256, EXPECTED.manifestSha256);
   assert.equal(manifest.catalogVersion, EXPECTED.version);
@@ -1021,7 +1021,7 @@ test('private Dethrone runtime: distance, raw, known-use, A33 and sibling routes
   assert.equal(await sibling.engine.bg3ItemProgramOpen(sibling.entry.id, sibling.caster.id,
     world.useId), false, 'a sibling carrier cannot borrow a known Dethrone use id');
   assert.equal(sibling.engine.bg3ItemDethroneAudit().reason,
-    'private-item-dethrone-exact-v8-carrier-required');
+    'private-item-dethrone-exact-v10-carrier-required');
   assert.equal(await sibling.engine.bg3ItemProgramOpen(sibling.entry.id, sibling.caster.id,
     ARTISTRY_SCROLL.useId), false, 'the exceptional sibling A12 remains outside private authority');
   assert.deepEqual(plain({caster: sibling.caster, target: sibling.target,

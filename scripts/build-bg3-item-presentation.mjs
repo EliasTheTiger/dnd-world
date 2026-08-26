@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
@@ -11,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..');
-const CATALOG_VERSION = 'bg3-24532579-v8';
+const CATALOG_VERSION = 'bg3-24532579-v10';
 const SOURCE_ROOT = join(REPO_ROOT, 'data', 'bg3', CATALOG_VERSION);
 const OUTPUT_ROOT = join(REPO_ROOT, 'data', 'bg3', 'ui', `${CATALOG_VERSION}-item-presentation`);
 const OUTPUT_MANIFEST = join(OUTPUT_ROOT, 'manifest.json');
@@ -27,51 +28,105 @@ const PROFILE_ORDER = ['standard', 'honour'];
 const WORLD_BOUND_ACTION_TYPES = new Set([1, 2, 3, 4, 9, 10, 14, 15, 16, 17, 22, 24, 26, 27, 35]);
 const CHECK_ONLY = process.argv.includes('--check');
 
-/* Exact enum identifiers from Norbyte/bg3se
-   BG3Extender/GameDefinitions/Enumerations/Stats.inl. They are display/search
-   labels only and never authorize execution. Values 21, 25 and 29 are absent
-   from the source enum. */
-const ACTION_DATA_TYPE_NAMES = Object.freeze({
-  0: 'Unknown',
-  1: 'OpenClose',
-  2: 'Destroy',
-  3: 'Teleport',
-  4: 'CreateSurface',
-  5: 'DestroyParameters',
-  6: 'Equip',
-  7: 'Consume',
-  8: 'StoryUse',
-  9: 'Door',
-  10: 'CreatePuddle',
-  11: 'Book',
-  12: 'UseSpell',
-  13: 'SpellBook',
-  14: 'Sit',
-  15: 'Lie',
-  16: 'Insert',
-  17: 'Stand',
-  18: 'Lockpick',
-  19: 'StoryUseInInventory',
-  20: 'DisarmTrap',
-  22: 'ShowStoryElementUI',
-  23: 'Combine',
-  24: 'Ladder',
-  26: 'PlaySound',
-  27: 'SpawnCharacter',
-  28: 'Constrain',
-  30: 'Recipe',
-  31: 'Unknown31',
-  32: 'Throw',
-  33: 'LearnSpell',
-  34: 'Unknown34',
-  35: 'Unknown35',
+/* Exact numeric members from Norbyte/bg3se
+   BG3Extender/GameDefinitions/Enumerations/Stats.inl. Values 21, 25 and 29
+   are absent from the source enum. They validate the pinned source only and
+   are never copied into the display/search projection. */
+const ACTION_DATA_TYPES = new Set([
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+  20, 22, 23, 24, 26, 27, 28, 30, 31, 32, 33, 34, 35,
+]);
+
+const INTERNAL_SEARCH_TOKENS = new Set([
+  'actiontype',
+  'bg3',
+  'boosts',
+  'display-only-localization',
+  'empty',
+  'explicit',
+  'handler',
+  'manual',
+  'mixed',
+  'object',
+  'onusepeaceactions',
+  'program',
+  'self',
+  'source',
+  'sourcefield',
+  'structured',
+  'target',
+  'trigger',
+  'typed',
+  'unknown',
+]);
+
+const PROFILE_KIND_LABELS = Object.freeze({
+  ammo: 'боеприпас',
+  armor: 'доспех',
+  container: 'контейнер',
+  food: 'еда',
+  instrument: 'музыкальный инструмент',
+  light: 'источник света',
+  lore: 'текст',
+  magic: 'магический предмет',
+  material: 'алхимический материал',
+  misc: 'предмет',
+  poison: 'яд',
+  potion: 'зелье',
+  scroll: 'свиток',
+  shield: 'щит',
+  trap: 'ловушка',
+  water: 'напиток',
+  weapon: 'оружие',
 });
 
-/* Raw BG3 identifiers remain available in the immutable source catalog, but
-   only semantic action attributes belong in user-facing search terms. */
-const ACTION_SEMANTIC_ATTRIBUTE_TERM_KEYS = new Set([
-  'SurfaceType',
-]);
+const ARMOR_KIND_LABELS = Object.freeze({
+  heavy: 'тяжёлый доспех',
+  light: 'лёгкий доспех',
+  medium: 'средний доспех',
+  shield: 'щит',
+});
+
+const PROFILE_FLAG_LABELS = Object.freeze({
+  componentPouch: 'мешочек компонентов',
+  consumable: 'расходуемый предмет',
+  focus: 'магическая фокусировка',
+  magical: 'магический предмет',
+  metal: 'металлический предмет',
+  portable: 'переносимый предмет',
+  proficiencyExempt: 'не требует владения',
+});
+
+const LIFECYCLE_KIND_LABELS = Object.freeze({
+  passive: 'пассивное свойство',
+  spell: 'особое действие',
+  status: 'состояние',
+});
+
+const LIFECYCLE_GATE_LABELS = Object.freeze({
+  equipped: 'при экипировке',
+  'equipped-main-hand': 'в основной руке',
+  'equipped-off-hand': 'во вспомогательной руке',
+  'granted-action': 'при особом действии предмета',
+  inventory: 'пока находится в инвентаре',
+  'on-hit': 'при попадании',
+});
+
+const ABILITY_LABELS = Object.freeze({
+  cha: 'Харизма',
+  con: 'Телосложение',
+  dex: 'Ловкость',
+  int: 'Интеллект',
+  str: 'Сила',
+  wis: 'Мудрость',
+});
+
+const EFFECT_MODE_LABELS = Object.freeze({
+  add: 'модификатор',
+  adv: 'преимущество',
+  dis: 'помеха',
+  min: 'минимальное значение',
+});
 
 function sha256(buffer) {
   return createHash('sha256').update(buffer).digest('hex');
@@ -108,6 +163,8 @@ function stableStrings(values) {
 
 function searchNormalize(value) {
   return String(value == null ? '' : value)
+    .replace(/<br\s*\/?\s*>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
     .trim()
     .toLocaleLowerCase('ru')
     .replace(/ё/g, 'е')
@@ -165,21 +222,22 @@ function addTerm(terms, value) {
   else if (typeof value === 'number' && Number.isFinite(value)) terms.add(String(value));
 }
 
-function addTerms(terms, values) {
-  for (const value of Array.isArray(values) ? values : []) addTerm(terms, value);
-}
-
-function userSearchTerms(values, lifecycle) {
-  const lifecycleIds = new Set(lifecycle.flatMap(entry => [
-    entry.bg3Id,
-    ...entry.grantedActionIds,
-    ...entry.grantedInterruptIds,
-    ...entry.sourceRuleIds,
-  ]).flatMap(value => searchNormalize(value).split(' ')).filter(Boolean));
+function userSearchTerms(values) {
   return stableStrings(values.flatMap(value => searchNormalize(value).split(' '))
     .filter(value => value.length > 0
-      && !lifecycleIds.has(value)
-      && !value.includes('_')));
+      && !value.includes('_')
+      && !INTERNAL_SEARCH_TOKENS.has(value)
+      && !/^bg3(?:[-:]|$)/i.test(value)
+      && !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value)));
+}
+
+function publicDisplayLabel(value, fallback, field) {
+  const exact = exactNullableString(value ?? null, field);
+  if (!exact || !exact.trim()) return fallback;
+  const technical = /(?:^|\s)\S*_\S*(?:\s|$)|[0-9a-f]{8}-[0-9a-f-]{27,}|\b(?:BG3|UnlockSpell|sourceField|programId|spellId|interruptId|manual|structured|typed|mixed|object|self|actiontype|boosts)\b|display-only-localization/i;
+  if (!technical.test(exact)) return exact;
+  const prefix = exact.split(':', 1)[0].trim();
+  return prefix && !technical.test(prefix) ? prefix : fallback;
 }
 
 function resolvedActionSpecial(action) {
@@ -211,98 +269,59 @@ function isPlotBoundStorageAction(action) {
     );
 }
 
-function projectSourceAction(row, field, terms, observedActionTypes, indexActionType = true) {
+function validateSourceAction(row, field) {
   assert(row && typeof row === 'object' && !Array.isArray(row), `${field} must be an object.`);
   const actionType = Number(row.actionType);
   assert(Number.isInteger(actionType) && actionType >= 0 && actionType <= 255, `${field}.actionType is invalid.`);
-  assert(Object.hasOwn(ACTION_DATA_TYPE_NAMES, actionType), `${field}.actionType ${actionType} has no exact enum label.`);
+  assert(ACTION_DATA_TYPES.has(actionType), `${field}.actionType ${actionType} is absent from the exact source enum.`);
   assert(typeof row.trigger === 'string' && row.trigger.length > 0, `${field}.trigger is invalid.`);
-  observedActionTypes.add(actionType);
-  if (indexActionType) {
-    addTerm(terms, ACTION_DATA_TYPE_NAMES[actionType]);
-    addTerm(terms, `ActionType ${actionType}`);
-  }
-  addTerm(terms, row.trigger);
   const attributes = row.attributes == null ? {} : row.attributes;
   assert(attributes && typeof attributes === 'object' && !Array.isArray(attributes), `${field}.attributes is invalid.`);
-  for (const key of ACTION_SEMANTIC_ATTRIBUTE_TERM_KEYS) addTerm(terms, attributes[key]);
-  return { actionType, trigger: row.trigger };
 }
 
-function projectAction(action, field, terms, observedActionTypes) {
+function projectAction(action, field, terms) {
   assert(action && typeof action === 'object' && !Array.isArray(action), `${field} must be an object.`);
-  const label = exactNullableString(action.label ?? null, `${field}.label`);
-  const labelSource = exactNullableString(action.labelSource ?? null, `${field}.labelSource`);
+  const label = publicDisplayLabel(action.label, 'Действие предмета', `${field}.label`);
+  exactNullableString(action.labelSource ?? null, `${field}.labelSource`);
   addTerm(terms, label);
-  addTerm(terms, labelSource);
-  addTerm(terms, action.handler);
-  addTerm(terms, action.target);
-  addTerm(terms, action.cost);
-  addTerm(terms, action.consume?.kind);
-  addTerm(terms, action.program?.mode);
-  addTerm(terms, action.special?.kind);
   const sourceAction = action.program?.sourceAction;
-  const special = resolvedActionSpecial(action);
-  const indexActionType = !(Number(sourceAction?.primary?.actionType) === 8 && special.kind === 'bg3LightToggle');
-  const sourceRows = [];
-  if (sourceAction?.primary) {
-    sourceRows.push(projectSourceAction(
-      sourceAction.primary,
-      `${field}.program.sourceAction.primary`,
-      terms,
-      observedActionTypes,
-      indexActionType,
-    ));
-  }
+  if (sourceAction?.primary) validateSourceAction(sourceAction.primary, `${field}.program.sourceAction.primary`);
   for (const [index, alias] of exactArray(sourceAction?.aliases || [], `${field}.program.sourceAction.aliases`).entries()) {
-    sourceRows.push(projectSourceAction(
-      alias,
-      `${field}.program.sourceAction.aliases[${index}]`,
-      terms,
-      observedActionTypes,
-      indexActionType,
-    ));
+    validateSourceAction(alias, `${field}.program.sourceAction.aliases[${index}]`);
   }
-  return {
-    label,
-    labelSource,
-    handler: optionalString(action.handler),
-    target: optionalString(action.target),
-    cost: optionalString(action.cost),
-    consume: action.consume && typeof action.consume === 'object'
-      ? {
-          kind: optionalString(action.consume.kind),
-          amount: Number.isFinite(Number(action.consume.amount)) ? Number(action.consume.amount) : null,
-        }
-      : null,
-    mode: optionalString(action.program?.mode),
-    sourceActions: sourceRows,
-  };
+  return { label };
 }
 
 function projectInteraction(interaction, field, terms) {
   assert(interaction && typeof interaction === 'object' && !Array.isArray(interaction), `${field} must be an object.`);
-  const label = exactNullableString(interaction.label ?? null, `${field}.label`);
+  const label = publicDisplayLabel(interaction.label, 'Взаимодействие с предметом', `${field}.label`);
   addTerm(terms, label);
-  addTerm(terms, interaction.handler);
-  addTerm(terms, interaction.cost);
-  addTerm(terms, interaction.mode);
-  return {
-    label,
-    handler: optionalString(interaction.handler),
-    cost: optionalString(interaction.cost),
-    mode: optionalString(interaction.mode),
-  };
+  return { label };
+}
+
+function effectStatLabel(stat, field) {
+  assert(typeof stat === 'string' && stat.length > 0, `${field}.stat is invalid.`);
+  if (stat === 'ac') return 'класс доспеха';
+  if (stat === 'speed') return 'скорость';
+  if (stat === 'save.all') return 'все спасброски';
+  const ability = /^(?:ab|save)\.(str|dex|con|int|wis|cha)$/.exec(stat);
+  if (ability) return `${stat.startsWith('save.') ? 'спасбросок' : 'характеристика'} ${ABILITY_LABELS[ability[1]]}`;
+  const skill = /^skill\.(.+)$/u.exec(stat);
+  if (skill) return `навык ${skill[1]}`;
+  fail(`${field}.stat ${stat} has no user-facing label.`);
 }
 
 function projectEffect(effect, field, terms) {
   assert(effect && typeof effect === 'object' && !Array.isArray(effect), `${field} must be an object.`);
-  addTerm(terms, effect.stat);
-  addTerm(terms, effect.mode);
+  const label = effectStatLabel(effect.stat, field);
+  const operation = EFFECT_MODE_LABELS[effect.mode];
+  assert(operation, `${field}.mode ${effect.mode} has no user-facing label.`);
+  addTerm(terms, label);
+  addTerm(terms, operation);
   addTerm(terms, effect.unit);
   return {
-    stat: optionalString(effect.stat),
-    mode: optionalString(effect.mode),
+    label,
+    operation,
     value: typeof effect.value === 'number' || typeof effect.value === 'string' ? effect.value : null,
     unit: optionalString(effect.unit),
   };
@@ -310,42 +329,54 @@ function projectEffect(effect, field, terms) {
 
 function projectLifecycle(lifecycle, field, terms) {
   assert(lifecycle && typeof lifecycle === 'object' && !Array.isArray(lifecycle), `${field} must be an object.`);
-  const values = [
-    lifecycle.kind,
-    lifecycle.gate,
-    lifecycle.mode,
-    lifecycle.projectionMode,
-    lifecycle.sourceField,
-    lifecycle.activationModel,
-  ];
-  for (const value of values) addTerm(terms, value);
-  const grantedActionIds = stableStrings(exactArray(lifecycle.grantedActions || [], `${field}.grantedActions`)
-    .flatMap(action => [action?.spellId, action?.bg3Id]));
-  const grantedInterrupts = exactArray(lifecycle.grantedInterrupts || [], `${field}.grantedInterrupts`);
-  const grantedInterruptIds = stableStrings(grantedInterrupts.flatMap(interrupt => [interrupt?.interruptId, interrupt?.bg3Id]));
-  const interruptEvents = stableStrings(grantedInterrupts.flatMap(interrupt => [
-    interrupt?.event?.raw,
-    ...(Array.isArray(interrupt?.event?.contexts) ? interrupt.event.contexts : []),
-  ]));
-  const sourceRuleIds = stableStrings(exactArray(lifecycle.sourceRuleReferences || [], `${field}.sourceRuleReferences`)
-    .map(reference => reference?.bg3Id));
-  addTerms(terms, interruptEvents);
-  return {
-    bg3Id: optionalString(lifecycle.bg3Id),
-    kind: optionalString(lifecycle.kind),
-    gate: optionalString(lifecycle.gate),
-    mode: optionalString(lifecycle.mode),
-    projectionMode: optionalString(lifecycle.projectionMode),
-    sourceField: optionalString(lifecycle.sourceField),
-    activationModel: optionalString(lifecycle.activationModel),
-    grantedActionIds,
-    grantedInterruptIds,
-    interruptEvents,
-    sourceRuleIds,
-  };
+  exactArray(lifecycle.grantedActions || [], `${field}.grantedActions`);
+  exactArray(lifecycle.grantedInterrupts || [], `${field}.grantedInterrupts`);
+  exactArray(lifecycle.sourceRuleReferences || [], `${field}.sourceRuleReferences`);
+  const kind = LIFECYCLE_KIND_LABELS[lifecycle.kind];
+  const gate = LIFECYCLE_GATE_LABELS[lifecycle.gate];
+  assert(kind, `${field}.kind ${lifecycle.kind} has no user-facing label.`);
+  assert(gate, `${field}.gate ${lifecycle.gate} has no user-facing label.`);
+  addTerm(terms, kind);
+  addTerm(terms, gate);
+  return { kind, gate };
 }
 
-function projectProfile(item, profile, terms, observedActionTypes) {
+const FORBIDDEN_PUBLIC_PROFILE_KEYS = new Set([
+  'actionType',
+  'activationModel',
+  'bg3Id',
+  'grantedActionIds',
+  'grantedInterruptIds',
+  'handler',
+  'interruptEvents',
+  'labelSource',
+  'mode',
+  'projectionMode',
+  'provenance',
+  'sourceActions',
+  'sourceField',
+  'sourceRuleIds',
+  'trigger',
+]);
+
+function assertPublicProfileProjection(value, field) {
+  if (value == null || typeof value === 'number' || typeof value === 'boolean') return;
+  if (typeof value === 'string') {
+    assert(!/(?:^|\s)\S*_\S*(?:\s|$)|[0-9a-f]{8}-[0-9a-f-]{27,}|\b(?:BG3|UnlockSpell|sourceField|programId|spellId|interruptId|manual|structured|typed|mixed|object|self|actiontype|boosts)\b|display-only-localization/i.test(value), `${field} contains internal source vocabulary.`);
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const [index, entry] of value.entries()) assertPublicProfileProjection(entry, `${field}[${index}]`);
+    return;
+  }
+  assert(typeof value === 'object', `${field} contains an unsupported value.`);
+  for (const [key, entry] of Object.entries(value)) {
+    assert(!FORBIDDEN_PUBLIC_PROFILE_KEYS.has(key), `${field}.${key} is not a public presentation field.`);
+    assertPublicProfileProjection(entry, `${field}.${key}`);
+  }
+}
+
+function projectProfile(item, profile, terms) {
   const mechanics = item.mechanics;
   assert(mechanics && typeof mechanics === 'object' && !Array.isArray(mechanics), `${item.id}/${profile} mechanics are missing.`);
   const actions = exactArray(mechanics.actions, `${item.id}/${profile}.mechanics.actions`)
@@ -353,7 +384,6 @@ function projectProfile(item, profile, terms, observedActionTypes) {
         action,
         `${item.id}/${profile}.mechanics.actions[${index}]`,
         terms,
-        observedActionTypes,
       )]);
   const interactions = exactArray(mechanics.interactions, `${item.id}/${profile}.mechanics.interactions`)
     .map((interaction, index) => projectInteraction(
@@ -370,18 +400,33 @@ function projectProfile(item, profile, terms, observedActionTypes) {
   const effects = exactArray(mechanics.effects, `${item.id}/${profile}.mechanics.effects`)
     .map((effect, index) => projectEffect(effect, `${item.id}/${profile}.mechanics.effects[${index}]`, terms));
 
-  addTerm(terms, mechanics.mode);
-  addTerm(terms, mechanics.activation?.cost);
-  addTerm(terms, mechanics.target?.kind);
-  addTerm(terms, mechanics.duration?.kind);
-  addTerm(terms, mechanics.duration?.label);
-  addTerm(terms, mechanics.profile?.kind);
-  // matchTokens are internal rule/status/recipe identifiers, not user search vocabulary.
-  addTerms(terms, mechanics.profile?.roles);
-  addTerm(terms, mechanics.equipment?.armorKind);
-  for (const [flag, enabled] of Object.entries(mechanics.profile?.flags || {})) if (enabled === true) addTerm(terms, flag);
+  const kindLabel = PROFILE_KIND_LABELS[mechanics.profile?.kind];
+  assert(kindLabel, `${item.id}/${profile} profile kind ${mechanics.profile?.kind} has no user-facing label.`);
+  addTerm(terms, kindLabel);
+  const armorKind = mechanics.equipment?.armorKind;
+  if (armorKind != null) {
+    assert(ARMOR_KIND_LABELS[armorKind], `${item.id}/${profile} armor kind ${armorKind} has no user-facing label.`);
+    addTerm(terms, ARMOR_KIND_LABELS[armorKind]);
+  }
+  for (const [flag, enabled] of Object.entries(mechanics.profile?.flags || {})) {
+    if (enabled !== true) continue;
+    assert(PROFILE_FLAG_LABELS[flag], `${item.id}/${profile} flag ${flag} has no user-facing label.`);
+    addTerm(terms, PROFILE_FLAG_LABELS[flag]);
+  }
 
-  return {
+  /* v10 makes every source item mechanically and economically complete. Keep
+     that completeness fail-closed here, but do not duplicate its internal
+     audit state, source fields, UUIDs or generated prose into the public UI
+     projection. The canonical item hydrated for execution retains all of it. */
+  const coverage = mechanics.engineCoverage;
+  const sourceFacts = mechanics.sourceFacts;
+  assert(coverage?.schemaVersion === 'bg3-item-engine-coverage/1', `${item.id}/${profile} engine coverage is missing.`);
+  assert(sourceFacts?.schemaVersion === 'bg3-item-source-facts/1', `${item.id}/${profile} source facts are missing.`);
+  assert(typeof item.props === 'string' && item.props.trim(), `${item.id}/${profile} readable props are missing.`);
+  assert(mechanics.profile?.mass && typeof mechanics.profile.mass === 'object', `${item.id}/${profile} exact mass is missing.`);
+  assert(mechanics.profile?.value && typeof mechanics.profile.value === 'object', `${item.id}/${profile} exact value is missing.`);
+
+  const projection = {
     actionCount: actions.length,
     interactionCount: interactions.length,
     lifecycleCount: lifecycle.length,
@@ -391,6 +436,8 @@ function projectProfile(item, profile, terms, observedActionTypes) {
     lifecycle,
     effects,
   };
+  assertPublicProfileProjection(projection, `${item.id}/${profile}.presentation`);
+  return projection;
 }
 
 function exactProfiles(item) {
@@ -436,7 +483,7 @@ function relationProjection(item) {
   };
 }
 
-function projectItem(item, searchRow, observedActionTypes) {
+function projectItem(item, searchRow) {
   assert(item && typeof item === 'object' && !Array.isArray(item), 'Item must be an object.');
   assert(typeof item.id === 'string' && item.id.startsWith('bg3:item:'), 'Item has an invalid identity.');
   assert(item.id === searchRow.id, `${item.id} differs from its search row identity.`);
@@ -455,9 +502,8 @@ function projectItem(item, searchRow, observedActionTypes) {
       profileItem(item, profile, profiles),
       profile,
       terms,
-      observedActionTypes,
     );
-    searchTermsByProfile[profile] = userSearchTerms([...terms], profileData[profile].lifecycle);
+    searchTermsByProfile[profile] = userSearchTerms([...terms]);
   }
   const actionCount = Object.values(profileData).reduce((sum, profile) => sum + profile.actionCount, 0);
   const interactionCount = Object.values(profileData).reduce((sum, profile) => sum + profile.interactionCount, 0);
@@ -676,7 +722,10 @@ function buildExpectedOutput() {
   const sourceManifest = JSON.parse(sourceManifestBuffer);
   assert(sourceManifest.catalogVersion === CATALOG_VERSION, 'Unexpected source manifest catalog version.');
   assert(sourceManifest.immutable === true, 'Source manifest is not marked immutable.');
-  assert(sourceManifest.contracts?.itemSchemaVersion === 6, 'Unexpected v8 item schema version.');
+  assert(sourceManifest.contracts?.itemSchemaVersion === 6, 'Unexpected v10 item schema version.');
+  assert(sourceManifest.contracts?.itemMechanics?.schemaVersion === 'bg3-item-engine-coverage/1', 'Missing v10 item mechanics contract.');
+  assert(sourceManifest.source?.itemMechanics?.schemaVersion === 'bg3-item-mechanics-source/1', 'Missing v10 item mechanics source pin.');
+  assert(sourceManifest.source?.economy?.schemaVersion === 'bg3-gold-values/1', 'Missing v10 economy source pin.');
 
   const searchEntry = sourceEntryBySuffix(sourceManifest.files.other, `/${CATALOG_VERSION}/search-index.json`);
   const searchVerified = verifyManifestFile(searchEntry);
@@ -699,7 +748,6 @@ function buildExpectedOutput() {
   assert(itemEntries.length === sourceManifest.sharding.runtimeItems.shards, 'Item shard count differs from source sharding metadata.');
   const seenShards = new Set();
   const seenItems = new Set();
-  const observedActionTypes = new Set();
   const projectedItems = [];
   let sourceItemBytes = 0;
 
@@ -719,7 +767,7 @@ function buildExpectedOutput() {
       const searchRow = searchRows.get(item.id);
       assert(searchRow, `Runtime item ${item.id} is missing from search index.`);
       assert(searchRow.shard === entry.shard, `Search shard differs for ${item.id}.`);
-      projectedItems.push(projectItem(item, searchRow, observedActionTypes));
+      projectedItems.push(projectItem(item, searchRow));
     }
   }
 
@@ -729,17 +777,16 @@ function buildExpectedOutput() {
   projectedItems.sort((left, right) => compareStrings(left.itemId, right.itemId));
   const counts = countRows(projectedItems);
 
-  assert(counts.itemsWithDescription === 5706, 'Exact v8 localized description census changed.');
-  assert(counts.localizedDescriptions.ru === 5706 && counts.localizedDescriptions.en === 5706, 'Exact v8 bilingual description census changed.');
+  assert(counts.itemsWithDescription === 5706, 'Exact v10 localized description census changed.');
+  assert(counts.localizedDescriptions.ru === 5706 && counts.localizedDescriptions.en === 5706, 'Exact v10 bilingual description census changed.');
   assert(counts.itemsWithActions === 2243, 'Plot-neutral item action census changed.');
   assert(counts.profileMaterializedActions === 4720, 'Plot-neutral profile action census changed.');
+  assert(counts.itemsWithEffects === 275, 'Exact v10 direct-effect item census changed.');
+  assert(counts.profileMaterializedEffects === 582, 'Exact v10 direct-effect profile census changed.');
   assert(counts.itemsWithLifecycle === sourceManifest.counts.itemLifecyclePrograms.items, 'Item lifecycle census differs from source manifest.');
   assert(counts.relationSources.placements.standard === sourceManifest.counts.universe.placementEvidence.standardOccurrences, 'Standard placement evidence count differs from source manifest.');
   assert(counts.relationSources.placements.honour === sourceManifest.counts.universe.placementEvidence.honourOccurrences, 'Honour placement evidence count differs from source manifest.');
 
-  const actionTypeNames = Object.fromEntries([...observedActionTypes]
-    .sort((left, right) => left - right)
-    .map(actionType => [String(actionType), ACTION_DATA_TYPE_NAMES[actionType]]));
   const details = packDetailShards(projectedItems);
   const searches = packSearchShards(projectedItems);
   const compactItems = projectedItems.map(item => compactItem(item, details.shardByItemId));
@@ -772,30 +819,33 @@ function buildExpectedOutput() {
       },
     },
     contracts: {
-      itemIdentity: 'exact-v8-item-id',
+      itemIdentity: 'exact-v10-item-id',
       descriptions: 'exact-item.i18n-language-description-null-preserved-no-fallback-no-invention',
       descriptionStorage: 'nonempty-exact-text-in-detail-shard-descriptionCount-zero-means-both-language-values-are-null-or-empty',
       profileSelection: 'standard-base-honour-full-overlay-honour-only-base',
-      actionLabels: 'exact-localized-item-action-and-interaction-labels',
-      sourceActionLabels: 'exact-ActionDataType-number-and-trigger-with-display-only-official-enum-name-map',
+      actionLabels: 'localized-label-only-technical-fallback-identifiers-reduced-to-safe-prefix-or-generic-no-handler-mode-trigger-source-action-or-provenance',
+      detailActionFields: ['label'],
+      detailInteractionFields: ['label'],
+      detailLifecycleFields: ['kind', 'gate'],
+      detailEffectFields: ['label', 'operation', 'value', 'unit'],
       countSemantics: 'item-counts-sum-materialized-profile-records-profile-counts-are-exact-per-profile',
       itemRowColumns: ['itemId', 'detailShard', 'flags', 'descriptionCount', 'actionCount', 'interactionCount', 'lifecycleCount', 'effectCount', 'recipeRecordSources', 'treasureTableSources', 'standardPlacements', 'honourPlacements', 'profileMask'],
       itemRowFlags: { hasDescription: 1, hasActions: 2, hasInteractions: 4, hasLifecycle: 8, hasEffects: 16 },
       profileMask: { standard: 1, honour: 2 },
       searchRowColumns: ['itemIndex', 'normalizedDescriptionTokenText', 'standardNormalizedTokenText', 'honourNormalizedTokenTextOrNullSameAsStandard'],
-      searchNormalization: 'trim-lowercase-ru-yo-to-e-letters-numbers-colon-underscore-plus-hyphen-space-unique-sort',
+      searchNormalization: 'strip-html-tags-trim-lowercase-ru-yo-to-e-letters-numbers-colon-underscore-plus-hyphen-space-unique-sort',
       searchSemantics: 'query-normalized-to-space-tokens-every-token-must-be-a-substring-of-description-plus-selected-profile-token-text',
-      searchScope: 'exact-descriptions-and-profile-presentation-terms-joined-at-runtime-with-pinned-v8-search-index-names-and-facets',
+      searchScope: 'exact-descriptions-and-profile-presentation-terms-joined-at-runtime-with-pinned-v10-search-index-names-and-facets',
+      profileSearchExclusions: 'raw-identifiers-uuids-underscore-tokens-and-internal-mode-handler-trigger-source-program-vocabulary',
       searchProfileSelection: 'normalized-description-token-text-plus-exactly-one-selected-profile-token-text',
       searchHonourFallback: 'when-profileMask-is-3-and-honour-token-text-is-null-use-standard-token-text-otherwise-null-means-profile-absent',
-      searchTerms: 'exact-descriptions-structured-scalars-and-display-labels-normalized-once-full-text-not-duplicated',
+      searchTerms: 'official-descriptions-user-facing-action-and-interaction-labels-and-russian-profile-lifecycle-effect-semantics-only-no-modes-handlers-triggers-action-types-source-identifiers-or-provenance',
       relations: 'source-array-lengths-and-exact-placement-evidence-occurrences',
-      detailResolution: 'detail-shard-is-exact-and-profile-materialized-display-data-only',
-      execution: 'never-executable-hydrate-pinned-v8-item-before-runtime-use',
-      actionDataTypeNamesSource: 'Norbyte/bg3se/BG3Extender/GameDefinitions/Enumerations/Stats.inl',
+      detailResolution: 'minimal-user-facing-profile-display-data-only-runtime-rules-always-hydrated-from-pinned-v10-item',
+      execution: 'never-executable-hydrate-pinned-v10-item-before-runtime-use',
+      sourceCompleteness: 'v10-readable-props-engine-coverage-source-facts-and-profile-economy-required-but-not-duplicated-into-public-presentation',
     },
     counts,
-    sourceActionTypeNames: actionTypeNames,
     storage: {
       detailPathTemplate: 'detail/{shard}.json',
       targetBytes: TARGET_DETAIL_BYTES,
@@ -842,6 +892,14 @@ function assertExactFile(path, expected) {
   assert(actual.equals(expected), `Generated file is stale: ${repoPath(path)}`);
 }
 
+function removeStaleNumericShards(root, expectedNames) {
+  if (!existsSync(root)) return;
+  const expected = new Set(expectedNames);
+  for (const name of readdirSync(root)) {
+    if (/^[0-9]{4}\.json$/.test(name) && !expected.has(name)) unlinkSync(join(root, name));
+  }
+}
+
 function writeOrCheck(expected) {
   if (CHECK_ONLY) {
     assert(existsSync(OUTPUT_ROOT), `Generated directory is missing: ${repoPath(OUTPUT_ROOT)}`);
@@ -864,6 +922,8 @@ function writeOrCheck(expected) {
   mkdirSync(OUTPUT_ROOT, { recursive: true });
   mkdirSync(DETAIL_ROOT, { recursive: true });
   mkdirSync(SEARCH_ROOT, { recursive: true });
+  removeStaleNumericShards(DETAIL_ROOT, expected.details.shards.map(shard => `${shard.entry.shard}.json`));
+  removeStaleNumericShards(SEARCH_ROOT, expected.searches.shards.map(shard => `${shard.entry.shard}.json`));
   for (const shard of expected.details.shards) writeFileSync(join(OUTPUT_ROOT, ...shard.path.split('/')), shard.buffer);
   for (const shard of expected.searches.shards) writeFileSync(join(OUTPUT_ROOT, ...shard.path.split('/')), shard.buffer);
   writeFileSync(OUTPUT_MANIFEST, expected.manifestBuffer);

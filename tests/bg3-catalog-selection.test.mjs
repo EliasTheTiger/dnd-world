@@ -47,6 +47,7 @@ test.afterEach(() => {
 });
 
 test('BG3 catalog audit follows the live pointer when no candidate is selected', () => {
+  assert.equal(livePointer.catalogVersion, 'bg3-24532579-v10');
   delete process.env.BG3_CATALOG_VERSION;
   delete process.env.BG3_MANIFEST_SHA256;
   const selected = selectBg3Catalog(repo);

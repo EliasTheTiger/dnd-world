@@ -1,0 +1,457 @@
+{
+  "schemaVersion": "bg3-gold-values/1",
+  "catalogVersion": "bg3-24532579-v9",
+  "source": {
+    "game": "Baldur's Gate 3",
+    "steamBuildId": "24532579",
+    "path": "Data/Editor/Mods/Shared/Levelmaps/GoldValues.tbl",
+    "bytes": 29348,
+    "sha256": "a1ad765d1413c5c5b7ed49a14066bf90d905646ecc87a909f7d4f72e4c01d115"
+  },
+  "calculation": {
+    "override": "ValueOverride is an absolute price when present, including zero",
+    "inheritance": "resolve LevelN through Using and round half-up after every ParentScale",
+    "valueScale": "multiply the resolved integer curve value by ValueScale",
+    "valueRounding": "half-up step: raw>=1000:50; raw>=100:10; raw>=20:5; otherwise:1",
+    "valueRoundingFalse": "half-up to an integer; all selected-build rows produce exactly 1 gp"
+  },
+  "count": 58,
+  "curves": [
+    {
+      "uuid": "00f95a45-6f2c-4786-8c17-e4d65517166a",
+      "name": "ConsumablesArrows",
+      "using": "1f40e7a6-fb87-41ab-9da9-282a359b7e89",
+      "parentScale": 0.8,
+      "levels": {}
+    },
+    {
+      "uuid": "124a46ba-3465-4a69-8b82-108d643c1e09",
+      "name": "ScrollsRevivify",
+      "using": null,
+      "parentScale": 1,
+      "levels": {
+        "1": 100
+      }
+    },
+    {
+      "uuid": "12dbd881-5b36-4679-930e-c1ce5be5bb48",
+      "name": "MagicAmuletUncommon",
+      "using": "6d47141f-ec77-4d69-b37b-b065a667ed1c",
+      "parentScale": 3,
+      "levels": {}
+    },
+    {
+      "uuid": "13386968-4644-4ef6-ae73-e6f5c4e67045",
+      "name": "QuestReward_Poor",
+      "using": "8447f120-18a3-457b-93a9-34f86502473e",
+      "parentScale": 0.4,
+      "levels": {}
+    },
+    {
+      "uuid": "1f40e7a6-fb87-41ab-9da9-282a359b7e89",
+      "name": "ConsumablesCommon",
+      "using": "7190ea94-c758-489b-ad39-c25d6c2ac038",
+      "parentScale": 1,
+      "levels": {}
+    },
+    {
+      "uuid": "240eb257-ef20-4877-89bd-6956b4b7c41a",
+      "name": "ArmorRare",
+      "using": "9495e96a-7e7c-4e3a-8d81-51611908908c",
+      "parentScale": 8,
+      "levels": {}
+    },
+    {
+      "uuid": "3ae7de83-816a-43e3-a0e1-4d5b78664fc6",
+      "name": "BaseWeapon",
+      "using": "7190ea94-c758-489b-ad39-c25d6c2ac038",
+      "parentScale": 3.2,
+      "levels": {}
+    },
+    {
+      "uuid": "3e8b9d6e-7e83-4fd7-bc99-bb4956d67a2a",
+      "name": "MagicRingVeryRare",
+      "using": "fbbb62e3-5337-4962-98b4-27870acabb81",
+      "parentScale": 10,
+      "levels": {}
+    },
+    {
+      "uuid": "4024ce6c-f02d-4d7c-8033-869ada06ef82",
+      "name": "Armor_1",
+      "using": "9495e96a-7e7c-4e3a-8d81-51611908908c",
+      "parentScale": 2,
+      "levels": {}
+    },
+    {
+      "uuid": "456af046-e41f-4b11-8db0-166318323ce7",
+      "name": "ConsumablesGrenades",
+      "using": "1f40e7a6-fb87-41ab-9da9-282a359b7e89",
+      "parentScale": 1.8,
+      "levels": {}
+    },
+    {
+      "uuid": "4b9657a0-5a00-442a-b76e-535715cbaa86",
+      "name": "MagicRingLegendary",
+      "using": "fbbb62e3-5337-4962-98b4-27870acabb81",
+      "parentScale": 15,
+      "levels": {}
+    },
+    {
+      "uuid": "4c5217d8-0232-4592-9e32-2fd729123f53",
+      "name": "BaseLoot",
+      "using": "7190ea94-c758-489b-ad39-c25d6c2ac038",
+      "parentScale": 1.4,
+      "levels": {}
+    },
+    {
+      "uuid": "4cd41c74-9c86-4233-922e-4db5bc750df5",
+      "name": "Weapon_1",
+      "using": "3ae7de83-816a-43e3-a0e1-4d5b78664fc6",
+      "parentScale": 1.3,
+      "levels": {}
+    },
+    {
+      "uuid": "53745024-caa7-490a-b106-8dc4f6e36be2",
+      "name": "BribesNonSevereCrimeMax",
+      "using": "d6a0f75a-a24f-4a8a-ac36-fd5f68ce074f",
+      "parentScale": 1.3,
+      "levels": {}
+    },
+    {
+      "uuid": "53cd3b64-3988-4e5d-a4f5-d4b4ec7ba0e9",
+      "name": "BaseAccessory",
+      "using": "7190ea94-c758-489b-ad39-c25d6c2ac038",
+      "parentScale": 1.5,
+      "levels": {}
+    },
+    {
+      "uuid": "560798f9-9c28-4c8d-be75-ad81c613b91f",
+      "name": "IngredientRare",
+      "using": "e2ee29a1-08a7-4836-865a-a2179100e65c",
+      "parentScale": 0.3,
+      "levels": {}
+    },
+    {
+      "uuid": "589981db-3c73-421f-9c2f-afca259e499d",
+      "name": "MagicAmuletLegendary",
+      "using": "6d47141f-ec77-4d69-b37b-b065a667ed1c",
+      "parentScale": 15,
+      "levels": {}
+    },
+    {
+      "uuid": "6d47141f-ec77-4d69-b37b-b065a667ed1c",
+      "name": "LootNecklace",
+      "using": "fbbb62e3-5337-4962-98b4-27870acabb81",
+      "parentScale": 1.5,
+      "levels": {}
+    },
+    {
+      "uuid": "71191c11-966f-4c19-b4ee-eb36d31c4944",
+      "name": "Weapon_2",
+      "using": "3ae7de83-816a-43e3-a0e1-4d5b78664fc6",
+      "parentScale": 3,
+      "levels": {}
+    },
+    {
+      "uuid": "7190ea94-c758-489b-ad39-c25d6c2ac038",
+      "name": "BaseProgression",
+      "using": null,
+      "parentScale": 1,
+      "levels": {
+        "1": 10,
+        "2": 13,
+        "3": 16,
+        "4": 20,
+        "5": 25,
+        "6": 32,
+        "7": 45,
+        "8": 60,
+        "9": 80,
+        "10": 100,
+        "11": 120,
+        "12": 150
+      }
+    },
+    {
+      "uuid": "73b8c1f6-1e2e-4f65-a80f-26a38da9e41f",
+      "name": "BribesSevereCrimeMin",
+      "using": "d6a0f75a-a24f-4a8a-ac36-fd5f68ce074f",
+      "parentScale": 4,
+      "levels": {}
+    },
+    {
+      "uuid": "76f5b0ab-ca1c-4c19-9787-f2310ca386a4",
+      "name": "ConsumablesPotions",
+      "using": "1f40e7a6-fb87-41ab-9da9-282a359b7e89",
+      "parentScale": 1,
+      "levels": {}
+    },
+    {
+      "uuid": "7a7ca381-3e3f-4031-bd61-c9156344217f",
+      "name": "QuestReward_Modest",
+      "using": "8447f120-18a3-457b-93a9-34f86502473e",
+      "parentScale": 0.7,
+      "levels": {}
+    },
+    {
+      "uuid": "7da97bda-6776-4796-8b0b-d3b96ff3c9fb",
+      "name": "MagicAmuletRare",
+      "using": "6d47141f-ec77-4d69-b37b-b065a667ed1c",
+      "parentScale": 6,
+      "levels": {}
+    },
+    {
+      "uuid": "81764c3c-c7a9-49a7-b145-d31ffd5aebe1",
+      "name": "WeaponVeryRare",
+      "using": "3ae7de83-816a-43e3-a0e1-4d5b78664fc6",
+      "parentScale": 15,
+      "levels": {}
+    },
+    {
+      "uuid": "8447f120-18a3-457b-93a9-34f86502473e",
+      "name": "QuestReward_Normal",
+      "using": "7190ea94-c758-489b-ad39-c25d6c2ac038",
+      "parentScale": 10,
+      "levels": {}
+    },
+    {
+      "uuid": "86e7e503-a225-4b48-819e-2e24de1f904a",
+      "name": "WeaponUncommon",
+      "using": "3ae7de83-816a-43e3-a0e1-4d5b78664fc6",
+      "parentScale": 2,
+      "levels": {}
+    },
+    {
+      "uuid": "870797b7-fb40-47ae-be7a-544c05c158c8",
+      "name": "LootTreasure",
+      "using": "4c5217d8-0232-4592-9e32-2fd729123f53",
+      "parentScale": 2,
+      "levels": {}
+    },
+    {
+      "uuid": "87affae5-8b81-4e82-af05-df576041cc9f",
+      "name": "QuestReward_Opulent",
+      "using": "8447f120-18a3-457b-93a9-34f86502473e",
+      "parentScale": 4,
+      "levels": {}
+    },
+    {
+      "uuid": "8b2ad47c-891e-4a19-bab8-43cd5e964cb1",
+      "name": "ZeroValue",
+      "using": null,
+      "parentScale": 1,
+      "levels": {
+        "1": 0
+      }
+    },
+    {
+      "uuid": "903e4dee-a3d5-4f72-8b72-c81541fd29aa",
+      "name": "ConsumablesScrolls",
+      "using": "1f40e7a6-fb87-41ab-9da9-282a359b7e89",
+      "parentScale": 4,
+      "levels": {}
+    },
+    {
+      "uuid": "91696f37-5a03-4f10-b636-2e5e2096a594",
+      "name": "Junk",
+      "using": null,
+      "parentScale": 1,
+      "levels": {
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 1,
+        "5": 1,
+        "6": 1,
+        "7": 1,
+        "8": 1,
+        "9": 1,
+        "10": 1
+      }
+    },
+    {
+      "uuid": "94356ef2-bb14-4595-88cf-86f544ef12eb",
+      "name": "MagicRingRare",
+      "using": "fbbb62e3-5337-4962-98b4-27870acabb81",
+      "parentScale": 5,
+      "levels": {}
+    },
+    {
+      "uuid": "9495e96a-7e7c-4e3a-8d81-51611908908c",
+      "name": "BaseArmor",
+      "using": "7190ea94-c758-489b-ad39-c25d6c2ac038",
+      "parentScale": 4,
+      "levels": {}
+    },
+    {
+      "uuid": "9b6a4ab2-323b-4030-89ab-030252bb6214",
+      "name": "WeaponRare",
+      "using": "3ae7de83-816a-43e3-a0e1-4d5b78664fc6",
+      "parentScale": 6,
+      "levels": {}
+    },
+    {
+      "uuid": "a229f048-70b0-4b0c-88cb-29b5c6bdb2d0",
+      "name": "AccessoryRare",
+      "using": "53cd3b64-3988-4e5d-a4f5-d4b4ec7ba0e9",
+      "parentScale": 8,
+      "levels": {}
+    },
+    {
+      "uuid": "a57433fc-8be8-4efb-ac6b-a625b3bdcd18",
+      "name": "ArmorLegendary",
+      "using": "9495e96a-7e7c-4e3a-8d81-51611908908c",
+      "parentScale": 20,
+      "levels": {}
+    },
+    {
+      "uuid": "aba2b73e-a68a-4c0a-a76b-f7d56aecdde6",
+      "name": "Tools",
+      "using": null,
+      "parentScale": 1,
+      "levels": {
+        "1": 25
+      }
+    },
+    {
+      "uuid": "adfdafe5-f4da-4c64-a1e6-a33d626437d2",
+      "name": "ArmorVeryRare",
+      "using": "9495e96a-7e7c-4e3a-8d81-51611908908c",
+      "parentScale": 16,
+      "levels": {}
+    },
+    {
+      "uuid": "b179039d-474f-4090-beb5-9468bcb6fba8",
+      "name": "IngredientCommon",
+      "using": "e34cfb3f-5ff2-44b7-b45e-cb9b18b60596",
+      "parentScale": 0.2,
+      "levels": {}
+    },
+    {
+      "uuid": "be545ee9-311c-4ab8-ab14-fefcc552cace",
+      "name": "ArmorUncommon",
+      "using": "9495e96a-7e7c-4e3a-8d81-51611908908c",
+      "parentScale": 2.5,
+      "levels": {}
+    },
+    {
+      "uuid": "c5ad02e9-b4d4-4df1-a9cd-02b80d017eaa",
+      "name": "AccessoryVeryRare",
+      "using": "53cd3b64-3988-4e5d-a4f5-d4b4ec7ba0e9",
+      "parentScale": 15,
+      "levels": {}
+    },
+    {
+      "uuid": "cb15f73a-5aca-404a-9186-5e172b7cf6c3",
+      "name": "AttitudePoints",
+      "using": "7190ea94-c758-489b-ad39-c25d6c2ac038",
+      "parentScale": 0.3,
+      "levels": {}
+    },
+    {
+      "uuid": "ccaceafa-6dc1-41c7-bd43-db6d4da8a3d8",
+      "name": "MagicAmuletVeryRare",
+      "using": "6d47141f-ec77-4d69-b37b-b065a667ed1c",
+      "parentScale": 10,
+      "levels": {}
+    },
+    {
+      "uuid": "cdc711a8-7fed-48c5-8fac-e260cefc671f",
+      "name": "MagicRingUncommon",
+      "using": "fbbb62e3-5337-4962-98b4-27870acabb81",
+      "parentScale": 3,
+      "levels": {}
+    },
+    {
+      "uuid": "d24c441f-7ebe-4229-8522-cf34c257ff20",
+      "name": "WeaponLegendary",
+      "using": "3ae7de83-816a-43e3-a0e1-4d5b78664fc6",
+      "parentScale": 20,
+      "levels": {}
+    },
+    {
+      "uuid": "d6378d27-882e-4b51-aee6-31e999ea1d81",
+      "name": "ConsumablesRare",
+      "using": "1f40e7a6-fb87-41ab-9da9-282a359b7e89",
+      "parentScale": 2,
+      "levels": {}
+    },
+    {
+      "uuid": "d6a0f75a-a24f-4a8a-ac36-fd5f68ce074f",
+      "name": "BribesNonSevereCrimeMin",
+      "using": "7190ea94-c758-489b-ad39-c25d6c2ac038",
+      "parentScale": 5,
+      "levels": {}
+    },
+    {
+      "uuid": "d9876116-9c83-4f6e-8efa-cc5d9c2328be",
+      "name": "BribesSevereCrimeMax",
+      "using": "73b8c1f6-1e2e-4f65-a80f-26a38da9e41f",
+      "parentScale": 1.3,
+      "levels": {}
+    },
+    {
+      "uuid": "e2ee29a1-08a7-4836-865a-a2179100e65c",
+      "name": "ExtractRare",
+      "using": "d6378d27-882e-4b51-aee6-31e999ea1d81",
+      "parentScale": 0.9,
+      "levels": {}
+    },
+    {
+      "uuid": "e34cfb3f-5ff2-44b7-b45e-cb9b18b60596",
+      "name": "ExtractCommon",
+      "using": "1f40e7a6-fb87-41ab-9da9-282a359b7e89",
+      "parentScale": 0.8,
+      "levels": {}
+    },
+    {
+      "uuid": "f0307da3-feb7-40b0-bd62-18eea9167021",
+      "name": "Armor_2",
+      "using": "9495e96a-7e7c-4e3a-8d81-51611908908c",
+      "parentScale": 6,
+      "levels": {}
+    },
+    {
+      "uuid": "f0e7be35-8be4-483d-afa8-dc9a104ea758",
+      "name": "AccessoryUncommon",
+      "using": "53cd3b64-3988-4e5d-a4f5-d4b4ec7ba0e9",
+      "parentScale": 3,
+      "levels": {}
+    },
+    {
+      "uuid": "f2e027f7-e7bf-475e-9143-44c8bf5a5d40",
+      "name": "LootGem",
+      "using": "4c5217d8-0232-4592-9e32-2fd729123f53",
+      "parentScale": 2,
+      "levels": {}
+    },
+    {
+      "uuid": "f46eb019-edd0-4216-99df-9dae89a83ce7",
+      "name": "AccessoryLegendary",
+      "using": "53cd3b64-3988-4e5d-a4f5-d4b4ec7ba0e9",
+      "parentScale": 20,
+      "levels": {}
+    },
+    {
+      "uuid": "f6d80512-45e9-44f5-85f2-50235d660bb1",
+      "name": "QuestReward_Wealthy",
+      "using": "8447f120-18a3-457b-93a9-34f86502473e",
+      "parentScale": 2,
+      "levels": {}
+    },
+    {
+      "uuid": "fbbb62e3-5337-4962-98b4-27870acabb81",
+      "name": "LootRing",
+      "using": "4c5217d8-0232-4592-9e32-2fd729123f53",
+      "parentScale": 1,
+      "levels": {}
+    },
+    {
+      "uuid": "fdf4e15b-b32a-45e0-82ce-0c94cfde957a",
+      "name": "ConsumablesPoisons",
+      "using": "1f40e7a6-fb87-41ab-9da9-282a359b7e89",
+      "parentScale": 1.4,
+      "levels": {}
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "dnd-world-bg3-current/1",
-  "catalogVersion": "bg3-24532579-v8",
-  "manifest": "bg3-24532579-v8/manifest.json",
-  "manifestSha256": "8db8b170c1d03a75876a7c9111b33a00fd89976cc69dbd85f31762eb419c06f0",
+  "catalogVersion": "bg3-24532579-v10",
+  "manifest": "bg3-24532579-v10/manifest.json",
+  "manifestSha256": "0c9f9ba28daf3f4d2e2466345ea412352e16b7a82b0b093f3ed9a1d579b5dc1b",
   "defaultRulesProfile": "standard"
 }

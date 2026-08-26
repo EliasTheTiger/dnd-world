@@ -14,7 +14,7 @@ import { isDeepStrictEqual } from 'node:util';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..');
-const CATALOG_VERSION = 'bg3-24532579-v8';
+const CATALOG_VERSION = 'bg3-24532579-v10';
 const SOURCE_ROOT = join(REPO_ROOT, 'data', 'bg3', CATALOG_VERSION);
 const OUTPUT_ROOT = join(REPO_ROOT, 'data', 'bg3', 'ui', `${CATALOG_VERSION}-placement-browser`);
 const DETAIL_ROOT = join(OUTPUT_ROOT, 'detail');
@@ -284,11 +284,11 @@ function buildExpectedOutput() {
   const unresolved = [...compactByPlacementId.values()].filter(row => !row.resolved);
   assert(unresolved.length === 0, `${unresolved.length} compact placements do not resolve to a full record.`);
   assert(fullPlacementCount === compactByPlacementId.size, 'Full and compact placement counts differ.');
-  assert(fullPlacementCount === placementIndex.counts.placements, 'Generated placement count differs from v8 metadata.');
+  assert(fullPlacementCount === placementIndex.counts.placements, 'Generated placement count differs from v10 metadata.');
   for (const profile of PROFILE_ORDER) {
     assert(
       profilePlacements[profile] === placementIndex.counts.profiles[profile],
-      `Generated ${profile} placement count differs from v8 metadata.`,
+      `Generated ${profile} placement count differs from v10 metadata.`,
     );
   }
 
@@ -366,8 +366,8 @@ function buildExpectedOutput() {
       },
     },
     contracts: {
-      rootIdentity: 'exact-v8-item-variant-id',
-      placementIdentity: 'exact-v8-placement-id-and-instance-uuid',
+      rootIdentity: 'exact-v10-item-variant-id',
+      placementIdentity: 'exact-v10-placement-id-and-instance-uuid',
       profileOrder: PROFILE_ORDER,
       profileCompaction: 'only-byte-identical-effective-profile-records-may-share-one-ui-row',
       profileFacetResolution: 'profileFacets[profile]-or-null-fallback-to-aggregate-item-facets',
@@ -397,8 +397,8 @@ function buildExpectedOutput() {
       detailFiles,
     },
     integrity: {
-      allCompactSourceFilesMatchV8Manifest: true,
-      allFullRecordSourceFilesMatchV8Manifest: true,
+      allCompactSourceFilesMatchV10Manifest: true,
+      allFullRecordSourceFilesMatchV10Manifest: true,
       placementIdsUnique: compactByPlacementId.size === fullPlacementCount,
       eachPlacementResolvesToExactlyOneFullRecord: unresolved.length === 0,
       eachPlacementResolvesToExactlyOneItemId: true,
