@@ -24,7 +24,7 @@ const HARD_DETAIL_BYTES = 250_000;
 const TARGET_SEARCH_BYTES = 210_000;
 const HARD_SEARCH_BYTES = 250_000;
 const PROFILE_ORDER = ['standard', 'honour'];
-const WORLD_BOUND_ACTION_TYPES = new Set([2, 3, 9, 27]);
+const WORLD_BOUND_ACTION_TYPES = new Set([1, 2, 3, 4, 9, 10, 14, 15, 16, 17, 22, 24, 26, 27, 35]);
 const CHECK_ONLY = process.argv.includes('--check');
 
 /* Exact enum identifiers from Norbyte/bg3se
@@ -300,13 +300,11 @@ function projectEffect(effect, field, terms) {
   addTerm(terms, effect.stat);
   addTerm(terms, effect.mode);
   addTerm(terms, effect.unit);
-  addTerm(terms, effect.note);
   return {
     stat: optionalString(effect.stat),
     mode: optionalString(effect.mode),
     value: typeof effect.value === 'number' || typeof effect.value === 'string' ? effect.value : null,
     unit: optionalString(effect.unit),
-    note: optionalString(effect.note),
   };
 }
 
@@ -733,8 +731,8 @@ function buildExpectedOutput() {
 
   assert(counts.itemsWithDescription === 5706, 'Exact v8 localized description census changed.');
   assert(counts.localizedDescriptions.ru === 5706 && counts.localizedDescriptions.en === 5706, 'Exact v8 bilingual description census changed.');
-  assert(counts.itemsWithActions === 3279, 'Plot-neutral item action census changed.');
-  assert(counts.profileMaterializedActions === 6794, 'Plot-neutral profile action census changed.');
+  assert(counts.itemsWithActions === 2243, 'Plot-neutral item action census changed.');
+  assert(counts.profileMaterializedActions === 4720, 'Plot-neutral profile action census changed.');
   assert(counts.itemsWithLifecycle === sourceManifest.counts.itemLifecyclePrograms.items, 'Item lifecycle census differs from source manifest.');
   assert(counts.relationSources.placements.standard === sourceManifest.counts.universe.placementEvidence.standardOccurrences, 'Standard placement evidence count differs from source manifest.');
   assert(counts.relationSources.placements.honour === sourceManifest.counts.universe.placementEvidence.honourOccurrences, 'Honour placement evidence count differs from source manifest.');

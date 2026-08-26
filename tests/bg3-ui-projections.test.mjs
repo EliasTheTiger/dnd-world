@@ -250,8 +250,8 @@ test('item presentation полностью согласована с compact row
     profileItems: {standard: 10_282, honour: 10_284},
     itemsWithDescription: 5_706,
     localizedDescriptions: {ru: 5_706, en: 5_706},
-    itemsWithActions: 3_279,
-    profileMaterializedActions: 6_794,
+    itemsWithActions: 2_243,
+    profileMaterializedActions: 4_720,
     itemsWithInteractions: 3_451,
     profileMaterializedInteractions: 7_216,
     itemsWithLifecycle: 1_245,
@@ -268,10 +268,21 @@ test('item presentation полностью согласована с compact row
   const detailEntries = manifest.storage.detailFiles;
   const searchEntries = manifest.storage.searchFiles;
   const worldBoundActionMetadata = new Map([
+    [1, 'OpenClose'],
     [2, 'Destroy'],
     [3, 'Teleport'],
+    [4, 'CreateSurface'],
     [9, 'Door'],
+    [10, 'CreatePuddle'],
+    [14, 'Sit'],
+    [15, 'Lie'],
+    [16, 'Insert'],
+    [17, 'Stand'],
+    [22, 'ShowStoryElementUI'],
+    [24, 'Ladder'],
+    [26, 'PlaySound'],
     [27, 'SpawnCharacter'],
+    [35, 'Unknown35'],
   ]);
   for (const [actionType, label] of worldBoundActionMetadata) {
     assert.equal(Object.hasOwn(manifest.sourceActionTypeNames, String(actionType)), false, label);
@@ -368,6 +379,7 @@ test('item presentation полностью согласована с compact row
   assert.deepEqual(rowCounts.placements, manifest.counts.relationSources.placements);
 
   const detailedItems = new Map();
+  const retainedActionCounts = new Map([[18, 0], [20, 0]]);
   const localizedDescriptions = {ru: 0, en: 0};
   for (const entry of detailEntries) {
     const shard = assertExactArtifact(presentationBase, entry);
@@ -415,9 +427,18 @@ test('item presentation полностью согласована с compact row
         assert.equal(profile.interactions.length, profile.interactionCount, item.itemId);
         assert.equal(profile.lifecycle.length, profile.lifecycleCount, item.itemId);
         assert.equal(profile.effects.length, profile.effectCount, item.itemId);
+        for (const effect of profile.effects) {
+          assert.equal(Object.hasOwn(effect, 'note'), false, `${item.itemId}: technical effect provenance`);
+        }
         for (const action of profile.actions) {
           for (const sourceAction of action.sourceActions) {
             assert.equal(worldBoundActionMetadata.has(sourceAction.actionType), false, item.itemId);
+            if (retainedActionCounts.has(sourceAction.actionType)) {
+              retainedActionCounts.set(
+                sourceAction.actionType,
+                retainedActionCounts.get(sourceAction.actionType) + 1,
+              );
+            }
           }
         }
       }
@@ -428,6 +449,9 @@ test('item presentation полностью согласована с compact row
   for (const [itemId, row] of rowByItem) {
     assert.equal(detailedItems.has(itemId), row[1] !== null, itemId);
   }
+  assert.deepEqual([...retainedActionCounts], [[18, 4], [20, 2]]);
+  assert.equal(manifest.sourceActionTypeNames['18'], 'Lockpick');
+  assert.equal(manifest.sourceActionTypeNames['20'], 'DisarmTrap');
 
   const searchIndexes = new Set();
   let searchRows = 0;
@@ -453,6 +477,7 @@ test('item presentation полностью согласована с compact row
         for (const label of worldBoundActionMetadata.values()) {
           assert.equal(terms.has(label.toLocaleLowerCase('en')), false, `${entry.path}: ${itemIndex}/${label}`);
         }
+        assert.equal(terms.has('bg3'), false, `${entry.path}: ${itemIndex}/effect provenance bg3`);
       }
     }
   }
@@ -571,7 +596,7 @@ test('item presentation search excludes plot-bound actions and lifecycle IDs wit
   }
   assert.match(
     fs.readFileSync(path.join(repo, 'scripts', 'build-bg3-item-presentation.mjs'), 'utf8'),
-    /WORLD_BOUND_ACTION_TYPES = new Set\(\[2, 3, 9, 27\]\)/,
+    /WORLD_BOUND_ACTION_TYPES = new Set\(\[1, 2, 3, 4, 9, 10, 14, 15, 16, 17, 22, 24, 26, 27, 35\]\)/,
   );
 
   const lightToggle = projection('bg3:item:rt:3ce10950-db66-4e55-a4bc-6567de1bf1a9:stats:T0JKX0NvYWxCYXNrZXQ');
@@ -582,6 +607,31 @@ test('item presentation search excludes plot-bound actions and lifecycle IDs wit
   }
   assert.match(lightToggle.search.slice(2).join(' '), /bg3lighttoggle/i);
   assert.doesNotMatch(lightToggle.search.slice(2).join(' '), /storyuse|actiontype 8/i);
+
+  const storageControls = [
+    {
+      itemId: 'bg3:item:rt:e32a200c-5b63-414d-ae57-00e7b38f125b:stats:T0JKX0tpdF9UaGlldmVzVG9vbHM',
+      actionType: 18,
+      metadata: /lockpick/i,
+    },
+    {
+      itemId: 'bg3:item:rt:22c74b5e-bef2-41b1-b9ed-f4acc766d4ee:stats:T0JKX0tpdF9UcmFwRGlzYXJt',
+      actionType: 20,
+      metadata: /disarmtrap/i,
+    },
+  ];
+  for (const {itemId, actionType, metadata} of storageControls) {
+    const projected = projection(itemId);
+    assert.equal(projected.compact[4], 2, `${itemId}: retained A${actionType} count`);
+    for (const profile of Object.values(projected.detail.profiles)) {
+      assert.deepEqual(
+        profile.actions.flatMap(action => action.sourceActions.map(row => row.actionType)),
+        [actionType],
+        itemId,
+      );
+    }
+    assert.match(projected.search.slice(2).join(' '), metadata, itemId);
+  }
 
   const volo = projection('bg3:item:rt:000cfc9f-b973-48e7-a5c8-f2992a47a943:stats:REVOX1ZvbG9PcGVyYXRpb25fRXJzYXR6RXll');
   assert.equal(volo.detail.profiles.standard.lifecycle[0].bg3Id, 'CAMP_Volo_ErsatzEye');
@@ -758,6 +808,8 @@ test('item presentation profile search excludes raw mechanics identifiers across
 
   const sourceManifest = readJson(path.join(sourceBase, 'manifest.json')).value;
   let identifiersChecked = 0;
+  let effectNotesChecked = 0;
+  const effectNoteValues = new Set();
   for (const entry of sourceManifest.files.items) {
     const shard = readJson(path.join(repo, ...entry.path.split('/'))).value;
     for (const item of shard.items) {
@@ -772,6 +824,12 @@ test('item presentation profile search excludes raw mechanics identifiers across
         const forbidden = [];
         collectTechnicalValues(profileItem.mechanics, forbidden);
         const terms = new Set(String(search[profileName === 'standard' ? 2 : 3] || '').split(' ').filter(Boolean));
+        for (const effect of profileItem.mechanics.effects || []) {
+          if (typeof effect.note !== 'string' || effect.note.length === 0) continue;
+          effectNotesChecked++;
+          effectNoteValues.add(effect.note);
+          assert.equal(terms.has('bg3'), false, `${item.id}/${profileName}/effect.note: ${effect.note}`);
+        }
         for (const {field, string} of forbidden) {
           for (const token of normalizedTokens(string)) {
             identifiersChecked++;
@@ -793,6 +851,8 @@ test('item presentation profile search excludes raw mechanics identifiers across
     'statusid',
   ]) assert.ok((fieldCounts.get(field) || 0) > 0, field);
   assert.ok(identifiersChecked > 0);
+  assert.equal(effectNotesChecked, 582);
+  assert.deepEqual([...effectNoteValues].sort(compareStrings), ['BG3 Boosts', 'BG3 Boosts · м']);
   assert.doesNotMatch(
     fs.readFileSync(path.join(repo, 'scripts', 'build-bg3-item-presentation.mjs'), 'utf8'),
     /addTerms\(terms, mechanics\.profile\?\.matchTokens\)/,
