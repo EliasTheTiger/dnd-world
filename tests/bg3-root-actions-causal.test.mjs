@@ -637,7 +637,7 @@ test('active v8 executes every standard typed readBook/toggleLight root action c
         const replay = plain(await engine.sceneCommit(planned.plan));
         assert.equal(replay.ok, false, `${storyRow.id}: committed scene replay`);
         assert.equal(replay.replay, true, `${storyRow.id}: scene replay flag`);
-        assert.deepEqual(plain(engine.snapshot()), after, `${storyRow.id}: scene replay mutation`);
+        assert.deepEqual(withoutDerivedFxCache(plain(engine.snapshot())), withoutDerivedFxCache(after), `${storyRow.id}: scene replay mutation`);
         totals.replayRejected++;
         totals.sceneExecutable++;
       }

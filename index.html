@@ -374,6 +374,7 @@ footer.colophon{text-align:center;margin-top:18px;font-family:var(--fell);font-s
 .scene-location-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:6px;margin:7px 0}.scene-location-grid>div{border:1px solid rgba(93,69,35,.35);padding:6px 8px;background:rgba(255,250,235,.5)}
 .scene-placement-list{display:grid;gap:7px;margin:9px 0}.scene-placement-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid rgba(93,69,35,.35);border-left:3px solid var(--gold);padding:8px 10px;background:rgba(255,250,235,.52);min-width:0}.scene-placement-row>div{min-width:0}.scene-placement-row .note-ital{overflow-wrap:anywhere}.treasure-icon-stack{position:relative;width:44px;height:44px;display:grid;place-items:center}.treasure-icon-stack .item-icon{width:40px;height:40px}.treasure-icon-count{position:absolute;right:-4px;bottom:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:10px;background:var(--rubric);color:#fff;font:bold 11px/18px sans-serif;text-align:center}.recipe-icon-placeholder{display:block;width:64px;height:64px;border:1px dashed var(--frame);background:rgba(255,250,235,.55)}
 .item-presentation-detail{display:grid;gap:10px}.item-presentation-group{display:grid;gap:6px}.item-presentation-language{border-left:3px solid var(--gold);padding-left:9px}.item-mechanic-row{display:grid;grid-template-columns:24px minmax(0,1fr);gap:7px;align-items:start;padding:6px 8px;border:1px solid rgba(93,69,35,.24);background:rgba(255,250,235,.48)}.item-mechanic-row>span{color:var(--rubric);font-weight:800;text-align:center}.item-mechanic-row .catalog-result-meta{white-space:normal;overflow:visible}
+.item-action-info{border-style:dashed!important;opacity:.82}.item-action-info:hover{opacity:1}
 @media(max-width:520px){.item-card-layout{grid-template-columns:48px minmax(0,1fr)}.item-icon{width:42px;height:42px}.bg3-summary{grid-template-columns:40px minmax(0,1fr) auto}}
 @media(max-width:1050px){.catalog-filter-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}.catalog-master-detail,.asset-master-detail{grid-template-columns:1fr}.catalog-detail,.asset-detail{position:static;max-height:none;order:-1}.items-workspace-toolbar{grid-template-columns:1fr 1fr 80px auto}}
 @media(max-width:620px){.catalog-filter-grid,.items-workspace-toolbar{grid-template-columns:1fr 1fr}.catalog-filter.search{grid-column:1/-1}.catalog-result-row{grid-template-columns:42px minmax(0,1fr)}.catalog-result-row>.item-grant-controls{grid-column:1/-1;justify-content:flex-end}.scene-placement-row{grid-template-columns:1fr}.scene-placement-row .btn{justify-self:start;white-space:normal}}
@@ -17831,7 +17832,7 @@ function combatActionsHTML(key){
   } else if(g==='abilities'&&entry.kind==='ally'){
     (o.abilities||[]).forEach(x=>{ const ab=abilityOf(x.abilityId); if(!combatAbilityUsable(ab)) return; const cur=x.cur==null?ab.uses:x.cur,cost=combatAbilityCost(ab),uses=ab.uses!=null?' · '+cur+'/'+ab.uses:'',pool=abilityPoolOf(o,ab),poolInfo=pool?' · '+pool.label+' '+pool.cur+'/'+pool.max:''; h+=combatActionButton('✦',ab.n,combatCostLabel(cost)+uses+poolInfo,'combatUseAbility(\''+ab.id+'\')',cost,key,down||(ab.uses!=null&&cur<=0)||(pool&&pool.cur<=0)||combatAbilityUsedThisTurn(ab,key)); });
   } else if(g==='items'&&entry.kind==='ally'){
-    (o.inventory||[]).forEach(x=>{ const it=itemOf(x.itemId); if(!it) return; const aa=itemActions(o,x,it); if(!aa.length&&!it.slot) h+=combatActionButton('▣',it.n,'×'+(+x.qty||0)+' · осмотр','combatInspectItem(\''+x.id+'\')','free',key,down); if(it.slot){ const cost=combatEquipCost(it),on=isEquipped(o,x.id); h+=combatActionButton(on?'◉':'○',it.n+': '+(on?'снять':'надеть'),(on?'экипировано · ':'')+combatCostLabel(cost),'combatToggleEquip(\''+x.id+'\')',cost,key,down); } aa.forEach((a,i)=>{ const cost=combatItemActionCost(a); h+=combatActionButton(a.icon||'▣',it.n+': '+a.label,'×'+(+x.qty||0)+' · '+combatCostLabel(cost),'combatRunItemAction(\''+x.id+'\','+i+')',cost,key,down); }); });
+    (o.inventory||[]).forEach(x=>{ const it=itemOf(x.itemId); if(!it) return; const aa=itemActions(o,x,it),executable=aa.filter(action=>!action.infoOnly); if(!executable.length&&!it.slot) h+=combatActionButton('▣',it.n,'×'+(+x.qty||0)+' · осмотр','combatInspectItem(\''+x.id+'\')','free',key,down); if(it.slot){ const cost=combatEquipCost(it),on=isEquipped(o,x.id); h+=combatActionButton(on?'◉':'○',it.n+': '+(on?'снять':'надеть'),(on?'экипировано · ':'')+combatCostLabel(cost),'combatToggleEquip(\''+x.id+'\')',cost,key,down); } aa.forEach((a,i)=>{ if(a.infoOnly)return;const cost=combatItemActionCost(a); h+=combatActionButton(a.icon||'▣',it.n+': '+a.label,'×'+(+x.qty||0)+' · '+combatCostLabel(cost),'combatRunItemAction(\''+x.id+'\','+i+')',cost,key,down); }); });
   } else if(g==='foe'&&entry.kind==='foe'){
     h+=combatActionButton('✥','Захват','Отдельное действие Атака: состязание Атлетики','combatContestAction(\'grapple\')','action',key,down)+combatActionButton('↧','Толчок','Отдельное действие Атака: сбить с ног','combatContestAction(\'shove\')','action',key,down);
     foeActionsOf(o).forEach(a=>{
@@ -18342,11 +18343,33 @@ function itemTriggerExplain(entryId,useId){
       :'Экипировка, настройка, семантические теги события, доступная реакция и оставшийся ресурс проверяются повторно при коммите.'});
   return true;
 }
+const BG3_ITEM_SOURCE_AUDIT_OVERRIDES=Object.freeze({
+  'bg3:item:rt:4c1143b7-1f07-465a-90a0-64df5c00717d:stats:TE9XX1BlbmR1bHVtT2ZNYWxhZ2FyZA':Object.freeze({
+    status:'source-incomplete',policy:'fail-closed',inventory:false,actions:false,mode:'manual',
+    reason:'Исходные записи BG3 для «Маятника Малагарда» подтверждают имя, легендарную редкость, слот шеи, вес и одно размещение, но не содержат локализованного описания, активных свойств, эффектов, действий или ссылок на игровые правила. Единственная унаследованная программа — общий служебный звук при уничтожении — не описывает магическое свойство предмета.',
+    manualInstruction:'Автоматическая выдача и применение отключены. Мастер может использовать предмет только как сюжетный реквизит без механического бонуса; любое игровое свойство требует отдельного подтверждённого источника.'
+  })
+});
+function bg3ItemSourceAuditOverride(value){const id=typeof value==='string'?value:String(value&&value.id||'');return BG3_ITEM_SOURCE_AUDIT_OVERRIDES[id]||null;}
+function bg3ItemSourceAuditAllows(value,capability){const audit=bg3ItemSourceAuditOverride(value);return !audit||audit[capability]!==false;}
+function bg3ItemSourceAuditHTML(it){const audit=bg3ItemSourceAuditOverride(it);if(!audit)return '';return '<div class="props-block bg3-source-fallback"><span class="pt">Источник неполон · автоматизация отключена:</span><div class="entry-desc">'+esc(audit.reason)+'</div><div style="margin-top:4px"><b>Ручной режим:</b> '+esc(audit.manualInstruction)+'</div></div>';}
 /* какие кнопки показать у предмета в инвентаре */
+function bg3InteractionCoveredByExactUse(it,interaction,uses){
+  if(!bg3CatalogIsId(it&&it.id)||!interaction)return false;uses=bg3Array(uses).filter(bg3RuleProgramAction);if(!uses.length)return false;
+  const specialOf=use=>String(use&&use.special&&use.special.kind||use&&use.program&&use.program.special&&use.program.special.kind||''),
+    actionTypeOf=use=>+((use&&use.program&&use.program.sourceAction&&use.program.sourceAction.primary||{}).actionType);
+  if(interaction.handler==='loreRead')return uses.some(use=>specialOf(use)==='bg3Read'||actionTypeOf(use)===11);
+  if(interaction.handler==='lightToggle')return uses.some(use=>specialOf(use)==='bg3LightToggle');
+  if(interaction.handler==='containerOpen')return uses.some(use=>actionTypeOf(use)===1);
+  if(interaction.handler==='foodEat')return uses.some(use=>[1,7].includes(actionTypeOf(use)));
+  if(interaction.handler==='waterDrink')return uses.some(use=>actionTypeOf(use)===7);
+  return false;
+}
 function itemActions(c, e, it){
   upgradeItem(it);
-  const a=[];
-  const B=(icon,label,fn,title,cost)=>a.push({icon,label,fn,title:title||label,cost:cost||'action'});
+  if(!bg3ItemSourceAuditAllows(it,'actions'))return [];
+  const a=[],uses=itemUsesOf(it);
+  const B=(icon,label,fn,title,cost,meta)=>a.push(Object.assign({icon,label,fn,title:title||label,cost:cost||'action'},meta||{}));
   const handlers={
     weaponAttack:x=>B(x.mode==='throw'?'🎯':'⚔',x.label,(bg3CatalogIsId(it.id)?"bg3WeaponAttackOpen('":"weaponAttackFx('")+e.id+"','"+c.id+"','"+(x.mode||'melee')+"')",'Цель, формула, разбор итога',x.cost),
     ammoRecover:x=>B('↺',x.label,"ammoRecover('"+e.id+"')",'Вернуть половину истраченных боеприпасов',x.cost),
@@ -18371,9 +18394,12 @@ function itemActions(c, e, it){
     containerOpen:x=>B('📦',x.label,"containerOpen('"+e.id+"')",'Посмотреть и переложить содержимое',x.cost),
     ritualBurn:x=>B('🕯',x.label,"ritualBurn('"+e.id+"')",'Начать обряд',x.cost)
   };
-  itemInteractionsOf(it).forEach(x=>{ if(handlers[x.handler]) handlers[x.handler](x); });
+  itemInteractionsOf(it).forEach(x=>{ if(handlers[x.handler]&&!bg3InteractionCoveredByExactUse(it,x,uses)) handlers[x.handler](x); });
   const useIcon={action:'⚗',attack:'⚔',bonus:'◇',reaction:'↯',object:'▣',long:'⌛',free:'◌',turnfree:'◌'};
-  itemUsesOf(it).forEach(use=>{
+  uses.forEach(use=>{
+    const contract=bg3CatalogIsId(it.id)?bg3CatalogActionContract(use):{state:'typed',reason:''};if(contract.state==='blocked'){
+      const reason=bg3ItemInstructionContractReason(contract.reason),fn="bg3ItemInstructionsOpen('"+it.id+"','"+c.id+"','"+e.id+"','"+use.id+"')";B('ℹ',use.label+' · справка',fn,'Автоматическое применение недоступно: '+reason,'free',{infoOnly:true,blocked:true,reason:contract.reason,sourceUseId:use.id});return;
+    }
     if(use.trigger==='incomingDamage'||use.trigger==='wouldDropToZero'||use.trigger==='savingThrow'||use.special==='mentorGuard'){
       B('↯',use.label,"itemTriggerExplain('"+e.id+"','"+use.id+"')",'Контекстное свойство появляется внутри соответствующей формулы',use.cost); return;
     }
@@ -18436,7 +18462,8 @@ function itemHintHTML(c, e, it){
 }
 const BG3_CATALOG_INTERACTION_NAMES=Object.freeze({containerOpen:'контейнер',weaponAttack:'атака оружием',loreRead:'чтение',foodEat:'еда',instrumentPlay:'инструмент',lightToggle:'свет',materialInspect:'материал',waterDrink:'питьё'});
 function bg3CatalogActionContract(use){
-  const program=use&&use.program||{},projection=program.projection||null,projectionReady=!!(projection&&projection.complete===true&&['typed','empty'].includes(projection.mode)&&!bg3Array(projection.unresolved).length);
+  const program=use&&use.program||{},declared=use&&use.contract||null,projection=program.projection||null,sourceBlocked=!!(use&&use.sourceBlocked===true||program.sourceBlocked===true||program.runtimeReady===false||program.executable===false||declared&&declared.state==='blocked'),projectionReady=!!(projection&&projection.complete===true&&['typed','empty'].includes(projection.mode)&&!bg3Array(projection.unresolved).length&&projection.sourceBlocked!==true&&projection.runtimeReady!==false&&projection.executable!==false);
+  if(sourceBlocked)return {state:'blocked',reason:String(use&&use.reason||program.reason||declared&&declared.reason||'source-program-blocked')};
   if(bg3RecipeProgramAction(use))return {state:'typed',reason:'exact-recipe-preflight'};
   if(bg3LearnSpellProgramAction(use))return {state:'typed',reason:'exact-learn-spell-preflight'};
   if(typeof bg3TadpoleUseAction==='function'&&bg3TadpoleUseAction(use))return {state:'typed',reason:'exact-tadpole-preflight'};
@@ -18495,7 +18522,7 @@ function itemProfileSummaryHTML(it){
 function itemWorkspaceRelationView(view,query){
   if(!['scene','recipes','treasure'].includes(view))return;const summary=bg3Catalog.summaries.get(String(query||''));bg3RuntimeView=view;bg3RuntimeQuery=summary?bg3UserItemName(summary,''):String(query||'');bg3RuntimePage=0;bg3RecipeOpenId='';bg3TreasureOpenId='';
   if(view==='scene'){bg3SceneStage='';bg3SceneLevel='';bg3SceneModule='';bg3ScenePlacementPage=0;bg3SceneOpenId='';}
-  renderItemsDB();
+  if(activeWorldTab!=='itemsdb')switchTab('itemsdb');renderItemsDB();
 }
 function itemRelationsHTML(it){
   if(!bg3CatalogIsId(it&&it.id))return '';const source=it.source||{},availability=source.availability||{},presentation=bg3ItemPresentation.byItem.get(it.id),recipes=[...new Set(bg3Array(availability.recipeRecords).map(String).filter(Boolean))],recipeHint=Math.max(recipes.length,presentation&&presentation.recipeSources||0),recipeAsset=bg3Catalog.assets&&bg3Catalog.assets.recipes,canonicalRecipes=recipeAsset?bg3RecipeRelationsForItem(recipeAsset,it.id):null,treasure=[...new Set(bg3Array(availability.treasureTables).map(String).filter(Boolean))],treasureHint=Math.max(treasure.length,presentation&&presentation.treasureSources||0),treasureAsset=bg3Catalog.assets&&bg3Catalog.assets.treasure,canonicalTreasure=treasureAsset?bg3TreasureRelationsForItem(treasureAsset,it.id):null,evidence=source.placementEvidence||{},profiles=Object.keys(evidence),browserRow=bg3SceneBrowser&&bg3SceneBrowser.byItem&&bg3SceneBrowser.byItem.get(it.id),profile=bg3Catalog.preferredProfile||'standard',placementCount=browserRow?(+bg3SceneObject(browserRow.profileCounts)[profile]||0):bg3ItemPlacementEvidenceCount(evidence),sceneKnown=!!(bg3SceneBrowser&&bg3SceneBrowser.root),sceneAvailable=sceneKnown?!!browserRow:true;
@@ -18517,6 +18544,144 @@ function bg3LifecyclePresentationName(effect,it){
   if(effect&&effect.kind==='passive')return 'Пассивное свойство «'+itemName+'»';
   return 'Особое свойство «'+itemName+'»';
 }
+const BG3_ITEM_INSTRUCTION_ROLES=Object.freeze({
+  'activation-guard':'Условия активации','target-guard':'Допустимая цель',resolution:'Проверка или атака',
+  consequences:'Последствия','success-consequences':'При успехе','failure-consequences':'При провале',
+  'resource-cost':'Расход ресурсов','resource-cost-alternate':'Альтернативный расход','cycle-guard':'Условия восстановления',
+  modifiers:'Постоянные модификаторы','on-apply':'При наложении','on-remove':'При снятии','on-tick':'Периодический эффект',
+  'remove-guard':'Условия окончания','enable-guard':'Условия включения','aura-consequences':'Эффект ауры'
+});
+const BG3_ITEM_INSTRUCTION_OPS=Object.freeze({
+  applyStatus:'Накладывает состояние',removeStatus:'Снимает состояние',dealDamage:'Наносит урон',regainHitPoints:'Восстанавливает хиты',
+  grantTemporaryHitPoints:'Даёт временные хиты',consumeResource:'Расходует ресурс',restoreResource:'Восстанавливает ресурс',blockResource:'Блокирует ресурс',
+  modifyResourceCapacity:'Изменяет максимум ресурса',modifyResourceConsumption:'Изменяет расход ресурса',modifyResourceMultiplier:'Изменяет множитель ресурса',
+  overrideResource:'Заменяет значение ресурса',overrideResourceReplenishment:'Изменяет восстановление ресурса',preventResourceReduction:'Не даёт уменьшить ресурс',
+  modifyArmorClass:'Изменяет класс доспеха',overrideArmorClassFormula:'Заменяет формулу класса доспеха',blockAbilityModifierFromArmorClass:'Не учитывает модификатор характеристики в КД',
+  modifyResistance:'Изменяет сопротивление урону',setDamageResistance:'Задаёт сопротивление урону',ignoreResistance:'Игнорирует сопротивление',grantSpellResistance:'Даёт сопротивление заклинаниям',
+  modifyRoll:'Изменяет бросок',adjustRoll:'Корректирует результат броска',setRoll:'Задаёт результат броска',setReroll:'Разрешает переброс',reroll:'Перебрасывает',
+  grantAdvantage:'Даёт преимущество',grantDisadvantage:'Даёт помеху',modifyCriticalHit:'Изменяет критическое попадание',modifyCriticalThreshold:'Изменяет порог критического попадания',
+  modifyWeaponDamage:'Изменяет урон оружия',halveWeaponDamage:'Уменьшает урон оружия вдвое',modifyDamageBonus:'Изменяет бонус урона',modifyDamageReduction:'Изменяет снижение урона',
+  modifyIncomingDamage:'Изменяет входящий урон',redirectDamage:'Перенаправляет урон',modifyUnarmedDamage:'Изменяет урон безоружной атаки',modifyWeaponEnchantment:'Изменяет зачарование оружия',
+  modifyAbility:'Изменяет характеристику',setAbilityMinimum:'Задаёт минимум характеристики',modifyAttribute:'Изменяет свойство существа',modifySkill:'Изменяет навык',
+  modifyProficiencyBonus:'Изменяет бонус мастерства',grantProficiency:'Даёт владение',modifyInitiative:'Изменяет инициативу',modifyMaximumHitPoints:'Изменяет максимум хитов',
+  unlockSpell:'Открывает особое действие',unlockInterrupt:'Открывает реакцию',invokeSpell:'Применяет связанное заклинание',performAttack:'Выполняет атаку',executeWeaponFunctors:'Применяет эффекты оружия',
+  requestResolution:'Требует результата игрока',markAbilityFailedSavingThrow:'Отмечает проваленный спасбросок',counterspell:'Пытается прервать заклинание',
+  applyEquipmentStatus:'Накладывает состояние на экипировку',grantStatusImmunity:'Даёт иммунитет к состоянию',setStatusDuration:'Изменяет длительность состояния',
+  breakConcentration:'Прерывает концентрацию',blockSpellCast:'Запрещает сотворение заклинания',blockHealing:'Блокирует лечение',maximizeHealing:'Максимизирует лечение',modifySpellSaveDC:'Изменяет СЛ заклинаний',
+  summon:'Призывает существо или объект',summonInInventory:'Создаёт предмет в инвентаре',createSurface:'Создаёт поверхность',createExplosion:'Создаёт взрыв',teleport:'Телепортирует',swapPlaces:'Меняет цели местами',
+  limitMovementSpeed:'Ограничивает скорость',modifyJumpDistance:'Изменяет дальность прыжка',multiplyJumpDistance:'Умножает дальность прыжка',resetCombatTurn:'Сбрасывает ход',resetCooldowns:'Восстанавливает перезарядки',
+  resurrect:'Возвращает к жизни',stabilize:'Стабилизирует',disarmWeapon:'Выбивает оружие',spawnExtraProjectiles:'Создаёт дополнительные снаряды',
+  blockDetectDisturbances:'Не даёт обнаружить воздействие',modifyTag:'Изменяет игровой признак',grantSourceAdvantageOnAttack:'Даёт источнику преимущество на атаку',
+  playSoundOnDestroy:'Воспроизводит звук при уничтожении',playSound:'Воспроизводит звук',openClose:'Открывает или закрывает объект',destroy:'Уничтожает объект',
+  createPuddle:'Создаёт лужу',insert:'Помещает предметы внутрь',readBook:'Открывает содержимое книги',learnSpell:'Добавляет заклинание в книгу',combine:'Открывает рецепт',
+  commitFromItemAction:'Фиксирует расход и стоимость действия',invokeStatusProgram:'Применяет связанное состояние',invokeSpellProgram:'Применяет связанное заклинание',invokePassiveProgram:'Применяет связанное пассивное свойство',invokeInterruptProgram:'Подготавливает связанную реакцию'
+});
+const BG3_ITEM_INSTRUCTION_WORDS=Object.freeze({
+  SELF:'владелец предмета',TARGET:'выбранная цель',SOURCE:'источник эффекта',GROUND:'выбранная точка',OBSERVER:'наблюдатель',
+  Acid:'кислота',Cold:'холод',Fire:'огонь',Lightning:'электричество',Thunder:'звук',Poison:'яд',Psychic:'психический',Radiant:'свет',Necrotic:'некротический',Force:'силовой',
+  Slashing:'рубящий',Piercing:'колющий',Bludgeoning:'дробящий',All:'все',Damage:'урон',Energy:'энергия',Resistance:'сопротивление',Resistant:'сопротивление',Immune:'иммунитет',Vulnerable:'уязвимость',
+  Saving:'спасбросок',Throw:'бросок',Attack:'атака',Spell:'заклинание',Weapon:'оружие',Melee:'ближний бой',Ranged:'дальний бой',Action:'действие',Bonus:'бонусное',Reaction:'реакция',Point:'единица',
+  Strength:'Сила',Dexterity:'Ловкость',Constitution:'Телосложение',Intelligence:'Интеллект',Wisdom:'Мудрость',Charisma:'Харизма',Modifier:'модификатор',
+  Turn:'ход',Round:'раунд',Until:'до',Rest:'отдых',Short:'короткий',Long:'долгий',Temporary:'временные',Hit:'попадание',Points:'хиты',
+  Main:'основная',Off:'вторая',Hand:'рука',Neck:'шея',Ring:'кольцо',Armor:'доспех',Shield:'щит',Status:'состояние',Passive:'пассивное свойство',Technical:'служебное'
+});
+function bg3ItemInstructionIdentifier(value,fallback){
+  const raw=String(value==null?'':value).trim();if(!raw)return fallback||'';
+  const exact={SELF:'владелец предмета',Self:'владелец предмета',self:'владелец предмета',TARGET:'выбранная цель',Target:'выбранная цель',target:'выбранная цель',SOURCE:'источник эффекта',Source:'источник эффекта',source:'источник эффекта',GROUND:'выбранная точка',Ground:'выбранная точка',ground:'выбранная точка','context.Observer':'наблюдатель','context.Target':'цель','context.Source':'источник',
+    item:'предмет',Item:'предмет',charges:'заряды',Charges:'заряды',kit:'набор',Kit:'набор',none:'без расхода',None:'без расхода',BURNING:'горение',Burning:'горение',
+    ReactionActionPoint:'реакция',ActionPoint:'действие',BonusActionPoint:'бонусное действие',Movement:'скорость',AllSavingThrows:'все спасброски',SavingThrow:'спасбросок'};
+  if(exact[raw])return exact[raw];if(/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(raw))return fallback||'указанный объект';
+  const cleaned=raw.replace(/^context\./,'').replace(/^(?:MAG|GEN|GLO|INTERRUPT|STATUS|PASSIVE|SPELL|TARGET|SHOUT|PROJECTILE|OBJ|CONS|WPN|ARM|UNI|UND|DEN|FOR|GOB|LOW|TWN|SCL|CRE|QUEST|ALCH|SG)_+/i,'')
+    .replace(/([a-zа-я])([A-ZА-Я])/g,'$1 $2').replace(/[._:/-]+/g,' ').replace(/\s+/g,' ').trim();
+  if(!cleaned)return fallback||'игровой эффект';const words=cleaned.split(' ').map(word=>{const lower=word.toLocaleLowerCase('en'),title=lower?lower[0].toUpperCase()+lower.slice(1):'';return BG3_ITEM_INSTRUCTION_WORDS[word]||BG3_ITEM_INSTRUCTION_WORDS[title]||lower;});
+  const text=words.join(' ').replace(/\s+/g,' ').trim();return text?text[0].toLocaleUpperCase('ru')+text.slice(1):(fallback||'игровой эффект');
+}
+function bg3ItemInstructionNode(node){
+  if(node==null)return '';if(typeof node==='number')return String(node);if(typeof node==='string')return bg3ItemInstructionIdentifier(node,node);if(typeof node==='boolean')return node?'да':'нет';if(Array.isArray(node))return node.map(bg3ItemInstructionNode).filter(Boolean).join(', ');
+  const kind=String(node.kind||'');if(['integer','number'].includes(kind))return String(node.value);if(kind==='percent')return String(node.value)+'%';if(kind==='booleanLiteral')return node.value?'да':'нет';if(kind==='empty')return '';if(kind==='source')return +node.value===0?'мгновенно':bg3ItemInstructionNode(node.value);
+  if(kind==='dice')return (+node.count||1)+'d'+(+node.sides||0)+(+node.modifier?((+node.modifier>0?'+':'')+node.modifier):'');
+  if(['symbol','string','raw'].includes(kind))return bg3ItemInstructionIdentifier(node.value||node.raw,'игровое значение');if(kind==='slot')return 'слот «'+bg3ItemInstructionIdentifier(node.slot,'экипировка')+'»';
+  if(kind==='slot-mode')return 'слот «'+bg3ItemInstructionIdentifier(node.slot,'экипировка')+'», '+bg3ItemInstructionIdentifier(node.mode,'режим');if(kind==='source-equipment')return 'предмет-источник';
+  if(kind==='set'||kind==='sequence')return bg3Array(node.items).map(bg3ItemInstructionNode).filter(Boolean).join(kind==='set'?' или ':', ');
+  if(kind==='not'||kind==='unary')return 'не ('+bg3ItemInstructionNode(node.operand)+')';
+  if(kind==='and'||kind==='or'||kind==='boolean')return bg3Array(node.operands).map(value=>'('+bg3ItemInstructionNode(value)+')').join((node.operator||kind)==='or'?' или ':' и ');
+  if(kind==='arithmetic')return bg3ItemInstructionNode(node.left)+' '+String(node.operator||'')+' '+bg3ItemInstructionNode(node.right);
+  if(kind==='if')return 'если '+bg3ItemInstructionNode(node.condition)+', то '+bg3ItemInstructionNode(node.then)+(node.else?', иначе '+bg3ItemInstructionNode(node.else):'');
+  if(kind==='unresolved')return 'условие, которое должен разрешить мастер';
+  if(kind==='predicate'||kind==='call')return bg3ItemInstructionPredicate(node.name,bg3Array(node.args));
+  return bg3ItemInstructionIdentifier(node.value||node.name,'игровое значение');
+}
+function bg3ItemInstructionPredicate(name,args){
+  name=String(name||'');const values=bg3Array(args).map(bg3ItemInstructionNode).filter(Boolean),tail=values.length?' ('+values.join(', ')+')':'';
+  const exact={Dead:'цель мертва',Self:'источник и цель совпадают',Character:'цель — персонаж',Enemy:'цель — противник',Ally:'цель — союзник',Item:'цель — предмет',Player:'цель — персонаж игрока',
+    SavingThrow:'совершается спасбросок',SkillCheck:'совершается проверка навыка',Attack:'совершается атака',IsAttack:'событие является атакой',IsWeaponAttack:'атака совершается оружием',IsMeleeAttack:'атака ближнего боя',IsRangedAttack:'дальнобойная атака',
+    IsSpell:'урон или событие вызвано заклинанием',IsHit:'атака попала',IsMiss:'атака промахнулась',IsCritical:'критическое попадание',IsCriticalMiss:'критический промах',IsKillingBlow:'удар стал смертельным',
+    HasStatus:'есть состояние',HasAnyStatus:'есть хотя бы одно состояние',HasPassive:'есть пассивное свойство',HasActionResource:'доступен ресурс действия',Tagged:'есть игровой признак',Combat:'идёт бой',TurnBased:'пошаговый режим активен',
+    IsConcentrating:'цель поддерживает концентрацию',CanStand:'цель может встать',IsAbleToReact:'доступна реакция',IsProficientWithEquippedWeapon:'есть владение экипированным оружием',CanUseWeaponActions:'доступны действия оружия'};
+  const damage=name.match(/^IsDamageType(.+)$/);if(damage)return 'тип урона — '+bg3ItemInstructionIdentifier(damage[1],'указанный');
+  const ability=name.match(/^HasSavingThrowWithAbility$/);if(ability)return 'спасбросок использует характеристику'+tail;
+  return (exact[name]||bg3ItemInstructionIdentifier(name,'проверяется игровое условие'))+tail;
+}
+function bg3ItemInstructionTarget(op){return bg3ItemInstructionNode(op&&[op.target,op.equipmentTarget,op.destinationTarget].find(Boolean))||'';}
+function bg3ItemInstructionArgs(op){return bg3Array(op&&op.args).map(bg3ItemInstructionNode).filter(Boolean);}
+function bg3ItemInstructionOpLines(op,depth){
+  depth=Math.max(0,+depth||0);if(!op||typeof op!=='object')return [];const prefix='  '.repeat(depth),kind=String(op.op||'');
+  if(kind==='if'){const condition=bg3ItemInstructionNode(op.condition)||'выполнено условие',lines=[prefix+'Если '+condition+':'];for(const child of bg3Array(op.then))lines.push(...bg3ItemInstructionOpLines(child,depth+1));if(bg3Array(op.else).length){lines.push(prefix+'Иначе:');for(const child of op.else)lines.push(...bg3ItemInstructionOpLines(child,depth+1));}return lines;}
+  if(kind==='guard')return [prefix+'Требуется: '+(bg3ItemInstructionNode(op.condition)||'выполнить условие источника')+'.'];
+  if(kind==='requestResolution')return [prefix+'Игрок вводит результат: '+(bg3ItemInstructionNode(op.condition)||'проверка по правилам свойства')+'.'];
+  if(kind==='manual')return [prefix+'Требуется решение мастера: '+bg3ItemInstructionIdentifier(op.reason||op.raw,'часть исходного правила не типизирована')+'.'];
+  const label=BG3_ITEM_INSTRUCTION_OPS[kind]||bg3ItemInstructionIdentifier(kind,'Применяет игровой эффект'),args=bg3ItemInstructionArgs(op),target=bg3ItemInstructionTarget(op),amount=bg3ItemInstructionNode(op.amount),damage=bg3ItemInstructionNode(op.damageType),status=bg3ItemInstructionNode(op.status),parameters=bg3Array(op.parameters).map(bg3ItemInstructionNode).filter(Boolean);let detail='';
+  if(kind==='dealDamage')detail=[amount,damage,target&&'цель: '+target].filter(Boolean).join(' · ');
+  else if(kind==='applyStatus'||kind==='applyEquipmentStatus'){const chance=parameters.length?parameters[0]:'',rawDuration=parameters.length>1?parameters[1]:'',duration=String(rawDuration)==='-1'?'пока состояние не снято':rawDuration;detail=[status,target&&'цель: '+target,chance&&'шанс: '+chance+(String(chance).includes('%')?'':'%'),duration&&'длительность: '+duration].filter(Boolean).join(' · ');}
+  else if(kind==='removeStatus')detail=[status||args[1]||args[0],target&&'цель: '+target].filter(Boolean).join(' · ');
+  else if(kind==='regainHitPoints'||kind==='grantTemporaryHitPoints')detail=[amount||args[0],target&&'цель: '+target].filter(Boolean).join(' · ');
+  else if(kind==='consumeResource'||kind==='restoreResource'||kind==='blockResource')detail=args.length?args.join(' · '):'';
+  else if(kind==='commitFromItemAction'){const binding=op.binding||{},consume=binding.consume||{};detail=[binding.cost&&combatCostLabel(binding.cost),consume.kind&&consume.kind!=='none'?'расход '+bg3ItemInstructionIdentifier(consume.kind,'ресурса')+' ×'+(+consume.amount||1):'без расхода предмета'].filter(Boolean).join(' · ');}
+  else if(['invokeStatusProgram','invokeSpellProgram','invokePassiveProgram','invokeInterruptProgram'].includes(kind)){const linked=bg3UserFacingLabel(op.statusId||op.spellId||op.passiveId||op.interruptId,'связанное правило'),duration=bg3ItemInstructionNode(op.duration);detail=[linked,target&&'цель: '+target,duration&&'длительность: '+duration].filter(Boolean).join(' · ');}
+  else if(kind==='unlockSpell'||kind==='unlockInterrupt'||kind==='invokeSpell')detail=args[0]||'';
+  else if(kind==='modifyDamageBonus'||kind==='modifyWeaponDamage')detail=args.filter(value=>!['да','нет'].includes(value)).join(' · ');
+  else detail=args.length?args.join(' · '):[target,status,amount].filter(Boolean).join(' · ');
+  const blocked=op.executable===false?' Автоматическое применение заблокировано.':'';return [prefix+label+(detail?': '+detail:'')+'.'+blocked];
+}
+function bg3ItemInstructionGate(value){return {equipped:'пока предмет надет','equipped-main-hand':'пока предмет в основной руке','equipped-off-hand':'пока предмет во второй руке',inventory:'пока предмет в инвентаре','on-hit':'при попадании','granted-action':'после особого действия',onEquip:'при надевании','on-equip':'при надевании',onUse:'при использовании','on-use':'при использовании'}[value]||'при условии свойства';}
+function bg3ItemInstructionContractReason(value){return {typed:'правило полностью типизировано',blocked:'автоматическое применение заранее заблокировано','unresolved-rule-projection':'в исходной программе осталась неразобранная ветвь','source-program-mixed':'исходная программа содержит и типизированные, и ручные операции','source-program-manual':'исходная программа требует решения мастера','source-program-empty':'исходная программа не задаёт исполняемых последствий','source-program-unknown':'формат исходной программы не подтверждён','incomplete-lifecycle-projection':'не все последствия свойства представлены в движке','blocked-lifecycle-granted-action':'предоставляемое действие не прошло полную проверку','blocked-lifecycle-interrupt':'реакция не прошла полную проверку'}[value]||bg3ItemInstructionIdentifier(value,'нужна полная проверка движка');}
+function bg3ItemInstructionReferenceRows(it){
+  const rows=new Map(),sources=[],seen=new WeakSet(),profile=bg3Catalog.preferredProfile||'standard';
+  const contextKey=context=>[context.section,context.label,context.gate,context.focusId].join('|');
+  const add=(artifact,programId,fields,context,root)=>{artifact=String(artifact||'');programId=String(programId||'');if(!artifact||!programId)return;const safe=root?/^root-template-programs\/[0-9a-f]{2}(?:-[0-9]{4})?\.json$/.test(artifact):bg3RuleArtifactPath(artifact);if(!safe)return;const key=(root?'root:':'rule:')+artifact+'|'+programId,row=rows.get(key)||{artifact,programId,root:!!root,fields:new Set(),contexts:[]};for(const field of bg3Array(fields))if(field)row.fields.add(String(field));if(!row.contexts.some(value=>contextKey(value)===contextKey(context)))row.contexts.push(context);rows.set(key,row);};
+  const walk=(value,context)=>{if(!value||typeof value!=='object')return;if(seen.has(value))return;seen.add(value);if(value.schemaVersion==='bg3-lifecycle-source-expression/1'&&Array.isArray(value.bytecode))sources.push({context,program:{id:value.id||'',sourceProfile:value.sourceProfile||profile,mode:value.mode||'unknown',fields:[{field:value.sourceField||'SourceExpression',role:value.role||'modifiers',raw:value.raw||'',bytecode:value.bytecode}]}});if(value.artifact&&value.programId)add(value.artifact,value.programId,value.fields,context,false);if(value.rootArtifact&&value.id)add(value.rootArtifact,value.id,[],context,true);for(const child of Object.values(value))if(child&&typeof child==='object')walk(child,context);};
+  for(const action of itemUsesOf(it)){const context={section:'action',label:bg3UserFacingLabel(action.label,'Использование предмета'),gate:'',focusId:String(action.id||'')};walk(action.program,context);}
+  for(const effect of bg3LifecycleRefsOf(it)){const context={section:'property',label:bg3LifecyclePresentationName(effect,it),gate:String(effect.gate||''),focusId:String(effect.id||'')};walk(effect,context);}
+  return {profile,rows:[...rows.values()],sources};
+}
+async function bg3ItemInstructionPrograms(it){
+  const refs=bg3ItemInstructionReferenceRows(it),payloads=new Map();await Promise.all([...new Set(refs.rows.map(row=>row.artifact))].map(async artifact=>payloads.set(artifact,await bg3CatalogLoadArtifact(artifact))));const programs=[];
+  for(const ref of refs.rows){const payload=payloads.get(ref.artifact),program=ref.root?bg3Array(payload&&payload.programs).find(row=>row&&row.id===ref.programId):bg3Array(payload&&payload.rules).map(rule=>({rule,program:rule&&rule.programs&&rule.programs[refs.profile]})).find(row=>row.program&&row.program.id===ref.programId);if(ref.root){programs.push({ref,program:program||null,rule:null});continue;}programs.push({ref,program:program&&program.program||null,rule:program&&program.rule||null});}
+  for(const source of refs.sources)programs.push({ref:{artifact:'',programId:source.program.id,root:false,fields:new Set(),contexts:[source.context]},program:source.program,rule:null,source:true});return programs;
+}
+function bg3ItemInstructionProgramLines(record){
+  const ref=record.ref,program=record.program,contexts=ref.contexts||[],labels=[...new Set(contexts.map(context=>context.label).filter(Boolean))],gates=[...new Set(contexts.map(context=>context.gate).filter(Boolean))],lines=['Свойство: '+(labels.join(' / ')||'Правило предмета')+(gates.length?' — '+gates.map(bg3ItemInstructionGate).join(' / '):'')+'.'];
+  if(!program){lines.push('• Закреплённая программа не загрузилась; автоматическое применение недоступно.');return lines;}
+  const mode=String(program.mode||'unknown');lines.push('• Состояние движка: '+(mode==='typed'?'все операции типизированы':mode==='empty'?'отдельных операций нет':'автоматическое применение заблокировано: программа '+bg3ItemInstructionIdentifier(mode,'неполная'))+'.');
+  let fields=bg3Array(program.fields);if(ref.fields&&ref.fields.size)fields=fields.filter(field=>ref.fields.has(String(field&&field.field||'')));
+  for(const field of fields){const role=BG3_ITEM_INSTRUCTION_ROLES[field&&field.role]||bg3ItemInstructionIdentifier(field&&field.role,'Правило'),ops=bg3Array(field&&field.bytecode),opLines=ops.flatMap(op=>bg3ItemInstructionOpLines(op,0));lines.push('• '+role+':');if(opLines.length)lines.push(...opLines.map(text=>'  '+text));else lines.push('  Исходное поле не добавляет отдельного последствия.');}
+  for(const phase of ['validation','commit','consequences']){const ops=bg3Array(program[phase]);if(!ops.length)continue;lines.push('• '+({validation:'Проверка перед применением',commit:'Расход в единой точке коммита',consequences:'Последствия'}[phase])+':');lines.push(...ops.flatMap(op=>bg3ItemInstructionOpLines(op,0)).map(text=>'  '+text));}
+  if(!fields.length&&!['validation','commit','consequences'].some(phase=>bg3Array(program[phase]).length))lines.push('• Отдельных исполняемых последствий у этой ссылки нет.');return lines;
+}
+function bg3ItemInstructionOverview(it,focusId){
+  const mechanics=it&&it.mechanics||{},lines=[],actions=itemUsesOf(it),interactions=itemInteractionsOf(it),effects=bg3Array(mechanics.effects),profile=itemProfile(it),focus=String(focusId||''),audit=bg3ItemSourceAuditOverride(it);
+  lines.push('Профиль: '+(ITEM_KIND_RU[profile.kind]||itemWorkspaceKindLabel(profile.kind)||'предмет')+(it.rarity?' · '+it.rarity:'')+(it.weight?' · '+it.weight:'')+'.');
+  if(audit)lines.push('', 'Источник неполон; автоматизация отключена:', '• '+audit.reason, '• Ручной режим: '+audit.manualInstruction);
+  if(actions.length){lines.push('', 'Действия:');for(const action of actions){const contract=bg3CatalogActionContract(action),consume=action.consume&&action.consume.kind!=='none'?' · расход '+bg3ItemInstructionIdentifier(action.consume.kind,'ресурса')+' ×'+(+action.consume.amount||1):' · без расхода',selected=focus&&focus===String(action.id||'')?' [выбрано]':'';lines.push('• '+bg3UserFacingLabel(action.label,'Использовать предмет')+selected+' — '+combatCostLabel(action.cost)+' · '+bg3ItemInstructionIdentifier(action.target,'цель выбирает мастер')+consume+' · '+bg3ItemInstructionContractReason(contract.state==='blocked'?contract.reason:'typed')+'.');}}
+  if(interactions.length){lines.push('', 'Взаимодействия:');for(const action of interactions)lines.push('• '+bg3UserFacingLabel(action.label,'Взаимодействовать')+(focus&&focus===String(action.id||'')?' [выбрано]':'')+' — '+combatCostLabel(action.cost||'object')+'.');}
+  if(effects.length){lines.push('', 'Прямые изменения характеристик:');for(const effect of effects)lines.push('• '+bg3PresentationStatLabel(effect.stat)+' — '+bg3ItemInstructionIdentifier(effect.mode,'изменяет')+' '+String(effect.value==null?'':effect.value)+(effect.unit?' '+effect.unit:'')+'.');}
+  if(!actions.length&&!interactions.length&&!effects.length&&!bg3LifecycleRefsOf(it).length)lines.push('', 'Источник не задаёт этому объекту отдельного действия, изменения характеристики или условного эффекта.');return lines;
+}
+async function bg3ItemInstructionsOpen(itemId,actorId,entryId,focusId){
+  itemId=String(itemId||'');try{if(bg3CatalogIsId(itemId)){await bg3CatalogEnsureIndex();if(!bg3Catalog.items.has(itemId))await bg3CatalogHydrate([itemId]);}const it=itemOf(itemId);if(!it)throw new Error('предмет отсутствует в текущей базе');setStatus('⌁ Загружаются полные правила предмета…');const lines=bg3ItemInstructionOverview(it,focusId);if(bg3CatalogIsId(itemId)){const programs=await bg3ItemInstructionPrograms(it);if(programs.length){lines.push('', 'Постоянные, условные и связанные правила:');for(const record of programs){lines.push('',...bg3ItemInstructionProgramLines(record));}}else if(bg3LifecycleRefsOf(it).length)lines.push('', 'Связанные правила не удалось разрешить из закреплённой базы.');}
+    askShow({title:'ℹ '+String(it.n||'Правила предмета'),body:lines.join('\n'),note:bg3CatalogIsId(itemId)?'Это подробная проекция тех же закреплённых программ, которые проверяет движок. Текст ничего не применяет и не расходует.':'Это справка по сохранённой механике предмета кампании; применение выполняется отдельной кнопкой.'});setStatus('✓ Правила предмета открыты.');return true;
+  }catch(error){const reason=String(error&&error.message||error);setStatus('✕ Правила предмета не загрузились: '+reason,true);askShow({title:'⚠ Правила временно недоступны',body:'Карточка предмета сохранена, но подробную справку сейчас открыть не удалось.',note:'Ничего не израсходовано и состояние мира не изменено. '+reason});return false;}
+}
 function bg3ItemPresentationDetailHTML(it){
   if(!bg3CatalogIsId(it&&it.id)||!bg3ItemPresentationEligible())return '';const meta=bg3ItemPresentation.byItem.get(it.id),detail=bg3ItemPresentation.details.get(it.id);if(meta&&meta.detailShard==null)return '';if(!detail){const error=meta&&bg3ItemPresentation.detailErrors.get(meta.detailShard);return error?'<div class="catalog-state">⚠ Дополнительные игровые сведения временно недоступны. Основные характеристики выше остаются действительными. <button class="btn ghost sm" onclick="bg3ItemPresentationRetryDetail('+esc(JSON.stringify(it.id))+')">повторить</button></div>':(bg3ItemPresentation.error?'':'<div class="catalog-state">Подготавливаются полные подписи действий и событий…</div>');}const profile=bg3Catalog.preferredProfile||'standard',row=detail.profiles&&detail.profiles[profile];if(!row)return '';
   const cost={none:'без затраты',action:'действие',attack:'действие «Атака»',bonus:'бонусное действие',reaction:'реакция',object:'взаимодействие с объектом',free:'без затраты действия'},target={self:'на себя',ally:'на союзника',enemy:'на противника',any:'на выбранную цель',ground:'в точку мира',creature:'на существо',creatureOrObject:'на существо или объект',object:'на объект'},mode={add:'добавляет',set:'устанавливает',mul:'умножает',min:'не ниже',max:'не выше',grant:'даёт',text:'изменяет',adv:'даёт преимущество',dis:'даёт помеху'},consumeKind={item:'предмет',charges:'заряды',kit:'набор'},gate={equipped:'Пока надето','equipped-main-hand':'Пока в основной руке','equipped-off-hand':'Пока во второй руке',inventory:'Пока в инвентаре','on-hit':'При попадании','granted-action':'После особого действия',onEquip:'При надевании','on-equip':'При надевании',onUse:'При использовании','on-use':'При использовании'},sections=[];
@@ -18526,16 +18691,49 @@ function bg3ItemPresentationDetailHTML(it){
   if(bg3Array(row.effects).length)sections.push('<div class="item-presentation-group"><b>Изменения характеристик:</b>'+row.effects.map(effect=>'<div class="item-mechanic-row"><span aria-hidden="true">◆</span><div><b>'+esc(bg3PresentationStatLabel(effect.stat))+'</b> — '+esc(mode[effect.mode]||'изменяет')+' '+esc(String(effect.value==null?'':effect.value))+(effect.unit?' '+esc(effect.unit):'')+'</div></div>').join('')+'</div>');
   return sections.length?'<section class="props-block item-presentation-detail"><span class="pt">Игровые возможности:</span>'+sections.join('')+'</section>':'';
 }
+const bg3ItemPresentationCardLoads=new Map();
+function itemCardSurfaceRefresh(itemId,actorId,inventoryOnly){
+  itemId=String(itemId||'');actorId=String(actorId||'');
+  if(inventoryOnly===true){
+    if(activeWorldTab!=='chars'||sheetTab!=='inventory')return false;const actor=cc();
+    if(!actor||actorId&&actor.id!==actorId||itemId&&!(actor.inventory||[]).some(entry=>entry.itemId===itemId))return false;renderChars();return true;
+  }
+  if(activeWorldTab==='chars'){const actor=getCh(actorId);if(actor&&cc()===actor){renderChars();return true;}return false;}
+  if(activeWorldTab==='itemsdb'){if(itemId&&itemWorkspace.selectedId&&itemWorkspace.selectedId!==itemId)return false;renderItemsDB();return true;}
+  if(activeWorldTab==='combat'&&typeof renderCombat==='function'){renderCombat();return true;}return false;
+}
+function bg3ItemPresentationEnsureForCard(itemId,actorId){
+  itemId=String(itemId||'');actorId=String(actorId||'');if(!itemId||!bg3ItemPresentationEligible())return;const epoch=bg3Catalog.epoch,meta=bg3ItemPresentation.root&&bg3ItemPresentation.byItem.get(itemId);
+  if(meta&&(meta.detailShard==null||bg3ItemPresentation.details.has(itemId)||bg3ItemPresentation.detailErrors.has(meta.detailShard))||bg3ItemPresentation.root&&!meta)return;
+  const key=epoch+'|'+itemId,existing=bg3ItemPresentationCardLoads.get(key);if(existing){if(actorId)existing.actorIds.add(actorId);return existing.promise;}
+  const actorIds=new Set(actorId?[actorId]:[]),promise=bg3ItemPresentationLoadDetail(itemId),record={promise,actorIds};bg3ItemPresentationCardLoads.set(key,record);
+  const refresh=()=>{if(epoch!==bg3Catalog.epoch)return;for(const consumerId of actorIds)if(itemCardSurfaceRefresh(itemId,consumerId,true))break;};
+  promise.then(refresh).catch(error=>{if(!error||error.code!=='BG3_CATALOG_STALE')refresh();}).finally(()=>{if(bg3ItemPresentationCardLoads.get(key)===record)bg3ItemPresentationCardLoads.delete(key);});return promise;
+}
+function bg3ItemSourceFallbackHTML(it){
+  const audit=bg3ItemSourceAuditHTML(it);if(audit)return audit;
+  const source=it&&it.source||{},mechanics=it&&it.mechanics||{},profile=itemProfile(it)||{},flags=profile.flags||{},classification=String(source.classification||''),status={playable:'предмет инвентаря BG3',duplicate:'вариант предмета BG3','needs-review':'объект BG3, требующий проверки мастером','world-object':'объект мира или сцены BG3',technical:'технический объект BG3'}[classification]||'запись каталога BG3',facts=[],kind=profile.kind||it.type||'misc',category=itemWorkspaceBg3Category({category:source.category,classification});
+  facts.push('назначение — '+itemWorkspaceKindLabel(kind));
+  if(category)facts.push('игровая группа — '+itemWorkspaceCategoryLabel(category));
+  if(flags.portable===true)facts.push('переносимость — подтверждена');else if(flags.portable===false)facts.push('непереносимый объект');
+  if(flags.magical===true)facts.push('магический');if(flags.consumable===true)facts.push('расходуемый');
+  const mass=profile.mass&&profile.mass.display||it.weight||'',value=profile.value&&profile.value.display||it.cost||'';
+  if(mass)facts.push('вес — '+mass);if(value)facts.push('стоимость — '+value);
+  const manual=mechanics.mode==='manual'?'<div style="margin-top:4px"><b>Механика:</b> ручной режим; последствия определяет мастер.</div>':'';
+  return '<div class="props-block bg3-source-fallback"><span class="pt">Сведения источника:</span><div class="entry-desc"><b>Описание не указано.</b> Каталог классифицирует запись как '+esc(status)+'.</div><div style="margin-top:4px"><b>Подтверждённые характеристики:</b> '+esc(facts.join(' · '))+'</div>'+manual+'</div>';
+}
 function itemCardHTML(it, extra, options){
   upgradeItem(it);
   extra=extra||'';options=options||{};
+  const actorId=String(options.actorId||''),entryId=String(options.entryId||''),isBg3=bg3CatalogIsId(it&&it.id),interactive=options.interactive===true&&!!actorId&&!!entryId&&isBg3,instructionCall=focusId=>'bg3ItemInstructionsOpen('+esc(JSON.stringify(it.id))+','+esc(JSON.stringify(actorId))+','+esc(JSON.stringify(entryId))+','+esc(JSON.stringify(String(focusId||'')))+')',instructionButton=focusId=>interactive?'<button class="btn ghost sm" type="button" onclick="'+instructionCall(focusId)+'">открыть инструкцию</button>':'',fullInstructionButton=isBg3?'<button class="btn ghost sm" type="button" title="Открыть подробные условия, последствия и ограничения каждого свойства" onclick="'+instructionCall('')+'">ℹ Полные правила</button>':'';
+  if(options.presentationDetail===true&&interactive)bg3ItemPresentationEnsureForCard(it.id,actorId);
   const icon=it.icon&&it.icon.src?'<img class="item-icon" src="'+esc(it.icon.src)+'" width="'+(+it.icon.width||64)+'" height="'+(+it.icon.height||64)+'" loading="lazy" decoding="async" alt="">':'',displayName=bg3CatalogIsId(it.id)?bg3UserItemName(bg3Catalog.summaries.get(it.id),'Предмет BG3'):it.n;
   let h='<div class="entry-card">'+(icon?'<div class="item-card-layout">'+icon:'')+'<div class="item-card-main"><div class="entry-head"><h4>'+esc(displayName)+'</h4>'
     +'<span class="type-tag">'+esc(ITEM_TYPES[it.type]||it.type)+'</span>'
     +(it.rarity && it.rarity!=='обычный'?'<span class="type-tag">'+esc(it.rarity)+'</span>':'')
     +tagChips(it.tags,ITEM_TAGS)
-    +'<span class="spacer"></span>'+extra+'</div>';
-  h+=String(it.desc||'').trim()?descBlock(it.desc,options.fullDescription===true,bg3CatalogIsId(it.id)):'<div class="note-ital" style="font-size:13px">Описание не указано.</div>';
+    +'<span class="spacer"></span>'+fullInstructionButton+extra+'</div>';
+  h+=String(it.desc||'').trim()?descBlock(it.desc,options.fullDescription===true,bg3CatalogIsId(it.id)):(bg3CatalogIsId(it.id)?bg3ItemSourceFallbackHTML(it):'<div class="note-ital" style="font-size:13px">Описание не указано.</div>');
   if(String(it.text||'').trim())h+='<details class="props-block"'+(options.fullDescription===true?' open':'')+'><summary class="toggle-link">Прочитать содержимое</summary><div class="entry-desc" style="margin-top:7px">'+esc(it.text)+'</div></details>';
   const meta=[];
   if(it.weight) meta.push('<b>Вес:</b> '+esc(it.weight));
@@ -18566,9 +18764,9 @@ function itemCardHTML(it, extra, options){
     const links=recipesUsingItem(it.id); if(links.length) h+='<div style="margin-top:3px"><b>Ремесло:</b> '+links.map(r=>esc(r.n)).join(' · ')+'</div>';
     h+='</div>';
   }
-  if(itemUsesOf(it).length){
+  const cardUses=itemUsesOf(it);if(cardUses.length){
     const tr={self:'на себя',ally:'союзник',enemy:'противник',creature:'существо',any:'любая цель',object:'объект',creatureOrObject:'существо или объект',none:'область/без цели'};
-    h+='<div class="props-block"><span class="pt">Как использовать:</span>'+itemUsesOf(it).map(u=>{
+    h+='<div class="props-block"><span class="pt">Как использовать:</span>'+cardUses.map(u=>{
       const c=u.consume||{},res=c.kind==='charges'?'заряды −'+(+c.amount||1):(c.kind==='item'?'предмет −'+(+c.amount||1):(c.kind==='kit'?'набор −'+(+c.amount||1):'без расхода'));
       const parts=[combatCostLabel(u.cost),tr[u.target]||u.target,res];
       if(u.attack) parts.push('атака '+(u.attack.fixedBonus!=null?('с фиксированным бонусом '+fmtMod(+u.attack.fixedBonus||0)):(u.attack.proficient?'с владением':'без владения')));
@@ -18578,12 +18776,12 @@ function itemCardHTML(it, extra, options){
       if(u.duration&&u.duration.label) parts.push(u.duration.label);
       const useIcon=u.icon&&u.icon.src?'<img class="item-icon sm" src="'+esc(u.icon.src)+'" width="34" height="34" loading="lazy" decoding="async" alt="">':'';
       const label=bg3CatalogIsId(it.id)?bg3UserFacingLabel(u.label,'Использовать предмет'):u.label;
-      return '<div class="recipe-step" style="display:grid;grid-template-columns:'+(useIcon?'38px ':'')+'minmax(0,1fr);gap:6px;align-items:center">'+useIcon+'<div><b>'+esc(label)+'</b><div>'+esc(parts.join(' · '))+'</div></div></div>';
+      return '<div class="recipe-step" style="display:grid;grid-template-columns:'+(useIcon?'38px ':'')+'minmax(0,1fr);gap:6px;align-items:center">'+useIcon+'<div><b>'+esc(label)+'</b><div>'+esc(parts.join(' · '))+'</div>'+instructionButton(u.id)+'</div></div>';
     }).join('')+'</div>';
   } else if(it.useMode==='manual') h+='<div class="props-block note-ital"><span class="pt">Решение мастера:</span> '+esc(bg3CatalogIsId(it.id)?'Эффект этого предмета разыгрывает мастер.':(it.manualNote||'Эффект разыгрывает мастер.'))+'</div>';
-  const interactions=itemInteractionsOf(it);if(interactions.length)h+='<div class="props-block"><span class="pt">Взаимодействия:</span>'+interactions.map(row=>{const kind=BG3_CATALOG_INTERACTION_NAMES[row.handler]||'',cost=row.cost?combatCostLabel(row.cost):'';return '<div style="margin-top:4px"><b>'+esc(row.label||kind||'Действие')+'</b>'+([kind,cost].filter(Boolean).length?' — '+esc([kind,cost].filter(Boolean).join(' · ')):'')+'</div>';}).join('')+'</div>';
+  const interactions=itemInteractionsOf(it).filter(row=>!bg3InteractionCoveredByExactUse(it,row,cardUses));if(interactions.length)h+='<div class="props-block"><span class="pt">Взаимодействия:</span>'+interactions.map(row=>{const kind=BG3_CATALOG_INTERACTION_NAMES[row.handler]||'',cost=row.cost?combatCostLabel(row.cost):'';return '<div style="margin-top:4px"><b>'+esc(row.label||kind||'Действие')+'</b>'+([kind,cost].filter(Boolean).length?' — '+esc([kind,cost].filter(Boolean).join(' · ')):'')+instructionButton(row.id)+'</div>';}).join('')+'</div>';
   if(it.props) h+='<div class="props-block"><span class="pt">Свойства:</span><div class="entry-desc">'+esc(it.props)+'</div></div>';
-  if(bg3CatalogIsId(it.id)){const actorId=String(options.actorId||'');h+=bg3LifecycleItemHTML(it,actorId);h+=bg3InventoryStatusTransitionItemHTML(it);h+=bg3InterruptItemHTML(it);h+=bg3StoryItemHTML(it,actorId);h+=bg3TadpoleItemHTML(it,actorId);}
+  if(bg3CatalogIsId(it.id)){h+=bg3LifecycleItemHTML(it,actorId);h+=bg3InventoryStatusTransitionItemHTML(it);h+=bg3InterruptItemHTML(it);h+=bg3StoryItemHTML(it,actorId);h+=bg3TadpoleItemHTML(it,actorId);}
   return h+'</div>'+(icon?'</div>':'')+'</div>';
 }
 function spellCardHTML(sp, extra){
@@ -18630,7 +18828,11 @@ let localItemCatalogOpen=false;
 const ITEM_WORKSPACE_PAGE_SIZE=18;
 const ITEM_CLASS_LABELS=Object.freeze({all:'Все предметы',usable:'Можно выдать герою',campaign:'Созданные мастером',playable:'Предметы инвентаря BG3','world-object':'Объекты мира и сцен','needs-review':'Разыгрывает мастер',duplicate:'Другие игровые варианты',technical:'Прочие объекты BG3'});
 const ITEM_KIND_LABELS=Object.freeze({lore:'Книги, письма и заметки',misc:'Разное',weapon:'Оружие',magic:'Магические предметы',ammo:'Боеприпасы',trap:'Ловушки и метательные устройства',potion:'Зелья',light:'Источники света',shield:'Щиты',armor:'Доспехи',food:'Еда',container:'Контейнеры',poison:'Яды',instrument:'Музыкальные инструменты',water:'Вода и напитки',scroll:'Свитки',material:'Материалы',tool:'Инструменты',focus:'Магическая фокусировка',valuable:'Ценности',camp:'Лагерное снаряжение',rope:'Верёвки',firestarter:'Средства добыть огонь',oil:'Горючее масло',gamble:'Игральные наборы',ritual:'Обрядовые предметы',writing:'Письменные принадлежности',component:'Компоненты заклинаний',campaign:'Предметы кампании'});
-const ITEM_CATEGORY_LABELS=Object.freeze({'alchemy.consumable':'Алхимические расходники','alchemy.extract':'Алхимические экстракты','alchemy.ingredient':'Алхимические ингредиенты','consumable.ammunition':'Расходуемые боеприпасы','consumable.drink':'Напитки','consumable.food':'Еда','consumable.grenade':'Гранаты и метательные предметы','consumable.other':'Другие расходники','consumable.poison':'Яды','consumable.potion':'Зелья','consumable.scroll':'Свитки','equipment.armor-accessory':'Броня и аксессуары','equipment.shield':'Щиты',key:'Ключи',miscellaneous:'Разное','quest-item':'Квестовые предметы',readable:'Книги, письма и записки','tool.instrument':'Музыкальные инструменты',unclassified:'Без подтверждённой категории',weapon:'Оружие'});
+const ITEM_CATEGORY_LABELS=Object.freeze({'alchemy.consumable':'Алхимические расходники','alchemy.extract':'Алхимические экстракты','alchemy.ingredient':'Алхимические ингредиенты','consumable.ammunition':'Расходуемые боеприпасы','consumable.drink':'Напитки','consumable.food':'Еда','consumable.grenade':'Гранаты и метательные предметы','consumable.other':'Другие расходники','consumable.poison':'Яды','consumable.potion':'Зелья','consumable.scroll':'Свитки','equipment.armor-accessory':'Броня и аксессуары','equipment.shield':'Щиты',key:'Ключи',miscellaneous:'Разное','quest-item':'Квестовые предметы',readable:'Книги, письма и записки','technical-object':'Технические объекты BG3','tool.instrument':'Музыкальные инструменты',unclassified:'Без подтверждённой категории',weapon:'Оружие','world-object.needs-review':'Объекты мира — требуется проверка'});
+const ITEM_WORKSPACE_CATEGORY_BY_KIND=Object.freeze({weapon:'weapon',armor:'equipment.armor-accessory',shield:'equipment.shield',potion:'consumable.potion',scroll:'consumable.scroll',ammo:'consumable.ammunition',food:'consumable.food',water:'consumable.drink',poison:'consumable.poison',trap:'consumable.grenade',oil:'alchemy.consumable',instrument:'tool.instrument',lore:'readable'});
+const ITEM_WORKSPACE_CATEGORY_BY_CAMPAIGN_TYPE=Object.freeze({weapon:'weapon',armor:'equipment.armor-accessory',ring:'equipment.armor-accessory',potion:'consumable.potion',scroll:'consumable.scroll',equipment:'miscellaneous',wondrous:'miscellaneous'});
+function itemWorkspaceBg3Category(row){const raw=String(row&&row.category||'');if(raw&&raw!=='unclassified')return raw;return row&&row.classification==='technical'?'technical-object':'world-object.needs-review';}
+function itemWorkspaceCampaignCategory(it){const kind=itemWorkspaceLocalKind(it),type=String(it&&it.type||'');return ITEM_WORKSPACE_CATEGORY_BY_KIND[kind]||ITEM_WORKSPACE_CATEGORY_BY_CAMPAIGN_TYPE[type]||'miscellaneous';}
 const BG3_INSTRUMENT_LABELS=Object.freeze({Drum:'Барабан',Flute:'Флейта',Lute:'Лютня',Lyre:'Лира',Violin:'Скрипка',Bagpipes:'Волынка',Dulcimer:'Цимбалы',Horn:'Рог',Musicbox:'Музыкальная шкатулка',Saxophone:'Саксофон',Shawm:'Шалмей'});
 const BG3_WEAPON_PROPERTY_LABELS=Object.freeze({Dippable:'можно окунуть в поверхность',Unstowable:'нельзя убрать в инвентарь',NoDualWield:'нельзя держать парой',NotSheathable:'нельзя вложить в ножны',Finesse:'фехтовальное',Light:'лёгкое',Heavy:'тяжёлое',Twohanded:'двуручное',Versatile:'универсальное',Reach:'досягаемость',Thrown:'метательное',Loading:'перезарядка',Magical:'магическое',Melee:'ближний бой',Ranged:'дальний бой',Ammunition:'использует боеприпасы',Torch:'факел'});
 const ITEM_TAG_LABELS_BG3=Object.freeze({bg3:'BG3','bg3-playable':'Игровой предмет','bg3-world-object':'Объект мира','bg3-needs-review':'Требует решения мастера','bg3-duplicate':'Дубликат или вариант','bg3-technical':'Технический шаблон','bg3-unclassified':'Не классифицирован','bg3-readable':'Книга или записка','bg3-weapon':'Оружие','bg3-key':'Ключ','bg3-quest-item':'Квестовый предмет','bg3-miscellaneous':'Разное','bg3-equipment-armor-accessory':'Броня или аксессуар','bg3-equipment-shield':'Щит','bg3-tool-instrument':'Музыкальный инструмент','bg3-alchemy-consumable':'Алхимический расходник','bg3-alchemy-extract':'Алхимический экстракт','bg3-alchemy-ingredient':'Алхимический ингредиент','bg3-consumable-ammunition':'Боеприпас','bg3-consumable-drink':'Напиток','bg3-consumable-food':'Еда','bg3-consumable-grenade':'Граната','bg3-consumable-other':'Прочий расходник','bg3-consumable-poison':'Яд','bg3-consumable-potion':'Зелье','bg3-consumable-scroll':'Свиток'});
@@ -21305,6 +21507,9 @@ function bg3LifecycleSchedule(c){
     bg3GithbornMindcrusherRegisterTrustedLifecycleState(state);bg3LifecycleRuntime.byChar.set(c,state);fxInvalidate();return state;}).finally(()=>{if(bg3LifecycleRuntime.pending.get(c)===promise)bg3LifecycleRuntime.pending.delete(c);});
   bg3LifecycleRuntime.pending.set(c,promise);return promise;
 }
+function bg3LifecycleScheduleForSurface(c,itemId,inventoryOnly){
+  const promise=bg3LifecycleSchedule(c),settled=Promise.resolve(promise).then(state=>state&&state.stale?bg3LifecycleSchedule(c):state);settled.then(state=>{if(state&&state.ok)itemCardSurfaceRefresh(itemId,c&&c.id||'',inventoryOnly===true);}).catch(()=>{});return settled;
+}
 function bg3LifecycleState(c){
   const state=c&&bg3LifecycleRuntime.byChar.get(c);if(!state||state.snapshot!==bg3LifecycleSnapshot(c))return null;
   const topology=bg3GithbornMindcrusherActorTopologyCheck(c);if(topology.fingerprint!==state.githbornTopologyFingerprint
@@ -21351,7 +21556,7 @@ function bg3LifecycleHolderStatusEventCommit(plan){
   }catch(error){bg3InterruptWorldRestore(checkpoint);return {ok:false,rolledBack:true,reason:'holder-status-event-commit-rolled-back: '+String(error&&error.message||error)};}
 }
 function bg3LifecycleFxSources(c){const state=bg3LifecycleState(c);if(!state){bg3LifecycleSchedule(c);return [];}return state.ok?state.sources.slice():[];}
-function bg3LifecycleAudit(c){const state=bg3LifecycleState(c);return state?{ok:state.ok,reason:state.reason||'',rows:itemClone(state.rows||[])}:{ok:false,pending:!!(c&&bg3LifecycleRuntime.pending.get(c)),reason:'lifecycle-preflight-not-ready',rows:[]};}
+function bg3LifecycleAudit(c){const state=bg3LifecycleState(c);return state?{ok:state.ok,cached:true,pending:false,reason:state.reason||'',rows:itemClone(state.rows||[])}:{ok:false,cached:false,pending:!!(c&&bg3LifecycleRuntime.pending.get(c)),reason:'lifecycle-preflight-not-ready',rows:[]};}
 function bg3LifecycleRowLabel(row){
   const name=String(row&&row.itemName||row&&row.itemId||'неизвестный предмет'),rule=String(row&&row.bg3Id||row&&row.programId||'неизвестная программа');
   return '«'+name+'» → '+rule;
@@ -21382,8 +21587,8 @@ async function bg3LifecycleEnsureActionReady(c,entryId,kind,rolls){
   await bg3LifecycleSchedule(c);return bg3LifecycleActionPreflight(c,entryId,kind,rolls);
 }
 function bg3LifecycleBlock(check,subject){
-  const reason=check&&check.reason||'правила этого предмета пока недоступны';setStatus('✕ Действие не выполнено',true);
-  askShow({title:'⚠ Действие недоступно',body:'Сайт не смог безопасно проверить все условия этого действия.',note:(subject?subject+': ':'')+'ресурс, ход и последствия не изменены. При необходимости мастер может разыграть эффект вручную.'});return false;
+  const reason=String(check&&check.reason||'правила этого предмета пока недоступны').trim();setStatus('✕ Действие не выполнено: '+reason,true);
+  askShow({title:'⚠ Действие недоступно',body:'Сайт не смог безопасно проверить все условия этого действия. Причина: '+reason,note:(subject?subject+': ':'')+'ресурс, ход и последствия не изменены. При необходимости мастер может разыграть эффект вручную.'});return false;
 }
 async function bg3WeaponAttackOpen(entryId,casterId,mode){
   const c=getCh(casterId||activeCharId),e=c&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId);if(!c||!e||!it)return false;
@@ -21663,8 +21868,8 @@ function bg3LifecycleItemHTML(it,actorId){
   const c=actorId?getCh(actorId):(typeof cc==='function'&&cc()),audit=c?bg3LifecycleAudit(c):null,rows=audit&&audit.rows.filter(row=>row.itemId===it.id)||[],blocked=rows.filter(row=>['blocked','granted-action-blocked'].includes(row.status)).length,
     applied=rows.filter(row=>['applied','event-ready','granted-action-ready','interrupt-ready'].includes(row.status)).length,
     relevant=!!(c&&((c.inventory||[]).some(e=>e.itemId===it.id)||(c.activeFx||[]).some(a=>a.sourceItemId===it.id)));
-  if(relevant&&!audit.pending&&!rows.length)bg3LifecycleSchedule(c).then(()=>{if(activeWorldTab==='itemsdb')renderItemsDB(it.id);});
-  const total=refs.length,status=!c?'Выберите героя, чтобы проверить активные эффекты.':(!relevant?'Предмета нет у выбранного героя.':(rows.length?(applied+' активно'+(blocked?' · '+blocked+' требует решения мастера':'')):'Проверяются эффекты предмета…'));
+  if(relevant&&!audit.cached&&!audit.pending)bg3LifecycleScheduleForSurface(c,it.id,true);
+  const total=refs.length,status=!c?'Выберите героя, чтобы проверить активные эффекты.':(!relevant?'Предмета нет у выбранного героя.':(rows.length?(applied+' активно'+(blocked?' · '+blocked+' требует решения мастера':'')):(audit.cached?(audit.ok?'Активных свойств предмета в текущем состоянии нет.':'Проверка эффектов недоступна: '+audit.reason):'Проверяются эффекты предмета…')));
   return '<div class="props-block"><span class="pt">Эффекты у героя:</span> '+total+' '+bg3RuNoun(total,'свойство','свойства','свойств')+'<div class="note-ital" style="font-size:12px">'+esc(status)+'</div></div>';
 }
 
@@ -23384,8 +23589,9 @@ function bg3StoryItemHTML(it,actorId){
   if(pages>1)h+='<div class="catalog-pages"><button class="btn ghost sm" '+(bg3StoryPage?'onclick="bg3StoryPageBy(-1)"':'disabled')+' aria-label="Предыдущая страница сюжетных событий">←</button><span>'+(bg3StoryPage+1)+' / '+pages+' · '+rows.length+' событий</span><button class="btn ghost sm" '+(bg3StoryPage<pages-1?'onclick="bg3StoryPageBy(1)"':'disabled')+' aria-label="Следующая страница сюжетных событий">→</button></div>';return h+bg3StoryStateAuditHTML(it.id)+'</div>';
 }
 function bg3StoryOpen(itemId){
-  bg3StoryOpenItemId=bg3StoryOpenItemId===itemId?'':itemId;bg3StoryQuery='';bg3StoryPage=0;renderItemsDB(itemId);
-  if(bg3StoryOpenItemId&&!bg3StoryCatalog.index&&!bg3StoryCatalog.loading)bg3CatalogEnsureStoryIndex().then(()=>renderItemsDB(itemId)).catch(()=>renderItemsDB(itemId));
+  itemId=String(itemId||'');const entering=activeWorldTab!=='itemsdb';bg3StoryOpenItemId=entering||bg3StoryOpenItemId!==itemId?itemId:'';bg3StoryQuery='';bg3StoryPage=0;
+  if(entering){const actor=cc();if(actor)itemWorkspace.heroId=actor.id;switchTab('itemsdb');bg3CatalogOpen(itemId);}else renderItemsDB(itemId);
+  if(bg3StoryOpenItemId&&!bg3StoryCatalog.index&&!bg3StoryCatalog.loading){const refresh=()=>{if(activeWorldTab==='itemsdb'&&bg3StoryOpenItemId===itemId)renderItemsDB(itemId);};bg3CatalogEnsureStoryIndex().then(refresh).catch(refresh);}
 }
 function bg3StoryFilter(value){bg3StoryQuery=String(value||'');bg3StoryPage=0;clearTimeout(bg3CatalogSearchTimer);bg3CatalogSearchTimer=setTimeout(()=>renderItemsDB(bg3StoryOpenItemId),120);}
 function bg3StoryPageBy(delta){bg3StoryPage=Math.max(0,bg3StoryPage+Math.sign(+delta||0));renderItemsDB(bg3StoryOpenItemId);itemWorkspaceRevealDetail();}
@@ -24422,8 +24628,8 @@ function bg3ItemPresentationRetry(kind){if(kind==='search'){bg3ItemPresentation.
 function bg3ItemPresentationRetryDetail(itemId){const meta=bg3ItemPresentation.byItem.get(String(itemId||''));if(!meta||meta.detailShard==null)return;bg3ItemPresentation.detailErrors.delete(meta.detailShard);bg3ItemPresentationLoadDetail(itemId).then(()=>renderItemsDB()).catch(()=>renderItemsDB());}
 function bg3ItemPresentationContentMatch(itemId,content){if(!content)return true;const row=bg3ItemPresentation.byItem.get(itemId);if(!row)return false;if(content==='description')return row.descriptionCount>0;if(content==='actions')return row.actionCount>0;if(content==='interactions')return row.interactionCount>0;if(content==='lifecycle')return row.lifecycleCount>0;if(content==='mechanics')return row.actionCount+row.interactionCount+row.lifecycleCount>0;if(content==='recipes')return row.recipeSources>0;if(content==='placements')return row.standardPlacements+row.honourPlacements>0;return true;}
 function bg3CatalogSearchText(row){
-  const names=row&&row.names||{},tagLabels=bg3Array(row&&row.tags).map(tag=>ITEM_TAG_LABELS_BG3[tag]||ITEM_TAGS[tag]&&ITEM_TAGS[tag].ru||tag);
-  return itemSearchDocument([names.ru,names.en,ITEM_TYPES[row&&row.type],ITEM_KIND_LABELS[row&&row.kind],ITEM_CATEGORY_LABELS[row&&row.category],ITEM_CLASS_LABELS[row&&row.classification],row&&row.rarity,tagLabels]);
+  const names=row&&row.names||{},tagLabels=bg3Array(row&&row.tags).map(tag=>ITEM_TAG_LABELS_BG3[tag]||ITEM_TAGS[tag]&&ITEM_TAGS[tag].ru||tag),category=itemWorkspaceBg3Category(row);
+  return itemSearchDocument([names.ru,names.en,ITEM_TYPES[row&&row.type],ITEM_KIND_LABELS[row&&row.kind],ITEM_CATEGORY_LABELS[category],ITEM_CATEGORY_LABELS[row&&row.category],ITEM_CLASS_LABELS[row&&row.classification],row&&row.rarity,tagLabels]);
 }
 function bg3CatalogSearchCacheEnsure(){
   const profile=bg3Catalog.preferredProfile||'standard',index=bg3Catalog.index;
@@ -24434,7 +24640,7 @@ function bg3CatalogSearchCacheEnsure(){
     docs.set(row.id,bg3CatalogSearchText(row));
     const name=String(row.names&&row.names.ru||row.names&&row.names.en||row.statsId||row.id);
     pre.set(row.id,{listName:name.trim(),sortName:String(row.names&&row.names.ru||row.names&&row.names.en||'').trim(),nameN:itemSearchNormalize(name),idL:String(row.id||'').toLocaleLowerCase('ru'),idN:itemSearchNormalize(row.id),statsL:String(row.statsId||'').toLocaleLowerCase('ru'),statsN:itemSearchNormalize(row.statsId)});
-    facets.types.add(row.type);facets.kinds.add(row.kind);facets.categories.add(row.category);facets.rarities.add(row.rarity);facets.classes.add(row.classification);for(const tag of bg3Array(row.tags))facets.tags.add(tag);
+    facets.types.add(row.type);facets.kinds.add(row.kind);facets.categories.add(itemWorkspaceBg3Category(row));facets.rarities.add(row.rarity);facets.classes.add(row.classification);for(const tag of bg3Array(row.tags))facets.tags.add(tag);
   }
   rows.sort((a,b)=>(classRanks[a.classification]??5)-(classRanks[b.classification]??5)||ITEM_SEARCH_COLLATOR.compare(pre.get(a.id).listName,pre.get(b.id).listName)||a.id.localeCompare(b.id));
   const playableRows=rows.filter(row=>row.classification==='playable'),playableCount=playableRows.length;
@@ -24452,7 +24658,7 @@ function bg3CatalogSearchDocs(cache){
 function bg3CatalogSearch(query,opts){
   if(!bg3Catalog.index)return [];
   opts=opts||{};const cache=bg3CatalogSearchCacheEnsure(),type=opts.type||'',kind=opts.kind||'',category=opts.category||'',tag=opts.tag||'',classification=opts.classification||'',rarity=opts.rarity||'',content=opts.content||'',raw=String(query||'').trim().toLocaleLowerCase('ru'),q=itemSearchNormalize(query),tokens=q?q.split(' ').filter(Boolean):[],docsMap=bg3CatalogSearchDocs(cache),ranked=[];
-  for(const row of cache.rows){if(type&&row.type!==type||kind&&row.kind!==kind||category&&row.category!==category||tag&&!bg3Array(row.tags).includes(tag)||classification&&row.classification!==classification||rarity&&row.rarity!==rarity||content&&!bg3ItemPresentationContentMatch(row.id,content))continue;
+  for(const row of cache.rows){const workspaceCategory=itemWorkspaceBg3Category(row);if(type&&row.type!==type||kind&&row.kind!==kind||category&&workspaceCategory!==category&&row.category!==category||tag&&!bg3Array(row.tags).includes(tag)||classification&&row.classification!==classification||rarity&&row.rarity!==rarity||content&&!bg3ItemPresentationContentMatch(row.id,content))continue;
     const pre=cache.pre.get(row.id);let rank;
     if(raw&&(pre.idL===raw||pre.statsL===raw))rank=0;
     else if(!q)rank=20;
@@ -24465,13 +24671,13 @@ function bg3CatalogSearch(query,opts){
   return ranked.map(value=>value.row);
 }
 function itemWorkspaceLocalKind(it){const profile=itemProfile(it);if(profile.kind&&ITEM_KIND_RU[profile.kind])return profile.kind;if(it.type==='weapon')return 'weapon';if(it.type==='armor')return 'armor';if(it.type==='potion')return 'potion';if(it.type==='scroll')return 'scroll';return 'campaign';}
-function itemWorkspaceRowFromBg3(row){const loaded=bg3Catalog.items.get(row.id),presentation=bg3ItemPresentation.byItem.get(row.id)||null,detail=bg3ItemPresentation.details.get(row.id)||null,names=row.names||{};return {id:row.id,source:'bg3',name:bg3UserItemName(row,'Предмет BG3'),en:bg3UserFacingLabel(names.en,''),type:row.type||'',kind:row.kind||'',category:row.category||'',classification:row.classification||'',rarity:row.rarity||'',tags:bg3Array(row.tags),icon:row.icon||null,statsId:row.statsId||'',description:loaded&&loaded.desc||detail&&detail.description&&(detail.description.ru||detail.description.en)||'',row,item:loaded||null,presentation,presentationDetail:detail};}
-function itemWorkspaceRowFromLocal(it){return {id:it.id,source:'campaign',name:String(it.n||it.id).trim(),en:it.i18n&&it.i18n.en&&it.i18n.en.name||'',type:it.type||'',kind:itemWorkspaceLocalKind(it),category:it.type||'',classification:'campaign',rarity:it.rarity||'обычный',tags:bg3Array(it.tags),icon:it.icon||null,statsId:'',description:String(it.desc||''),row:null,item:it};}
-function itemWorkspaceLocalDocument(it){const kind=itemWorkspaceLocalKind(it);return itemSearchDocument([it.n,it.i18n&&it.i18n.en&&it.i18n.en.name,it.desc,it.props,it.text,it.type,ITEM_TYPES[it.type],it.rarity,bg3Array(it.tags).map(tag=>ITEM_TAGS[tag]&&ITEM_TAGS[tag].ru||tag),kind,ITEM_KIND_LABELS[kind]]);}
+function itemWorkspaceRowFromBg3(row){const loaded=bg3Catalog.items.get(row.id),presentation=bg3ItemPresentation.byItem.get(row.id)||null,detail=bg3ItemPresentation.details.get(row.id)||null,names=row.names||{},sourceCategory=String(row.category||'');return {id:row.id,source:'bg3',name:bg3UserItemName(row,'Предмет BG3'),en:bg3UserFacingLabel(names.en,''),type:row.type||'',kind:row.kind||'',sourceCategory,category:itemWorkspaceBg3Category(row),classification:row.classification||'',rarity:row.rarity||'',tags:bg3Array(row.tags),icon:row.icon||null,statsId:row.statsId||'',description:loaded&&loaded.desc||detail&&detail.description&&(detail.description.ru||detail.description.en)||'',row,item:loaded||null,presentation,presentationDetail:detail};}
+function itemWorkspaceRowFromLocal(it){const sourceCategory=String(it.type||'');return {id:it.id,source:'campaign',name:String(it.n||it.id).trim(),en:it.i18n&&it.i18n.en&&it.i18n.en.name||'',type:sourceCategory,kind:itemWorkspaceLocalKind(it),sourceCategory,category:itemWorkspaceCampaignCategory(it),classification:'campaign',rarity:it.rarity||'обычный',tags:bg3Array(it.tags),icon:it.icon||null,statsId:'',description:String(it.desc||''),row:null,item:it};}
+function itemWorkspaceLocalDocument(it){const kind=itemWorkspaceLocalKind(it),category=itemWorkspaceCampaignCategory(it);return itemSearchDocument([it.n,it.i18n&&it.i18n.en&&it.i18n.en.name,it.desc,it.props,it.text,it.type,ITEM_TYPES[it.type],ITEM_CATEGORY_LABELS[category],it.rarity,bg3Array(it.tags).map(tag=>ITEM_TAGS[tag]&&ITEM_TAGS[tag].ru||tag),kind,ITEM_KIND_LABELS[kind]]);}
 function itemWorkspaceSearch(){
   const f=dbFlt.it,query=f.q||'',classification=f.classification||'all',campaignFingerprint=itemsDB.map(it=>{const mechanics=it&&it.mechanics||{};return [it.id,it.n,it.i18n&&it.i18n.en&&it.i18n.en.name,it.type,it.rarity,bg3Array(it.tags).join(','),it.desc,it.text,it.props,bg3Array(mechanics.actions).length,bg3Array(mechanics.interactions).length,bg3Array(mechanics.lifecyclePrograms).length].join('\u0001');}).join('\u0002'),cacheKey=[bg3Catalog.epoch,bg3Catalog.index?1:0,bg3ItemPresentation.root?1:0,bg3ItemPresentation.searchReady?1:0,JSON.stringify(f),campaignFingerprint].join('|');if(itemWorkspaceSearchResultCache.key===cacheKey)return itemWorkspaceSearchResultCache.rows;const rows=[];
-  if(f.source!=='campaign'&&classification!=='campaign'&&bg3Catalog.index){const bg3Class=['usable','all'].includes(classification)?'':classification;for(const row of bg3CatalogSearch(query,{type:f.type,kind:f.kind,category:f.category,rarity:f.rarity,tag:f.tag,classification:bg3Class,content:f.content})){if(classification==='usable'&&!['playable','duplicate','needs-review'].includes(row.classification))continue;rows.push(itemWorkspaceRowFromBg3(row));}}
-  if(f.source!=='bg3'&&['usable','all','campaign'].includes(classification))for(const it of itemsDB){const row=itemWorkspaceRowFromLocal(it),documentText=itemWorkspaceLocalDocument(it),summary=bg3CatalogItemMechanicsSummary(it),contentOk=!f.content||(f.content==='description'&&!!String(it.desc||it.text||'').trim())||(f.content==='actions'&&summary.actions>0)||(f.content==='interactions'&&summary.interactions>0)||(f.content==='lifecycle'&&summary.lifecycle>0)||(f.content==='mechanics'&&(summary.actions+summary.interactions+summary.lifecycle)>0)||(f.content==='recipes'&&recipesUsingItem(it.id).length>0)||(f.content==='placements'&&false);if(f.type&&row.type!==f.type||f.kind&&row.kind!==f.kind||f.category&&row.category!==f.category||f.rarity&&row.rarity!==f.rarity||f.tag&&!row.tags.includes(f.tag)||!contentOk||!itemSearchMatches(documentText,query))continue;rows.push(row);}
+  if(f.source!=='campaign'&&classification!=='campaign'&&bg3Catalog.index){const bg3Class=['usable','all'].includes(classification)?'':classification;for(const row of bg3CatalogSearch(query,{type:f.type,kind:f.kind,category:f.category,rarity:f.rarity,tag:'',classification:bg3Class,content:f.content})){if(f.tag&&!itemWorkspaceTagMatches(row.tags,f.tag)||classification==='usable'&&(!['playable','duplicate'].includes(row.classification)||!bg3ItemSourceAuditAllows(row,'inventory')))continue;rows.push(itemWorkspaceRowFromBg3(row));}}
+  if(f.source!=='bg3'&&['usable','all','campaign'].includes(classification))for(const it of itemsDB){const row=itemWorkspaceRowFromLocal(it),documentText=itemWorkspaceLocalDocument(it),summary=bg3CatalogItemMechanicsSummary(it),contentOk=!f.content||(f.content==='description'&&!!String(it.desc||it.text||'').trim())||(f.content==='actions'&&summary.actions>0)||(f.content==='interactions'&&summary.interactions>0)||(f.content==='lifecycle'&&summary.lifecycle>0)||(f.content==='mechanics'&&(summary.actions+summary.interactions+summary.lifecycle)>0)||(f.content==='recipes'&&recipesUsingItem(it.id).length>0)||(f.content==='placements'&&false);if(f.type&&row.type!==f.type||f.kind&&row.kind!==f.kind||f.category&&row.category!==f.category||f.rarity&&row.rarity!==f.rarity||f.tag&&!itemWorkspaceTagMatches(row.tags,f.tag)||!contentOk||!itemSearchMatches(documentText,query))continue;rows.push(row);}
   const rarityRank={'обычный':0,'необычный':1,'редкий':2,'очень редкий':3,'легендарный':4,'артефакт':5},classRank={campaign:0,playable:0,'world-object':1,'needs-review':2,duplicate:3,technical:4},sort=f.sort||'name',q=itemSearchNormalize(query);
   let rankOf=null;
   if(q&&sort!=='source'&&sort!=='type'&&sort!=='rarity'){
@@ -24486,6 +24692,9 @@ function itemWorkspaceClassLabel(value){return ITEM_CLASS_LABELS[value]||value||
 function itemWorkspaceKindLabel(value){return ITEM_KIND_LABELS[value]||String(value||'').replace(/[._-]+/g,' ')||'Без категории';}
 function itemWorkspaceCategoryLabel(value){return ITEM_CATEGORY_LABELS[value]||ITEM_TYPES[value]||String(value||'').replace(/[._-]+/g,' ')||'Без группы';}
 function itemWorkspaceTagLabel(value){return ITEM_TAG_LABELS_BG3[value]||ITEM_TAGS[value]&&ITEM_TAGS[value].ru||String(value||'').replace(/^bg3-/,'').replace(/[._-]+/g,' ');}
+function itemWorkspaceTagKey(value){const label=String(itemWorkspaceTagLabel(value)||'').trim(),normalized=itemSearchNormalize(label||value);return normalized?'tag:'+normalized:'';}
+function itemWorkspaceTagMatches(values,key){key=String(key||'');return !key||bg3Array(values).some(value=>itemWorkspaceTagKey(value)===key);}
+function itemWorkspaceTagOptions(values){const options=new Map();for(const value of values){if(!value||ITEM_WORKSPACE_CLASSIFIER_TAGS.has(value))continue;const key=itemWorkspaceTagKey(value),label=itemWorkspaceTagLabel(value);if(key&&!options.has(key))options.set(key,label);}return [...options].map(([value,label])=>({value,label})).sort((a,b)=>a.label.localeCompare(b.label,'ru'));}
 function bg3Count(value){return Number.isFinite(+value)?(+value).toLocaleString('ru-RU'):'—';}
 function bg3RuNoun(value,one,few,many){const n=Math.abs(Math.trunc(+value||0)),last=n%10,lastTwo=n%100;return lastTwo>=11&&lastTwo<=14?many:last===1?one:last>=2&&last<=4?few:many;}
 function bg3ReleaseSummaryHTML(){
@@ -24560,7 +24769,8 @@ function itemWorkspaceHero(){
 function itemWorkspaceHeroOptionsHTML(){const selected=itemWorkspaceHero();return chars.map(c=>'<option value="'+esc(c.id)+'"'+(selected&&selected.id===c.id?' selected':'')+'>'+esc(c.name||c.id)+'</option>').join('');}
 function itemWorkspaceSetHero(id){itemWorkspace.heroId=getCh(id)?id:'';const actorId=itemWorkspace.heroId,epoch=bg3Catalog.epoch;renderItemsDB();if(bg3RuntimeView==='scene'&&bg3SceneOpenId&&actorId)bg3SceneHydrateActorTools(actorId).then(()=>{if(epoch===bg3Catalog.epoch&&itemWorkspace.heroId===actorId&&bg3RuntimeView==='scene')renderItemsDB();}).catch(error=>{if(epoch===bg3Catalog.epoch)setStatus('Инструменты выбранного героя не загрузились: '+bg3FriendlyError(error,'попробуйте выбрать героя ещё раз'),true);});}
 function itemWorkspaceSetQty(value){const qty=Math.max(1,Math.min(999,Math.floor(+value||1)));itemWorkspace.qty=qty;const input=document.getElementById('itemWorkspaceQty');if(input)input.value=String(qty);}
-function itemWorkspacePortable(row){return !!(row&&(row.source==='campaign'||['playable','duplicate','needs-review'].includes(row.classification)));}
+function itemWorkspaceReviewPortable(row){return !!(row&&row.source==='bg3'&&row.classification==='needs-review'&&row.sourceCategory&&row.sourceCategory!=='unclassified'&&row.item&&itemProfile(row.item).flags.portable===true);}
+function itemWorkspacePortable(row){return !!(row&&bg3ItemSourceAuditAllows(row,'inventory')&&(row.source==='campaign'||['playable','duplicate'].includes(row.classification)||itemWorkspaceReviewPortable(row)));}
 function itemWorkspaceHeroToolbarHTML(){const hero=itemWorkspaceHero();return '<div class="items-workspace-toolbar" aria-label="Получатель предмета">'
   +'<div><label for="itemWorkspaceHero">Герой-получатель</label><select id="itemWorkspaceHero" onchange="itemWorkspaceSetHero(this.value)"'+(chars.length?'':' disabled')+'>'+(chars.length?itemWorkspaceHeroOptionsHTML():'<option value="">Сначала создайте героя</option>')+'</select></div>'
   +'<div><label for="itemWorkspaceProfile">Режим правил</label><select id="itemWorkspaceProfile" onchange="bg3CatalogSelectProfile(this.value)"><option value="standard"'+(bg3Catalog.preferredProfile==='standard'?' selected':'')+'>Обычные правила</option><option value="honour"'+(bg3Catalog.preferredProfile==='honour'?' selected':'')+'>Режим чести</option></select></div>'
@@ -24599,7 +24809,7 @@ async function bg3CatalogOpen(id){
 async function itemWorkspaceGrantPlanFor(actorId,itemId,qty,opts){
   opts=opts||{};const c=getCh(String(actorId||'')),amount=Number(qty);if(!c)return {ok:false,reason:'выбранный герой не найден'};if(!Number.isInteger(amount)||amount<1||amount>999)return {ok:false,reason:'количество должно быть целым числом от 1 до 999'};
   const epoch=bg3Catalog.epoch;if(bg3CatalogIsId(itemId))await bg3CatalogHydrate([itemId]);if(epoch!==bg3Catalog.epoch)return {ok:false,stale:true,reason:'профиль каталога изменился во время загрузки'};
-  const it=itemOf(itemId);if(!it)return {ok:false,reason:'предмет отсутствует в текущей базе'};if(bg3CatalogIsId(itemId)&&(!it.source||!['playable','duplicate','needs-review'].includes(it.source.classification)||itemProfile(it).flags.portable!==true))return {ok:false,reason:'этот объект BG3 относится к миру или вспомогательным данным и не переносится в инвентарь'};
+  const it=itemOf(itemId);if(!it)return {ok:false,reason:'предмет отсутствует в текущей базе'};const sourceAudit=bg3ItemSourceAuditOverride(it);if(bg3CatalogIsId(itemId)&&sourceAudit&&sourceAudit.inventory===false)return {ok:false,manual:true,reason:sourceAudit.reason};if(bg3CatalogIsId(itemId)){const source=it.source||{},classification=source.classification,inventoryClass=['playable','duplicate'].includes(classification)||(classification==='needs-review'&&source.category&&source.category!=='unclassified');if(!inventoryClass||itemProfile(it).flags.portable!==true)return {ok:false,reason:'этот объект BG3 относится к миру или вспомогательным данным и не переносится в инвентарь'};}
   let valueGp=opts.valueGp;if(itemUsesInventoryValue(it)){if(valueGp==null)return {ok:false,needsValue:true,item:it,c,qty:amount,reason:'нужна оценочная стоимость экземпляра'};valueGp=Number(valueGp);if(!Number.isFinite(valueGp)||valueGp<=0)return {ok:false,reason:'стоимость должна быть положительным числом'};valueGp=Math.round(valueGp*100)/100;}
   const transition=bg3InventoryMutationGuard(c,[],{context:'catalog-give',additions:[{itemId,qty:amount}]});if(!transition.ok)return transition;
   return {ok:true,kind:'catalog-give-plan',actorId:c.id,itemId:String(itemId),qty:amount,valueGp:valueGp==null?null:valueGp,epoch,c,it,itemSnapshot:JSON.stringify(itemClone(it)),inventorySnapshot:JSON.stringify(itemClone(c.inventory||[])),equipmentSnapshot:JSON.stringify(itemClone(c.equipment||{})),catalogVersion:bg3Catalog.current&&bg3Catalog.current.catalogVersion||'',profile:bg3Catalog.preferredProfile||'',committed:false};
@@ -24614,7 +24824,7 @@ async function itemWorkspaceGrantCommit(plan){
     if(!lifecycle||lifecycle.ok!==true)return {ok:false,rolledBack:true,reason:'выдача отменена до изменения мира: '+String(lifecycle&&lifecycle.reason||'lifecycle предмета не подготовлен')};
     const live=getCh(plan.actorId),liveItem=itemOf(plan.itemId);if(live!==c||liveItem!==it||plan.epoch!==bg3Catalog.epoch||plan.itemSnapshot!==JSON.stringify(itemClone(liveItem))||plan.inventorySnapshot!==JSON.stringify(itemClone(c.inventory||[]))||plan.equipmentSnapshot!==JSON.stringify(itemClone(c.equipment||{})))return {ok:false,stale:true,reason:'герой, предмет или инвентарь изменились во время подготовки lifecycle'};
     transition=bg3InventoryMutationGuard(c,[],{context:'catalog-give-commit-barrier',additions:[{itemId:plan.itemId,qty:plan.qty}]});if(!transition.ok)return transition;let entry=(c.inventory||[]).find(row=>row.itemId===plan.itemId&&(!itemUsesInventoryValue(it)||+row.valueGp===plan.valueGp));if(entry)setInvQty(entry,it,(+entry.qty||1)+plan.qty);else{entry={id:'inv_'+uid(),itemId:plan.itemId,qty:plan.qty,notes:''};if(plan.valueGp!=null)entry.valueGp=plan.valueGp;c.inventory.push(entry);}fillContainer(entry,it);plan.committed=true;
-    let displayError='';try{bg3LifecycleSchedule(c);scheduleSave();renderChars();renderItemsDB(plan.itemId);}catch(error){displayError=String(error&&error.message||error);}
+    let displayError='';try{bg3LifecycleScheduleForSurface(c,plan.itemId,false);scheduleSave();renderChars();if(activeWorldTab==='itemsdb')renderItemsDB(plan.itemId);}catch(error){displayError=String(error&&error.message||error);}
     return {ok:true,actorId:c.id,itemId:plan.itemId,qty:plan.qty,entryId:entry.id,stackQty:+entry.qty||1,displayError};
   }finally{itemWorkspace.grantCommits.delete(plan.actorId);}
 }
@@ -25129,11 +25339,11 @@ function itemAuditViewHTML(){
 function itemWorkspaceFilterSet(key,value,controlId){if(!Object.prototype.hasOwnProperty.call(dbFlt.it,key))return;value=String(value||'');dbFlt.it[key]=value;if(key==='source'&&value==='campaign')dbFlt.it.classification='campaign';else if(key==='source'&&value==='bg3'&&dbFlt.it.classification==='campaign')dbFlt.it.classification='all';else if(key==='classification'&&value==='campaign')dbFlt.it.source='campaign';else if(key==='classification'&&['playable','world-object','needs-review','duplicate','technical'].includes(value)&&dbFlt.it.source==='campaign')dbFlt.it.source='bg3';bg3Catalog.page=0;itemWorkspace.selectedId='';itemWorkspace.presentationSelectedId='';renderItemsDB();const control=controlId&&document.getElementById(controlId);if(control&&typeof control.focus==='function')control.focus();}
 function itemWorkspaceResetFilters(){dbFlt.it={q:'',source:'all',classification:'all',type:'',kind:'',category:'',rarity:'',tag:'',content:'',sort:'name'};bg3Catalog.page=0;itemWorkspace.selectedId='';itemWorkspace.presentationSelectedId='';renderItemsDB();}
 function itemWorkspaceFacetValues(){
-  const cache=bg3Catalog.index?bg3CatalogSearchCacheEnsure():null,base=cache&&cache.facets||{},facets={types:new Set(base.types||[]),kinds:new Set(base.kinds||[]),categories:new Set(base.categories||[]),rarities:new Set(base.rarities||[]),tags:new Set(base.tags||[]),classes:new Set(base.classes||[])};for(const it of itemsDB){facets.types.add(it.type||'');facets.kinds.add(itemWorkspaceLocalKind(it));facets.categories.add(it.type||'');facets.rarities.add(it.rarity||'обычный');for(const tag of bg3Array(it.tags))facets.tags.add(tag);}return facets;
+  const cache=bg3Catalog.index?bg3CatalogSearchCacheEnsure():null,base=cache&&cache.facets||{},facets={types:new Set(base.types||[]),kinds:new Set(base.kinds||[]),categories:new Set(base.categories||[]),rarities:new Set(base.rarities||[]),tags:new Set(base.tags||[]),classes:new Set(base.classes||[])};for(const it of itemsDB){facets.types.add(it.type||'');facets.kinds.add(itemWorkspaceLocalKind(it));facets.categories.add(itemWorkspaceCampaignCategory(it));facets.rarities.add(it.rarity||'обычный');for(const tag of bg3Array(it.tags))facets.tags.add(tag);}return facets;
 }
 function itemWorkspaceOption(value,current,label){return '<option value="'+esc(value)+'"'+(current===value?' selected':'')+'>'+esc(label)+'</option>';}
 function itemWorkspaceFiltersHTML(){
-  const f=dbFlt.it,facets=itemWorkspaceFacetValues(),types=[...facets.types].filter(Boolean).sort((a,b)=>(ITEM_TYPES[a]||a).localeCompare(ITEM_TYPES[b]||b,'ru')),kinds=[...facets.kinds].filter(Boolean).sort((a,b)=>itemWorkspaceKindLabel(a).localeCompare(itemWorkspaceKindLabel(b),'ru')),categories=[...facets.categories].filter(Boolean).sort((a,b)=>itemWorkspaceCategoryLabel(a).localeCompare(itemWorkspaceCategoryLabel(b),'ru')),rarities=[...facets.rarities].filter(Boolean),tags=[...facets.tags].filter(value=>value&&!ITEM_WORKSPACE_CLASSIFIER_TAGS.has(value)).sort((a,b)=>itemWorkspaceTagLabel(a).localeCompare(itemWorkspaceTagLabel(b),'ru'));
+  const f=dbFlt.it,facets=itemWorkspaceFacetValues(),types=[...facets.types].filter(Boolean).sort((a,b)=>(ITEM_TYPES[a]||a).localeCompare(ITEM_TYPES[b]||b,'ru')),kinds=[...facets.kinds].filter(Boolean).sort((a,b)=>itemWorkspaceKindLabel(a).localeCompare(itemWorkspaceKindLabel(b),'ru')),categories=[...facets.categories].filter(Boolean).sort((a,b)=>itemWorkspaceCategoryLabel(a).localeCompare(itemWorkspaceCategoryLabel(b),'ru')),rarities=[...facets.rarities].filter(Boolean),tags=itemWorkspaceTagOptions(facets.tags);
   return '<div class="catalog-filter-grid" role="group" aria-label="Поиск и фильтры предметов"><div class="catalog-filter search"><label for="bg3CatalogSearchInput">Найти предмет</label><input id="bg3CatalogSearchInput" type="text" placeholder="Название, описание или игровое свойство…" value="'+esc(f.q)+'" oninput="bg3CatalogFilterInput(this.value,this)"></div>'
     +'<div class="catalog-filter"><label for="itemFilterSource">База</label><select id="itemFilterSource" onchange="itemWorkspaceFilterSet(\'source\',this.value,\'itemFilterSource\')">'+itemWorkspaceOption('all',f.source,'Все базы')+itemWorkspaceOption('bg3',f.source,'Baldur’s Gate 3')+itemWorkspaceOption('campaign',f.source,'Созданные мастером')+'</select></div>'
     +'<div class="catalog-filter"><label for="itemFilterClass">Доступность</label><select id="itemFilterClass" onchange="itemWorkspaceFilterSet(\'classification\',this.value,\'itemFilterClass\')">'+Object.keys(ITEM_CLASS_LABELS).map(value=>itemWorkspaceOption(value,f.classification,ITEM_CLASS_LABELS[value])).join('')+'</select></div>'
@@ -25141,7 +25351,7 @@ function itemWorkspaceFiltersHTML(){
     +'<div class="catalog-filter"><label for="itemFilterCategory">Игровая группа</label><select id="itemFilterCategory" onchange="itemWorkspaceFilterSet(\'category\',this.value,\'itemFilterCategory\')">'+itemWorkspaceOption('',f.category,'Все игровые группы')+categories.map(value=>itemWorkspaceOption(value,f.category,itemWorkspaceCategoryLabel(value))).join('')+'</select></div>'
     +'<div class="catalog-filter"><label for="itemFilterType">Тип по правилам D&amp;D</label><select id="itemFilterType" onchange="itemWorkspaceFilterSet(\'type\',this.value,\'itemFilterType\')">'+itemWorkspaceOption('',f.type,'Все типы')+types.map(value=>itemWorkspaceOption(value,f.type,ITEM_TYPES[value]||value)).join('')+'</select></div>'
     +'<div class="catalog-filter"><label for="itemFilterRarity">Редкость</label><select id="itemFilterRarity" onchange="itemWorkspaceFilterSet(\'rarity\',this.value,\'itemFilterRarity\')">'+itemWorkspaceOption('',f.rarity,'Любая редкость')+rarities.map(value=>itemWorkspaceOption(value,f.rarity,value)).join('')+'</select></div>'
-    +'<div class="catalog-filter"><label for="itemFilterTag">Игровое свойство</label><select id="itemFilterTag" onchange="itemWorkspaceFilterSet(\'tag\',this.value,\'itemFilterTag\')">'+itemWorkspaceOption('',f.tag,'Все свойства')+tags.map(value=>itemWorkspaceOption(value,f.tag,itemWorkspaceTagLabel(value))).join('')+'</select></div>'
+    +'<div class="catalog-filter"><label for="itemFilterTag">Игровое свойство</label><select id="itemFilterTag" onchange="itemWorkspaceFilterSet(\'tag\',this.value,\'itemFilterTag\')">'+itemWorkspaceOption('',f.tag,'Все свойства')+tags.map(option=>itemWorkspaceOption(option.value,f.tag,option.label)).join('')+'</select></div>'
     +'<div class="catalog-filter"><label for="itemFilterContent">Что заполнено</label><select id="itemFilterContent" onchange="itemWorkspaceFilterSet(\'content\',this.value,\'itemFilterContent\')">'+itemWorkspaceOption('',f.content,'Любые сведения')+itemWorkspaceOption('description',f.content,'Есть описание')+itemWorkspaceOption('mechanics',f.content,'Есть игровые механики')+itemWorkspaceOption('actions',f.content,'Есть активные действия')+itemWorkspaceOption('interactions',f.content,'Есть взаимодействия')+itemWorkspaceOption('lifecycle',f.content,'Есть постоянные эффекты')+itemWorkspaceOption('recipes',f.content,'Есть рецепт')+itemWorkspaceOption('placements',f.content,'Встречается в мире')+'</select></div>'
     +'<div class="catalog-filter"><label for="itemFilterSort">Порядок</label><select id="itemFilterSort" onchange="itemWorkspaceFilterSet(\'sort\',this.value,\'itemFilterSort\')">'+itemWorkspaceOption('name',f.sort,'По названию')+itemWorkspaceOption('type',f.sort,'По категории')+itemWorkspaceOption('rarity',f.sort,'По редкости')+itemWorkspaceOption('source',f.sort,'По базе')+'</select></div></div>'
     +'<details class="catalog-class-help"><summary>Какие предметы включены</summary><p>По умолчанию показаны все записи текущего режима правил: предметы инвентаря, объекты сцен, альтернативные варианты и предметы, которые мастер разыгрывает вручную. Служебные идентификаторы и сведения импорта в карточках не показываются.</p></details>';
@@ -26072,7 +26282,7 @@ function invEquipToggle(entryId){
     else { const other=c.equipment[it.slot]; if(other&&other!==entryId) clear(other); c.equipment[it.slot]=entryId; }
     equipmentHabitStart(c,entryId);
   }
-  scheduleSave(); renderChars();
+  scheduleSave(); renderChars(); bg3LifecycleScheduleForSurface(c,it.id,false);
 }
 function addInvFromDB(itemId){
   const c=cc(),it=c&&itemOf(itemId); if(!c||!it) return;
@@ -26145,9 +26355,9 @@ function stInventory(c){
   if(sheetSearch.inv.trim().length>1){
     const q=sheetSearch.inv.toLowerCase();
     const hits=itemsDB.filter(it=>it.n.toLowerCase().includes(q)).slice(0,10);
-    const bg3hits=bg3Catalog.index?bg3CatalogSearch(q,{}).filter(row=>['playable','duplicate','needs-review'].includes(row.classification)).slice(0,Math.max(0,10-hits.length)):[];
+    const bg3hits=bg3Catalog.index?bg3CatalogSearch(q,{}).filter(row=>bg3ItemSourceAuditAllows(row,'inventory')&&(['playable','duplicate'].includes(row.classification)||row.classification==='needs-review'&&row.category!=='unclassified')).slice(0,Math.max(0,10-hits.length)):[];
     h+=hits.map(it=>'<div class="spell-hit" onclick="addInvFromDB(\''+it.id+'\')"><span><b>'+esc(it.n)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+esc(ITEM_TYPES[it.type]||it.type)+(it.cost?', '+esc(it.cost):'')+'</span></span><span style="color:var(--gold)">+ выдать</span></div>').join('');
-    h+=bg3hits.map(row=>'<div class="spell-hit" onclick="addInvFromBG3('+esc(JSON.stringify(row.id))+','+esc(JSON.stringify(c.id))+')"><span style="display:flex;align-items:center;gap:7px">'+(row.icon&&row.icon.src?'<img class="item-icon sm" src="'+esc(row.icon.src)+'" width="38" height="38" loading="lazy" decoding="async" alt="">':'')+'<span><b>'+esc(bg3UserItemName(row,'Предмет BG3'))+'</b> <span style="font-size:13px;color:var(--ink-faint)">BG3 · '+esc(itemWorkspaceCategoryLabel(row.category))+'</span></span></span><span style="color:var(--gold)">+ выдать</span></div>').join('');
+    h+=bg3hits.map(row=>'<div class="spell-hit" onclick="addInvFromBG3('+esc(JSON.stringify(row.id))+','+esc(JSON.stringify(c.id))+')"><span style="display:flex;align-items:center;gap:7px">'+(row.icon&&row.icon.src?'<img class="item-icon sm" src="'+esc(row.icon.src)+'" width="38" height="38" loading="lazy" decoding="async" alt="">':'')+'<span><b>'+esc(bg3UserItemName(row,'Предмет BG3'))+'</b> <span style="font-size:13px;color:var(--ink-faint)">BG3 · '+esc(itemWorkspaceCategoryLabel(itemWorkspaceBg3Category(row)))+'</span></span></span><span style="color:var(--gold)">+ выдать</span></div>').join('');
     if(!hits.length&&!bg3hits.length) h+='<p class="note-ital" style="font-size:14px">В арсенале мира такого нет — создайте свое.</p>';
     if(!bg3Catalog.index&&!bg3Catalog.error) bg3CatalogEnsureIndex().then(()=>renderChars()).catch(()=>renderChars());
   }
@@ -26189,14 +26399,14 @@ function stInventory(c){
       const valueBox=itemUsesInventoryValue(it)
         ? '<button class="btn ghost sm" title="Оценка относится к этому экземпляру, а не к виду предмета" onclick="invValueEdit(\''+e.id+'\')">💰 '+(itemEntryGoldValue(e,it)==null?'указать оценку':itemEntryGoldValue(e,it)+' зм')+'</button>'
         : '';
-      const extra=acts.map(x=>'<button class="btn ghost sm fx-cast" title="'+esc(x.title)+'" onclick="'+x.fn+'">'+x.icon+' '+esc(x.label)+'</button>').join('')
+      const extra=acts.map(x=>'<button class="btn ghost sm '+(x.infoOnly?'item-action-info':'fx-cast')+'"'+(x.infoOnly?' data-action-state="blocked" aria-label="Автоматическое действие недоступно; открыть справку '+esc(x.label)+'"':'')+' title="'+esc(x.title)+'" onclick="'+x.fn+'">'+x.icon+' '+esc(x.label)+'</button>').join('')
        +chBox+valueBox+attBox
        +'<span class="qty-box"><button class="mini-btn" onclick="invQty(\''+e.id+'\',-1)">−</button><b>'+(e.qty||1)+'</b><button class="mini-btn" onclick="invQty(\''+e.id+'\',1)">+</button></span>'
        +(canEq?'<button class="btn '+(eq?'':'ghost ')+'sm" onclick="invEquipToggle(\''+e.id+'\')">'+(eq?'Надето ✓':'Надеть')+'</button>':'')
        +(bg3CatalogIsId(it.id)?'<button class="btn ghost sm" title="Открыть неизменяемую карточку BG3" onclick="switchTab(\'itemsdb\');bg3CatalogOpen(\''+it.id+'\')">↗</button>'
          :'<button class="btn ghost sm" title="Править в базе предметов" onclick="jumpToItemEd(\''+it.id+'\')">✎</button>')
        +'<button class="del-x" onclick="invDel(\''+e.id+'\')">✕</button>';
-      h+=itemCardHTML(it, extra);
+      h+=itemCardHTML(it,extra,{actorId:c.id,entryId:e.id,interactive:true,presentationDetail:true});
       if(hint) h+='<div class="inv-note" style="font-style:normal;color:var(--ink-soft)">◆ '+esc(hint)+'</div>';
       if(e.notes) h+='<div class="inv-note">✎ '+esc(e.notes)+' <button class="del-x" title="Стереть пометку" onclick="invNoteClear(\''+e.id+'\')">✕</button></div>';
     });

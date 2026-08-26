@@ -7,6 +7,29 @@ import {TextEncoder} from 'node:util';
 import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 
 const selectedBg3Catalog = selectBg3Catalog(new URL('..', import.meta.url));
+const productionBg3Version = selectedBg3Catalog.current.catalogVersion;
+const productionBg3Prefix = `data/bg3/${productionBg3Version}/`;
+const productionBg3JsonCache = new Map();
+
+function productionBg3Json(relative) {
+  const path = String(relative || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  const fullPath = path.startsWith('data/bg3/') ? path : productionBg3Prefix + path;
+  if (!productionBg3JsonCache.has(fullPath)) {
+    productionBg3JsonCache.set(fullPath,
+      JSON.parse(fs.readFileSync(new URL('../' + fullPath, import.meta.url), 'utf8')));
+  }
+  return productionBg3JsonCache.get(fullPath);
+}
+
+function productionBg3Item(itemId) {
+  const index = productionBg3Json(selectedBg3Catalog.manifest.entrypoints.searchIndex);
+  const summary = (index.items || []).find(row => row.id === itemId);
+  assert.ok(summary?.shard, `${itemId}: production item shard`);
+  const item = (productionBg3Json(`items/${summary.shard}.json`).items || [])
+    .find(row => row.id === itemId);
+  assert.ok(item, `${itemId}: production item`);
+  return JSON.parse(JSON.stringify(item));
+}
 
 const BG3_RECIPE_RUNTIME={schemaVersion:'bg3-item-combos-runtime/1',inputOperations:['Consume','Transform','None','Dye'],
   transformIdentity:'preserve-concrete-inventory-entry',resultAmount:'exact',categorySelection:'explicit-profile-scoped',transaction:'validate-single-commit-consequences'};
@@ -85,11 +108,12 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       bg3CatalogUpgradePlanFor,bg3CatalogUpgradeCommit,bg3CatalogUpgradeReferencedIds,
       bg3ItemPresentationEnsure,bg3ItemPresentationEnsureSearch,bg3ItemPresentationLoadDetail,bg3ItemPresentationDetailHTML,bg3ItemPresentationContentMatch,
       itemWorkspaceSearch,itemWorkspaceRowFromBg3,itemWorkspaceRowFromLocal,itemWorkspaceListRowHTML,itemWorkspaceDetailHTML,itemProfileSummaryHTML,
-      itemWorkspaceGrantPlanFor,itemWorkspaceGrantCommit,itemWorkspaceGiveTo,addInvFromBG3,bg3RecipeSummaryHTML,bg3RecipesPanelHTML,bg3RuntimeTabsHTML,bg3TreasureUserTableCount,
+      itemWorkspaceGrantPlanFor,itemWorkspaceGrantCommit,itemWorkspaceGiveTo,addInvFromBG3,itemCardHTML,itemWorkspaceRelationView,bg3StoryOpen,bg3LifecycleBlock,itemCardSurfaceRefresh,bg3InteractionCoveredByExactUse,bg3ItemInstructionsOpen,bg3ItemInstructionPrograms,bg3ItemInstructionProgramLines,bg3ItemInstructionOverview,switchTab,openChar,bg3RecipeSummaryHTML,bg3RecipesPanelHTML,bg3RuntimeTabsHTML,bg3TreasureUserTableCount,
       itemWorkspaceTestFilters(patch){dbFlt.it=Object.assign({q:'',source:'all',classification:'all',type:'',kind:'',category:'',rarity:'',tag:'',content:'',sort:'name'},patch||{});bg3Catalog.page=0;itemWorkspace.selectedId='';itemWorkspace.presentationSelectedId='';return itemWorkspaceSearch();},
       itemWorkspaceTestSelectHero(id){itemWorkspace.heroId=getCh(String(id||''))?String(id):'';return itemWorkspace.heroId;},
       itemWorkspaceTestSelectItem(id){itemWorkspace.selectedId=String(id||'');itemWorkspace.presentationSelectedId=itemWorkspace.selectedId;return itemWorkspace.selectedId;},
       itemWorkspaceTestState(){return {selectedId:itemWorkspace.selectedId,presentationSelectedId:itemWorkspace.presentationSelectedId,heroId:itemWorkspace.heroId,qty:itemWorkspace.qty,filters:itemClone(dbFlt.it)};},
+      itemWorkspaceTestSurface(){return {activeWorldTab,sheetTab,bg3RuntimeView,bg3RuntimeQuery,bg3StoryOpenItemId,selectedId:itemWorkspace.selectedId,heroId:itemWorkspace.heroId};},
       bg3ItemPresentationTestSnapshot(){return {epoch:bg3Catalog.epoch,profile:bg3Catalog.preferredProfile||'',root:!!bg3ItemPresentation.root,loading:!!bg3ItemPresentation.loading,error:bg3ItemPresentation.error,items:bg3ItemPresentation.byItem.size,detailFiles:[...bg3ItemPresentation.detailFiles.keys()],searchFiles:[...bg3ItemPresentation.searchFiles.keys()],details:[...bg3ItemPresentation.details.keys()],detailShards:[...bg3ItemPresentation.detailShards.keys()],detailPromises:[...bg3ItemPresentation.detailPromises.keys()],detailErrors:[...bg3ItemPresentation.detailErrors.entries()],searchDocs:bg3ItemPresentation.searchDocs.size,searchReady:bg3ItemPresentation.searchReady,searchLoading:!!bg3ItemPresentation.searchLoading,searchError:bg3ItemPresentation.searchError};},
       bg3ItemPresentationTestRetryDetail(itemId){const meta=bg3ItemPresentation.byItem.get(String(itemId||''));if(!meta||meta.detailShard==null)return Promise.resolve(null);bg3ItemPresentation.detailErrors.delete(meta.detailShard);return bg3ItemPresentationLoadDetail(itemId);},
       itemWorkspaceGrantTestHydrateGate(){const original=bg3CatalogHydrate;let releaseGate,enteredResolve,released=false,calls=0;const gate=new Promise(resolve=>{releaseGate=resolve;}),entered=new Promise(resolve=>{enteredResolve=resolve;});bg3CatalogHydrate=async function(...args){calls++;enteredResolve();await gate;return original(...args);};const release=()=>{if(!released){released=true;releaseGate();}};return {entered,calls:()=>calls,release,restore(){release();bg3CatalogHydrate=original;}};},
@@ -131,7 +155,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
         if(!fired&&String(token||'').startsWith(String(prefix||''))){fired=true;throw new Error('injected lifecycle token commit failure');}return committed;};return ()=>{bg3StatusLifecycleTokenCommit=original;};},
       injectBg3StatusApplicationThrowOnce(status){const original=bg3StatusLifecycleApplicationCommit;let fired=false;bg3StatusLifecycleApplicationCommit=function(prepared){const info=original(prepared);
         if(!fired&&prepared&&prepared.status===status){fired=true;throw new Error('injected status application failure');}return info;};return ()=>{bg3StatusLifecycleApplicationCommit=original;};},
-      bg3LifecycleReset,bg3LifecycleCompileModifier,bg3LifecycleCompileStatic,bg3LifecycleCompileOnHit,bg3LifecycleCompileGranted,bg3LifecycleCompileRow,bg3LifecycleReconcile,
+      bg3LifecycleReset,bg3LifecycleSchedule,bg3LifecycleScheduleForSurface,bg3LifecycleItemHTML,bg3LifecycleCompileModifier,bg3LifecycleCompileStatic,bg3LifecycleCompileOnHit,bg3LifecycleCompileGranted,bg3LifecycleCompileRow,bg3LifecycleReconcile,
        bg3LifecycleActionPreflight,bg3LifecycleActorActionPreflight,bg3LifecycleEquipmentBindingsPrepare,bg3LifecycleEquipmentBindingsPreflight,
        bg3LifecycleHolderStatusEventSourceSnapshot,bg3LifecycleHolderStatusEventPreflight,bg3LifecycleHolderStatusEventCommit,
        bg3LifecycleState,bg3LifecycleAudit,bg3LifecycleFxSources,bg3LifecycleGrantedApply,bg3LifecycleOnHitPlanFor,bg3LifecycleOnHitCommit,bg3LifecycleApplyOnHitBoundary,
@@ -417,10 +441,10 @@ const GRANTED_WEAPON_SOURCES={
 };
 const GRANTED_WEAPON_COMMON={path:'Mods/Shared/Scripts/thoth/helpers/CommonConditions.khn',sha256:'d57caf2681482156fa20452bff493cbe5d4609ff5ea9c7eeb81f803ea08642b7',steamBuildId:'24532579',
   maneuver:'8 + context.Source.ProficiencyBonus + max(context.Source.StrengthModifier, context.Source.DexterityModifier)',hybrid:'max(SourceSpellDC(-10), ManeuverSaveDC()+2)'};
-function grantedWeaponJson(relative){return JSON.parse(fs.readFileSync(new URL(`../data/bg3/bg3-24532579-v3/${relative}`,import.meta.url),'utf8'));}
+function grantedWeaponJson(relative){return productionBg3Json(relative);}
 function grantedWeaponRule(artifact,bg3Id){const rule=grantedWeaponJson(artifact).rules.find(row=>row.bg3Id===bg3Id);assert.ok(rule,`${bg3Id} source rule`);return rule;}
 function grantedWeaponFixture(e,spellId,profile='standard',native=false){
-  assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:'bg3-24532579-v3',profile,manifestSha256:'a'.repeat(64)}]),true);
+  assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:productionBg3Version,profile,manifestSha256:'a'.repeat(64)}]),true);
   const source=GRANTED_WEAPON_SOURCES[spellId],spellRule=grantedWeaponRule(source.spellArtifact,spellId),statusRule=grantedWeaponRule(source.statusArtifact,source.statusId),program=plain(spellRule.programs[profile]),statusProgram=plain(statusRule.programs[profile]),cap=plain(e.bg3GrantedWeaponRuntimeCapability());
   if(source.statusId==='DAZED'){const field=statusProgram.fields.find(row=>row.field==='Boosts'),manual=field.bytecode.find(row=>row.op==='manual');field.bytecode[field.bytecode.indexOf(manual)]={op:'blockAbilityModifierFromArmorClass',executable:true,bg3Functor:'BlockAbilityModifierFromAC',args:[{kind:'symbol',value:'Dexterity'}],phase:'consequences'};field.mode='typed';}
   const fields=program.fields.map(field=>({field:field.field,role:field.role,rawSha256:crypto.createHash('sha256').update(field.raw).digest('hex'),astSha256:sha256Canonical(field.ast)}));
@@ -476,13 +500,12 @@ const GITHBORN_SOURCE={
 const GITHBORN_LEGENDARY_SOURCE={bg3Id:'MAG_Legendary_PsionicWeapon_Passive',ruleId:'bg3:rule:passive:TUFHX0xlZ2VuZGFyeV9Qc2lvbmljV2VhcG9uX1Bhc3NpdmU',artifact:'rules/passives/e4.json',
   carrierItemId:'bg3:item:rt:f01c3f5d-c542-420f-86c5-bdddf7819e29:stats:TUFHX0dyZWF0ZXJTaWx2ZXJfR3JlYXRzd29yZA'};
 function githbornCatalogItem(profile='standard',future=true){
-  const payload=JSON.parse(fs.readFileSync(new URL('../data/bg3/bg3-24532579-v7/items/f0-0001.json',import.meta.url),'utf8')),
-    base=payload.items.find(row=>row.id===GITHBORN_SOURCE.carrierItemId),overlay=profile==='honour'&&base?.source?.honourOverlay?.item,
+  const base=productionBg3Item(GITHBORN_SOURCE.carrierItemId),overlay=profile==='honour'&&base?.source?.honourOverlay?.item,
     item=plain(overlay?Object.assign({},base,overlay,{source:base.source}):base);assert.ok(item,`${profile}: real Githborn carrier fixture`);
-  item.source=plain(item.source);if(future){item.source.catalogVersion='bg3-24532579-v8';item.source.buildId='24532579';delete item.source.honourOverlay;}return item;
+  item.source=plain(item.source);item.source.catalogVersion=future?productionBg3Version:'bg3-24532579-v7';item.source.buildId='24532579';if(future)delete item.source.honourOverlay;return item;
 }
 function githbornFutureFixture(e,profile='standard'){
-  const item=githbornCatalogItem(profile),payload=JSON.parse(fs.readFileSync(new URL('../data/bg3/bg3-24532579-v7/rules/passives/bb.json',import.meta.url),'utf8')),
+  const item=githbornCatalogItem(profile),payload=productionBg3Json(GITHBORN_SOURCE.artifact),
     sourceRule=plain(payload.rules.find(row=>row.bg3Id===GITHBORN_SOURCE.bg3Id)),ref=item.mechanics.lifecyclePrograms.find(row=>row.bg3Id===GITHBORN_SOURCE.bg3Id),descriptor=e.bg3GithbornMindcrusherActionTimeDescriptor(profile),program=sourceRule.programs[profile];
   assert.ok(ref&&program,`${profile}: exact Githborn ref/program fixture`);ref.actionTimeWeaponDamage=plain(descriptor);assert.equal(ref.projection.entrypoints.length,1);ref.projection.entrypoints[0].actionTimeWeaponDamage=plain(descriptor);program.actionTimeWeaponDamage=plain(descriptor);
   program.bg3SourceRule={kind:'passive',engineType:sourceRule.engineType,fileKind:sourceRule.fileKind,module:sourceRule.module,source:sourceRule.source,using:sourceRule.using,
@@ -491,8 +514,7 @@ function githbornFutureFixture(e,profile='standard'){
   sourceRule.programs={[profile]:program};sourceRule.artifact=GITHBORN_SOURCE.artifact;return {item,ref,rule:sourceRule,program,descriptor};
 }
 function githbornLegendaryCatalogItem(profile='standard'){
-  const payload=JSON.parse(fs.readFileSync(new URL('../data/bg3/bg3-24532579-v7/items/67-0000.json',import.meta.url),'utf8')),
-    base=payload.items.find(row=>row.id===GITHBORN_LEGENDARY_SOURCE.carrierItemId),overlay=profile==='honour'&&base?.source?.honourOverlay?.item,
+  const base=productionBg3Item(GITHBORN_LEGENDARY_SOURCE.carrierItemId),overlay=profile==='honour'&&base?.source?.honourOverlay?.item,
     item=plain(overlay?Object.assign({},base,overlay,{source:base.source}):base);assert.ok(item,`${profile}: real legendary Githborn sibling fixture`);item.source=plain(item.source);return item;
 }
 function githbornMeleeWeapon(id='githborn-test-sword'){
@@ -7284,17 +7306,14 @@ function bg3InstalledStatusPassiveCoverage(version,profile='standard'){
   return audit;
 }
 
-test('BG3 v3 status-passive diagnostic keeps all 55 actions structural while runtime readiness stays exhaustive', () => {
-  const audit=bg3InstalledStatusPassiveCoverage('bg3-24532579-v3','standard');
-  assert.equal(audit.actions,55);assert.equal(audit.bindings,60);assert.equal(audit.completeBindings,48);assert.equal(audit.incompleteBindings,12);assert.equal(audit.incompleteActions,11);
-  assert.equal(audit.legacyStructuralBefore,44);assert.equal(audit.incompleteActionsSourceBlocked,11);
+test('BG3 production status-passive diagnostic keeps all Standard actions structural while runtime readiness stays exhaustive', () => {
+  const audit=bg3InstalledStatusPassiveCoverage(productionBg3Version,'standard');
+  assert.equal(audit.actions,55);assert.equal(audit.bindings,60);assert.equal(audit.completeBindings,53);assert.equal(audit.incompleteBindings,7);assert.equal(audit.incompleteActions,6);
+  assert.equal(audit.legacyStructuralBefore,49);assert.equal(audit.incompleteActionsSourceBlocked,6);
   assert.equal(audit.mechanicsErrors,0);assert.equal(audit.itemSchemaErrors,0);assert.equal(audit.structurallyValid,55);
-  assert.equal(audit.runtimeReady,13);assert.equal(audit.sourceBlocked,42);assert.equal(audit.runtimeReady+audit.sourceBlocked,55);
-  assert.deepEqual(audit.readyFamilies.map(row=>row.actionId).sort(),[
-    'bg3-use-1689289f81c83fdc0514','bg3-use-1c3d8150c5e10f46e330','bg3-use-25b71eae8abf7a44fc80','bg3-use-55a4fd02ce1bae59b3b0','bg3-use-7fc1890e1cebad8876a2',
-    'bg3-use-81875fb1e8ab913bb1ed','bg3-use-880b8d7ad4c3d62eb1b1','bg3-use-881c17ab3d199d615c62','bg3-use-8e3736cd94b2d52bec9e','bg3-use-9ea336c880e0968e266c',
-    'bg3-use-af8be78a212d8dca8c4f','bg3-use-b3ee72253d14646b161c','bg3-use-c86a38b8bf101212384d'].sort());
-  assert.deepEqual(plain(audit.contexts),{'OnDamage':31,'(none)':6,'OnStatusRemoved':1,'OnDamaged':2,'OnCast':2,'OnMovedDistance':1,'OnStatusApplied':1,'OnLongRest':1,'OnAttacked':1});
+  assert.equal(audit.runtimeReady,18);assert.equal(audit.sourceBlocked,37);assert.equal(audit.runtimeReady+audit.sourceBlocked,55);
+  assert.equal(audit.readyFamilies.length,audit.runtimeReady);
+  assert.equal(audit.completeBindings+audit.incompleteBindings,audit.bindings);
   assert.equal(audit.blockedFamilies.filter(row=>row.reasons.length===0).length,0,'every source-blocked action names its exact residual runtime reason');
 });
 
@@ -8408,7 +8427,7 @@ test('BG3 Shield and Counterspell interrupt events require exact facts and playe
 
 test('BG3 real interrupt descriptors are schema-checked and exactly prepared after the compiler rebuild', async () => {
   const repo=new URL('..',import.meta.url),readRaw=relative=>fs.readFileSync(new URL(relative,repo),'utf8'),readJson=relative=>JSON.parse(readRaw(relative)),
-    version='bg3-24532579-v3',manifestRaw=readRaw(`data/bg3/${version}/manifest.json`),manifest=JSON.parse(manifestRaw),manifestSha256=crypto.createHash('sha256').update(manifestRaw).digest('hex'),rows=[];
+    version=productionBg3Version,manifestRaw=readRaw(`data/bg3/${version}/manifest.json`),manifest=JSON.parse(manifestRaw),manifestSha256=crypto.createHash('sha256').update(manifestRaw).digest('hex'),rows=[];
   for(const shard of manifest.files.items)for(const item of readJson(shard.path).items)for(const ref of item.mechanics&&item.mechanics.lifecyclePrograms||[])for(const descriptor of ref.grantedInterrupts||[])rows.push({item,ref,descriptor});
   if(!rows.length){if(process.env.BG3_INTERRUPT_COVERAGE==='1')assert.fail('the published catalog predates the interrupt compiler rebuild');return;}
   const sourceDescriptorCount=rows.reduce((count,row)=>count+(row.ref.grantedInterrupts||[]).filter(descriptor=>descriptor.id===row.descriptor.id).length,0);
@@ -8460,8 +8479,8 @@ test('BG3 real interrupt descriptors are schema-checked and exactly prepared aft
 
 test('BG3 Periapt of Wound Closure follows the exact DOWNED source graph and stabilizes once at StartTurn', async () => {
   const repo=new URL('..',import.meta.url),readJson=relative=>JSON.parse(fs.readFileSync(new URL(relative,repo),'utf8')),
-    sourceVersion='bg3-24532579-v3',version='bg3-24532580-v1',itemId='bg3:item:rt:716e94de-130b-4f54-84d9-a14fc60adcfb:stats:TUFHX1BIQl9QZXJpYXB0b2ZXb3VuZENsb3N1cmVfQW11bGV0',
-    sourceItem=readJson(`data/bg3/${sourceVersion}/items/72-0000.json`).items.find(item=>item.id===itemId);
+    sourceVersion=productionBg3Version,version='bg3-24532580-v1',itemId='bg3:item:rt:716e94de-130b-4f54-84d9-a14fc60adcfb:stats:TUFHX1BIQl9QZXJpYXB0b2ZXb3VuZENsb3N1cmVfQW11bGV0',
+    sourceItem=productionBg3Item(itemId);
   assert.ok(sourceItem);const artifacts=[...new Set(sourceItem.mechanics.lifecyclePrograms.flatMap(ref=>[ref.artifact]
     .concat((ref.projection&&ref.projection.entrypoints||[]).map(row=>row.artifact),(ref.projection&&ref.projection.transitive||[]).map(row=>row.artifact))).filter(Boolean))],payloads=new Map();
   for(const artifact of artifacts){const payload=readJson(`data/bg3/${sourceVersion}/${artifact}`);payload.catalogVersion=version;payloads.set(artifact,payload);}
@@ -8508,8 +8527,8 @@ test('BG3 Periapt of Wound Closure follows the exact DOWNED source graph and sta
 
 test('production damage commits Periapt only on final DOWNED and carries it through StartTurn', async () => {
   const repo=new URL('..',import.meta.url),readJson=relative=>JSON.parse(fs.readFileSync(new URL(relative,repo),'utf8')),
-    sourceVersion='bg3-24532579-v3',version='bg3-24532580-v1',itemId='bg3:item:rt:716e94de-130b-4f54-84d9-a14fc60adcfb:stats:TUFHX1BIQl9QZXJpYXB0b2ZXb3VuZENsb3N1cmVfQW11bGV0',
-    sourceItem=readJson(`data/bg3/${sourceVersion}/items/72-0000.json`).items.find(item=>item.id===itemId),
+    sourceVersion=productionBg3Version,version='bg3-24532580-v1',itemId='bg3:item:rt:716e94de-130b-4f54-84d9-a14fc60adcfb:stats:TUFHX1BIQl9QZXJpYXB0b2ZXb3VuZENsb3N1cmVfQW11bGV0',
+    sourceItem=productionBg3Item(itemId),
     artifacts=[...new Set(sourceItem.mechanics.lifecyclePrograms.flatMap(ref=>[ref.artifact]
       .concat((ref.projection&&ref.projection.entrypoints||[]).map(row=>row.artifact),(ref.projection&&ref.projection.transitive||[]).map(row=>row.artifact))).filter(Boolean))],payloads=new Map();
   for(const artifact of artifacts){const payload=readJson(`data/bg3/${sourceVersion}/${artifact}`);payload.catalogVersion=version;payloads.set(artifact,payload);}
@@ -8543,8 +8562,8 @@ test('production damage commits Periapt only on final DOWNED and carries it thro
 });
 
 test('BG3 Potion of Speed executes the exact Standard lifecycle and keeps Honour HASTE_ATTACK fail-closed', () => {
-  const repo=new URL('..',import.meta.url),readJson=relative=>JSON.parse(fs.readFileSync(new URL(relative,repo),'utf8')),version='bg3-24532579-v3',
-    itemId='bg3:item:rt:ad9f3f24-d755-48b6-aa7b-c34da068209f:stats:T0JKX1BvdGlvbl9PZl9TcGVlZA',item=readJson(`data/bg3/${version}/items/90-0000.json`).items.find(row=>row.id===itemId),
+  const repo=new URL('..',import.meta.url),readJson=relative=>JSON.parse(fs.readFileSync(new URL(relative,repo),'utf8')),version=productionBg3Version,
+    itemId='bg3:item:rt:ad9f3f24-d755-48b6-aa7b-c34da068209f:stats:T0JKX1BvdGlvbl9PZl9TcGVlZA',item=productionBg3Item(itemId),
     action=item.mechanics.actions.find(row=>row.program&&row.program.statusApplication&&row.program.statusApplication.statusId==='POTION_OF_SPEED'),
     roots=readJson(`data/bg3/${version}/${action.program.rootArtifact}`).programs,
     artifacts=[...new Set([action.program.artifact].concat(action.program.projection.entrypoints,action.program.projection.transitive).map(row=>typeof row==='string'?row:row&&row.artifact).filter(Boolean))],
@@ -9347,16 +9366,23 @@ test('BG3 granted weapon actions: structurally exact dormant v3 grants remain op
   const malformed=plain(fixture.grant);malformed.weaponAction.consequences.scopeDispatch.occurrences[0].args[0].value='forged';malformed.programId=fixture.grant.programId;const badRef=plain(ref);badRef.grantedActions=[malformed];assert.equal(e.bg3LifecycleOptionalGrantOnly(badRef,fixture.programs),false,'tampered grant is not silently treated as optional');e.bg3GrantedWeaponTestSetLifecycle(actor,{ok:true,rows:[{active:true,gate:'equipped-main-hand',status:'blocked',reason:'tampered grant'}],events:[],granted:[],virtuals:[],sources:[],holderEvents:[]});assert.equal(e.bg3LifecycleActionPreflight(actor,'ordinary-entry','weapon',{attackMade:true,hit:true}).ok,false,'malformed carrier fails closed');
 });
 
-test('BG3 granted weapon actions: installed v3 exhaustively keeps all 324 grants dormant and optional across 262 variants and 225 playable items', () => {
-  const e=loadEngine(),wanted=new Set(Object.keys(GRANTED_WEAPON_SOURCES)),dir=new URL('../data/bg3/bg3-24532579-v3/items/',import.meta.url),carriers=[];
-  for(const file of fs.readdirSync(dir).filter(name=>name.endsWith('.json')).sort()){
-    const payload=JSON.parse(fs.readFileSync(new URL(file,dir),'utf8'));
-    for(const item of payload.items||[])for(const ref of item.mechanics?.lifecyclePrograms||[]){const grants=(ref.grantedActions||[]).filter(grant=>wanted.has(grant.spellId));if(grants.length)carriers.push({item,ref,grants});}
+test('BG3 granted weapon actions: production catalog exhaustively keeps every blocked grant explicit and profile-scoped across 262 variants', () => {
+  const wanted=new Set(Object.keys(GRANTED_WEAPON_SOURCES)),carriers=[];
+  for(const descriptor of selectedBg3Catalog.manifest.files.items){
+    const payload=productionBg3Json(descriptor.path);
+    for(const item of payload.items||[])for(const profile of ['standard','honour']){
+      if(!item.source?.profiles?.includes(profile))continue;
+      const overlay=profile==='honour'&&item.source?.honourOverlay?.item,mechanics=overlay?.mechanics||item.mechanics;
+      for(const ref of mechanics?.lifecyclePrograms||[]){const grants=(ref.grantedActions||[]).filter(grant=>wanted.has(grant.spellId));if(grants.length)carriers.push({item,profile,ref,grants});}
+    }
   }
   const grants=carriers.flatMap(row=>row.grants.map(grant=>({item:row.item,ref:row.ref,grant}))),byId=Object.fromEntries([...wanted].map(id=>[id,grants.filter(row=>row.grant.spellId===id).length]));
-  assert.equal(grants.length,324);assert.equal(new Set(grants.map(row=>row.item.id)).size,262);assert.equal(new Set(grants.filter(row=>row.item.source?.classification==='playable').map(row=>row.item.id)).size,225);assert.deepEqual(byId,{Target_ConcussiveSmash:157,Target_OpeningAttack:91,Target_HinderingSmash:76});
-  const nonoptional=carriers.filter(row=>!e.bg3LifecycleOptionalGrantOnly(row.ref,new Map()));assert.deepEqual(nonoptional.map(row=>({item:row.item.i18n?.en?.name,id:row.ref.bg3Id,model:row.ref.activationModel})),[],'every legacy carrier is an optional grant-only row');assert.equal(grants.every(row=>row.grant.resolved===true&&row.grant.executable===false&&!row.grant.weaponAction&&row.grant.projection?.complete===false),true,'v3 never claims an executable exact weapon-action descriptor');assert.equal(grants.every(row=>['standard','honour'].every(profile=>row.item.source?.profiles?.includes(profile))),true,'each variant is available to both catalog profiles');
-  const nested=grants.filter(row=>row.ref.bg3Id!==row.grant.spellId);assert.equal(nested.length,2);assert.deepEqual(nested.map(row=>row.item.i18n?.en?.name).sort(),['Bonesaw','Trepan']);assert.equal(nested.every(row=>row.ref.activationModel==='apply-and-grant'&&row.grant.spellId==='Target_OpeningAttack'),true);
+  assert.equal(grants.length,648);assert.equal(new Set(grants.map(row=>row.item.id)).size,262);assert.equal(new Set(grants.filter(row=>row.item.source?.classification==='playable').map(row=>row.item.id)).size,225);assert.deepEqual(byId,{Target_ConcussiveSmash:314,Target_OpeningAttack:182,Target_HinderingSmash:152});
+  assert.deepEqual(Object.fromEntries(['standard','honour'].map(profile=>[profile,carriers.filter(row=>row.profile===profile).flatMap(row=>row.grants).length])),{standard:324,honour:324});
+  assert.equal(grants.every(row=>row.grant.resolved===true&&row.grant.executable===false&&row.grant.runtimeReady===false&&row.grant.sourceBlocked===true&&row.grant.weaponAction&&row.grant.projection?.complete===true),true,
+    'every production grant carries an exact but fail-closed weapon descriptor instead of advertising executable behaviour');
+  assert.equal(grants.every(row=>['standard','honour'].every(profile=>row.item.source?.profiles?.includes(profile))),true,'each variant is available to both catalog profiles');
+  const nested=grants.filter(row=>row.ref.bg3Id!==row.grant.spellId);assert.equal(nested.length,4);assert.deepEqual(nested.map(row=>`${row.item.i18n?.en?.name}|${row.grant.sourceProfile}`).sort(),['Bonesaw|honour','Bonesaw|standard','Trepan|honour','Trepan|standard']);assert.equal(nested.every(row=>row.ref.activationModel==='apply-and-grant'&&row.grant.spellId==='Target_OpeningAttack'),true);
 });
 
 const LESSER_SPELL_SAVE_DC_SOURCE={
@@ -9536,6 +9562,61 @@ async function productionBg3ItemPresentationWorld(observed=productionBg3ItemPres
   assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();return {e,actor,observed,profile};
 }
 
+const INVENTORY_BG3_BOOK='bg3:item:rt:48a43c1b-c677-4b96-b46e-ed1c68ad8170:stats:T0JKX0Jvb2s';
+const BG3_ELEMENTAL_INFUSION_RING='bg3:item:rt:9ce563ca-82b0-4c28-bd82-8640fd0a5be3:stats:TUFHX0VsZW1lbnRhbEdpc2hfRWxlbWVudGFsSW5mdXNpb25fUmluZw';
+
+test('catalogue magic card opens source-pinned detailed rules without an inventory entry or world mutation',async()=>{
+  const {e,actor}=await productionBg3ItemPresentationWorld(productionBg3ItemPresentationObservedFetch());await e.bg3CatalogHydrate([BG3_ELEMENTAL_INFUSION_RING]);const ring=e.bg3LearnSpellTestCatalogItem(BG3_ELEMENTAL_INFUSION_RING);assert.ok(ring);const card=e.itemCardHTML(ring,'',{actorId:actor.id,presentationDetail:false,fullDescription:true});assert.match(card,/ℹ Полные правила/);assert.match(card,/bg3ItemInstructionsOpen\(/);const before=plain(actor),opened=await e.bg3ItemInstructionsOpen(ring.id,actor.id,'','');assert.equal(opened,true,e.elementText('status'));assert.deepEqual(plain(actor),before,'reading the reference never changes the hero or inventory');assert.match(e.elementText('showTitle'),/Кольцо стихийной зарядки/);const body=e.elementText('showBody');assert.match(body,/Профиль: магический предмет/);assert.match(body,/Постоянные, условные и связанные правила:/);assert.match(body,/Свойство:/);assert.match(body,/Условия активации|Допустимая цель|Последствия|Постоянные модификаторы/);assert.match(e.elementText('showNote'),/закреплённых программ/);
+});
+
+test('inventory BG3 exact read action suppresses its generic interaction while interaction-only items remain usable',async()=>{
+  const e=loadEngine(()=>0,selectedBg3FileFetch()),actor=hero('inventory-exact-reader'),profile=selectedBg3Catalog.current.defaultRulesProfile||'standard';e.setState({chars:[actor],items:e.seedItemsDB(),activeCharId:actor.id});assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();await e.bg3CatalogHydrate([INVENTORY_BG3_BOOK]);
+  const book=plain(e.bg3LearnSpellTestCatalogItem(INVENTORY_BG3_BOOK)),entry={id:'inventory-exact-book-entry',itemId:book.id,qty:1};assert.ok(book);actor.inventory=[entry];e.setState({chars:[actor],items:[book],activeCharId:actor.id});
+  const exact=e.itemActions(actor,entry,book);assert.equal(exact.some(action=>/^loreRead\(/.test(action.fn)),false,'generic loreRead cannot bypass the exact BG3 book program');assert.equal(exact.filter(action=>/^bg3ItemProgramOpen\(/.test(action.fn)&&action.label.startsWith('Прочитать')).length,1);
+  const exactCard=e.itemCardHTML(book,'',{actorId:actor.id,entryId:entry.id,interactive:true,presentationDetail:false});assert.equal((exactCard.match(/bg3ItemInstructionsOpen\(/g)||[]).length,2,'the card exposes its general rules button and only the exact read instruction affordance');assert.match(exactCard,/bg3-use-94190ba0ab73fd93e62f/);
+
+  const interactionOnly=plain(book);interactionOnly.id='bg3:item:rt:48a43c1b-c677-4b96-b46e-ed1c68ad8171:stats:T0JKX0Jvb2tJbnRlcmFjdGlvbk9ubHk';interactionOnly.n='Книга только с взаимодействием';interactionOnly.mechanics.actions=[];interactionOnly.mechanics.lifecyclePrograms=[];const fallbackEntry={id:'inventory-generic-book-entry',itemId:interactionOnly.id,qty:1};actor.inventory=[fallbackEntry];e.setState({chars:[actor],items:[interactionOnly],activeCharId:actor.id});
+  const fallback=e.itemActions(actor,fallbackEntry,interactionOnly);assert.equal(fallback.some(action=>/^loreRead\(/.test(action.fn)),true,'an interaction-only item keeps its usable fallback');const fallbackCard=e.itemCardHTML(interactionOnly,'',{actorId:actor.id,entryId:fallbackEntry.id,interactive:true,presentationDetail:false});assert.equal((fallbackCard.match(/bg3ItemInstructionsOpen\(/g)||[]).length,2);assert.match(fallbackCard,/inventory-generic-book-entry/);assert.match(fallbackCard,/read/);
+});
+
+test('source-blocked BG3 uses are help affordances, never executable inventory actions',async()=>{
+  const e=loadEngine(()=>0,selectedBg3FileFetch()),actor=hero('inventory-blocked-action',{coins:{pm:0,zm:0,em:0,sm:0,mm:0}}),profile=selectedBg3Catalog.current.defaultRulesProfile||'standard';e.setState({chars:[actor],items:e.seedItemsDB(),activeCharId:actor.id});assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();await e.bg3CatalogHydrate([INVENTORY_BG3_BOOK]);const blocked=plain(e.bg3LearnSpellTestCatalogItem(INVENTORY_BG3_BOOK));blocked.id='bg3:item:rt:48a43c1b-c677-4b96-b46e-ed1c68ad8172:stats:T0JKX0Jsb2NrZWRBY3Rpb24';blocked.n='Предмет с заблокированным действием';blocked.mechanics.interactions=[];blocked.mechanics.lifecyclePrograms=[];blocked.mechanics.actions=[{id:'blocked-source-use',label:'Неполное действие источника',cost:'action',target:'self',consume:{kind:'none',amount:0},handler:'bg3RootProgram',program:{id:'blocked-source-program',mode:'typed',sourceBlocked:true,reason:'exact-source-runtime-capability-required'},rollPolicy:'player-input-required'}];const entry={id:'inventory-blocked-entry',itemId:blocked.id,qty:1};actor.inventory=[entry];e.setState({chars:[actor],items:[blocked],activeCharId:actor.id});
+  const actions=e.itemActions(actor,entry,blocked),info=actions.find(action=>action.sourceUseId==='blocked-source-use');assert.ok(info);assert.equal(info.infoOnly,true);assert.equal(info.blocked,true);assert.equal(info.cost,'free');assert.match(info.fn,/^bg3ItemInstructionsOpen\(/);assert.doesNotMatch(info.fn,/bg3ItemProgramOpen|bg3ItemLifecycleOpen|itemCastFx/);const sheet=e.renderSheetPanel('inventory');assert.match(sheet,/class="btn ghost sm item-action-info"/);assert.match(sheet,/data-action-state="blocked"/);assert.match(sheet,/Неполное действие источника · справка/);
+});
+
+test('inventory item cards load presentation detail in place and bind instruction controls to actor and entry',async()=>{
+  const observed=productionBg3ItemPresentationObservedFetch(),{e,actor}=await productionBg3ItemPresentationWorld(observed);actor.coins={pm:0,zm:0,em:0,sm:0,mm:0};await e.bg3CatalogHydrate([INVENTORY_BG3_BOOK]);const book=e.bg3LearnSpellTestCatalogItem(INVENTORY_BG3_BOOK),entry={id:'inventory-presentation-book-entry',itemId:book.id,qty:1};assert.ok(book);actor.inventory.push(entry);
+  const initial=e.renderSheetPanel('inventory');assert.match(initial,/Подготавливаются полные подписи действий и событий/);assert.match(initial,/bg3ItemInstructionsOpen\(/);assert.match(initial,/production-item-presentation-standard/);assert.match(initial,/inventory-presentation-book-entry/);
+  for(let turn=0;turn<200&&!e.bg3ItemPresentationTestSnapshot().details.includes(book.id);turn++)await new Promise(resolve=>setImmediate(resolve));const presentation=e.bg3ItemPresentationTestSnapshot();assert.ok(presentation.details.includes(book.id),'inventory rendering lazily loads the pinned detail shard: '+JSON.stringify({presentation,calls:observed.calls.slice(-8)}));const refreshed=e.elementHTML('tab-chars');assert.match(refreshed,/item-presentation-detail/);assert.match(refreshed,/Игровые возможности:/);assert.ok(observed.calls.some(path=>path.includes('/bg3-24532579-v8-item-presentation/detail/')));
+});
+
+test('a shared presentation load refreshes the current inventory consumer after switching heroes',async()=>{
+  const observed=productionBg3ItemPresentationObservedFetch({gatePath:'/bg3-24532579-v8-item-presentation/manifest.json'}),{e,actor:first}=await productionBg3ItemPresentationWorld(observed);await e.bg3CatalogHydrate([INVENTORY_BG3_BOOK]);const book=plain(e.bg3LearnSpellTestCatalogItem(INVENTORY_BG3_BOOK)),second=hero('presentation-consumer-b'),firstEntry={id:'presentation-consumer-a-entry',itemId:book.id,qty:1},secondEntry={id:'presentation-consumer-b-entry',itemId:book.id,qty:1};first.coins=second.coins={pm:0,zm:0,em:0,sm:0,mm:0};first.inventory=[firstEntry];second.inventory=[secondEntry];e.setState({chars:[first,second],items:[book],activeCharId:first.id});e.switchTab('chars');assert.match(e.renderSheetPanel('inventory'),/presentation-consumer-a-entry/);
+  try{await observed.entered;e.openChar(second.id);const waiting=e.renderSheetPanel('inventory');assert.match(waiting,/presentation-consumer-b-entry/);assert.match(waiting,/Подготавливаются полные подписи действий и событий/);observed.release();for(let turn=0;turn<200&&!e.bg3ItemPresentationTestSnapshot().details.includes(book.id);turn++)await new Promise(resolve=>setImmediate(resolve));for(let turn=0;turn<20&&!/item-presentation-detail/.test(e.elementHTML('tab-chars'));turn++)await new Promise(resolve=>setImmediate(resolve));const refreshed=e.elementHTML('tab-chars');assert.match(refreshed,/presentation-consumer-b-entry/);assert.doesNotMatch(refreshed,/presentation-consumer-a-entry/);assert.match(refreshed,/item-presentation-detail/,'the coalesced completion refreshes the actor who is still visible');}finally{observed.release();}
+});
+
+test('an inventory presentation completion never reopens its old item after navigation to Items',async()=>{
+  const observed=productionBg3ItemPresentationObservedFetch({gatePath:'/bg3-24532579-v8-item-presentation/manifest.json'}),{e,actor}=await productionBg3ItemPresentationWorld(observed);await e.bg3CatalogHydrate([INVENTORY_BG3_BOOK]);const book=plain(e.bg3LearnSpellTestCatalogItem(INVENTORY_BG3_BOOK));actor.coins={pm:0,zm:0,em:0,sm:0,mm:0};actor.inventory=[{id:'presentation-navigation-entry',itemId:book.id,qty:1}];e.setState({chars:[actor],items:[book],activeCharId:actor.id});e.switchTab('chars');e.renderSheetPanel('inventory');
+  try{await observed.entered;e.switchTab('itemsdb');for(let turn=0;turn<20&&!e.itemWorkspaceTestSurface().selectedId;turn++)await new Promise(resolve=>setImmediate(resolve));const selected=e.itemWorkspaceTestSurface().selectedId;assert.ok(selected);assert.notEqual(selected,book.id,'the Items surface starts on its own current result');observed.release();for(let turn=0;turn<200&&!e.bg3ItemPresentationTestSnapshot().details.includes(book.id);turn++)await new Promise(resolve=>setImmediate(resolve));await Promise.resolve();await Promise.resolve();assert.equal(e.itemWorkspaceTestSurface().selectedId,selected,'late inventory detail cannot replace the current Items selection');}finally{observed.release();}
+});
+
+test('inventory relation and story controls navigate to the visible Items surface with the same item and actor',async()=>{
+  const {e,actor}=await productionBg3ItemPresentationWorld();actor.coins={pm:0,zm:0,em:0,sm:0,mm:0};await e.bg3CatalogHydrate([INVENTORY_BG3_BOOK]);actor.inventory.push({id:'inventory-routing-book-entry',itemId:INVENTORY_BG3_BOOK,qty:1});e.renderSheetPanel('inventory');
+  e.itemWorkspaceRelationView('scene',INVENTORY_BG3_BOOK);let surface=e.itemWorkspaceTestSurface();assert.equal(surface.activeWorldTab,'itemsdb');assert.equal(surface.bg3RuntimeView,'scene');assert.ok(surface.bg3RuntimeQuery);
+  e.switchTab('chars');e.bg3StoryOpen(INVENTORY_BG3_BOOK);surface=e.itemWorkspaceTestSurface();assert.equal(surface.activeWorldTab,'itemsdb');assert.equal(surface.bg3RuntimeView,'items');assert.equal(surface.bg3StoryOpenItemId,INVENTORY_BG3_BOOK);assert.equal(surface.selectedId,INVENTORY_BG3_BOOK);assert.equal(surface.heroId,actor.id);
+  await Promise.resolve();await Promise.resolve();
+});
+
+test('lifecycle completion refreshes the current visible character surface and blocking keeps the exact safe reason',async()=>{
+  const e=loadEngine(),actor=hero('lifecycle-visible-before');e.setState({chars:[actor],items:e.seedItemsDB(),activeCharId:actor.id});e.switchTab('chars');e.renderSheetPanel('stats');await e.bg3LifecycleSchedule(actor);e.bg3LifecycleReset();actor.name='lifecycle-visible-after';const pending=e.bg3LifecycleScheduleForSurface(actor,'',false);assert.doesNotMatch(e.elementHTML('tab-chars'),/lifecycle-visible-after/);await pending;assert.match(e.elementHTML('tab-chars'),/lifecycle-visible-after/);
+  const reason='точная причина <без HTML>';assert.equal(e.bg3LifecycleBlock({ok:false,reason},'Проверяемый предмет'),false);assert.match(e.elementText('showBody'),new RegExp(reason.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));assert.equal(e.testElement('showBody').innerHTML,'','the reason is displayed through textContent, not injected as markup');assert.match(e.elementText('showNote'),/Проверяемый предмет/);
+});
+
+test('a stale sourceItem effect schedules lifecycle once and a valid empty cache cannot start a render loop',async()=>{
+  const e=loadEngine(()=>0,selectedBg3FileFetch()),actor=hero('stale-lifecycle-source',{activeFx:[]}),profile=selectedBg3Catalog.current.defaultRulesProfile||'standard';e.setState({chars:[actor],items:e.seedItemsDB(),activeCharId:actor.id});assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();await e.bg3CatalogHydrate([BG3_ELEMENTAL_INFUSION_RING]);const ring=e.bg3LearnSpellTestCatalogItem(BG3_ELEMENTAL_INFUSION_RING);assert.ok(ring);assert.ok(ring.mechanics.lifecyclePrograms.length);actor.activeFx=[{k:'note',uid:'stale-source-only',sourceItemId:ring.id,fx:[{stat:'note',mode:'text',value:'stale source marker'}]}];e.setState({chars:[actor],items:[ring],activeCharId:actor.id});e.switchTab('chars');e.renderSheetPanel('stats');e.bg3LifecycleReset();
+  assert.match(e.bg3LifecycleItemHTML(ring,actor.id),/Проверяются эффекты предмета/);const first=e.bg3ItemArrowTestLifecycleRuntimeSnapshot(actor).pending;assert.ok(first,'the missing actor-wide cache schedules one reconcile');await first;await Promise.resolve();const cached=e.bg3LifecycleState(actor);assert.ok(cached);assert.equal(cached.rows.length,0);const stable=e.bg3LifecycleItemHTML(ring,actor.id);assert.match(stable,/Активных свойств предмета в текущем состоянии нет/);assert.equal(e.bg3ItemArrowTestLifecycleRuntimeSnapshot(actor).pending,null,'a valid empty cache is authoritative and cannot schedule again');await Promise.resolve();await Promise.resolve();assert.equal(e.bg3LifecycleState(actor),cached);assert.equal(e.bg3ItemArrowTestLifecycleRuntimeSnapshot(actor).pending,null);
+});
+
 test('production v8 placement browser pins all 4,951 items, profile placement totals and Russian search before every legacy index shard',async()=>{
   const manifestUrl=new URL('../data/bg3/ui/bg3-24532579-v8-placement-browser/manifest.json',import.meta.url),integrityUrl=new URL('../data/bg3/ui/bg3-24532579-v8-placement-browser/integrity.json',import.meta.url),raw=fs.readFileSync(manifestUrl,'utf8'),generated=JSON.parse(raw),integrity=JSON.parse(fs.readFileSync(integrityUrl,'utf8'));
   assert.equal(crypto.createHash('sha256').update(raw).digest('hex'),PRODUCTION_BG3_SCENE_BROWSER.manifestSha256);assert.equal(integrity.manifest.sha256,PRODUCTION_BG3_SCENE_BROWSER.manifestSha256);assert.equal(integrity.manifest.bytes,Buffer.byteLength(raw));
@@ -9644,7 +9725,7 @@ test('единый каталог одновременно ищет BG3 v8 и 19
   assert.equal(new Set(bg3Rows.map(row=>row.id)).size,bg3Rows.length,'каждая запись полного каталога сохраняет собственный точный идентификатор');
   assert.deepEqual([...new Set(bg3Rows.map(row=>row.row.classification))].sort(),['duplicate','needs-review','playable','technical','world-object'],'в полном каталоге доступны все пользовательские группы записей');
   assert.deepEqual(byClass,{playable:5858,'world-object':3265,'needs-review':176,duplicate:565,technical:418});
-  assert.equal(usable.length,6792,'фильтр выдачи включает 6599 переносимых BG3-вариантов и 193 предмета кампании');assert.equal(usable.filter(row=>row.source==='bg3').length,6599);assert.equal(usable.filter(row=>row.source==='campaign').length,193);
+  assert.equal(usable.length,6615,'фильтр выдачи включает 6422 подтверждённых inventory-варианта BG3 и 193 предмета кампании; source-incomplete «Маятник Малагарда» закрыт');assert.equal(usable.filter(row=>row.source==='bg3').length,6422);assert.equal(usable.filter(row=>row.source==='campaign').length,193);
   assert.equal(campaignOnly.length,localItems.length,'фильтр «Кампания» не подмешивает архив BG3');
   assert.ok(campaignOnly.every(row=>row.source==='campaign'));
   assert.ok(swords.some(row=>row.source==='campaign'),'одно поле поиска находит кампанийные мечи');
@@ -10485,19 +10566,17 @@ test('BG3 MediumArmorMaster GM identity survives world export/import and the edi
   assert.match(e.abilityCardHTML(ability),/Подтверждённая черта BG3:<\/b> Мастер средних доспехов/);
 });
 
-test('BG3 immutable v5 keeps all 54 MediumArmorMaster predicate refs blocked across 27 variants (26 playable)', () => {
-  const dir=new URL('../data/bg3/bg3-24532579-v5/items/',import.meta.url),rows=[];
-  const manifest=JSON.parse(fs.readFileSync(new URL('../data/bg3/bg3-24532579-v5/manifest.json',import.meta.url),'utf8'));
-  assert.equal(manifest.contracts?.runtimeCapabilities?.mediumArmorMasterStealthPredicate,undefined,'immutable v5 has no runtime capability seam and cannot be unlocked by the new adapter');
-  for(const file of fs.readdirSync(dir).filter(name=>name.endsWith('.json')).sort()){
-    const raw=fs.readFileSync(new URL(file,dir),'utf8');if(!raw.includes(MEDIUM_ARMOR_MASTER_SOURCE.raw))continue;
-    const payload=JSON.parse(raw);for(const item of payload.items||[])for(const [profile,mechanics] of [['standard',item.mechanics],['honour',item.source?.honourOverlay?.item?.mechanics]])
+test('BG3 production catalog keeps all 54 MediumArmorMaster predicate refs typed across 27 variants (26 playable)', () => {
+  const manifest=selectedBg3Catalog.manifest,rows=[];
+  assert.ok(manifest.contracts?.runtimeCapabilities?.mediumArmorMasterStealthPredicate,'the production adapter must be explicitly pinned by the manifest');
+  for(const descriptor of manifest.files.items){
+    const payload=productionBg3Json(descriptor.path);for(const item of payload.items||[])for(const [profile,mechanics] of [['standard',item.mechanics],['honour',item.source?.honourOverlay?.item?.mechanics]])
       for(const ref of mechanics?.lifecyclePrograms||[])if(ref.sourceApplication?.raw===MEDIUM_ARMOR_MASTER_SOURCE.raw)rows.push({item,profile,ref});
   }
   assert.equal(rows.length,54);assert.equal(new Set(rows.map(row=>row.item.id)).size,27);assert.equal(new Set(rows.filter(row=>row.item.source?.classification==='playable').map(row=>row.item.id)).size,26);
-  assert.equal(rows.every(row=>row.ref.ownsReferencedProgram===false&&row.ref.sourceProfile===row.profile&&row.ref.sourceApplication.mode==='manual'
-    &&row.ref.sourceApplication.runtimeReady===false&&plain(row.ref.sourceApplication.blockers).includes('predicate-source-expression-runtime-required')),true,
-    'active v5 remains immutable and is not treated as runtime-ready by the new bridge');
+  assert.equal(rows.every(row=>row.ref.ownsReferencedProgram===false&&row.ref.sourceProfile===row.profile&&row.ref.sourceApplication.mode==='typed'
+    &&row.ref.sourceApplication.runtimeReady===true&&plain(row.ref.sourceApplication.blockers).length===0),true,
+    'every production occurrence carries the same complete, manifest-authorized predicate projection');
 });
 
 test('BG3 selected v6+ real artifacts keep the MediumArmorMaster manifest seam and both profile carriers compatible', async t => {
@@ -10675,28 +10754,29 @@ test('BG3 Arcane Enchantment +2 sibling remains whole-field manual and cannot le
   }
 });
 
-test('BG3 immutable v6 keeps all Arcane Enchantment Lesser carriers and the +2 sibling blocked without the future manifest capability', async () => {
-  const version='bg3-24532579-v6',dir=new URL(`../data/bg3/${version}/items/`,import.meta.url),manifestUrl=new URL(`../data/bg3/${version}/manifest.json`,import.meta.url),manifestRaw=fs.readFileSync(manifestUrl,'utf8'),
-    manifest=JSON.parse(manifestRaw),manifestSha256=crypto.createHash('sha256').update(manifestRaw).digest('hex'),lesser=[],siblings=[],fetch=async url=>{
-      const relative=String(url||'').replace(/\\/g,'/').replace(/^\.\//,'');if(!relative.startsWith(`data/bg3/${version}/`)||relative.includes('..'))return {ok:false,status:404,text:async()=>'',json:async()=>({})};
-      try{const raw=fs.readFileSync(new URL('../'+relative,import.meta.url),'utf8');return {ok:true,status:200,text:async()=>raw,json:async()=>JSON.parse(raw)};}
-      catch(_error){return {ok:false,status:404,text:async()=>'',json:async()=>({})};}
-    };
-  assert.equal(manifest.contracts?.runtimeCapabilities?.arcaneEnchantmentLesserSpellcastingBonus,undefined,'immutable v6 cannot opt into the future whole-field adapter');
-  for(const file of fs.readdirSync(dir).filter(name=>name.endsWith('.json')).sort()){
-    const raw=fs.readFileSync(new URL(file,dir),'utf8');if(!raw.includes('MAG_ArcaneEnchantment'))continue;const payload=JSON.parse(raw);
-    for(const item of payload.items||[])for(const [profile,mechanics] of [['standard',item.mechanics],['honour',item.source?.honourOverlay?.item?.mechanics]])for(const ref of mechanics?.lifecyclePrograms||[]){
+test('BG3 production Arcane Enchantment carriers fail closed when an inline manifest fixture removes the exact capability', async () => {
+  const version=productionBg3Version,manifest=plain(selectedBg3Catalog.manifest),runtimeCapabilities=Object.assign({},manifest.contracts?.runtimeCapabilities||{}),lesser=[],siblings=[];
+  delete runtimeCapabilities.arcaneEnchantmentLesserSpellcastingBonus;manifest.contracts=Object.assign({},manifest.contracts,{runtimeCapabilities});
+  const manifestRaw=JSON.stringify(manifest),manifestSha256=crypto.createHash('sha256').update(manifestRaw).digest('hex'),fetch=async url=>{
+    const relative=String(url||'').replace(/\\/g,'/').replace(/^\.\//,'');if(!relative.startsWith(`data/bg3/${version}/`)||relative.includes('..'))return {ok:false,status:404,text:async()=>'',json:async()=>({})};
+    if(relative===`data/bg3/${version}/manifest.json`)return {ok:true,status:200,text:async()=>manifestRaw,json:async()=>plain(manifest)};
+    try{const raw=fs.readFileSync(new URL('../'+relative,import.meta.url),'utf8');return {ok:true,status:200,text:async()=>raw,json:async()=>JSON.parse(raw)};}
+    catch(_error){return {ok:false,status:404,text:async()=>'',json:async()=>({})};}
+  };
+  assert.equal(manifest.contracts?.runtimeCapabilities?.arcaneEnchantmentLesserSpellcastingBonus,undefined,'the fixture removes only the capability seam, not production item/rule records');
+  for(const descriptor of manifest.files.items){
+    const payload=productionBg3Json(descriptor.path);for(const item of payload.items||[])for(const [profile,mechanics] of [['standard',item.mechanics],['honour',item.source?.honourOverlay?.item?.mechanics]])for(const ref of mechanics?.lifecyclePrograms||[]){
       if(ref.bg3Id===ARCANE_ENCHANTMENT_LESSER_SOURCE.bg3Id)lesser.push({item,profile,ref});if(ref.bg3Id===ARCANE_ENCHANTMENT_BASE_SOURCE.bg3Id)siblings.push({item,profile,ref});}
   }
   assert.equal(lesser.length,22);assert.equal(new Set(lesser.map(row=>row.item.id)).size,11);assert.equal(new Set(lesser.filter(row=>row.item.source?.classification==='playable').map(row=>row.item.id)).size,11);
-  assert.equal(lesser.every(row=>row.ref.sourceProfile===row.profile&&row.ref.mode==='mixed'&&row.ref.projectionMode==='mixed'&&row.ref.projection?.complete===false
-    &&row.ref.projection?.summary?.typedOpcodes===2&&row.ref.projection?.summary?.manualOpcodes===1&&row.ref.sourceApplication==null),true);
-  assert.equal(siblings.length,2);assert.equal(new Set(siblings.map(row=>row.item.id)).size,1);assert.equal(siblings.every(row=>row.ref.mode==='mixed'&&row.ref.projection?.complete===false),true);
+  assert.equal(lesser.every(row=>row.ref.sourceProfile===row.profile&&row.ref.mode==='typed'&&row.ref.projectionMode==='typed'&&row.ref.projection?.complete===true
+    &&row.ref.projection?.summary?.typedOpcodes===3&&row.ref.projection?.summary?.manualOpcodes===0&&row.ref.sourceApplication==null),true);
+  assert.equal(siblings.length,2);assert.equal(new Set(siblings.map(row=>row.item.id)).size,1);assert.equal(siblings.every(row=>row.ref.mode==='manual'&&row.ref.projection?.complete===false),true);
   for(const profile of ['standard','honour']){
-    const chosen=lesser.find(row=>row.profile===profile),e=loadEngine(()=>0,fetch);assert.ok(chosen);assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version,profile,manifestSha256}]),true);await e.bg3CatalogEnsureIndex();
+    const chosen=lesser.find(row=>row.profile===profile),e=loadEngine(()=>0,fetch);assert.ok(chosen);assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version,profile,manifestSha256}]),true);await e.bg3CatalogEnsureIndex();assert.equal(e.bg3ArcaneEnchantmentLesserRuntimeCapabilityCheck(),false);
     const [item]=await e.bg3CatalogHydrate([chosen.item.id]),ref=item.mechanics.lifecyclePrograms.find(current=>current.bg3Id===ARCANE_ENCHANTMENT_LESSER_SOURCE.bg3Id),entryId=`v6-arcane-lesser-${profile}`,
       actor=hero(`v6-arcane-lesser-actor-${profile}`,{inventory:[{id:entryId,itemId:item.id,qty:1}],equipment:{HEAD:entryId}});e.setState({chars:[actor],items:[item],activeCharId:actor.id},{preserveBg3CatalogItems:true});
-    const state=await e.bg3LifecycleReconcile(actor),row=state.rows.find(current=>current.refId===ref.id);assert.equal(row?.status,'blocked',`${profile}: real v6 carrier stays blocked`);
+    const state=await e.bg3LifecycleReconcile(actor),row=state.rows.find(current=>current.refId===ref.id);assert.equal(row?.status,'blocked',`${profile}: capability-less fixture stays blocked`);
     assert.equal(row?.reason,'arcane-enchantment-lesser-runtime-capability-missing-or-mismatch');assert.equal(state.sources.length,0);assert.equal(e.fxSum(actor,'spell.dc'),0);assert.equal(e.fxSum(actor,'spell.atk'),0);
     assert.equal(e.bg3LifecycleActionPreflight(actor,'ordinary-entry','spell',null).ok,false,`${profile}: real v6 candidate blocks actor-wide before generic typed prefixes`);
   }
@@ -10747,7 +10827,7 @@ test('BG3 selected v7+ real artifacts expose the exact Arcane Enchantment Lesser
 });
 
 test('BG3 active real v7 Githborn Mindcrusher remains actor-wide blocked in both profiles without the future capability', async () => {
-  const payload=JSON.parse(fs.readFileSync(new URL('../data/bg3/bg3-24532579-v7/rules/passives/bb.json',import.meta.url),'utf8')),
+  const payload=productionBg3Json(GITHBORN_SOURCE.artifact),
     sourceRule=payload.rules.find(row=>row.bg3Id===GITHBORN_SOURCE.bg3Id);assert.ok(sourceRule);
   for(const profile of ['standard','honour']){
     const e=loadEngine(),item=githbornCatalogItem(profile,false),ref=item.mechanics.lifecyclePrograms.find(row=>row.bg3Id===GITHBORN_SOURCE.bg3Id),entryId=`githborn-v7-${profile}`,
@@ -10761,8 +10841,8 @@ test('BG3 active real v7 Githborn Mindcrusher remains actor-wide blocked in both
 });
 
 test('BG3 Githborn frozen item topology treats lifecycle suffix as identity, preserves reorder, and revokes structural mutations synchronously', async () => {
-  const payload=JSON.parse(fs.readFileSync(new URL('../data/bg3/bg3-24532579-v7/rules/passives/bb.json',import.meta.url),'utf8')),sourceRule=payload.rules.find(row=>row.bg3Id===GITHBORN_SOURCE.bg3Id),
-    legendaryPayload=JSON.parse(fs.readFileSync(new URL('../data/bg3/bg3-24532579-v7/rules/passives/e4.json',import.meta.url),'utf8')),legendaryRule=legendaryPayload.rules.find(row=>row.bg3Id===GITHBORN_LEGENDARY_SOURCE.bg3Id);
+  const payload=productionBg3Json(GITHBORN_SOURCE.artifact),sourceRule=payload.rules.find(row=>row.bg3Id===GITHBORN_SOURCE.bg3Id),
+    legendaryPayload=productionBg3Json(GITHBORN_LEGENDARY_SOURCE.artifact),legendaryRule=legendaryPayload.rules.find(row=>row.bg3Id===GITHBORN_LEGENDARY_SOURCE.bg3Id);
   const exactEmptyFetch=async()=>({ok:true,text:async()=>'{}',json:async()=>({})}),setup=(profile,serial)=>{const e=loadEngine(()=>0,exactEmptyFetch),item=githbornCatalogItem(profile,false),entryId=`githborn-topology-${profile}-${serial}`,
     actor=hero(`githborn-topology-actor-${profile}-${serial}`,{bg3Tags:['GITHYANKI'],inventory:[{id:entryId,itemId:item.id,qty:1}],equipment:{TWO_HAND:entryId}});
     e.setState({chars:[actor],items:[item],activeCharId:actor.id});e.bg3GithbornMindcrusherTestInstall([item],plain(sourceRule),profile,false);return {e,item,actor,refs:item.mechanics.lifecyclePrograms};};
