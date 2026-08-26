@@ -24,6 +24,7 @@ const HARD_DETAIL_BYTES = 250_000;
 const TARGET_SEARCH_BYTES = 210_000;
 const HARD_SEARCH_BYTES = 250_000;
 const PROFILE_ORDER = ['standard', 'honour'];
+const WORLD_BOUND_ACTION_TYPES = new Set([2, 3, 9, 27]);
 const CHECK_ONLY = process.argv.includes('--check');
 
 /* Exact enum identifiers from Norbyte/bg3se
@@ -66,13 +67,9 @@ const ACTION_DATA_TYPE_NAMES = Object.freeze({
   35: 'Unknown35',
 });
 
-const ACTION_ATTRIBUTE_TERM_KEYS = new Set([
-  'BookId',
-  'EventID',
-  'RecipeID',
-  'SkillID',
-  'SpellId',
-  'StatsId',
+/* Raw BG3 identifiers remain available in the immutable source catalog, but
+   only semantic action attributes belong in user-facing search terms. */
+const ACTION_SEMANTIC_ATTRIBUTE_TERM_KEYS = new Set([
   'SurfaceType',
 ]);
 
@@ -172,19 +169,63 @@ function addTerms(terms, values) {
   for (const value of Array.isArray(values) ? values : []) addTerm(terms, value);
 }
 
-function projectSourceAction(row, field, terms, observedActionTypes) {
+function userSearchTerms(values, lifecycle) {
+  const lifecycleIds = new Set(lifecycle.flatMap(entry => [
+    entry.bg3Id,
+    ...entry.grantedActionIds,
+    ...entry.grantedInterruptIds,
+    ...entry.sourceRuleIds,
+  ]).flatMap(value => searchNormalize(value).split(' ')).filter(Boolean));
+  return stableStrings(values.flatMap(value => searchNormalize(value).split(' '))
+    .filter(value => value.length > 0
+      && !lifecycleIds.has(value)
+      && !value.includes('_')));
+}
+
+function resolvedActionSpecial(action) {
+  const direct = action?.special;
+  if (direct && typeof direct === 'object' && !Array.isArray(direct) && Object.keys(direct).length > 0) return direct;
+  const program = action?.program?.special;
+  return program && typeof program === 'object' && !Array.isArray(program) ? program : {};
+}
+
+function isPlotBoundStorageAction(action) {
+  const primary = action?.program?.sourceAction?.primary;
+  const special = resolvedActionSpecial(action);
+  const actionType = Number(primary?.actionType);
+  const statsId = primary?.attributes?.StatsId;
+  const conditions = primary?.attributes?.Conditions;
+  const eventId = primary?.attributes?.EventID;
+  return WORLD_BOUND_ACTION_TYPES.has(actionType)
+    || (typeof eventId === 'string' && eventId.length > 0)
+    || (actionType === 8 && special.kind !== 'bg3LightToggle')
+    || actionType === 19
+    || actionType === 22
+    || (typeof statsId === 'string' && /(?:ORI|CAMP)_/i.test(statsId))
+    || (typeof conditions === 'string' && /(?:REALLY|ORI|CAMP)_/i.test(conditions))
+    || special.kind === 'bg3Story'
+    || (
+      action?.handler === 'bg3RootProgram'
+      && special.kind === 'bg3Tadpole'
+      && special.requiresCampaignHandler === true
+    );
+}
+
+function projectSourceAction(row, field, terms, observedActionTypes, indexActionType = true) {
   assert(row && typeof row === 'object' && !Array.isArray(row), `${field} must be an object.`);
   const actionType = Number(row.actionType);
   assert(Number.isInteger(actionType) && actionType >= 0 && actionType <= 255, `${field}.actionType is invalid.`);
   assert(Object.hasOwn(ACTION_DATA_TYPE_NAMES, actionType), `${field}.actionType ${actionType} has no exact enum label.`);
   assert(typeof row.trigger === 'string' && row.trigger.length > 0, `${field}.trigger is invalid.`);
   observedActionTypes.add(actionType);
-  addTerm(terms, ACTION_DATA_TYPE_NAMES[actionType]);
-  addTerm(terms, `ActionType ${actionType}`);
+  if (indexActionType) {
+    addTerm(terms, ACTION_DATA_TYPE_NAMES[actionType]);
+    addTerm(terms, `ActionType ${actionType}`);
+  }
   addTerm(terms, row.trigger);
   const attributes = row.attributes == null ? {} : row.attributes;
   assert(attributes && typeof attributes === 'object' && !Array.isArray(attributes), `${field}.attributes is invalid.`);
-  for (const key of ACTION_ATTRIBUTE_TERM_KEYS) addTerm(terms, attributes[key]);
+  for (const key of ACTION_SEMANTIC_ATTRIBUTE_TERM_KEYS) addTerm(terms, attributes[key]);
   return { actionType, trigger: row.trigger };
 }
 
@@ -200,10 +241,9 @@ function projectAction(action, field, terms, observedActionTypes) {
   addTerm(terms, action.consume?.kind);
   addTerm(terms, action.program?.mode);
   addTerm(terms, action.special?.kind);
-  addTerm(terms, action.special?.bookId);
-  addTerm(terms, action.special?.recipeId);
-  addTerms(terms, action.special?.matchingRecipeIds);
   const sourceAction = action.program?.sourceAction;
+  const special = resolvedActionSpecial(action);
+  const indexActionType = !(Number(sourceAction?.primary?.actionType) === 8 && special.kind === 'bg3LightToggle');
   const sourceRows = [];
   if (sourceAction?.primary) {
     sourceRows.push(projectSourceAction(
@@ -211,6 +251,7 @@ function projectAction(action, field, terms, observedActionTypes) {
       `${field}.program.sourceAction.primary`,
       terms,
       observedActionTypes,
+      indexActionType,
     ));
   }
   for (const [index, alias] of exactArray(sourceAction?.aliases || [], `${field}.program.sourceAction.aliases`).entries()) {
@@ -219,6 +260,7 @@ function projectAction(action, field, terms, observedActionTypes) {
       `${field}.program.sourceAction.aliases[${index}]`,
       terms,
       observedActionTypes,
+      indexActionType,
     ));
   }
   return {
@@ -271,7 +313,6 @@ function projectEffect(effect, field, terms) {
 function projectLifecycle(lifecycle, field, terms) {
   assert(lifecycle && typeof lifecycle === 'object' && !Array.isArray(lifecycle), `${field} must be an object.`);
   const values = [
-    lifecycle.bg3Id,
     lifecycle.kind,
     lifecycle.gate,
     lifecycle.mode,
@@ -290,10 +331,7 @@ function projectLifecycle(lifecycle, field, terms) {
   ]));
   const sourceRuleIds = stableStrings(exactArray(lifecycle.sourceRuleReferences || [], `${field}.sourceRuleReferences`)
     .map(reference => reference?.bg3Id));
-  addTerms(terms, grantedActionIds);
-  addTerms(terms, grantedInterruptIds);
   addTerms(terms, interruptEvents);
-  addTerms(terms, sourceRuleIds);
   return {
     bg3Id: optionalString(lifecycle.bg3Id),
     kind: optionalString(lifecycle.kind),
@@ -313,12 +351,12 @@ function projectProfile(item, profile, terms, observedActionTypes) {
   const mechanics = item.mechanics;
   assert(mechanics && typeof mechanics === 'object' && !Array.isArray(mechanics), `${item.id}/${profile} mechanics are missing.`);
   const actions = exactArray(mechanics.actions, `${item.id}/${profile}.mechanics.actions`)
-    .map((action, index) => projectAction(
-      action,
-      `${item.id}/${profile}.mechanics.actions[${index}]`,
-      terms,
-      observedActionTypes,
-    ));
+    .flatMap((action, index) => isPlotBoundStorageAction(action) ? [] : [projectAction(
+        action,
+        `${item.id}/${profile}.mechanics.actions[${index}]`,
+        terms,
+        observedActionTypes,
+      )]);
   const interactions = exactArray(mechanics.interactions, `${item.id}/${profile}.mechanics.interactions`)
     .map((interaction, index) => projectInteraction(
       interaction,
@@ -340,7 +378,7 @@ function projectProfile(item, profile, terms, observedActionTypes) {
   addTerm(terms, mechanics.duration?.kind);
   addTerm(terms, mechanics.duration?.label);
   addTerm(terms, mechanics.profile?.kind);
-  addTerms(terms, mechanics.profile?.matchTokens);
+  // matchTokens are internal rule/status/recipe identifiers, not user search vocabulary.
   addTerms(terms, mechanics.profile?.roles);
   addTerm(terms, mechanics.equipment?.armorKind);
   for (const [flag, enabled] of Object.entries(mechanics.profile?.flags || {})) if (enabled === true) addTerm(terms, flag);
@@ -421,7 +459,7 @@ function projectItem(item, searchRow, observedActionTypes) {
       terms,
       observedActionTypes,
     );
-    searchTermsByProfile[profile] = stableStrings([...terms]);
+    searchTermsByProfile[profile] = userSearchTerms([...terms], profileData[profile].lifecycle);
   }
   const actionCount = Object.values(profileData).reduce((sum, profile) => sum + profile.actionCount, 0);
   const interactionCount = Object.values(profileData).reduce((sum, profile) => sum + profile.interactionCount, 0);
@@ -695,7 +733,8 @@ function buildExpectedOutput() {
 
   assert(counts.itemsWithDescription === 5706, 'Exact v8 localized description census changed.');
   assert(counts.localizedDescriptions.ru === 5706 && counts.localizedDescriptions.en === 5706, 'Exact v8 bilingual description census changed.');
-  assert(counts.itemsWithActions === sourceManifest.counts.itemRuleActions.items, 'Item action census differs from source manifest.');
+  assert(counts.itemsWithActions === 3279, 'Plot-neutral item action census changed.');
+  assert(counts.profileMaterializedActions === 6794, 'Plot-neutral profile action census changed.');
   assert(counts.itemsWithLifecycle === sourceManifest.counts.itemLifecyclePrograms.items, 'Item lifecycle census differs from source manifest.');
   assert(counts.relationSources.placements.standard === sourceManifest.counts.universe.placementEvidence.standardOccurrences, 'Standard placement evidence count differs from source manifest.');
   assert(counts.relationSources.placements.honour === sourceManifest.counts.universe.placementEvidence.honourOccurrences, 'Honour placement evidence count differs from source manifest.');
@@ -742,8 +781,8 @@ function buildExpectedOutput() {
       actionLabels: 'exact-localized-item-action-and-interaction-labels',
       sourceActionLabels: 'exact-ActionDataType-number-and-trigger-with-display-only-official-enum-name-map',
       countSemantics: 'item-counts-sum-materialized-profile-records-profile-counts-are-exact-per-profile',
-      itemRowColumns: ['itemId', 'detailShard', 'flags', 'descriptionCount', 'actionCount', 'interactionCount', 'lifecycleCount', 'recipeRecordSources', 'treasureTableSources', 'standardPlacements', 'honourPlacements', 'profileMask'],
-      itemRowFlags: { hasDescription: 1, hasActions: 2, hasInteractions: 4, hasLifecycle: 8 },
+      itemRowColumns: ['itemId', 'detailShard', 'flags', 'descriptionCount', 'actionCount', 'interactionCount', 'lifecycleCount', 'effectCount', 'recipeRecordSources', 'treasureTableSources', 'standardPlacements', 'honourPlacements', 'profileMask'],
+      itemRowFlags: { hasDescription: 1, hasActions: 2, hasInteractions: 4, hasLifecycle: 8, hasEffects: 16 },
       profileMask: { standard: 1, honour: 2 },
       searchRowColumns: ['itemIndex', 'normalizedDescriptionTokenText', 'standardNormalizedTokenText', 'honourNormalizedTokenTextOrNullSameAsStandard'],
       searchNormalization: 'trim-lowercase-ru-yo-to-e-letters-numbers-colon-underscore-plus-hyphen-space-unique-sort',

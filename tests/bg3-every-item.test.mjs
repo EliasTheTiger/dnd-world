@@ -548,14 +548,12 @@ test('real D&D World engine accepts every item mechanics/action/interaction cont
   }
 });
 
-test('catalog search ranks canonical identities, trims display names and emits injection-safe open handlers', () => {
+test('catalog search ranks canonical item identities without exposing stats IDs and emits injection-safe handlers', () => {
   const engine = loadEngineAuditApi();
-  const statsCounts = new Map();
-  for (const row of search.items) if (row.statsId) statsCounts.set(row.statsId, (statsCounts.get(row.statsId) || 0) + 1);
-  const exact = search.items.find(row => !row.honourOnly && row.statsId && statsCounts.get(row.statsId) === 1);
-  assert.ok(exact, 'catalog needs one unique statsId fixture');
+  const exact = search.items.find(row => row.statsId === 'DEN_VoloOperation_ErsatzEye');
+  assert.ok(exact, 'catalog needs one item identity fixture');
   assert.equal(plain(engine.search(search.items, exact.id, {}, 'standard'))[0].id, exact.id, 'exact itemId ranks first');
-  assert.equal(plain(engine.search(search.items, exact.statsId, {}, 'standard'))[0].id, exact.id, 'exact unique statsId ranks first');
+  assert.equal(plain(engine.search(search.items, exact.statsId, {}, 'standard')).some(row=>row.id===exact.id), false, 'internal statsId is not a user search handle');
 
   const edgeRows = [
     {id: 'bg3:item:edge-z', names: {ru: '  Альфа  ', en: 'Alpha'}, statsId: 'EDGE_Z', type: 'other', kind: 'misc', category: 'misc', classification: 'playable', rarity: '', tags: [], honourOnly: false, icon: {}},
@@ -565,7 +563,6 @@ test('catalog search ranks canonical identities, trims display names and emits i
   assert.deepEqual(ranked.map(row => row.id), ['bg3:item:edge-z', 'bg3:item:edge-a'], 'tie sorting uses the trimmed display name');
   const collisions = [edgeRows[0], {...edgeRows[1], names: {ru: edgeRows[0].id, en: edgeRows[0].statsId}}];
   assert.equal(plain(engine.search(collisions, edgeRows[0].id, {}, 'standard'))[0].id, edgeRows[0].id, 'canonical itemId outranks a colliding display name');
-  assert.equal(plain(engine.search(collisions, edgeRows[0].statsId, {}, 'standard'))[0].id, edgeRows[0].id, 'exact statsId outranks a colliding display name');
   assert.equal(engine.isId('bg3:item:valid_ID-1:stats:ABC'), true);
   assert.equal(engine.isId("bg3:item:x');globalThis.pwned=true;//"), false, 'script-bearing suffix is not a canonical itemId');
 

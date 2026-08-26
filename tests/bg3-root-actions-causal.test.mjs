@@ -10,7 +10,7 @@ import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 
 /*
  * Causal certification for the complete standard-profile root-only slice and
- * the exact mirrored Honour receipts that carry profile-specific IDs/Story.
+ * the exact mirrored Honour receipts that carry profile-specific IDs.
  *
  * Unlike the structural catalog audit, this suite hydrates the active pinned
  * release through the production loader and routes every A11/A8 action through
@@ -198,8 +198,7 @@ function loadEngine(storage = new Map()) {
   source += String.raw`
     let __causalResourceCommits = 0;
     let __causalInstallAssignments = 0;
-    const __causalPrivateStoryUses=['bg3-use-2cd93bb9a4f0c808680d','bg3-use-e6d0bc25d6c6846e5958','bg3-use-46350f74bd2f2b363587','bg3-use-e4f7888703126a3f7204'];
-    const __causalNeedsPrivateStory=useId=>__causalPrivateStoryUses.indexOf(String(useId||''))>=0;
+    const __causalNeedsPrivateStory=()=>false;
     const __causalNativeCommitItemUseResource = commitItemUseResource;
     commitItemUseResource = function(plan) {
       __causalResourceCommits++;
@@ -447,16 +446,15 @@ test('active v8 executes every standard typed readBook/toggleLight root action c
 
   await t.test('1,467 open/cancel, missing, commit and replay/idempotency paths', async () => {
     const totals = {prepared: 0, cancelled: 0, missing: 0, committed: 0, replayBlocked: 0, toggledOff: 0, recipes: 0};
-    const privateStoryUses = new Set(['bg3-use-e6d0bc25d6c6846e5958','bg3-use-2cd93bb9a4f0c808680d']);
     for (const [index, row] of cases.entries()) {
       engine.reset(row.itemId, row.actionId, true);
-      const expectedConfirmHits = privateStoryUses.has(row.actionId) ? 1 : 0;
+      const expectedConfirmHits = 0;
 
       const beforeCancel = plain(engine.snapshot());
       const cancelled = plain(await engine.openAndCancel());
       assert.equal(cancelled.routed, true, `${row.itemId}/${row.actionId}: route open`);
       assert.equal(cancelled.opened, true, `${row.itemId}/${row.actionId}: modal open`);
-      assert.equal(cancelled.confirmHits, expectedConfirmHits, `${row.itemId}/${row.actionId}: exact private Story prompt count on cancel`);
+      assert.equal(cancelled.confirmHits, expectedConfirmHits, `${row.itemId}/${row.actionId}: storage actions never prompt for BG3 Story on cancel`);
       assert.equal(cancelled.resourceCommits, 0, `${row.itemId}/${row.actionId}: cancel commit count`);
       const afterCancel = plain(engine.snapshot());
       assert.deepEqual(withoutDerivedFxCache(afterCancel), withoutDerivedFxCache(beforeCancel), `${row.itemId}/${row.actionId}: cancel mutation`);
@@ -471,7 +469,7 @@ test('active v8 executes every standard typed readBook/toggleLight root action c
       if (row.opcode === 'readBook') {
         const missingBook = plain(await engine.missingBook());
         assert.equal(missingBook.ok, true, `${row.itemId}/${row.actionId}: exact book cache self-heal`);
-        assert.equal(missingBook.confirmHits, expectedConfirmHits, `${row.itemId}/${row.actionId}: exact private Story prompt count on cache self-heal`);
+        assert.equal(missingBook.confirmHits, expectedConfirmHits, `${row.itemId}/${row.actionId}: cache self-heal never prompts for BG3 Story`);
         assert.equal(missingBook.resourceCommits, 0, `${row.itemId}/${row.actionId}: cache self-heal commit count`);
         assert.deepEqual(missingBook.after, missingBook.before, `${row.itemId}/${row.actionId}: cache self-heal gameplay mutation`);
       }
@@ -482,7 +480,7 @@ test('active v8 executes every standard typed readBook/toggleLight root action c
       assert.equal(committed.routed, true, `${row.itemId}/${row.actionId}: production route`);
       assert.equal(committed.opened, true, `${row.itemId}/${row.actionId}: production modal opened`);
       assert.equal(committed.closed, true, `${row.itemId}/${row.actionId}: production modal closed after success`);
-      assert.equal(committed.confirmHits, expectedConfirmHits, `${row.itemId}/${row.actionId}: exact private Story prompt count on commit`);
+      assert.equal(committed.confirmHits, expectedConfirmHits, `${row.itemId}/${row.actionId}: storage commit never prompts for BG3 Story`);
       assert.equal(committed.resourceCommits, 1, `${row.itemId}/${row.actionId}: one resource boundary`);
       assert.equal(committed.state.actor.inventory[0].qty, 1, `${row.itemId}/${row.actionId}: consume none`);
       totals.committed++;
@@ -525,7 +523,7 @@ test('active v8 executes every standard typed readBook/toggleLight root action c
     });
   });
 
-  await t.test('all 10 exact Story-bound books execute causally or prove their exact placement override fail-closed', async () => {
+  await t.test('Story-linked source records are inert for inventory reads while exact scene overrides retain their low-level contracts', async () => {
     const totals = {inventory: 0, sceneExecutable: 0, sceneFailClosed: 0, tamperRejected: 0, rolledBack: 0, retried: 0, replayRejected: 0};
     for (const [index, storyRow] of storyCases.entries()) {
       const action = caseByAction.get(storyRow.itemVariantId + '\0' + storyRow.itemUseId);
@@ -538,7 +536,7 @@ test('active v8 executes every standard typed readBook/toggleLight root action c
         const late = engine.injectRootLateFailureOnce();
         const failed = plain(await engine.openAndConfirm());
         assert.equal(failed.ok, false, `${storyRow.id}: injected failure`);
-        assert.equal(failed.confirmHits, 1, `${storyRow.id}: one exact private GM confirmation`);
+        assert.equal(failed.confirmHits, 0, `${storyRow.id}: inventory read has no BG3 Story confirmation`);
         assert.equal(late.hits(), 1, `${storyRow.id}: one private late-failure hit`);
         assert.equal(failed.resourceCommits, 0, `${storyRow.id}: failed attempt leaves no surviving resource boundary`);
         const rollbackBaseline = plain(baseline);
@@ -551,20 +549,8 @@ test('active v8 executes every standard typed readBook/toggleLight root action c
         assert.equal(retried.resourceCommits, 1, `${storyRow.id}: retry leaves one surviving resource boundary`);
         const after = plain(engine.snapshot());
         assert.equal(after.actor.inventory[0].read, true, storyRow.id);
-        const committedStory = Object.values(after.story.committed).find(entry => entry.storyEntrypointId === storyRow.id);
-        assert.ok(committedStory, storyRow.id);
-        assert.deepEqual(committedStory.evidence, {
-          goal: storyRow.goal,
-          module: storyRow.module,
-          line: storyRow.line,
-          subjectKind: 'root-template',
-          subjectUuid: storyRow.subjectUuid,
-          instanceUuid: '',
-          rootTemplateUuid: storyRow.subjectUuid,
-          rootArtifact: action.rootArtifact,
-          actionType: 11,
-          actionIndex: 0,
-        }, `${storyRow.id}: exact detached Story evidence`);
+        assert.deepEqual(after.story, baseline.story, `${storyRow.id}: inventory read leaves BG3 Story state untouched`);
+        assert.equal(Object.keys(after.story.committed).length, 0, `${storyRow.id}: inventory read records no Story commit`);
         totals.retried++;
 
         const replay = plain(await engine.commit());
@@ -654,7 +640,7 @@ test('active v8 executes every standard typed readBook/toggleLight root action c
   });
 });
 
-test('Honour mirrors all 1,467 semantics and executes exact Story/read, toggle, rollback, replay and durability receipts', async () => {
+test('Honour mirrors all 1,467 semantics and keeps exact reads plot-neutral across rollback, replay and durability receipts', async () => {
     const byUse = new Map(honourCases.map(row => [row.actionId, row]));
     const relocation = byUse.get('bg3-use-e4f7888703126a3f7204');
     const eviction = byUse.get('bg3-use-46350f74bd2f2b363587');
@@ -682,40 +668,28 @@ test('Honour mirrors all 1,467 semantics and executes exact Story/read, toggle, 
     const baseline = plain(honour.snapshot()), late = honour.injectRootLateFailureOnce();
     const failed = plain(await honour.openAndConfirm());
     assert.equal(failed.ok, false);
-    assert.equal(failed.confirmHits, 1);
+    assert.equal(failed.confirmHits, 0);
     assert.equal(failed.resourceCommits, 0);
     assert.equal(late.hits(), 1);
-    assert.equal(honour.storedWorldSnapshot(), storedBeforeRollback, 'rolled-back Honour Story/read writes no durable snapshot');
+    assert.equal(honour.storedWorldSnapshot(), storedBeforeRollback, 'rolled-back Honour read writes no durable snapshot');
     const rollbackBaseline = plain(baseline); rollbackBaseline.castCommitted = false;
-    assert.deepEqual(plain(honour.snapshot()), rollbackBaseline, 'Honour Story/read failure restores the exact live context for retry');
+    assert.deepEqual(plain(honour.snapshot()), rollbackBaseline, 'Honour read failure restores the exact live context for retry');
     const retried = plain(honour.confirmOpenRoot());
     assert.equal(retried.ok, true);
     assert.equal(retried.resourceCommits, 1);
-    const committed = plain(honour.snapshot()), committedStory = Object.values(committed.story.committed)
-      .find(row => row.storyEntrypointId === relocationStory.id);
+    const committed = plain(honour.snapshot());
     assert.equal(committed.actor.inventory[0].read, true);
     assert.equal(committed.actor.inventory[0].bg3Read.bookId, relocation.bookId);
-    assert.equal(committed.story.quests.LOW_BreakHagHex.stage, 'ReadOldGarlowPointerNote');
-    assert.ok(committedStory);
-    assert.deepEqual(committedStory.evidence, {
-      goal: relocationStory.goal,
-      module: relocationStory.module,
-      line: relocationStory.line,
-      subjectKind: 'root-template',
-      subjectUuid: relocationStory.subjectUuid,
-      instanceUuid: '',
-      rootTemplateUuid: relocationStory.subjectUuid,
-      rootArtifact: relocation.rootArtifact,
-      actionType: 11,
-      actionIndex: 0,
-    });
+    assert.deepEqual(committed.story, baseline.story, 'Honour inventory read leaves BG3 Story state untouched');
+    assert.equal(Object.keys(committed.story.committed).length, 0);
     const durableRaw = honour.storedWorldSnapshot(), durable = JSON.parse(durableRaw);
     assert.deepEqual(durable.catalogRefs, [{
       id: 'bg3', version: current.catalogVersion, profile: 'honour', manifestSha256: current.manifestSha256,
     }]);
     assert.ok(Number.isSafeInteger(durable.snapshotRevision) && durable.snapshotRevision > 0);
     assert.equal(durable.chars[0].inventory[0].bg3Read.bookId, relocation.bookId);
-    assert.ok(Object.values(durable.bg3StoryState.committed).some(row => row.storyEntrypointId === relocationStory.id));
+    assert.equal(Object.keys(durable.bg3StoryState.committed).length, 0);
+    assert.equal(durable.bg3StoryState.quests.LOW_BreakHagHex, undefined);
     const replay = plain(await honour.commit());
     assert.equal(replay.ok, false);
     assert.equal(replay.resourceCommits, 0);
@@ -728,8 +702,8 @@ test('Honour mirrors all 1,467 semantics and executes exact Story/read, toggle, 
     assert.equal(loaded.manifestSha256, current.manifestSha256);
     assert.equal(loaded.snapshotRevision, durable.snapshotRevision);
     assert.equal(loaded.snapshot.actor.inventory[0].bg3Read.bookId, relocation.bookId);
-    assert.equal(loaded.snapshot.story.quests.LOW_BreakHagHex.stage, 'ReadOldGarlowPointerNote');
-    assert.ok(Object.values(loaded.snapshot.story.committed).some(row => row.storyEntrypointId === relocationStory.id));
+    assert.equal(loaded.snapshot.story.quests.LOW_BreakHagHex, undefined);
+    assert.equal(Object.keys(loaded.snapshot.story.committed).length, 0);
     const reboot = plain(await reloaded.boot({
       id: 'bg3', version: current.catalogVersion, profile: 'honour', manifestSha256: current.manifestSha256,
     }));
@@ -755,7 +729,7 @@ test('Honour mirrors all 1,467 semantics and executes exact Story/read, toggle, 
     const beforeCancel = plain(honour.snapshot()), cancelled = plain(await honour.openAndCancel());
     assert.equal(cancelled.routed, true);
     assert.equal(cancelled.opened, true);
-    assert.equal(cancelled.confirmHits, 1);
+    assert.equal(cancelled.confirmHits, 0);
     assert.equal(cancelled.resourceCommits, 0);
     assert.deepEqual(withoutDerivedFxCache(plain(honour.snapshot())), withoutDerivedFxCache(beforeCancel));
 });
