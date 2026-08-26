@@ -184,15 +184,23 @@ test('каждая строка имеет проверяемый оригина
   assert.equal(iconManifest.statusCounts['missing-source'] > 0, true);
 });
 
-test('v5+ emits the exact Unicode em dash for every generated item cost', t => {
+test('generated item costs follow the selected catalog economy contract', t => {
   const revision = /^bg3-24532579-v(\d+)$/.exec(current.catalogVersion)?.[1];
   if (!revision || Number(revision) < 5) {
     t.skip('requires a selected v5+ catalog');
     return;
   }
   for (const item of items) {
-    assert.equal(item.cost, '—', item.id);
-    assert.deepEqual([...item.cost].map(character => character.codePointAt(0)), [0x2014], item.id);
+    if (Number(revision) < 9) {
+      assert.equal(item.cost, '—', item.id);
+      assert.deepEqual([...item.cost].map(character => character.codePointAt(0)), [0x2014], item.id);
+      continue;
+    }
+    const value = item.mechanics.profile.value;
+    assert.ok(Number.isInteger(value.gp) && value.gp >= 0, item.id);
+    assert.equal(value.cp, value.gp * 100, item.id);
+    assert.equal(value.display, `${value.gp} зм`, item.id);
+    assert.equal(item.cost, value.display, item.id);
   }
 });
 

@@ -21,6 +21,18 @@ function sha256(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 }
 
+function dormantVersion() {
+  const dataRoot = path.join(repo, 'data', 'bg3');
+  const pointer = JSON.parse(fs.readFileSync(path.join(dataRoot, 'current.json'), 'utf8'));
+  const versions = fs.readdirSync(dataRoot, {withFileTypes: true})
+    .filter(entry => entry.isDirectory() && /^bg3-24532579-v[1-9][0-9]*$/.test(entry.name))
+    .map(entry => entry.name)
+    .filter(version => version !== pointer.catalogVersion && fs.existsSync(path.join(dataRoot, version, 'manifest.json')))
+    .sort((a, b) => Number(b.split('-v').at(-1)) - Number(a.split('-v').at(-1)));
+  assert.ok(versions.length > 0, 'candidate selection test requires one dormant immutable catalog');
+  return versions[0];
+}
+
 test.afterEach(restoreEnvironment);
 
 test('BG3 catalog audit follows the live pointer when no candidate is selected', () => {
@@ -43,7 +55,7 @@ test('BG3 candidate audit requires both immutable identity pins', () => {
 
 test('BG3 candidate audit reads a dormant immutable version without moving current', () => {
   const pointerBefore = fs.readFileSync(path.join(repo, 'data', 'bg3', 'current.json'));
-  const version = 'bg3-24532579-v3';
+  const version = dormantVersion();
   const manifestPath = path.join(repo, 'data', 'bg3', version, 'manifest.json');
   process.env.BG3_CATALOG_VERSION = version;
   process.env.BG3_MANIFEST_SHA256 = sha256(manifestPath);
@@ -55,7 +67,7 @@ test('BG3 candidate audit reads a dormant immutable version without moving curre
 });
 
 test('BG3 candidate audit rejects the wrong manifest hash', () => {
-  process.env.BG3_CATALOG_VERSION = 'bg3-24532579-v3';
+  process.env.BG3_CATALOG_VERSION = dormantVersion();
   process.env.BG3_MANIFEST_SHA256 = '0'.repeat(64);
   assert.throws(() => selectBg3Catalog(repo), /SHA-256 mismatch/);
 });

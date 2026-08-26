@@ -905,7 +905,7 @@ function addCount(object, key) {
 test('active manifest routes every BG3 item action through an exact causal boundary', async t => {
   assert.deepEqual([...casesByProfile.keys()].sort(), ['honour', 'standard']);
   assert.equal(new Set(cases.map(row => `${row.profile}\0${row.itemId}\0${row.actionId}`)).size, cases.length);
-  if (current.catalogVersion === 'bg3-24532579-v8') {
+  if (current.catalogVersion === 'bg3-24532579-v10') {
     assert.equal(cases.length, 10_356);
     assert.deepEqual(expectedHandlers, {
       bg3RootProgram: 8_384,
@@ -1331,7 +1331,7 @@ test('active manifest routes every BG3 item action through an exact causal bound
         assert.equal(totals.dethroneRuntimeBlocked, 0);
         assert.equal(totals.dethroneSuccess, 1);
       }
-      if (current.catalogVersion === 'bg3-24532579-v8' && !requestedItem && !requestedUse) {
+      if (current.catalogVersion === 'bg3-24532579-v10' && !requestedItem && !requestedUse) {
         if (!requestedSummonOnly) {
           assert.equal(totals.supportedHealingSources, 6);
           assert.equal(totals.confirmedHealingSuccess, 6);

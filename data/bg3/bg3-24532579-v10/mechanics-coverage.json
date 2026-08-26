@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "bg3-mechanics-coverage/1",
+  "catalogVersion": "bg3-24532579-v10",
+  "items": 10284,
+  "modes": {
+    "structured": 9757,
+    "manual": 527
+  },
+  "profileKinds": {
+    "misc": 5760,
+    "magic": 372,
+    "food": 226,
+    "material": 106,
+    "water": 58,
+    "lore": 1409,
+    "weapon": 813,
+    "shield": 88,
+    "container": 482,
+    "light": 319,
+    "potion": 149,
+    "poison": 10,
+    "scroll": 118,
+    "armor": 219,
+    "ammo": 36,
+    "trap": 81,
+    "instrument": 38
+  },
+  "interactionBacked": 3451,
+  "equipmentStructured": 307,
+  "ruleGraphLinked": 9284,
+  "directEffectMapped": 275,
+  "directEffectEntries": 291,
+  "directEffectPrimitives": {
+    "RollBonus": 132,
+    "ActionResource": 3,
+    "Skill": 67,
+    "AC": 24,
+    "Ability": 4,
+    "Advantage": 20,
+    "Disadvantage": 30,
+    "AbilityOverrideMinimum": 11
+  },
+  "ruleCompiler": {
+    "schemaVersion": "bg3-rule-program-coverage/1",
+    "programs": 5898,
+    "programModes": {
+      "typed": 3688,
+      "empty": 773,
+      "mixed": 1155,
+      "manual": 282
+    },
+    "typedOpcodes": 19956,
+    "manualOpcodes": 2352,
+    "playerRollRequests": 2205,
+    "rootTemplatePrograms": 35729,
+    "itemActions": {
+      "items": 5034,
+      "actions": 5178
+    },
+    "lifecyclePrograms": {
+      "items": 1245,
+      "programs": 2498,
+      "gates": {
+        "equipped": 949,
+        "equipped-main-hand": 1499,
+        "on-hit": 27,
+        "inventory": 13,
+        "equipped-off-hand": 8,
+        "granted-action": 2
+      },
+      "kinds": {
+        "passive": 699,
+        "spell": 1675,
+        "status": 124
+      },
+      "inheritedDefaultsExecutable": 0
+    }
+  },
+  "manualExplicit": 527,
+  "silentRuleDrops": 0,
+  "note": "Rule references and nested RootTemplate actions are losslessly linked. Typed deterministic opcodes are compiled only from source Stats/LSX fields; unknown functors remain non-executable manual opcodes and localized text is never executable."
+}

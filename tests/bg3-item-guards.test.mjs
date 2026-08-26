@@ -9,7 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 
 /*
- * Source-bound guard audit for the small v8 gap left after the catalog
+ * Source-bound guard audit for the small v10 gap left after the catalog
  * compiler's ordinary scroll validation delegations.
  *
  * The exceptional ActionDataType 12 records deliberately stay fail-closed in
@@ -295,7 +295,7 @@ function loadEngine() {
       setWorld(caster, target, item) {
         chars=[caster]; foesDB=[target]; itemsDB=[item]; activeCharId=caster.id;
         combat={active:false, order:[], turn:null, log:[]};
-        bg3Catalog.preferredVersion='bg3-24532579-v8';
+        bg3Catalog.preferredVersion='bg3-24532579-v10';
         bg3Catalog.preferredProfile='standard';
         bg3Catalog.preferredManifestSha256='1'.repeat(64);
         bg3Catalog.items.set(item.id,item);
@@ -412,7 +412,7 @@ const mutationCases = [
   ['entrypoint profile', row => { row.use.program.projection.entrypoints[0].sourceProfile = 'other'; }],
 ];
 
-test('v8 exceptional A12 census is 12 profiles: 8 projection-ready but only 6 in guard-batch scope', () => {
+test('v10 exceptional A12 census is 12 profiles: 8 projection-ready but only 6 in guard-batch scope', () => {
   assert.equal(exceptionalA12.length, 12);
   assert.deepEqual(new Set(exceptionalA12.map(row => row.variant.item.source.statsId)), EXPECTED_EXCEPTIONAL_STATS);
   assert.deepEqual(new Set(exceptionalA12.map(row => row.variant.profile)), new Set(['standard', 'honour']));

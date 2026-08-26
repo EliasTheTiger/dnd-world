@@ -9,7 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 
 /*
- * Active-v8 source and private-runtime certificate for the only
+ * Active-v10 source and private-runtime certificate for the only
  * bounded SpawnExtraProjectiles item carrier: Arrow of Many Targets.
  *
  * The structural tests prove the immutable source topology and exact generated
@@ -23,8 +23,8 @@ const {current, manifest, catalogRoot} = selected;
 const PROFILES = Object.freeze(['standard', 'honour']);
 
 const EXPECTED = Object.freeze({
-  version: 'bg3-24532579-v8',
-  manifestSha256: '8db8b170c1d03a75876a7c9111b33a00fd89976cc69dbd85f31762eb419c06f0',
+  version: 'bg3-24532579-v10',
+  manifestSha256: '0c9f9ba28daf3f4d2e2466345ea412352e16b7a82b0b093f3ed9a1d579b5dc1b',
   sourceRules: 46,
   sourcePrograms: 92,
   sourceFields: 102,
@@ -34,14 +34,14 @@ const EXPECTED = Object.freeze({
   carrierRows: 62,
   carrierItems: 31,
   primaryRules: 26,
-  carrierCensusSha256: 'aeaf48c095764ac6eef8cc0551c2686a92e7611285d6eb4bb8bb5e1394a8e7b3',
+  carrierCensusSha256: 'd905bb7240b82ca3a781c3148f0d1f96e803720b50e740a4daecd10e49947b86',
   descriptorRows: 2,
   descriptorItems: 1,
 });
 
 const ARROW = Object.freeze({
   itemId: 'bg3:item:rt:b11b3f7f-d8ec-41db-93b9-24474aea31e3:stats:T0JKX0Fycm93T2ZSaWNvY2hldA',
-  itemArtifact: 'items/04-0000.json',
+  itemArtifact: 'items/04-0002.json',
   statsId: 'OBJ_ArrowOfRicochet',
   rootArtifact: 'root-template-programs/04-0000.json',
   useIds: Object.freeze({
@@ -764,7 +764,7 @@ function arrowRuntimeEnterFour(world, {naturals = [19, 19, 19, 19], damage = [6,
   return {targetOrder, args: engine.bg3ItemFormulaLastDispatch(), audit: engine.bg3ItemArrowAudit()};
 }
 
-test('active v8 manifest census has exactly 46 SpawnExtraProjectiles rules and 102 field/profile occurrences', () => {
+test('active v10 manifest census has exactly 46 SpawnExtraProjectiles rules and 102 field/profile occurrences', () => {
   assert.equal(current.catalogVersion, EXPECTED.version);
   assert.equal(current.manifestSha256, EXPECTED.manifestSha256);
   assert.equal(manifest.catalogVersion, EXPECTED.version);

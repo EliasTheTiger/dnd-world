@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..');
-const CATALOG_VERSION = 'bg3-24532579-v8';
+const CATALOG_VERSION = 'bg3-24532579-v10';
 const SOURCE_ROOT = join(REPO_ROOT, 'data', 'bg3', CATALOG_VERSION);
 const OUTPUT_ROOT = join(REPO_ROOT, 'data', 'bg3', 'ui', `${CATALOG_VERSION}-item-presentation`);
 const OUTPUT_MANIFEST = join(OUTPUT_ROOT, 'manifest.json');
@@ -170,6 +170,16 @@ function addTerm(terms, value) {
 
 function addTerms(terms, values) {
   for (const value of Array.isArray(values) ? values : []) addTerm(terms, value);
+}
+
+function addStructuredTerms(terms, value) {
+  if (value == null) return;
+  if (typeof value === 'string' || typeof value === 'number') addTerm(terms, value);
+  else if (Array.isArray(value)) for (const row of value) addStructuredTerms(terms, row);
+  else if (typeof value === 'object') for (const [key, row] of Object.entries(value)) {
+    addTerm(terms, key);
+    addStructuredTerms(terms, row);
+  }
 }
 
 function projectSourceAction(row, field, terms, observedActionTypes) {
@@ -344,6 +354,17 @@ function projectProfile(item, profile, terms, observedActionTypes) {
   addTerms(terms, mechanics.profile?.roles);
   addTerm(terms, mechanics.equipment?.armorKind);
   for (const [flag, enabled] of Object.entries(mechanics.profile?.flags || {})) if (enabled === true) addTerm(terms, flag);
+  const coverage = mechanics.engineCoverage;
+  const sourceFacts = mechanics.sourceFacts;
+  assert(coverage?.schemaVersion === 'bg3-item-engine-coverage/1', `${item.id}/${profile} engine coverage is missing.`);
+  assert(sourceFacts?.schemaVersion === 'bg3-item-source-facts/1', `${item.id}/${profile} source facts are missing.`);
+  assert(typeof item.props === 'string' && item.props.trim(), `${item.id}/${profile} readable props are missing.`);
+  addTerm(terms, item.props);
+  addStructuredTerms(terms, coverage);
+  addStructuredTerms(terms, sourceFacts);
+  addStructuredTerms(terms, mechanics.profile?.scroll);
+  addStructuredTerms(terms, mechanics.profile?.armor);
+  addStructuredTerms(terms, mechanics.profile?.instrument);
 
   return {
     actionCount: actions.length,
@@ -354,6 +375,12 @@ function projectProfile(item, profile, terms, observedActionTypes) {
     interactions,
     lifecycle,
     effects,
+    props: item.props,
+    engineCoverage: coverage,
+    sourceFacts,
+    scroll: mechanics.profile?.scroll || null,
+    armor: mechanics.profile?.armor || null,
+    instrument: mechanics.profile?.instrument || null,
   };
 }
 
@@ -631,7 +658,8 @@ function buildExpectedOutput() {
   const sourceManifest = JSON.parse(sourceManifestBuffer);
   assert(sourceManifest.catalogVersion === CATALOG_VERSION, 'Unexpected source manifest catalog version.');
   assert(sourceManifest.immutable === true, 'Source manifest is not marked immutable.');
-  assert(sourceManifest.contracts?.itemSchemaVersion === 6, 'Unexpected v8 item schema version.');
+  assert(sourceManifest.contracts?.itemSchemaVersion === 6, 'Unexpected v10 item schema version.');
+  assert(sourceManifest.contracts?.itemMechanics?.schemaVersion === 'bg3-item-engine-coverage/1', 'Missing v10 item mechanics contract.');
 
   const searchEntry = sourceEntryBySuffix(sourceManifest.files.other, `/${CATALOG_VERSION}/search-index.json`);
   const searchVerified = verifyManifestFile(searchEntry);
@@ -684,8 +712,8 @@ function buildExpectedOutput() {
   projectedItems.sort((left, right) => compareStrings(left.itemId, right.itemId));
   const counts = countRows(projectedItems);
 
-  assert(counts.itemsWithDescription === 5706, 'Exact v8 localized description census changed.');
-  assert(counts.localizedDescriptions.ru === 5706 && counts.localizedDescriptions.en === 5706, 'Exact v8 bilingual description census changed.');
+  assert(counts.itemsWithDescription === 5706, 'Exact v10 localized description census changed.');
+  assert(counts.localizedDescriptions.ru === 5706 && counts.localizedDescriptions.en === 5706, 'Exact v10 bilingual description census changed.');
   assert(counts.itemsWithActions === sourceManifest.counts.itemRuleActions.items, 'Item action census differs from source manifest.');
   assert(counts.itemsWithLifecycle === sourceManifest.counts.itemLifecyclePrograms.items, 'Item lifecycle census differs from source manifest.');
   assert(counts.relationSources.placements.standard === sourceManifest.counts.universe.placementEvidence.standardOccurrences, 'Standard placement evidence count differs from source manifest.');
@@ -726,7 +754,7 @@ function buildExpectedOutput() {
       },
     },
     contracts: {
-      itemIdentity: 'exact-v8-item-id',
+      itemIdentity: 'exact-v10-item-id',
       descriptions: 'exact-item.i18n-language-description-null-preserved-no-fallback-no-invention',
       descriptionStorage: 'nonempty-exact-text-in-detail-shard-descriptionCount-zero-means-both-language-values-are-null-or-empty',
       profileSelection: 'standard-base-honour-full-overlay-honour-only-base',
@@ -739,13 +767,13 @@ function buildExpectedOutput() {
       searchRowColumns: ['itemIndex', 'normalizedDescriptionTokenText', 'standardNormalizedTokenText', 'honourNormalizedTokenTextOrNullSameAsStandard'],
       searchNormalization: 'trim-lowercase-ru-yo-to-e-letters-numbers-colon-underscore-plus-hyphen-space-unique-sort',
       searchSemantics: 'query-normalized-to-space-tokens-every-token-must-be-a-substring-of-description-plus-selected-profile-token-text',
-      searchScope: 'exact-descriptions-and-profile-presentation-terms-joined-at-runtime-with-pinned-v8-search-index-names-and-facets',
+      searchScope: 'exact-descriptions-engine-coverage-source-facts-and-profile-presentation-terms-joined-at-runtime-with-pinned-v10-search-index-names-and-facets',
       searchProfileSelection: 'normalized-description-token-text-plus-exactly-one-selected-profile-token-text',
       searchHonourFallback: 'when-profileMask-is-3-and-honour-token-text-is-null-use-standard-token-text-otherwise-null-means-profile-absent',
       searchTerms: 'exact-descriptions-structured-scalars-and-display-labels-normalized-once-full-text-not-duplicated',
       relations: 'source-array-lengths-and-exact-placement-evidence-occurrences',
       detailResolution: 'detail-shard-is-exact-and-profile-materialized-display-data-only',
-      execution: 'never-executable-hydrate-pinned-v8-item-before-runtime-use',
+      execution: 'never-executable-hydrate-pinned-v10-item-before-runtime-use',
       actionDataTypeNamesSource: 'Norbyte/bg3se/BG3Extender/GameDefinitions/Enumerations/Stats.inl',
     },
     counts,

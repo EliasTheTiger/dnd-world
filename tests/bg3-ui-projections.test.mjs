@@ -7,7 +7,7 @@ import test from 'node:test';
 import {fileURLToPath} from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const catalogVersion = 'bg3-24532579-v8';
+const catalogVersion = 'bg3-24532579-v10';
 const sourceBuildId = '24532579';
 const placementBase = path.join(repo, 'data', 'bg3', 'ui', `${catalogVersion}-placement-browser`);
 const presentationBase = path.join(repo, 'data', 'bg3', 'ui', `${catalogVersion}-item-presentation`);
@@ -256,6 +256,8 @@ test('item presentation полностью согласована с compact row
 
   const detailEntries = manifest.storage.detailFiles;
   const searchEntries = manifest.storage.searchFiles;
+  assert.equal(detailEntries.length, 257);
+  assert.equal(searchEntries.length, 157);
   for (const [entries, hardLimit] of [
     [detailEntries, manifest.storage.hardLimitBytes],
     [searchEntries, manifest.storage.searchHardLimitBytes],

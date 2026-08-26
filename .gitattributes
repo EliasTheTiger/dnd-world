@@ -5,3 +5,5 @@
 *.md text eol=lf
 *.webp -text
 data/bg3/bg3-24532579-v8/item-placements-report.md -text whitespace=-blank-at-eol
+data/bg3/bg3-24532579-v9/item-placements-report.md -text whitespace=-blank-at-eol
+data/bg3/bg3-24532579-v10/item-placements-report.md -text whitespace=-blank-at-eol

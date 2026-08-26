@@ -9,7 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 
 /*
- * Active-v8 readiness certificate for BG3 ActionData 33 (LearnSpell).
+ * Active-v10 readiness certificate for BG3 ActionData 33 (LearnSpell).
  *
  * The catalog census deliberately keeps three independent facts separate:
  *
@@ -17,7 +17,7 @@ import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
  *   - the A33 source Conditions key is present or missing;
  *   - a present, nonempty A33 condition must itself be executable.
  *
- * Consequently, v8 has 146 typed spell references but only 144 executable
+ * Consequently, v10 has 146 typed spell references but only 144 executable
  * LearnSpell routes.  The two typed Cloud of Daggers rows remain fail-closed
  * because CanUseSpellScroll is unresolved at the A33 boundary.  Conversely,
  * the two Dispel Magic rows have no Conditions key at all and are valid; a
@@ -33,7 +33,7 @@ const selected = selectBg3Catalog(repo);
 const {current, manifest, catalogRoot} = selected;
 
 const EXPECTED = Object.freeze({
-  version: 'bg3-24532579-v8',
+  version: 'bg3-24532579-v10',
   rows: 228,
   byProfile: Object.freeze({honour: 114, standard: 114}),
   byMode: Object.freeze({mixed: 82, typed: 146}),
@@ -192,7 +192,7 @@ function readyForLearning(row) {
   return row.mode === 'typed' && row.conditionValue === '';
 }
 
-test('active v8 A33 census, conditions and A12/A33 identities are immutable', () => {
+test('active v10 A33 census, conditions and A12/A33 identities are immutable', () => {
   assert.equal(current.catalogVersion, EXPECTED.version);
   assert.equal(rows.length, EXPECTED.rows);
   assert.equal(new Set(rows.map(row => `${row.profile}\0${row.itemId}\0${row.useId}`)).size,
@@ -488,7 +488,7 @@ function failure(failures, condition, message) {
   if (!condition) failures.push(message);
 }
 
-test('all 228 real v8 A33 routes fail prepay or commit exactly once from learned-spell readiness', async () => {
+test('all 228 real v10 A33 routes fail prepay or commit exactly once from learned-spell readiness', async () => {
   const failures = [];
 
   for (const profile of ['standard', 'honour']) {
