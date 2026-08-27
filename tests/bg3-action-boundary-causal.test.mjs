@@ -453,6 +453,7 @@ function loadEngine() {
   const initStart = source.lastIndexOf('(async function init(){');
   assert.notEqual(initStart, -1, 'production engine init marker is missing');
   source = source.slice(0, initStart);
+  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
   source += String.raw`
     let __boundaryResourceCommits=0,__boundarySequence=0,__boundaryLastStatus='',__boundaryLastDialog='';
     const __boundaryArrowItemId='bg3:item:rt:b11b3f7f-d8ec-41db-93b9-24474aea31e3:stats:T0JKX0Fycm93T2ZSaWNvY2hldA';

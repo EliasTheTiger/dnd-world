@@ -297,6 +297,7 @@ function productionEngineSource() {
 
 function loadEngine(random) {
   let source = productionEngineSource();
+  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
   source += String.raw`
     globalThis.__bg3LearnReadiness = {
       setState(s) {

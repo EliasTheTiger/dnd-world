@@ -3933,7 +3933,7 @@ async function persist(key,val){
 const WORLD_SNAPSHOT_SCHEMA='dnd-world-world-snapshot/1';
 let worldSnapshotRevision=0;
 function worldSnapshotPayload(){const snapshotRevision=++worldSnapshotRevision;return {schemaVersion:WORLD_SNAPSHOT_SCHEMA,snapshotRevision,chars,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,
-  classes:classesDB,rules:rulesDB,foes:foesDB,fxRound,combat,harvestedSources,catalogRefs:bg3CatalogRefs(),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};}
+  classes:classesDB,rules:rulesDB,foes:foesDB,fxRound,combat,harvestedSources,catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};}
 function validWorldSnapshot(value){return !!(value&&value.schemaVersion===WORLD_SNAPSHOT_SCHEMA&&Array.isArray(value.chars)&&Array.isArray(value.items)
   &&Array.isArray(value.spells)&&Array.isArray(value.abilities)&&Array.isArray(value.races)&&Array.isArray(value.classes)&&Array.isArray(value.rules)&&Array.isArray(value.foes));}
 let savePendWorld=false, savePendJournal=false;
@@ -3954,7 +3954,7 @@ async function runScheduledSave(){
     await persist('dndworld2:fxround',fxRound);
     await persist('dndworld2:combat',combat);
     await persist('dndworld2:harvested-sources',harvestedSources);
-    await persist('dndworld2:catalog-refs',bg3CatalogRefs());
+    await persist('dndworld2:catalog-refs',bg3CatalogStandardRefs(bg3CatalogRefs()));
     await persist('dndworld2:bg3-scene-state',bg3SceneState);
     await persist('dndworld2:bg3-story-state',bg3StoryState);
     await persist('dndworld2:bg3-tadpole-state',bg3TadpoleState);
@@ -4022,7 +4022,8 @@ async function loadAll(){
   setStatus('Открываю летопись…');
   const savedWorldRaw=await readJSON('dndworld2:world-snapshot'),savedWorld=validWorldSnapshot(savedWorldRaw)?savedWorldRaw:null;
   if(savedWorld&&Number.isSafeInteger(savedWorld.snapshotRevision)&&savedWorld.snapshotRevision>worldSnapshotRevision)worldSnapshotRevision=savedWorld.snapshotRevision;
-  bg3CatalogUseRefs(savedWorld?savedWorld.catalogRefs||[]:(await readJSON('dndworld2:catalog-refs'))||[]);
+  const savedCatalogRefs=savedWorld?savedWorld.catalogRefs||[]:(await readJSON('dndworld2:catalog-refs'))||[],bg3HonourProfileMigrated=bg3CatalogHasLegacyHonourRef(savedCatalogRefs);
+  bg3CatalogUseRefs(bg3CatalogStandardRefs(savedCatalogRefs));
   itemsDB   = savedWorld?savedWorld.items:(await readJSON('dndworld2:items'))     || seedItemsDB();
   spellsDB  = savedWorld?savedWorld.spells:(await readJSON('dndworld2:spells'))    || seedSpellsDB();
   abilitiesDB=savedWorld?savedWorld.abilities:(await readJSON('dndworld2:abilities')) || seedAbilitiesDB();
@@ -4078,12 +4079,14 @@ async function loadAll(){
   harvestedSources=(savedWorld?savedWorld.harvestedSources:await readJSON('dndworld2:harvested-sources'))||{};
   bg3SceneState=bg3SceneNormalizeState(savedWorld?savedWorld.bg3SceneState:await readJSON('dndworld2:bg3-scene-state'));
   bg3StoryState=bg3StoryNormalizeState(savedWorld?savedWorld.bg3StoryState:await readJSON('dndworld2:bg3-story-state'));
-  bg3TadpoleState=bg3TadpoleNormalizeState(savedWorld?savedWorld.bg3TadpoleState:await readJSON('dndworld2:bg3-tadpole-state'));
+  bg3TadpoleState=bg3TadpoleStandardState(savedWorld?savedWorld.bg3TadpoleState:await readJSON('dndworld2:bg3-tadpole-state'));
   bg3TreasureState=bg3TreasureNormalizeState(savedWorld?savedWorld.bg3TreasureState:await readJSON('dndworld2:bg3-treasure-state'));
   combat.order=combat.order.filter(e=>e&&((e.kind==='ally'&&chars.some(c=>c.id===e.id))||(e.kind==='foe'&&foesDB.some(f=>f.id===e.id))));
   if(typeof combatRepairRuntime==='function') combatRepairRuntime();
-  const bg3World=await bg3CatalogHydrateWorld();
-  if(!bg3Catalog.error&&bg3World.ok) setStatus('Летопись открыта');
+  const bg3ProfileMigrationNeeded=bg3HonourProfileMigrated||bg3CatalogHasHonourLearnedSpells(chars),bg3Reissue=await bg3CatalogMigrateSameVersionReissue({migrateProfileFrom:bg3ProfileMigrationNeeded?'honour':''}),bg3World=await bg3CatalogHydrateWorld(),bg3LearnedProfile=await bg3CatalogMigrateLearnedHonourToStandard();
+  if(!bg3Reissue.ok)setStatus('Обновлённая публикация каталога не прошла проверку; сохранённая ссылка не изменена.',true);
+  if(!bg3LearnedProfile.ok)setStatus('Обычные правила включены, но часть изученных BG3-заклинаний не удалось безопасно перепривязать: '+bg3LearnedProfile.reason,true);
+  if(bg3Reissue.ok&&bg3LearnedProfile.ok&&!bg3Catalog.error&&bg3World.ok){if(bg3ProfileMigrationNeeded)scheduleSave();setStatus('Летопись открыта · обычные правила');}
 }
 
 /* ═══════════════ ВКЛАДКИ, КОСТИ, ЭКСПОРТ ═══════════════ */
@@ -4328,7 +4331,7 @@ function rollNotation(){
 function dndWorldExportPayload(){
   return {app:'dndworld2', exported:new Date().toISOString(),
     chars, journal, combat, harvestedSources, items:itemsDB, spells:spellsDB, abilities:abilitiesDB, races:racesDB, classes:classesDB, rules:rulesDB, foes:foesDB,
-    catalogRefs:bg3CatalogRefs(),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};
+    catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};
 }
 function doExport(){
   const blob=new Blob([JSON.stringify(dndWorldExportPayload(), null, 2)], {type:'application/json'});
@@ -4345,7 +4348,7 @@ async function dndWorldImportPayload(data){
     harvestedSources=data.harvestedSources&&typeof data.harvestedSources==='object'?data.harvestedSources:{};
     bg3SceneState=bg3SceneNormalizeState(data.bg3SceneState);
     bg3StoryState=bg3StoryNormalizeState(data.bg3StoryState);
-    bg3TadpoleState=bg3TadpoleNormalizeState(data.bg3TadpoleState);
+    bg3TadpoleState=bg3TadpoleStandardState(data.bg3TadpoleState);
     bg3TreasureState=bg3TreasureNormalizeState(data.bg3TreasureState);
     chars.forEach(c=>{ if(typeof upgradeChar3==='function') upgradeChar3(c); });bg3GithbornMindcrusherTrustCharacters(chars);
     itemsDB=data.items||itemsDB; spellsDB=data.spells||spellsDB; abilitiesDB=data.abilities||abilitiesDB;
@@ -4356,11 +4359,11 @@ async function dndWorldImportPayload(data){
     racesDB.forEach(upgradeRace);
     classesDB.forEach(upgradeClass);
     foesDB.forEach(upgradeFoe);
-    const catalogRefsOk=bg3CatalogUseRefs(Array.isArray(data.catalogRefs)?data.catalogRefs:[]);
+    const importedCatalogRefs=Array.isArray(data.catalogRefs)?data.catalogRefs:[],importedHonourProfile=bg3CatalogHasLegacyHonourRef(importedCatalogRefs),catalogRefsOk=bg3CatalogUseRefs(bg3CatalogStandardRefs(importedCatalogRefs));
     if(!catalogRefsOk)catalogWarning=' Ссылка на каталог BG3 в файле некорректна; прежняя кампания не использована.';
     if(catalogRefsOk)chars.forEach(bg3LearnedSpellUpgradeEntries);
     if(typeof combatRepairRuntime==='function') combatRepairRuntime();
-    try{if(catalogRefsOk)await bg3CatalogHydrateWorld({rethrow:true});}
+    try{if(catalogRefsOk){const profileMigrationNeeded=importedHonourProfile||bg3CatalogHasHonourLearnedSpells(chars),reissue=await bg3CatalogMigrateSameVersionReissue({migrateProfileFrom:profileMigrationNeeded?'honour':''});if(!reissue.ok)throw new Error(reissue.reason);await bg3CatalogHydrateWorld({rethrow:true});const learnedProfile=await bg3CatalogMigrateLearnedHonourToStandard();if(!learnedProfile.ok)catalogWarning=' Обычные правила включены, но часть изученных BG3-заклинаний не удалось безопасно перепривязать: '+learnedProfile.reason;else if(profileMigrationNeeded)catalogWarning=' Сохранение переведено на обычные правила.';}}
     catch(error){catalogWarning=' Каталог BG3 пока недоступен: ссылки сохранены, действия с ними заблокированы ('+error.message+').';}
   } else if(data&&data.app==='dndworld'){
     journal=data.journal||journal;
@@ -10008,7 +10011,7 @@ const bg3RuleRuntime={plans:new Map()};
   const recipeScheduleOuterCatalogAccessor=()=>{const record=state.recipeCatalogOuterAccessorOnce;if(!record)return;state.recipeCatalogOuterAccessorOnce=null;const descriptor=privateIntrinsics.getOwnPropertyDescriptor(bg3Catalog,'current');record.descriptor=descriptor;if(!descriptor||descriptor.configurable!==true)return;privateIntrinsics.defineProperties(bg3Catalog,{current:{configurable:true,enumerable:!!descriptor.enumerable,get(){record.hits++;if(record.victim)record.victim.notes='outer-catalog-accessor-fired';return descriptor.value;}}});record.installed=true;};
   const productionSelected=()=>{const selection=safeCatalogSelection();return !!(selection.ok&&selection.version&&!selection.version.endsWith('-v1')&&/^[0-9a-f]{64}$/.test(selection.sha256));};
   const productionExpected=()=>{const selection=safeCatalogSelection();return !!(selection.ok&&selection.version&&!selection.version.endsWith('-v1')&&/^[0-9a-f]{64}$/.test(selection.sha256));};
-  const pinProductionSelection=identity=>{if(!identity){const root=recipeCatalogRootCapture(),checked=root.ok&&recipeCatalogRootCheck(root);if(!checked||!checked.ok)return state.productionSelection;identity=catalogIdentity();}if(identity.version&&!identity.version.endsWith('-v1')&&['standard','honour'].includes(identity.profile)&&/^[0-9a-f]{64}$/.test(identity.manifestSha256)){const root=recipeCatalogRootCapture();if(!root.ok)return state.productionSelection;state.productionCatalogRoot=root;state.productionSelection=privateIntrinsics.freeze({version:identity.version,profile:identity.profile,sha256:identity.manifestSha256});}return state.productionSelection;};
+  const pinProductionSelection=identity=>{if(!identity){const root=recipeCatalogRootCapture(),checked=root.ok&&recipeCatalogRootCheck(root);if(!checked||!checked.ok)return state.productionSelection;identity=catalogIdentity();}if(identity.version&&!identity.version.endsWith('-v1')&&(identity.profile===BG3_GAME_RULES_PROFILE||BG3_ARCHIVE_HONOUR_AUDIT&&identity.profile==='honour')&&/^[0-9a-f]{64}$/.test(identity.manifestSha256)){const root=recipeCatalogRootCapture();if(!root.ok)return state.productionSelection;state.productionCatalogRoot=root;state.productionSelection=privateIntrinsics.freeze({version:identity.version,profile:identity.profile,sha256:identity.manifestSha256});}return state.productionSelection;};
   const identitySame=(a,b)=>!!(a&&b&&a.epoch===b.epoch&&a.version===b.version&&a.profile===b.profile&&a.manifestSha256===b.manifestSha256&&a.buildId===b.buildId
     &&a.current===b.current&&a.manifest===b.manifest&&a.index===b.index&&a.summaries===b.summaries&&a.items===b.items&&a.shards===b.shards&&a.artifacts===b.artifacts&&a.shardPromises===b.shardPromises&&a.artifactPromises===b.artifactPromises);
   const descriptorRecord=(descriptor,rel)=>Object.freeze({ref:descriptor,rel:String(rel||''),path:String(descriptor&&descriptor.path||''),sha256:String(descriptor&&descriptor.sha256||'').toLowerCase(),bytes:+(descriptor&&descriptor.bytes)});
@@ -10280,7 +10283,7 @@ const bg3RuleRuntime={plans:new Map()};
   const rootPresentationCall=callback=>{const roots=rootWorldRoots(null,false),captured=graphCapture(roots),checkpoint=captured.ok&&summonCheckpointCapture(roots);if(!captured.ok||!checkpoint)return false;try{callback();}catch(_error){}const checked=rootWorldBindingsSame(roots,null,false)&&graphCheck(roots,captured.graph).ok;if(!checked)try{rootWorldRebind(roots);return !!summonCheckpointRestore(checkpoint)&&rootWorldBindingsSame(roots,null,false)&&graphCheck(roots,captured.graph).ok;}catch(_error){return false;}return true;};
   const rootPostwriteReceiptCapture=(record,plan)=>{if(!rootStaticAuthorityCheck()||!record||record.tokenState.state!=='committing'||!privateIntrinsics.weakSetHas(state.rootLocks,record.source.entry)||!rootCommitPostcondition(record,plan)||!rootSourceEntryCheck(record.source).ok||pinnedAction(record.official.itemId,record.official.useId)!==record.official||rootKnownBinding(record.official.useId)!==record.known)return {ok:false,reason:'private-item-root-postwrite-authority-failed'};const roots=rootWorldRoots(record.ctx,true);if(!rootWorldBindingsSame(roots,record.ctx,true)||castCtx!==record.ctx||privateIntrinsics.weakMapGet(state.rootContexts,record.ctx)!==record)return {ok:false,reason:'private-item-root-postwrite-world-changed'};const graph=graphCapture(roots);return graph.ok?{ok:true,roots,graph:graph.graph}:graph;};
   const rootPostwriteReceiptCheck=(record,plan,receipt)=>{if(!receipt||!rootStaticAuthorityCheck()||record.tokenState.state!=='committing'||!privateIntrinsics.weakSetHas(state.rootLocks,record.source.entry)||!rootWorldBindingsSame(receipt.roots,record.ctx,true)||castCtx!==record.ctx||privateIntrinsics.weakMapGet(state.rootContexts,record.ctx)!==record||!rootCommitPostcondition(record,plan)||!rootSourceEntryCheck(record.source).ok||pinnedAction(record.official.itemId,record.official.useId)!==record.official||rootKnownBinding(record.official.useId)!==record.known)return {ok:false,reason:'private-item-root-postwrite-tail-failed'};const graph=graphCheck(receipt.roots,receipt.graph);return graph.ok?{ok:true}:graph;};
-  const rootWorldSnapshotSerialize=record=>{const identity=record&&record.official&&record.official.identity;if(!identity||typeof identity.version!=='string'||typeof identity.profile!=='string'||typeof identity.manifestSha256!=='string'||!summonNumberIntegerBinding(worldSnapshotRevision)||worldSnapshotRevision<0||worldSnapshotRevision>=9007199254740991)return {ok:false,reason:'private-item-root-world-snapshot-identity-required'};const catalogRef={id:'bg3',version:identity.version,profile:identity.profile};if(identity.manifestSha256)catalogRef.manifestSha256=identity.manifestSha256;const snapshotRevision=worldSnapshotRevision+1,payload={schemaVersion:WORLD_SNAPSHOT_SCHEMA,snapshotRevision,chars,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,classes:classesDB,rules:rulesDB,foes:foesDB,fxRound,combat,harvestedSources,catalogRefs:[catalogRef],bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};let serialized,parsed;try{serialized=summonCanonicalJSON(payload);parsed=privateIntrinsics.jsonParse(serialized);}catch(_error){return {ok:false,reason:'private-item-root-world-snapshot-serialization-failed'};}if(typeof serialized!=='string'||!parsed||parsed.schemaVersion!==WORLD_SNAPSHOT_SCHEMA||parsed.snapshotRevision!==snapshotRevision||!privateIntrinsics.arrayIsArray(parsed.chars)||!privateIntrinsics.arrayIsArray(parsed.items)||!privateIntrinsics.arrayIsArray(parsed.spells)||!privateIntrinsics.arrayIsArray(parsed.abilities)||!privateIntrinsics.arrayIsArray(parsed.races)||!privateIntrinsics.arrayIsArray(parsed.classes)||!privateIntrinsics.arrayIsArray(parsed.rules)||!privateIntrinsics.arrayIsArray(parsed.foes)||!privateIntrinsics.arrayIsArray(parsed.catalogRefs)||parsed.catalogRefs.length!==1)return {ok:false,reason:'private-item-root-world-snapshot-validation-failed'};return {ok:true,serialized,snapshotRevision};};
+  const rootWorldSnapshotSerialize=record=>{const identity=record&&record.official&&record.official.identity;if(!identity||typeof identity.version!=='string'||typeof identity.profile!=='string'||typeof identity.manifestSha256!=='string'||!summonNumberIntegerBinding(worldSnapshotRevision)||worldSnapshotRevision<0||worldSnapshotRevision>=9007199254740991)return {ok:false,reason:'private-item-root-world-snapshot-identity-required'};const catalogRef={id:'bg3',version:identity.version,profile:'standard'};if(identity.manifestSha256)catalogRef.manifestSha256=identity.manifestSha256;const snapshotRevision=worldSnapshotRevision+1,payload={schemaVersion:WORLD_SNAPSHOT_SCHEMA,snapshotRevision,chars,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,classes:classesDB,rules:rulesDB,foes:foesDB,fxRound,combat,harvestedSources,catalogRefs:[catalogRef],bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};let serialized,parsed;try{serialized=summonCanonicalJSON(payload);parsed=privateIntrinsics.jsonParse(serialized);}catch(_error){return {ok:false,reason:'private-item-root-world-snapshot-serialization-failed'};}if(typeof serialized!=='string'||!parsed||parsed.schemaVersion!==WORLD_SNAPSHOT_SCHEMA||parsed.snapshotRevision!==snapshotRevision||!privateIntrinsics.arrayIsArray(parsed.chars)||!privateIntrinsics.arrayIsArray(parsed.items)||!privateIntrinsics.arrayIsArray(parsed.spells)||!privateIntrinsics.arrayIsArray(parsed.abilities)||!privateIntrinsics.arrayIsArray(parsed.races)||!privateIntrinsics.arrayIsArray(parsed.classes)||!privateIntrinsics.arrayIsArray(parsed.rules)||!privateIntrinsics.arrayIsArray(parsed.foes)||!privateIntrinsics.arrayIsArray(parsed.catalogRefs)||parsed.catalogRefs.length!==1)return {ok:false,reason:'private-item-root-world-snapshot-validation-failed'};return {ok:true,serialized,snapshotRevision};};
   const rootLocalStorageWriteExact=serialized=>{if(typeof serialized!=='string'||!rootStorageBinding||typeof rootStorageSetBinding!=='function')return false;try{privateIntrinsics.reflectApply(rootStorageSetBinding,rootStorageBinding,['dndworld2:world-snapshot',serialized]);return true;}catch(_error){return false;}};
   const rootPrimaryStorageEnqueueExact=serialized=>{if(typeof serialized!=='string'||!rootPrimaryStorageBinding||typeof rootPrimaryStorageSetBinding!=='function')return false;try{const pending=privateIntrinsics.reflectApply(rootPrimaryStorageSetBinding,rootPrimaryStorageBinding,['dndworld2:world-snapshot',serialized]);if(pending)try{privateIntrinsics.promiseThen(pending,()=>true,()=>false);}catch(_error){}return true;}catch(_error){return false;}};
   const rootStorageCommitCall=(record,plan,serialized)=>{const roots=rootWorldRoots(record&&record.ctx,true),captured=graphCapture(roots),checkpoint=captured.ok&&summonCheckpointCapture(roots);if(!record||!plan||!captured.ok||!checkpoint||!rootWorldBindingsSame(roots,record.ctx,true)||castCtx!==record.ctx||privateIntrinsics.weakMapGet(state.rootContexts,record.ctx)!==record)return false;try{rootPrimaryStorageEnqueueExact(serialized);}catch(_error){}const checked=rootWorldBindingsSame(roots,record.ctx,true)&&castCtx===record.ctx&&privateIntrinsics.weakMapGet(state.rootContexts,record.ctx)===record&&graphCheck(roots,captured.graph).ok&&savePendWorld===true&&rootCommitPostcondition(record,plan);if(checked)return true;try{rootWorldRebind(roots);castCtx=record.ctx;return !!summonCheckpointRestore(checkpoint)&&rootWorldBindingsSame(roots,record.ctx,true)&&castCtx===record.ctx&&privateIntrinsics.weakMapGet(state.rootContexts,record.ctx)===record&&graphCheck(roots,captured.graph).ok&&savePendWorld===true&&rootCommitPostcondition(record,plan);}catch(_error){return false;}};
@@ -10381,7 +10384,7 @@ const bg3RuleRuntime={plans:new Map()};
   };
 
   const rootPrepareTupleKey=(entryId,casterId,useId)=>entryId+'\u0000'+casterId+'\u0000'+useId;
-  const rootBoundaryActive=useId=>{if(!rootKnownUseId(useId))return false;const selected=state.productionSelection,selection=selected?{version:selected.version,profile:selected.profile,sha256:selected.sha256}:safeCatalogSelection();return !!(selection&&selection.ok!==false&&selection.version===rootCatalogVersion&&(selection.profile==='standard'||selection.profile==='honour')&&selection.sha256===rootManifestSha256);};
+  const rootBoundaryActive=useId=>{if(!rootKnownUseId(useId))return false;const selected=state.productionSelection,selection=selected?{version:selected.version,profile:selected.profile,sha256:selected.sha256}:safeCatalogSelection();return !!(selection&&selection.ok!==false&&selection.version===rootCatalogVersion&&(selection.profile===BG3_GAME_RULES_PROFILE||BG3_ARCHIVE_HONOUR_AUDIT&&selection.profile==='honour')&&selection.sha256===rootManifestSha256);};
   const rootColdSourceCapture=(entryId,casterId,useId)=>{
     if(!rootKnownUseId(useId)||!rootFunctionAuthorityCheck()||typeof entryId!=='string'||!entryId||typeof casterId!=='string'||!casterId||castCtx!==null)return {ok:false,reason:'private-item-root-cold-source-boundary-required'};
     const actor=exactById(chars,casterId),inventory=actor.ok&&ownData(actor.value,'inventory'),entry=inventory&&exactById(inventory.value,entryId),itemId=entry&&entry.ok&&ownData(entry.value,'itemId'),qty=entry&&entry.ok&&privateIntrinsics.getOwnPropertyDescriptor(entry.value,'qty');
@@ -10700,13 +10703,13 @@ const bg3RuleRuntime={plans:new Map()};
   recipeTrustedGenericCommit=bg3RecipeCommit;
 
   bg3FetchPinnedJSON=async function(url,expectedSha256,cacheMode){if(!prototypeAuthorityCheck())throw new Error('private-item-formula-authoritative-prototype-changed');const payload=await core.bg3FetchPinnedJSON(url,expectedSha256,cacheMode,rootLoaderHost),sha=String(expectedSha256||'').toLowerCase();return sha?fetchAttest(payload,'manifest',url,null,sha):payload;};
-  bg3FetchArtifactJSON=async function(url,descriptor){if(!prototypeAuthorityCheck())throw new Error('private-item-formula-authoritative-prototype-changed');const payload=await core.bg3FetchArtifactJSON(url,descriptor,rootLoaderHost);return descriptor&&descriptor.sha256?fetchAttest(payload,'artifact',url,descriptor,descriptor.sha256):payload;};
+  bg3FetchArtifactJSON=async function(url,descriptor,bg3Host,cacheMode){if(!prototypeAuthorityCheck())throw new Error('private-item-formula-authoritative-prototype-changed');const payload=await core.bg3FetchArtifactJSON(url,descriptor,rootLoaderHost,cacheMode);return descriptor&&descriptor.sha256?fetchAttest(payload,'artifact',url,descriptor,descriptor.sha256):payload;};
   rootTrustedFetchPinnedLoader=bg3FetchPinnedJSON;rootTrustedFetchArtifactLoader=bg3FetchArtifactJSON;
   bg3CatalogEnsureIndex=async function(){
     if(!prototypeAuthorityCheck())throw new Error('private-item-formula-authoritative-prototype-changed');const catalogGate=productionCatalogGate();if(!catalogGate.ok)throw new Error(catalogGate.reason);
     if(productionExpected()&&bg3Catalog.index){const checked=indexOriginEnsure();if(checked.ok){recipeScheduleOuterCatalogAccessor();return bg3Catalog.index;}
       const recoverable=!state.productionSelection&&(checked.reason==='private-pinned-manifest-origin-required'||checked.reason==='private-pinned-search-index-origin-required'||checked.reason==='private-pinned-item-index-required'||checked.reason==='private-pinned-item-index-attestation-failed'),selection=recoverable&&safeCatalogSelection();
-      if(!selection||!selection.ok||!/^bg3-\d+-v\d+$/.test(selection.version)||!['standard','honour'].includes(selection.profile)||!/^[0-9a-f]{64}$/.test(selection.sha256))throw new Error(checked.reason);
+      if(!selection||!selection.ok||!/^bg3-\d+-v\d+$/.test(selection.version)||selection.profile!==BG3_GAME_RULES_PROFILE&&!(BG3_ARCHIVE_HONOUR_AUDIT&&selection.profile==='honour')||!/^[0-9a-f]{64}$/.test(selection.sha256))throw new Error(checked.reason);
       const exactRef=privateIntrinsics.freeze({id:'bg3',version:selection.version,profile:selection.profile,manifestSha256:selection.sha256});core.bg3CatalogReset(false);reset();if(!core.bg3CatalogUseRefs([exactRef]))throw new Error('private-pinned-catalog-self-heal-ref-required');reset();
     }
     if(productionExpected()&&bg3Catalog.loading){if(!indexPromiseCheck(bg3Catalog.loading))throw new Error('private-pinned-index-promise-required');return bg3Catalog.loading;}
@@ -15564,16 +15567,16 @@ const chWorld=makeChan('мир','w',
   });
 const chCamp=makeChan('кампания','c',
   ()=>{ const b=syncBase(), r=syncRoom(); return (b&&r)? b+'/campaigns/'+r+'.json' : null; },
-  ()=>({ chars, journal, combat, harvestedSources, catalogRefs:bg3CatalogRefs(),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState }),
-  (d)=>{ const catalogRefsOk=bg3CatalogUseRefs(Array.isArray(d.catalogRefs)?d.catalogRefs:[]);
+  ()=>({ chars, journal, combat, harvestedSources, catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState }),
+  (d)=>{ const incomingRefs=Array.isArray(d.catalogRefs)?d.catalogRefs:[],incomingHonourProfile=bg3CatalogHasLegacyHonourRef(incomingRefs),catalogRefsOk=bg3CatalogUseRefs(bg3CatalogStandardRefs(incomingRefs));
     if(!catalogRefsOk)setStatus('Кампания содержит некорректную ссылку на каталог BG3.',true);
     chars=(d.chars||[]).map(x=>typeof upgradeChar3==='function'?upgradeChar3(x):x);chars.forEach(bg3LearnedSpellUpgradeEntries); journal=d.journal||[];
     combat=normalizeCombatState(d.combat); harvestedSources=d.harvestedSources&&typeof d.harvestedSources==='object'?d.harvestedSources:{};
     bg3SceneState=bg3SceneNormalizeState(d.bg3SceneState);
     bg3StoryState=bg3StoryNormalizeState(d.bg3StoryState);
-    bg3TadpoleState=bg3TadpoleNormalizeState(d.bg3TadpoleState);
+    bg3TadpoleState=bg3TadpoleStandardState(d.bg3TadpoleState);
     bg3TreasureState=bg3TreasureNormalizeState(d.bg3TreasureState);
-    if(typeof combatRepairRuntime==='function') combatRepairRuntime(); bg3CatalogHydrateWorld().then(()=>renderChars()); renderChars(); renderCombat(); renderJournal(); });
+    if(typeof combatRepairRuntime==='function') combatRepairRuntime();const profileMigrationNeeded=incomingHonourProfile||bg3CatalogHasHonourLearnedSpells(chars);bg3CatalogMigrateSameVersionReissue({migrateProfileFrom:profileMigrationNeeded?'honour':''}).then(result=>{if(!result.ok)throw new Error(result.reason);return bg3CatalogHydrateWorld({rethrow:true});}).then(()=>bg3CatalogMigrateLearnedHonourToStandard()).then(result=>{if(!result.ok)setStatus('Облачная кампания открыта в обычных правилах, но часть изученных заклинаний не перепривязана: '+result.reason,true);renderChars();}).catch(error=>{setStatus('Облачная кампания открыта в обычных правилах, но каталог не прошёл проверку: '+String(error&&error.message||error),true);renderChars();}); renderChars(); renderCombat(); renderJournal(); });
 const syncChans=[chWorld, chCamp];
 
 function mergeStableEntries(primary,secondary){
@@ -15600,11 +15603,11 @@ function structuredReleaseCampaignPayload(remote){
   const nextCombat=blankCombat();
   nextCombat.history=mergeStableEntries(remote.combat&&remote.combat.history,combat&&combat.history).slice(0,20);
   const nextHarvested=Object.assign({},harvestedSources,remote.harvestedSources&&typeof remote.harvestedSources==='object'?remote.harvestedSources:{});
-  const catalogRefs=Array.isArray(remote.catalogRefs)?remote.catalogRefs:bg3CatalogRefs();
+  const catalogRefs=bg3CatalogStandardRefs(Array.isArray(remote.catalogRefs)?remote.catalogRefs:bg3CatalogRefs());
   const learnedCatalog=bg3LearnSpellCatalogIdentityFromRefs(catalogRefs);nextChars.forEach(c=>bg3LearnedSpellUpgradeEntries(c,learnedCatalog));
   const nextScene=bg3SceneNormalizeState(remote.bg3SceneState||bg3SceneState);
   const nextStory=bg3StoryNormalizeState(remote.bg3StoryState||bg3StoryState);
-  const nextTadpole=bg3TadpoleNormalizeState(remote.bg3TadpoleState||bg3TadpoleState);
+  const nextTadpole=bg3TadpoleStandardState(remote.bg3TadpoleState||bg3TadpoleState);
   const nextTreasure=bg3TreasureNormalizeState(remote.bg3TreasureState||bg3TreasureState);
   return {chars:nextChars,journal:nextJournal,combat:nextCombat,harvestedSources:nextHarvested,catalogRefs,bg3SceneState:nextScene,bg3StoryState:nextStory,bg3TadpoleState:nextTadpole,bg3TreasureState:nextTreasure};
 }
@@ -15623,7 +15626,7 @@ async function applyStructuredReleaseMigration(){
   await store.set('dndworld2:journal',JSON.stringify(journal));
   await store.set('dndworld2:combat',JSON.stringify(combat));
   await store.set('dndworld2:harvested-sources',JSON.stringify(harvestedSources));
-  await store.set('dndworld2:catalog-refs',JSON.stringify(bg3CatalogRefs()));
+  await store.set('dndworld2:catalog-refs',JSON.stringify(bg3CatalogStandardRefs(bg3CatalogRefs())));
   await store.set('dndworld2:bg3-scene-state',JSON.stringify(bg3SceneState));
   await store.set('dndworld2:bg3-story-state',JSON.stringify(bg3StoryState));
   await store.set('dndworld2:bg3-tadpole-state',JSON.stringify(bg3TadpoleState));
@@ -15653,7 +15656,7 @@ async function syncPersistLocal(){
   await store.set('dndworld2:journal', JSON.stringify(journal));
   await store.set('dndworld2:combat',  JSON.stringify(combat));
   await store.set('dndworld2:harvested-sources',JSON.stringify(harvestedSources));
-  await store.set('dndworld2:catalog-refs',JSON.stringify(bg3CatalogRefs()));
+  await store.set('dndworld2:catalog-refs',JSON.stringify(bg3CatalogStandardRefs(bg3CatalogRefs())));
   await store.set('dndworld2:bg3-scene-state',JSON.stringify(bg3SceneState));
   await store.set('dndworld2:bg3-story-state',JSON.stringify(bg3StoryState));
   await store.set('dndworld2:bg3-tadpole-state',JSON.stringify(bg3TadpoleState));
@@ -19033,20 +19036,31 @@ function bg3ItemRuleRowsHTML(it,actorId,entryId,options){
   return '<section class="props-block item-presentation-detail item-rule-detail"><span class="pt">Игровые возможности:</span>'+(instance?'<div class="catalog-result-meta">'+esc(instance)+'</div>':'')+body+'</section>';
 }
 const BG3_ITEM_INSTRUCTION_INTERNAL_SUMMARY_RE=/(?:manual-review|manual-mechanics-review-required|runtime-(?:ready|blocked|partial)|script-declared-blocked|source-(?:inert|program-(?:mixed|manual|unknown)|lifecycle-(?:mixed|manual|unknown))|inherited-inert|destruction-only|active-rule-reference-not-materialized|script-(?:parameter|uuid)-runtime-adapter-required|blocked-lifecycle-(?:granted-action|interrupt)|incomplete-lifecycle-projection|manual\s*\(\s*reason\s*=|\bbg3Story\b|\bStoryUse(?:InInventory)?\b|\bActionType\s*\d+|\bEventID\b|\b(?:GM|DM|master)\b|решени[ея]\s+мастера)/iu;
+function bg3ElementalInfusionInstructionItem(it){return !!(it&&it.id===BG3_ELEMENTAL_INFUSION.itemId);}
+function bg3ElementalInfusionInstructionLines(it){if(!bg3ElementalInfusionInstructionItem(it))return [];return [
+  'Постоянные, условные и связанные правила:','',
+  'Свойство: Стихийная зарядка.',
+  '• Условия активации: когда владелец кольца наносит заклинанием урон кислотой, холодом, огнём, электричеством или громом и это событие подтверждено, он получает заряд соответствующей стихии на 2 раунда.',
+  '• Следующая попавшая атака оружием наносит дополнительно 1d4 урона того же типа и расходует заряд; эти последствия применяются только после подтверждения попадания.',
+  '• Промах не расходует заряд: он остаётся до первого подтверждённого попадания оружием или до окончания двух раундов.',
+  '• Замещение: новый заряд полностью заменяет прежний заряд и его визуальный эффект. Повторный заряд той же стихии обновляет срок до 2 раундов.',
+  '• Если одно заклинание наносит несколько подходящих типов урона, после полной проверки события остаётся последний применимый тип в порядке разрешения урона.'
+];}
 function bg3ItemInstructionSummary(it){const summary=String(it&&it.props||'').trim();if(!summary||!bg3CatalogIsId(it&&it.id))return summary;
+  if(bg3ElementalInfusionInstructionItem(it))return '';
   const hidden=itemUsesOf(it).concat(itemInteractionsOf(it),bg3LifecycleRefsOf(it)).filter(bg3ItemStorageStoryAction),terms=[];for(const row of hidden)for(const value of [row&&row.label,row&&row.id]){const term=String(value||'').trim();if(term.length>=4)terms.push(term.toLocaleLowerCase('ru-RU'));}
   const folded=summary.toLocaleLowerCase('ru-RU');return BG3_ITEM_INSTRUCTION_INTERNAL_SUMMARY_RE.test(summary)||terms.some(term=>folded.includes(term))?'':summary;}
 function bg3ItemInstructionOverview(it,focusId){
-  const lines=[],actions=itemUsesOf(it).filter(action=>!bg3ItemStorageStoryAction(action)),interactions=itemInteractionsOf(it).filter(action=>!bg3ItemStorageStoryAction(action)),effects=itemPassiveFx(it),lifecycle=bg3LifecycleRefsOf(it).filter(effect=>!bg3ItemStorageStoryAction(effect)),profile=itemProfile(it),focus=String(focusId||''),audit=bg3ItemSourceAuditOverride(it),ruleRows=bg3ItemRuleRows(it).filter(row=>!focus||row.focusId===focus),summary=bg3ItemInstructionSummary(it);
+  const lines=[],actions=itemUsesOf(it).filter(action=>!bg3ItemStorageStoryAction(action)),interactions=itemInteractionsOf(it).filter(action=>!bg3ItemStorageStoryAction(action)),effects=itemPassiveFx(it),lifecycle=bg3LifecycleRefsOf(it).filter(effect=>!bg3ItemStorageStoryAction(effect)),profile=itemProfile(it),focus=String(focusId||''),audit=bg3ItemSourceAuditOverride(it),ruleRows=bg3ItemRuleRows(it).filter(row=>!focus||row.focusId===focus),summary=bg3ItemInstructionSummary(it),elementalInfusion=bg3ElementalInfusionInstructionLines(it);
   lines.push('Профиль: '+(ITEM_KIND_RU[profile.kind]||itemWorkspaceKindLabel(profile.kind)||'предмет')+(it.rarity?' · '+it.rarity:'')+(it.weight?' · '+it.weight:'')+'.');
-  if(summary)lines.push('', 'Краткая механика:', summary);
+  if(elementalInfusion.length)lines.push('',...elementalInfusion);else if(summary)lines.push('', 'Краткая механика:', summary);
   if(audit)lines.push('', 'Источник неполон; неподтверждённая автоматизация отключена:', '• '+audit.reason, '• Безопасный порядок: '+audit.manualInstruction);
   if(ruleRows.length){lines.push('',focus?'Выбранное игровое свойство:':'Игровые свойства:');for(const row of ruleRows)lines.push('• '+row.label+' — '+row.text+' ['+(BG3_ITEM_RULE_SUPPORT_LABELS[row.support]||'статус свойства уточняется')+']');}
   else if(focus)lines.push('', 'Выбранная ссылка больше не относится к этой версии предмета.');
   if(!actions.length&&!interactions.length&&!effects.length&&!lifecycle.length&&!ruleRows.length)lines.push('', 'Источник не задаёт этому объекту отдельного действия, изменения характеристики или условного эффекта.');return lines;
 }
 async function bg3ItemInstructionsOpen(itemId,actorId,entryId,focusId){
-  itemId=String(itemId||'');try{if(bg3CatalogIsId(itemId)){await bg3CatalogEnsureIndex();if(!bg3Catalog.items.has(itemId))await bg3CatalogHydrate([itemId]);}const it=itemOf(itemId);if(!it)throw new Error('предмет отсутствует в текущей базе');setStatus('⌁ Загружаются полные правила предмета…');const lines=bg3ItemInstructionOverview(it,focusId),focus=String(focusId||''),lifecycle=bg3LifecycleRefsOf(it).filter(effect=>!bg3ItemStorageStoryAction(effect));if(actorId||entryId)lines.push('',bg3ItemRuleInstanceText(it,actorId,entryId));if(bg3CatalogIsId(itemId)){const allPrograms=await bg3ItemInstructionPrograms(it),programs=focus?allPrograms.filter(record=>bg3Array(record&&record.ref&&record.ref.contexts).some(context=>String(context&&context.focusId||'')===focus)):allPrograms;if(programs.length){lines.push('', 'Постоянные, условные и связанные правила:');for(const record of programs){lines.push('',...bg3ItemInstructionProgramLines(record));}}else if(lifecycle.length&&(!focus||lifecycle.some(ref=>String(ref&&ref.id||'')===focus)))lines.push('', 'Для этой ссылки не найдено отдельной программы; её подтверждённая сводка приведена выше.');}
+  itemId=String(itemId||'');try{if(bg3CatalogIsId(itemId)){await bg3CatalogEnsureIndex();if(!bg3Catalog.items.has(itemId))await bg3CatalogHydrate([itemId]);}const it=itemOf(itemId);if(!it)throw new Error('предмет отсутствует в текущей базе');setStatus('⌁ Загружаются полные правила предмета…');const lines=bg3ItemInstructionOverview(it,focusId),focus=String(focusId||''),lifecycle=bg3LifecycleRefsOf(it).filter(effect=>!bg3ItemStorageStoryAction(effect));if(actorId||entryId)lines.push('',bg3ItemRuleInstanceText(it,actorId,entryId));if(bg3CatalogIsId(itemId)&&!bg3ElementalInfusionInstructionItem(it)){const allPrograms=await bg3ItemInstructionPrograms(it),programs=focus?allPrograms.filter(record=>bg3Array(record&&record.ref&&record.ref.contexts).some(context=>String(context&&context.focusId||'')===focus)):allPrograms;if(programs.length){lines.push('', 'Постоянные, условные и связанные правила:');for(const record of programs){lines.push('',...bg3ItemInstructionProgramLines(record));}}else if(lifecycle.length&&(!focus||lifecycle.some(ref=>String(ref&&ref.id||'')===focus)))lines.push('', 'Для этой ссылки не найдено отдельной программы; её подтверждённая сводка приведена выше.');}
     const title=bg3CatalogIsId(itemId)?bg3UserItemName(bg3Catalog.summaries.get(itemId),'Правила предмета'):String(it.n||'Правила предмета');askShow({title:'ℹ '+title,body:lines.join('\n'),note:bg3CatalogIsId(itemId)?'Это подробная справка по игровым свойствам предмета. Текст ничего не применяет и не расходует.':'Это справка по сохранённой механике предмета кампании; применение выполняется отдельной кнопкой.'});setStatus('✓ Правила предмета открыты.');return true;
   }catch(error){const reason=String(error&&error.message||error);setStatus('✕ Правила предмета не загрузились: '+reason,true);askShow({title:'⚠ Правила временно недоступны',body:'Карточка предмета сохранена, но подробную справку сейчас открыть не удалось.',note:'Ничего не израсходовано и состояние мира не изменено. '+reason});return false;}
 }
@@ -19216,6 +19230,11 @@ let bg3ItemPresentation={root:null,loading:null,error:'',byItem:new Map(),detail
    стабильные itemId; чанк гидратируется перед использованием. */
 const BG3_CATALOG_POINTER='data/bg3/current.json';
 const BG3_CATALOG_PAGE_SIZE=40;
+const BG3_GAME_RULES_PROFILE='standard';
+const BG3_ARCHIVE_HONOUR_AUDIT=false;
+function bg3CatalogHasLegacyHonourRef(refs){return !!(Array.isArray(refs)&&refs.some(ref=>ref&&ref.id==='bg3'&&ref.profile==='honour'));}
+function bg3CatalogStandardRefs(refs){return Array.isArray(refs)?refs.map(ref=>ref&&ref.id==='bg3'&&ref.profile==='honour'?Object.assign({},ref,{profile:BG3_GAME_RULES_PROFILE}):ref):refs;}
+function bg3CatalogHasHonourLearnedSpells(casters){return bg3Array(casters).some(caster=>bg3Array(caster&&caster.bg3LearnedSpells).some(entry=>entry&&entry.profile==='honour'));}
 const bg3Catalog={
   preferredVersion:'',preferredProfile:'',preferredManifestSha256:'',current:null,manifest:null,index:null,error:'',refError:'',worldHydrationError:'',loading:null,page:0,epoch:0,
   summaries:new Map(),items:new Map(),shards:new Map(),shardPromises:new Map(),shardErrors:new Map(),
@@ -19258,13 +19277,13 @@ function bg3CatalogUseRefs(refs){
     if(typeof bg3TreasureNormalizeState==='function')bg3TreasureState=bg3TreasureNormalizeState(null,{version:'',profile:''});
     return true;
   }
-  if(!/^bg3-\d+-v\d+$/.test(String(ref.version||''))||(ref.profile!=null&&!['standard','honour'].includes(ref.profile))
+  if(!/^bg3-\d+-v\d+$/.test(String(ref.version||''))||(ref.profile!=null&&ref.profile!==BG3_GAME_RULES_PROFILE&&!(BG3_ARCHIVE_HONOUR_AUDIT&&ref.profile==='honour'))
       ||(ref.manifestSha256!=null&&!/^[0-9a-f]{64}$/.test(String(ref.manifestSha256)))
       ||(!String(ref.version||'').endsWith('-v1')&&!/^[0-9a-f]{64}$/.test(String(ref.manifestSha256||'')))){
     bg3CatalogReset(false);bg3Catalog.refError='Некорректная ссылка на версию или профиль каталога BG3';bg3Catalog.error=bg3Catalog.refError;
     return false;
   }
-  const version=String(ref.version),profile=['standard','honour'].includes(ref.profile)?ref.profile:'standard',manifestSha256=String(ref.manifestSha256||'');
+  const version=String(ref.version),profile=BG3_ARCHIVE_HONOUR_AUDIT&&ref.profile==='honour'?'honour':BG3_GAME_RULES_PROFILE,manifestSha256=String(ref.manifestSha256||'');
   const changed=bg3Catalog.preferredVersion!==version||bg3Catalog.preferredProfile!==profile
     ||bg3Catalog.preferredManifestSha256!==manifestSha256||!!(bg3Catalog.current&&bg3Catalog.current.catalogVersion!==version);
   bg3Catalog.preferredVersion=version; bg3Catalog.preferredProfile=profile; bg3Catalog.preferredManifestSha256=manifestSha256;
@@ -19320,12 +19339,15 @@ async function bg3FetchPinnedJSON(url,expectedSha256,cacheMode,bg3Host){
   const ErrorCtor=bg3Host&&bg3Host.error||Error;
   expectedSha256=String(expectedSha256||'').toLowerCase();
   if(expectedSha256&&!/^[0-9a-f]{64}$/.test(expectedSha256))throw new ErrorCtor('invalid SHA-256 for '+url);
-  const fetchCall=bg3Host&&bg3Host.fetch||((...args)=>fetch(...args)),response=await fetchCall(url,{cache:cacheMode||'force-cache'}),ok=bg3Host&&bg3Host.responseOk?bg3Host.responseOk(response):response.ok;if(!ok){const status=bg3Host&&bg3Host.responseStatus?bg3Host.responseStatus(response):response.status;throw new ErrorCtor('HTTP '+status+' for '+url);}
-  if(!expectedSha256)return bg3Host&&bg3Host.responseJson?bg3Host.responseJson(response):response.json();
-  const digestCall=bg3Host&&bg3Host.digest||((algorithm,bytes)=>crypto.subtle.digest(algorithm,bytes)),parse=bg3Host&&bg3Host.jsonParse||JSON.parse;if(typeof digestCall!=='function')throw new ErrorCtor('browser cannot verify SHA-256 for '+url);
-  const raw=await (bg3Host&&bg3Host.responseText?bg3Host.responseText(response):response.text()),bytes=bg3Host&&bg3Host.encode?bg3Host.encode(raw):new TextEncoder().encode(raw),digest=await digestCall('SHA-256',bytes),actual=bg3Host&&bg3Host.hex?bg3Host.hex(digest):[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
-  if(actual!==expectedSha256)throw new ErrorCtor('manifest SHA-256 differs from pinned reference: '+url);
-  try{return parse(raw);}catch(_error){throw new ErrorCtor('manifest is not JSON: '+url);}
+  const retryOnMismatch=cacheMode==='reload-on-mismatch',fetchCall=bg3Host&&bg3Host.fetch||((...args)=>fetch(...args)),digestCall=bg3Host&&bg3Host.digest||((algorithm,bytes)=>crypto.subtle.digest(algorithm,bytes)),parse=bg3Host&&bg3Host.jsonParse||JSON.parse;
+  const read=async mode=>{const response=await fetchCall(url,{cache:mode}),ok=bg3Host&&bg3Host.responseOk?bg3Host.responseOk(response):response.ok;if(!ok){const status=bg3Host&&bg3Host.responseStatus?bg3Host.responseStatus(response):response.status;throw new ErrorCtor('HTTP '+status+' for '+url);}
+    if(!expectedSha256)return {json:await (bg3Host&&bg3Host.responseJson?bg3Host.responseJson(response):response.json())};
+    if(typeof digestCall!=='function')throw new ErrorCtor('browser cannot verify SHA-256 for '+url);
+    const raw=await (bg3Host&&bg3Host.responseText?bg3Host.responseText(response):response.text()),bytes=bg3Host&&bg3Host.encode?bg3Host.encode(raw):new TextEncoder().encode(raw),digest=await digestCall('SHA-256',bytes),actual=bg3Host&&bg3Host.hex?bg3Host.hex(digest):[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');return {raw,actual};};
+  let loaded=await read(retryOnMismatch?'force-cache':cacheMode||'force-cache');if(!expectedSha256)return loaded.json;
+  if(retryOnMismatch&&loaded.actual!==expectedSha256)loaded=await read('reload');
+  if(loaded.actual!==expectedSha256)throw new ErrorCtor('manifest SHA-256 differs from pinned reference: '+url);
+  try{return parse(loaded.raw);}catch(_error){throw new ErrorCtor('manifest is not JSON: '+url);}
 }
 async function bg3CatalogEnsureIndex(bg3Private){
   const runtime=bg3Private&&bg3Private.runtime,stringOf=runtime?runtime.string:String,arrayIsArray=runtime?runtime.arrayIsArray:Array.isArray,MapCtor=runtime?runtime.mapConstructor:Map,assign=runtime?runtime.objectAssign:Object.assign,
@@ -19343,7 +19365,7 @@ async function bg3CatalogEnsureIndex(bg3Private){
     if(bg3Private&&!bg3Private.guard())throw new ErrorCtor('private-item-formula-authoritative-prototype-changed');assertEpoch(epoch);
     if(!pointer||!/^bg3-\d+-v\d+$/.test(stringOf(pointer.catalogVersion||'')))throw new ErrorCtor('неверный указатель версии');
     const current=assign({},pointer,{catalogVersion:selectedVersion||pointer.catalogVersion,
-      defaultRulesProfile:selectedProfile||pointer.defaultRulesProfile||'standard'});
+      defaultRulesProfile:BG3_ARCHIVE_HONOUR_AUDIT&&selectedVersion&&selectedProfile==='honour'?'honour':BG3_GAME_RULES_PROFILE});
     if(current.manifestSha256!=null&&current.manifestSha256!==''&&!/^[0-9a-f]{64}$/.test(stringOf(current.manifestSha256)))throw new ErrorCtor('invalid manifest SHA-256 in pointer');
     if(!stringOf(current.catalogVersion||'').endsWith('-v1')&&!/^[0-9a-f]{64}$/.test(stringOf(current.manifestSha256||'')))
       throw new ErrorCtor('immutable catalog pointer is missing manifest SHA-256');
@@ -19690,16 +19712,18 @@ function bg3ManifestArtifactDescriptor(manifest,version,rel){
   return String(version||'').endsWith('-v1')&&Object.keys(entries).some(k=>entries[k]===rel)?{path:rel,entrypoint:true}:null;
 }
 function bg3CatalogArtifactDescriptor(rel){return bg3ManifestArtifactDescriptor(bg3Catalog.manifest,bg3Catalog.current&&bg3Catalog.current.catalogVersion,rel);}
-async function bg3FetchArtifactJSON(url,descriptor,bg3Host){
-  const ErrorCtor=bg3Host&&bg3Host.error||Error,fetchCall=bg3Host&&bg3Host.fetch||((...args)=>fetch(...args)),response=await fetchCall(url,{cache:'force-cache'}),ok=bg3Host&&bg3Host.responseOk?bg3Host.responseOk(response):response.ok;if(!ok){const status=bg3Host&&bg3Host.responseStatus?bg3Host.responseStatus(response):response.status;throw new ErrorCtor('HTTP '+status+' для '+url);}
+async function bg3FetchArtifactJSON(url,descriptor,bg3Host,cacheMode){
+  const ErrorCtor=bg3Host&&bg3Host.error||Error,fetchCall=bg3Host&&bg3Host.fetch||((...args)=>fetch(...args)),retryOnMismatch=cacheMode==='reload-on-mismatch';
   if(descriptor&&descriptor.sha256){
     const digestCall=bg3Host&&bg3Host.digest||((algorithm,bytes)=>crypto.subtle.digest(algorithm,bytes)),parse=bg3Host&&bg3Host.jsonParse||JSON.parse;if(typeof digestCall!=='function')throw new ErrorCtor('браузер не поддерживает проверку SHA-256 для '+url);
-    let raw;try{raw=await (bg3Host&&bg3Host.responseText?bg3Host.responseText(response):response.text());}catch(_error){if(bg3Host)throw new ErrorCtor('pinned artifact response has no byte-preserving text reader: '+url);throw _error;}const bytes=bg3Host&&bg3Host.encode?bg3Host.encode(raw):new TextEncoder().encode(raw);
-    if(descriptor.bytes!=null&&+descriptor.bytes!==bytes.byteLength)throw new ErrorCtor('размер artifact не совпадает с manifest: '+url);
-    const digest=await digestCall('SHA-256',bytes),actual=bg3Host&&bg3Host.hex?bg3Host.hex(digest):[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
-    if(actual!==String(descriptor.sha256).toLowerCase())throw new ErrorCtor('SHA-256 artifact не совпадает с manifest: '+url);
-    try{return parse(raw);}catch(error){throw new ErrorCtor('artifact не является JSON: '+url);}
+    const read=async mode=>{const response=await fetchCall(url,{cache:mode}),ok=bg3Host&&bg3Host.responseOk?bg3Host.responseOk(response):response.ok;if(!ok){const status=bg3Host&&bg3Host.responseStatus?bg3Host.responseStatus(response):response.status;throw new ErrorCtor('HTTP '+status+' для '+url);}let raw;try{raw=await (bg3Host&&bg3Host.responseText?bg3Host.responseText(response):response.text());}catch(_error){if(bg3Host)throw new ErrorCtor('pinned artifact response has no byte-preserving text reader: '+url);throw _error;}const bytes=bg3Host&&bg3Host.encode?bg3Host.encode(raw):new TextEncoder().encode(raw),digest=await digestCall('SHA-256',bytes),actual=bg3Host&&bg3Host.hex?bg3Host.hex(digest):[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');return {raw,bytes,actual};};
+    let loaded=await read(retryOnMismatch?'force-cache':cacheMode||'force-cache'),sizeOk=descriptor.bytes==null||+descriptor.bytes===loaded.bytes.byteLength,shaOk=loaded.actual===String(descriptor.sha256).toLowerCase();
+    if(retryOnMismatch&&(!sizeOk||!shaOk)){loaded=await read('reload');sizeOk=descriptor.bytes==null||+descriptor.bytes===loaded.bytes.byteLength;shaOk=loaded.actual===String(descriptor.sha256).toLowerCase();}
+    if(!sizeOk)throw new ErrorCtor('размер artifact не совпадает с manifest: '+url);
+    if(!shaOk)throw new ErrorCtor('SHA-256 artifact не совпадает с manifest: '+url);
+    try{return parse(loaded.raw);}catch(error){throw new ErrorCtor('artifact не является JSON: '+url);}
   }
+  const response=await fetchCall(url,{cache:retryOnMismatch?'force-cache':cacheMode||'force-cache'}),ok=bg3Host&&bg3Host.responseOk?bg3Host.responseOk(response):response.ok;if(!ok){const status=bg3Host&&bg3Host.responseStatus?bg3Host.responseStatus(response):response.status;throw new ErrorCtor('HTTP '+status+' для '+url);}
   return bg3Host&&bg3Host.responseJson?bg3Host.responseJson(response):response.json();
 }
 async function bg3CatalogLoadArtifact(rel,bg3Private){
@@ -23767,7 +23791,7 @@ async function bg3SceneCommit(plan){if(!plan||!plan.ok||plan.kind!=='bg3-scene-p
   }finally{bg3SceneCatalog.locks.delete(plan.transactionId);bg3SceneCatalog.locks.delete(worldLock);}}
 function bg3SceneActionTypeOf(use){const primary=bg3SceneObject(bg3SceneObject(bg3SceneObject(use).program).sourceAction).primary,type=Number(bg3SceneObject(primary).actionType);return Number.isInteger(type)?type:0;}
 function bg3SceneActionButtonHTML(placementId,use,sourceEntryId){const type=bg3SceneActionTypeOf(use),icon=use&&use.icon&&use.icon.src?'<img class="item-icon sm" src="'+esc(use.icon.src)+'" width="34" height="34" loading="lazy" decoding="async" alt="">':'<span aria-hidden="true">✦</span>',label=BG3_SCENE_ACTION_LABELS_RU[type]||'Особое действие',supported=[1,2,3,4,8,9,10,11,14,15,16,17,18,19,20,22,23,24,26,27,28].includes(type)&&!(use&&use.handler==='bg3PlacementProgram'&&bg3SceneObject(use.program).mode!=='typed');if(!supported)return '';return '<button class="btn ghost sm" onclick="bg3SceneExecuteUI('+esc(JSON.stringify(placementId))+','+esc(JSON.stringify(use.id))+','+esc(JSON.stringify(sourceEntryId||''))+')">'+icon+' '+esc(label)+'</button>';}
-function bg3ScenePlaceLabel(value){const raw=String(value||'').trim(),known={Gustav:'Основная кампания',GustavDev:'Основная кампания',Shared:'Общие области',SharedDev:'Дополнительные общие области',Honour:'Режим чести'},prefix={TUT:'Пролог',WLD:'Акт I',CRE:'Акт I — ясли гитьянки',SCL:'Акт II',BGO:'Акт III — окрестности города',CTY:'Акт III — Врата Балдура',BGH:'Акт III',IRN:'Акт III',CMP:'Лагерь',END:'Финал',EPI:'Эпилог'},parts=raw.split('_').filter(Boolean),head=prefix[parts[0]]||'';if(!raw)return 'Не указано';if(known[raw])return known[raw];const tail=parts.slice(head?1:0).filter(part=>!['Main','A','B','C'].includes(part)).join(' ').replace(/([a-zа-я])([A-ZА-Я])/g,'$1 $2');return [head,tail].filter(Boolean).join(' — ')||'Другая область';}
+function bg3ScenePlaceLabel(value){const raw=String(value||'').trim(),known={Gustav:'Основная кампания',GustavDev:'Основная кампания',Shared:'Общие области',SharedDev:'Дополнительные общие области',Honour:'Дополнительная область'},prefix={TUT:'Пролог',WLD:'Акт I',CRE:'Акт I — ясли гитьянки',SCL:'Акт II',BGO:'Акт III — окрестности города',CTY:'Акт III — Врата Балдура',BGH:'Акт III',IRN:'Акт III',CMP:'Лагерь',END:'Финал',EPI:'Эпилог'},parts=raw.split('_').filter(Boolean),head=prefix[parts[0]]||'';if(!raw)return 'Не указано';if(known[raw])return known[raw];const tail=parts.slice(head?1:0).filter(part=>!['Main','A','B','C'].includes(part)).join(' ').replace(/([a-zа-я])([A-ZА-Я])/g,'$1 $2');return [head,tail].filter(Boolean).join(' — ')||'Другая область';}
 function bg3SceneStageOf(value){const code=String(value||'').trim().split('_')[0].toUpperCase();if(['TUT'].includes(code))return 'prologue';if(['WLD','CRE','FOR','GOB','DEN','HAG','UND','CHA'].includes(code))return 'act1';if(['SCL','MOO','SHA','TOW','COL'].includes(code))return 'act2';if(['BGO','CTY','BGH','LOW','IRN','WYR'].includes(code))return 'act3';if(['END','EPI'].includes(code))return 'finale';return 'other';}
 async function bg3SceneHydrateActorTools(actorId){const actor=actorId?getCh(actorId):itemWorkspaceHero(),ids=[...new Set(bg3Array(actor&&actor.inventory).map(entry=>entry&&entry.itemId).filter(bg3CatalogIsId))],missing=ids.filter(id=>!bg3Catalog.items.has(id));if(missing.length)await bg3CatalogHydrate(missing);return ids;}
 function bg3SceneStateHTML(state){
@@ -24356,6 +24380,10 @@ function bg3TadpoleNormalizeState(raw){
     globalFlags:{[BG3_TADPOLE_FLAGS.daisyUnlocked]:globalFlags[BG3_TADPOLE_FLAGS.daisyUnlocked]===true,
       [BG3_TADPOLE_FLAGS.treeUnlocked]:globalFlags[BG3_TADPOLE_FLAGS.treeUnlocked]===true},actors,
     pendingDialog:bg3TadpoleNormalizePending(raw.pendingDialog),committed:bg3TadpoleClone(bg3TadpoleObject(raw.committed))};
+}
+function bg3TadpoleStandardState(raw){
+  const state=bg3TadpoleNormalizeState(raw);if(!state.pendingDialog||state.pendingDialog.profile!=='honour')return state;
+  state.pendingDialog=null;state.facts.hadConsumeDialog=false;state.revision++;return state;
 }
 let bg3TadpoleState=bg3TadpoleNormalizeState(null);
 let bg3TadpoleCommitBusy=false;
@@ -25045,10 +25073,12 @@ function bg3CatalogUpgradeCanonical(value,seen){
 }
 function bg3CatalogUpgradeFingerprint(value){return JSON.stringify(bg3CatalogUpgradeCanonical(value));}
 function bg3CatalogUpgradeClone(value){return value==null?value:JSON.parse(JSON.stringify(value));}
-function bg3CatalogUpgradeWorldRelevant(){
+function bg3CatalogUpgradeGameplayRelevant(){
   return {chars:chars||[],combat:{zones:combat&&combat.zones||[],groundItems:combat&&combat.groundItems||[]},
-    scene:bg3SceneState,story:bg3StoryState,tadpoles:bg3TadpoleState,treasure:bg3TreasureState,
-    hydratedItemIds:[...bg3Catalog.items.keys()].filter(bg3CatalogIsId).sort()};
+    scene:bg3SceneState,story:bg3StoryState,tadpoles:bg3TadpoleState,treasure:bg3TreasureState};
+}
+function bg3CatalogUpgradeWorldRelevant(){
+  return Object.assign(bg3CatalogUpgradeGameplayRelevant(),{hydratedItemIds:[...bg3Catalog.items.keys()].filter(bg3CatalogIsId).sort()});
 }
 function bg3CatalogUpgradeReferencedIds(){
   const ids=new Set(),seen=new WeakSet(),walk=value=>{
@@ -25082,12 +25112,7 @@ function bg3CatalogUpgradeDescriptorCheck(descriptor,rel){
 }
 async function bg3CatalogUpgradeFetchArtifact(version,rel,descriptor){
   if(!bg3CatalogUpgradeDescriptorCheck(descriptor,rel))throw new Error('artifact '+rel+' не закреплён точной SHA-256 и размером в manifest');
-  const url=bg3CatalogVersionUrl(version,rel),response=await fetch(url,{cache:'force-cache'});if(!response.ok)throw new Error('HTTP '+response.status+' для '+url);
-  if(typeof response.text!=='function'||typeof crypto==='undefined'||!crypto.subtle||typeof TextEncoder==='undefined')throw new Error('браузер не может проверить точную SHA-256 для '+rel);
-  const raw=await response.text(),bytes=new TextEncoder().encode(raw);if(bytes.byteLength!==+descriptor.bytes)throw new Error('размер artifact '+rel+' не совпадает с manifest');
-  const digest=await crypto.subtle.digest('SHA-256',bytes),actual=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
-  if(actual!==String(descriptor.sha256))throw new Error('SHA-256 artifact '+rel+' не совпадает с manifest');
-  try{return JSON.parse(raw);}catch(_error){throw new Error('artifact '+rel+' не является JSON');}
+  return bg3FetchArtifactJSON(bg3CatalogVersionUrl(version,rel),descriptor,null,'reload-on-mismatch');
 }
 function bg3CatalogUpgradeLearnedSemantic(entry,rule,program,cost){
   return bg3CatalogUpgradeFingerprint({spellId:entry.spellId,level:+entry.level,school:entry.school,
@@ -25125,13 +25150,16 @@ function bg3CatalogUpgradeA33RootCheck(use,action,root,profile){
     return {ok:false,reason:'exact A33 root содержит неверную causal consequence'};
   return {ok:true};
 }
-async function bg3CatalogUpgradePrepareLearned(nextChars,manifest,preparedItems,version,manifestSha256,profile,oldVersion,oldManifestSha256){
+async function bg3CatalogUpgradePrepareLearned(nextChars,manifest,preparedItems,version,manifestSha256,profile,oldVersion,oldManifestSha256,oldProfile){
   const cache=new Map();let count=0;
-  for(const caster of nextChars)for(const entry of bg3Array(caster&&caster.bg3LearnedSpells)){
+  for(const caster of nextChars){
+    const sourceIdentity={epoch:bg3Catalog.epoch,version:oldVersion,profile,manifestSha256:String(oldManifestSha256||manifestSha256||'').toLowerCase()};bg3LearnedSpellUpgradeEntries(caster,sourceIdentity);
+    if(oldProfile&&oldProfile!==profile)bg3LearnedSpellUpgradeEntries(caster,Object.assign({},sourceIdentity,{profile:oldProfile}));
+    for(const entry of bg3Array(caster&&caster.bg3LearnedSpells)){
     const check=bg3LearnedSpellEntryCheck(entry);if(!check.ok)throw new Error(check.reason);
     if(entry.catalogVersion!==oldVersion||(/^[0-9a-f]{64}$/.test(String(oldManifestSha256||''))&&entry.manifestSha256!==oldManifestSha256))
       throw new Error('сохранённое заклинание '+entry.spellId+' закреплено за другой исходной версией каталога');
-    if(entry.profile!==profile)throw new Error('сохранённое заклинание '+entry.spellId+' принадлежит другому профилю правил');
+    if(entry.profile!==profile&&entry.profile!==oldProfile)throw new Error('сохранённое заклинание '+entry.spellId+' принадлежит другому профилю правил');
     const learnedFrom=entry.learnedFrom,item=learnedFrom&&preparedItems.get(learnedFrom.itemId);if(!learnedFrom||!bg3CatalogIsId(learnedFrom.itemId)
         ||!String(learnedFrom.useId||'')||!String(learnedFrom.rootProgramId||'')||!bg3CatalogUpgradePathSafe(learnedFrom.rootArtifact,'root')||!item)
       throw new Error('исходный itemId A33 сохранённого заклинания отсутствует в новом каталоге: '+entry.spellId);
@@ -25154,8 +25182,9 @@ async function bg3CatalogUpgradePrepareLearned(nextChars,manifest,preparedItems,
     const cost=bg3LearnedSpellCostContract(program,entry.level,{properties});if(!cost.ok)throw new Error(cost.reason);
     const savedCost=entry.castResource||{},saved={cost:savedCost.cost,slotLevel:+savedCost.slotLevel,sourceKind:savedCost.sourceKind,sourceRaw:savedCost.sourceRaw,requiresOutOfCombat:!!savedCost.requiresOutOfCombat};
     if(bg3CatalogUpgradeLearnedSemantic(entry,rule,program,cost)!==bg3CatalogUpgradeLearnedSemantic(entry,rule,program,saved))throw new Error('семантика spell/cost изменилась в новом каталоге: '+entry.spellId);
-    entry.ruleId=rule.id;entry.programId=program.id;entry.artifact=rel;entry.catalogVersion=version;entry.manifestSha256=manifestSha256;
+    entry.ruleId=rule.id;entry.programId=program.id;entry.artifact=rel;entry.catalogVersion=version;entry.manifestSha256=manifestSha256;entry.profile=profile;
     entry.learnedFrom=Object.assign({},learnedFrom,{itemId:item.id,useId:use.id,rootProgramId:root.id,rootArtifact:rootRel});count++;
+    }
   }
   return {chars:nextChars,count};
 }
@@ -25169,19 +25198,20 @@ function bg3CatalogUpgradeOldStateSame(old){
     &&bg3CatalogUpgradeFingerprint(old.current)===bg3CatalogUpgradeFingerprint(bg3Catalog.current));
 }
 async function bg3CatalogUpgradePlanFor(options){
-  options=options||{};if(options.gmConfirmed!==true)return {ok:false,reason:'Обновление каталога должен явно подтвердить мастер.'};
+  options=options||{};const sameVersionReissue=options.sameVersionReissue===true;if(options.gmConfirmed!==true&&!sameVersionReissue)return {ok:false,reason:'Обновление каталога должен явно подтвердить мастер.'};
   let savedCatalogError='';try{await bg3CatalogEnsureIndex();}catch(error){savedCatalogError=String(error&&error.message||error);}
   const old=bg3CatalogUpgradeOldState(),oldRef=old.refs.find(row=>row&&row.id==='bg3');
   const oldIdentity=bg3CatalogUpgradeVersionIdentity(oldRef&&oldRef.version);if(!oldRef||!oldIdentity)return {ok:false,reason:savedCatalogError
     ?'Сохранённый каталог BG3 недоступен, а точная ссылка версии отсутствует: '+savedCatalogError:'Кампания не содержит точную версию каталога BG3.'};
   if(oldIdentity.revision>1&&!/^[0-9a-f]{64}$/.test(String(oldRef.manifestSha256||'')))return {ok:false,reason:'Сохранённый неизменяемый каталог BG3 не закреплён SHA-256 manifest.'};
-  const profile=['standard','honour'].includes(oldRef.profile)?oldRef.profile:'standard';
+  const profile=BG3_ARCHIVE_HONOUR_AUDIT&&oldRef.profile==='honour'?'honour':BG3_GAME_RULES_PROFILE;
   try{
     const pointer=await bg3FetchJSON(BG3_CATALOG_POINTER,'no-cache'),checked=bg3CatalogUpgradePointerCheck(pointer);if(!checked.ok)return checked;
     const nextIdentity=bg3CatalogUpgradeVersionIdentity(checked.version);if(!nextIdentity||nextIdentity.buildId!==oldIdentity.buildId)
       return {ok:false,reason:'Опубликованный каталог относится к другой сборке BG3; автоматическая замена запрещена.'};
-    if(nextIdentity.revision<=oldIdentity.revision)return {ok:false,reason:nextIdentity.revision===oldIdentity.revision?'Сохранённая версия уже является текущей.':'Опубликованная версия старее сохранённой; понижение запрещено.'};
-    const manifest=await bg3FetchPinnedJSON(bg3CatalogVersionUrl(checked.version,'manifest.json'),checked.manifestSha256,'force-cache');
+    if(nextIdentity.revision<oldIdentity.revision)return {ok:false,reason:'Опубликованная версия старее сохранённой; понижение запрещено.'};
+    if(nextIdentity.revision===oldIdentity.revision&&(!sameVersionReissue||checked.manifestSha256===String(oldRef.manifestSha256||'')))return {ok:false,reason:'Сохранённая версия уже является текущей.'};
+    const manifest=await bg3FetchPinnedJSON(bg3CatalogVersionUrl(checked.version,'manifest.json'),checked.manifestSha256,'reload-on-mismatch');
     if(!manifest||manifest.catalogVersion!==checked.version||!manifest.contracts||manifest.contracts.itemSchemaVersion!==ITEM_SCHEMA_VERSION)
       throw new Error('manifest нового каталога несовместим с движком предметов');
     if(!manifest.source||!manifest.source.profiles||!manifest.source.profiles[profile])throw new Error('в новом manifest отсутствует профиль '+profile);
@@ -25201,7 +25231,7 @@ async function bg3CatalogUpgradePlanFor(options){
     const preparedItems=new Map(preparedShards.flatMap(row=>row.items.map(item=>[item.id,item]))),notHydrated=referencedIds.filter(id=>!preparedItems.has(id));
     if(notHydrated.length)throw new Error('точный shard не содержит связанный itemId: '+notHydrated.slice(0,3).join(', '));
     const learned=await bg3CatalogUpgradePrepareLearned(bg3CatalogUpgradeClone(chars||[]),manifest,preparedItems,checked.version,checked.manifestSha256,profile,
-      oldRef.version,oldRef.manifestSha256||old.current&&old.current.manifestSha256||'');
+      oldRef.version,oldRef.manifestSha256||old.current&&old.current.manifestSha256||'',options.migrateProfileFrom);
     if(!bg3CatalogUpgradeOldStateSame(old))return {ok:false,stale:true,reason:'Кампания или сохранённая ссылка изменились во время проверки; обновление отменено.'};
     const pins={epoch:old.epoch,oldRefs:old.refs,oldCurrent:old.current,worldFingerprint:old.worldFingerprint,profile,pointer:bg3CatalogUpgradeClone(pointer),
       pointerFingerprint:bg3CatalogUpgradeFingerprint(pointer),referencedIds,hydratedItemIds:[...bg3Catalog.items.keys()].filter(bg3CatalogIsId).sort()},
@@ -25237,6 +25267,33 @@ async function bg3CatalogUpgradeCommit(plan){
     if(typeof renderItemsDB==='function')renderItemsDB();if(typeof renderChars==='function')renderChars();
     return {ok:true,version:checked.version,profile:pins.profile,manifestSha256:checked.manifestSha256,itemIds:pins.referencedIds.slice(),learnedSpellCount:draft.learnedSpellCount};
   }finally{bg3CatalogUpgradeDrafts.delete(plan);bg3CatalogUpgradeLock=false;}
+}
+async function bg3CatalogMigrateSameVersionReissue(options){
+  options=options||{};
+  const oldRef=bg3CatalogRefs().find(row=>row&&row.id==='bg3'),oldIdentity=bg3CatalogUpgradeVersionIdentity(oldRef&&oldRef.version),oldSha=String(oldRef&&oldRef.manifestSha256||'').toLowerCase();
+  if(!oldIdentity||oldIdentity.revision<=1||!/^[0-9a-f]{64}$/.test(oldSha))return {ok:true,changed:false};
+  let pointer;try{pointer=await bg3FetchJSON(BG3_CATALOG_POINTER,'no-cache');}catch(_error){return {ok:true,changed:false};}
+  const checked=bg3CatalogUpgradePointerCheck(pointer);if(!checked.ok||checked.version!==oldRef.version||checked.manifestSha256===oldSha)return {ok:true,changed:false};
+  const plan=await bg3CatalogUpgradePlanFor({sameVersionReissue:true,migrateProfileFrom:options.migrateProfileFrom});if(!plan.ok)return {ok:false,changed:false,reason:plan.reason};
+  const done=await bg3CatalogUpgradeCommit(plan);return done.ok?Object.assign({changed:true},done):Object.assign({changed:false},done);
+}
+async function bg3CatalogMigrateLearnedHonourToStandard(){
+  const affected=bg3Array(chars).flatMap(caster=>bg3Array(caster&&caster.bg3LearnedSpells)).filter(entry=>entry&&entry.profile==='honour');
+  if(!affected.length)return {ok:true,changed:false,count:0};
+  const identity=bg3LearnSpellCatalogIdentity(),beforeEpoch=bg3Catalog.epoch,beforeWorld=bg3CatalogUpgradeFingerprint(bg3CatalogUpgradeGameplayRelevant());
+  if(!bg3LearnSpellCatalogIdentityValid(identity)||identity.profile!==BG3_GAME_RULES_PROFILE)return {ok:false,changed:false,reason:'активный каталог не закреплён за обычными правилами'};
+  try{
+    await bg3CatalogEnsureIndex();
+    const itemIds=[...new Set(affected.map(entry=>entry.learnedFrom&&entry.learnedFrom.itemId).filter(bg3CatalogIsId))];
+    if(itemIds.length!==new Set(affected.map(entry=>entry.learnedFrom&&entry.learnedFrom.itemId)).size)throw new Error('не у каждого заклинания сохранён точный предмет-источник');
+    await bg3CatalogHydrate(itemIds);
+    if(beforeEpoch!==bg3Catalog.epoch||beforeWorld!==bg3CatalogUpgradeFingerprint(bg3CatalogUpgradeGameplayRelevant()))return {ok:false,changed:false,stale:true,reason:'кампания изменилась во время проверки'};
+    const learned=await bg3CatalogUpgradePrepareLearned(bg3CatalogUpgradeClone(chars||[]),bg3Catalog.manifest,bg3Catalog.items,identity.version,identity.manifestSha256,
+      BG3_GAME_RULES_PROFILE,identity.version,identity.manifestSha256,'honour');
+    if(beforeEpoch!==bg3Catalog.epoch||beforeWorld!==bg3CatalogUpgradeFingerprint(bg3CatalogUpgradeGameplayRelevant()))return {ok:false,changed:false,stale:true,reason:'кампания изменилась до применения проверенной перепривязки'};
+    chars=learned.chars;if(typeof bg3InventoryStatusTransitionReset==='function')bg3InventoryStatusTransitionReset();fxInvalidate();scheduleSave();
+    return {ok:true,changed:true,count:affected.length};
+  }catch(error){return {ok:false,changed:false,reason:String(error&&error.message||error)};}
 }
 async function bg3CatalogUpgradeUI(){
   if(!confirm('Мастер: проверить новую неизменяемую версию каталога BG3 для этой кампании? До отдельного подтверждения сохранённая версия не изменится.'))return false;
@@ -25282,14 +25339,14 @@ function bg3ItemPresentationValidateDetail(payload,descriptor,root){
 }
 async function bg3ItemPresentationLoadDetail(itemId){
   const root=await bg3ItemPresentationEnsure();if(!root)return null;const meta=root.byItem.get(String(itemId||''));if(!meta||meta.detailShard==null)return null;if(bg3ItemPresentation.details.has(meta.itemId))return bg3ItemPresentation.details.get(meta.itemId);const shard=meta.detailShard;if(bg3ItemPresentation.detailPromises.has(shard))return bg3ItemPresentation.detailPromises.get(shard).then(()=>bg3ItemPresentation.details.get(meta.itemId)||null);const descriptor=root.detailFiles.get(shard),epoch=bg3Catalog.epoch;
-  if(bg3ItemPresentation.detailErrors.has(shard))throw new Error(bg3ItemPresentation.detailErrors.get(shard));const core=(async()=>{const payload=await bg3FetchPinnedJSON(BG3_ITEM_PRESENTATION_BASE+descriptor.path,descriptor.sha256,'force-cache');bg3CatalogAssertEpoch(epoch);bg3ItemPresentationValidateDetail(payload,descriptor,root);bg3ItemPresentation.detailShards.set(shard,payload);for(const item of payload.items)bg3ItemPresentation.details.set(item.itemId,item);bg3ItemPresentation.detailErrors.delete(shard);return payload;})();bg3ItemPresentation.detailPromises.set(shard,core);try{await core;return bg3ItemPresentation.details.get(meta.itemId)||null;}catch(error){if(epoch===bg3Catalog.epoch)bg3ItemPresentation.detailErrors.set(shard,String(error&&error.message||error));throw error;}finally{if(bg3ItemPresentation.detailPromises.get(shard)===core)bg3ItemPresentation.detailPromises.delete(shard);}
+  if(bg3ItemPresentation.detailErrors.has(shard))throw new Error(bg3ItemPresentation.detailErrors.get(shard));const core=(async()=>{const payload=await bg3FetchPinnedJSON(BG3_ITEM_PRESENTATION_BASE+descriptor.path,descriptor.sha256,'reload');bg3CatalogAssertEpoch(epoch);bg3ItemPresentationValidateDetail(payload,descriptor,root);bg3ItemPresentation.detailShards.set(shard,payload);for(const item of payload.items)bg3ItemPresentation.details.set(item.itemId,item);bg3ItemPresentation.detailErrors.delete(shard);return payload;})();bg3ItemPresentation.detailPromises.set(shard,core);try{await core;return bg3ItemPresentation.details.get(meta.itemId)||null;}catch(error){if(epoch===bg3Catalog.epoch)bg3ItemPresentation.detailErrors.set(shard,String(error&&error.message||error));throw error;}finally{if(bg3ItemPresentation.detailPromises.get(shard)===core)bg3ItemPresentation.detailPromises.delete(shard);}
 }
 function bg3ItemPresentationValidateSearch(payload,descriptor,root,profile,seen,docs){
   if(!payload||payload.schemaVersion!==BG3_ITEM_PRESENTATION_SEARCH_SCHEMA||payload.catalogVersion!==root.raw.catalogVersion||payload.sourceBuildId!==root.raw.sourceBuildId||payload.shard!==descriptor.shard||!Array.isArray(payload.rows)||+payload.rowCount!==payload.rows.length||payload.rows.length!==descriptor.count)throw new Error('часть расширенного поиска presentation-проекции повреждена');for(const raw of payload.rows){if(!Array.isArray(raw)||raw.length!==4)throw new Error('неверная строка расширенного поиска');const [itemIndex,description,standard,honour]=raw,meta=root.raw.items[itemIndex]&&root.byItem.get(root.raw.items[itemIndex][0]),nullable=value=>value==null||typeof value==='string';if(!Number.isInteger(itemIndex)||!meta||seen.has(itemIndex)||!nullable(description)||!nullable(standard)||!nullable(honour)||(meta.profileMask&1)&&standard==null||meta.profileMask===2&&honour==null)throw new Error('неверный itemIndex расширенного поиска');seen.add(itemIndex);const bit=profile==='honour'?2:1;if(!(meta.profileMask&bit))continue;let selected=standard||'';if(profile==='honour'){if(honour==null){if(meta.profileMask!==3)throw new Error('недопустимый Honour fallback расширенного поиска');}else selected=honour;}docs.set(meta.itemId,((description||'')+' '+(selected||'')).trim());}return payload;
 }
 async function bg3ItemPresentationEnsureSearch(){
   const root=await bg3ItemPresentationEnsure();if(!root)return new Map();if(bg3ItemPresentation.searchReady)return bg3ItemPresentation.searchDocs;if(bg3ItemPresentation.searchLoading)return bg3ItemPresentation.searchLoading;const epoch=bg3Catalog.epoch,profile=bg3Catalog.preferredProfile||'standard',seen=new Set(),docs=new Map(),descriptors=[...root.searchFiles.values()].sort((a,b)=>a.shard.localeCompare(b.shard));
-  const core=(async()=>{const payloads=await Promise.all(descriptors.map(descriptor=>bg3FetchPinnedJSON(BG3_ITEM_PRESENTATION_BASE+descriptor.path,descriptor.sha256,'force-cache').then(payload=>({payload,descriptor}))));bg3CatalogAssertEpoch(epoch);for(const row of payloads)bg3ItemPresentationValidateSearch(row.payload,row.descriptor,root,profile,seen,docs);if(seen.size!==root.raw.items.length)throw new Error('расширенный поиск не покрывает точный набор предметов');bg3ItemPresentation.searchDocs=docs;bg3ItemPresentation.searchReady=true;bg3ItemPresentation.searchError='';return docs;})();bg3ItemPresentation.searchLoading=core;
+  const core=(async()=>{const payloads=await Promise.all(descriptors.map(descriptor=>bg3FetchPinnedJSON(BG3_ITEM_PRESENTATION_BASE+descriptor.path,descriptor.sha256,'reload').then(payload=>({payload,descriptor}))));bg3CatalogAssertEpoch(epoch);for(const row of payloads)bg3ItemPresentationValidateSearch(row.payload,row.descriptor,root,profile,seen,docs);if(seen.size!==root.raw.items.length)throw new Error('расширенный поиск не покрывает точный набор предметов');bg3ItemPresentation.searchDocs=docs;bg3ItemPresentation.searchReady=true;bg3ItemPresentation.searchError='';return docs;})();bg3ItemPresentation.searchLoading=core;
   try{return await core;}catch(error){if(epoch===bg3Catalog.epoch)bg3ItemPresentation.searchError=String(error&&error.message||error);throw error;}finally{if(bg3ItemPresentation.searchLoading===core)bg3ItemPresentation.searchLoading=null;}
 }
 function bg3ItemPresentationRefresh(){if(activeWorldTab!=='itemsdb')return;const field=document.getElementById('bg3CatalogSearchInput'),focused=field&&document.activeElement===field,start=focused&&Number.isInteger(field.selectionStart)?field.selectionStart:null,end=focused&&Number.isInteger(field.selectionEnd)?field.selectionEnd:null;renderItemsDB();if(focused)bg3CatalogRestoreFilterFocus('bg3CatalogSearchInput',start,end);}
@@ -25369,9 +25426,9 @@ function bg3Count(value){return Number.isFinite(+value)?(+value).toLocaleString(
 function bg3RuNoun(value,one,few,many){const n=Math.abs(Math.trunc(+value||0)),last=n%10,lastTwo=n%100;return lastTwo>=11&&lastTwo<=14?many:last===1?one:last>=2&&last<=4?few:many;}
 function bg3ReleaseSummaryHTML(){
   const cache=bg3Catalog.index?bg3CatalogSearchCacheEnsure():null,available=cache&&cache.availableCount||0,total=available+itemsDB.length,
-    recipes=bg3Catalog.assets.recipes&&bg3Catalog.assets.recipes.recipes.length,profile=bg3Catalog.preferredProfile||'standard';
+    recipes=bg3Catalog.assets.recipes&&bg3Catalog.assets.recipes.recipes.length;
   return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-user-items="'+total+'" aria-label="Сводка полной игровой базы предметов"><div class="bg3-release-head"><span class="bg3-release-title">Полный арсенал · BG3 v10</span>'
-    +'<span class="bg3-release-sub">единый поиск по предметам BG3 и кампании · '+esc(profile==='honour'?'режим чести':'обычные правила')+'</span></div>'
+    +'<span class="bg3-release-sub">единый поиск по предметам BG3 и кампании · обычные правила</span></div>'
     +'<div class="bg3-release-metrics"><div class="bg3-release-metric"><b>'+bg3Count(total)+'</b>доступных предметов</div>'
     +'<div class="bg3-release-metric"><b>'+bg3Count(available)+'</b>предметов BG3</div>'
     +'<div class="bg3-release-metric"><b>'+bg3Count(itemsDB.length)+'</b>предметов кампании</div>'
@@ -25411,19 +25468,9 @@ function bg3CatalogRetryIndex(){
   renderItemsDB();bg3CatalogEnsureIndex().then(()=>renderItemsDB()).catch(()=>renderItemsDB());
 }
 function bg3CatalogSelectProfile(profile){
-  if(!['standard','honour'].includes(profile))return;
-  const profileLabel=profile==='honour'?'Режим чести':'Обычные правила';
-  const version=bg3Catalog.current&&bg3Catalog.current.catalogVersion||bg3Catalog.preferredVersion;
-  const manifestSha256=bg3Catalog.current&&bg3Catalog.current.manifestSha256||bg3Catalog.preferredManifestSha256||'';
-  const ref={id:'bg3',version,profile};if(manifestSha256)ref.manifestSha256=manifestSha256;
-  if(!version||!bg3CatalogUseRefs([ref]))return;
-  const epoch=bg3Catalog.epoch;
-  scheduleSave();renderItemsDB();setStatus('Переключаю каталог BG3: '+profileLabel+'…');
-  bg3CatalogEnsureIndex().then(()=>bg3CatalogHydrateWorld({rethrow:true})).then(()=>{
-    if(epoch!==bg3Catalog.epoch)return;
-    setStatus('Профиль BG3: '+profileLabel+' ✓');renderItemsDB();renderChars();
-  }).catch(error=>{if(epoch!==bg3Catalog.epoch||error&&error.code==='BG3_CATALOG_STALE')return;
-    setStatus('Профиль BG3 переключен, но связанные предметы недоступны: '+bg3FriendlyError(error,'попробуйте ещё раз'),true);renderItemsDB();renderChars();});
+  if(profile!==BG3_GAME_RULES_PROFILE)return false;
+  const version=bg3Catalog.current&&bg3Catalog.current.catalogVersion||bg3Catalog.preferredVersion,manifestSha256=bg3Catalog.current&&bg3Catalog.current.manifestSha256||bg3Catalog.preferredManifestSha256||'';
+  if(!version)return false;const ref={id:'bg3',version,profile:BG3_GAME_RULES_PROFILE};if(manifestSha256)ref.manifestSha256=manifestSha256;return bg3CatalogUseRefs([ref]);
 }
 function bg3CatalogSummaryHTML(row,action){
   const icon=row.icon&&row.icon.src?'<img class="item-icon sm" src="'+esc(row.icon.src)+'" width="38" height="38" loading="lazy" decoding="async" alt="">':'';
@@ -25442,7 +25489,6 @@ function itemWorkspaceReviewPortable(row){return !!(row&&row.source==='bg3'&&row
 function itemWorkspacePortable(row){return !!(row&&bg3ItemSourceAuditAllows(row,'inventory')&&(row.source==='campaign'||['playable','duplicate'].includes(row.classification)||itemWorkspaceReviewPortable(row)));}
 function itemWorkspaceHeroToolbarHTML(){const hero=itemWorkspaceHero();return '<div class="items-workspace-toolbar" aria-label="Получатель предмета">'
   +'<div><label for="itemWorkspaceHero">Герой-получатель</label><select id="itemWorkspaceHero" onchange="itemWorkspaceSetHero(this.value)"'+(chars.length?'':' disabled')+'>'+(chars.length?itemWorkspaceHeroOptionsHTML():'<option value="">Сначала создайте героя</option>')+'</select></div>'
-  +'<div><label for="itemWorkspaceProfile">Режим правил</label><select id="itemWorkspaceProfile" onchange="bg3CatalogSelectProfile(this.value)"><option value="standard"'+(bg3Catalog.preferredProfile==='standard'?' selected':'')+'>Обычные правила</option><option value="honour"'+(bg3Catalog.preferredProfile==='honour'?' selected':'')+'>Режим чести</option></select></div>'
   +'<div><label for="itemWorkspaceQty">Количество</label><input id="itemWorkspaceQty" type="number" min="1" max="999" step="1" value="'+itemWorkspace.qty+'" oninput="itemWorkspaceSetQty(this.value)"></div>'
   +'<div><span class="catalog-source '+(hero?'bg3':'')+'">'+(hero?'Выдача: '+esc(hero.name||hero.id):'Нет героя')+'</span></div></div>';}
 function itemWorkspaceGrantControlsHTML(row,compact){

@@ -195,6 +195,7 @@ function loadEngine(storage = new Map()) {
   const scriptStart = html.indexOf('<script>') + 8;
   let source = html.slice(scriptStart, html.lastIndexOf('</script>'));
   source = source.replace(/\(async function init\(\)[\s\S]*$/, '');
+  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
   source += String.raw`
     let __causalResourceCommits = 0;
     let __causalInstallAssignments = 0;
@@ -640,7 +641,7 @@ test('active v10 executes every standard typed readBook/toggleLight root action 
   });
 });
 
-test('Honour mirrors all 1,467 semantics and keeps exact reads plot-neutral across rollback, replay and durability receipts', async () => {
+test('Honour source audit mirrors all 1,467 semantics while gameplay durability migrates to Standard', async () => {
     const byUse = new Map(honourCases.map(row => [row.actionId, row]));
     const relocation = byUse.get('bg3-use-e4f7888703126a3f7204');
     const eviction = byUse.get('bg3-use-46350f74bd2f2b363587');
@@ -684,8 +685,8 @@ test('Honour mirrors all 1,467 semantics and keeps exact reads plot-neutral acro
     assert.equal(Object.keys(committed.story.committed).length, 0);
     const durableRaw = honour.storedWorldSnapshot(), durable = JSON.parse(durableRaw);
     assert.deepEqual(durable.catalogRefs, [{
-      id: 'bg3', version: current.catalogVersion, profile: 'honour', manifestSha256: current.manifestSha256,
-    }]);
+      id: 'bg3', version: current.catalogVersion, profile: 'standard', manifestSha256: current.manifestSha256,
+    }], 'gameplay persistence never writes an Honour profile');
     assert.ok(Number.isSafeInteger(durable.snapshotRevision) && durable.snapshotRevision > 0);
     assert.equal(durable.chars[0].inventory[0].bg3Read.bookId, relocation.bookId);
     assert.equal(Object.keys(durable.bg3StoryState.committed).length, 0);
@@ -698,7 +699,7 @@ test('Honour mirrors all 1,467 semantics and keeps exact reads plot-neutral acro
 
     const reloaded = loadEngine(honourStorage), loaded = plain(await reloaded.loadSaved());
     assert.equal(loaded.version, current.catalogVersion);
-    assert.equal(loaded.profile, 'honour');
+    assert.equal(loaded.profile, 'standard');
     assert.equal(loaded.manifestSha256, current.manifestSha256);
     assert.equal(loaded.snapshotRevision, durable.snapshotRevision);
     assert.equal(loaded.snapshot.actor.inventory[0].bg3Read.bookId, relocation.bookId);

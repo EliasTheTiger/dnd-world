@@ -463,6 +463,7 @@ function loadDethroneRuntimeEngine(random) {
   const scriptStart = html.indexOf('<script>') + 8;
   let source = html.slice(scriptStart, html.indexOf('</script>', scriptStart));
   source = source.replace(/\(async function init\(\)[\s\S]*$/, '');
+  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
   const dispatchNeedle = '  summonUseItemApplyWrapper=function(entryId,casterId,target,rolls,useId,opts){';
   assert.equal(source.includes(dispatchNeedle), true, 'production Dethrone dispatch capture seam');
   source = source.replace(dispatchNeedle, dispatchNeedle

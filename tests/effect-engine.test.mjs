@@ -42,6 +42,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   let source = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'));
   source = source.replace(/\(async function init\(\)[\s\S]*$/, '');
+  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
   source = source.replace(
     '  summonUseItemApplyWrapper=function(entryId,casterId,target,rolls,useId,opts){',
     "  summonUseItemApplyWrapper=function(entryId,casterId,target,rolls,useId,opts){const capture=globalThis.__bg3ItemFormulaDispatchCapture;if(capture&&capture.next){capture.next=false;capture.args=opts===undefined?[entryId,casterId,target,rolls,useId]:[entryId,casterId,target,rolls,useId,opts];if(capture.block)return false;}"
@@ -105,7 +106,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       syncNeedsOwnerAuth, syncUrlWithAuth,
       bg3CatalogUseRefs, bg3CatalogRefs, bg3CatalogSelectProfile, bg3FetchPinnedJSON, bg3CatalogEnsureIndex, bg3CatalogLoadShard, bg3CatalogHydrate,
       bg3CatalogSearch,bg3CatalogSearchText,bg3CatalogSearchCacheEnsure,bg3UserFacingLabel,bg3UserItemName,userFacingItemName,userFacingItemActionLabel,activeFxUserFacingLabel,bg3PublicRuntimeReason,itemSearchNormalize, bg3CatalogAvailable, bg3CatalogMaterializeItem, bg3CatalogLoadArtifact, bg3CatalogEnsureAsset,bg3AvailableIds,bg3SelectionItemId,
-      bg3CatalogUpgradePlanFor,bg3CatalogUpgradeCommit,bg3CatalogUpgradeReferencedIds,
+      bg3CatalogUpgradePlanFor,bg3CatalogUpgradeCommit,bg3CatalogUpgradeReferencedIds,bg3CatalogMigrateSameVersionReissue,
       bg3ItemPresentationEnsure,bg3ItemPresentationEnsureSearch,bg3ItemPresentationLoadDetail,bg3ItemPresentationDetailHTML,bg3ItemPresentationContentMatch,
       itemWorkspaceSearch,itemWorkspaceRowFromBg3,itemWorkspaceRowFromLocal,itemWorkspaceListRowHTML,itemWorkspaceDetailHTML,itemProfileSummaryHTML,
       itemWorkspaceGrantPlanFor,itemWorkspaceGrantCommit,itemWorkspaceGiveTo,addInvFromBG3,itemCardHTML,itemWorkspaceRelationView,bg3LifecycleBlock,itemCardSurfaceRefresh,bg3InteractionCoveredByExactUse,bg3ItemInstructionsOpen,bg3ItemInstructionPrograms,bg3ItemInstructionProgramLines,bg3ItemInstructionOverview,bg3ItemEngineCoverageHTML,bg3CatalogItemIdentityHTML,
@@ -5152,7 +5153,7 @@ test('BG3 loader: pinned version, Standard/Honour overlays and concurrent shard 
   assert.match(e.bg3CatalogSnapshot().refError,/Некорректная ссылка/);
 });
 
-test('BG3 loader: mutable pointer is revalidated and stale version work cannot overwrite a new pin', async () => {
+test('BG3 loader: a fresh pointer is Standard-only and stale version work cannot overwrite a new pin', async () => {
   const makeManifest=version=>({catalogVersion:version,contracts:{itemSchemaVersion:6},source:{profiles:{standard:{},honour:{}}},
     entrypoints:{searchIndex:'search-index.json'}});
   const makeIndex=version=>({catalogVersion:version,count:0,items:[]});
@@ -5165,7 +5166,7 @@ test('BG3 loader: mutable pointer is revalidated and stale version work cannot o
   });
   await pointerEngine.bg3CatalogEnsureIndex();
   assert.deepEqual(pointerCalls.find(call=>call.url==='data/bg3/current.json'),{url:'data/bg3/current.json',cache:'no-cache'});
-  assert.equal(pointerEngine.bg3CatalogSnapshot().preferredProfile,'honour','an unpinned client follows the pointer default profile');
+  assert.equal(pointerEngine.bg3CatalogSnapshot().preferredProfile,'standard','a fresh unpinned game ignores an Honour pointer default');
 
   const versionA='bg3-333-v1',versionB='bg3-444-v1';
   let releaseA;
@@ -5219,9 +5220,9 @@ test('BG3 immutable catalog v2 refs require and persist an exact manifest SHA-25
   assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:'bg3-24532579-v2',profile:'standard',manifestSha256:'bad'}]),false);
   assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:'bg3-24532579-v2',profile:'standard',manifestSha256:sha}]),true);
   assert.deepEqual(plain(e.bg3CatalogRefs()),[{id:'bg3',version:'bg3-24532579-v2',profile:'standard',manifestSha256:sha}]);
-  e.bg3CatalogSelectProfile('honour');
-  assert.deepEqual(plain(e.bg3CatalogRefs()),[{id:'bg3',version:'bg3-24532579-v2',profile:'honour',manifestSha256:sha}],
-    'profile switches preserve the immutable v2 manifest pin');
+  assert.equal(e.bg3CatalogSelectProfile('honour'),false,'Honour mode is not selectable in the game');
+  assert.deepEqual(plain(e.bg3CatalogRefs()),[{id:'bg3',version:'bg3-24532579-v2',profile:'standard',manifestSha256:sha}],
+    'rejected profile switches preserve the immutable Standard pin');
   assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:'bg3-24532579-v1',profile:'standard'}]),true,'legacy v1 remains readable at its immutable URL');
 });
 
@@ -5292,10 +5293,16 @@ function bg3CatalogUpgradeFixture(options={}) {
       files:{items:[descriptor('items/aa.json',shardRaw)],rootPrograms:options.missingA33RootArtifact?[]:[descriptor(rootArtifact,rootRaw)],
         spellRules:options.missingLearnedArtifact?[]:[descriptor(spellArtifact,spellRaw)],other:[descriptor('search-index.json',indexRaw)]}},manifestRaw=encode(manifest),manifestSha256=hash(manifestRaw),
     pointer={schemaVersion:'dnd-world-bg3-current/1',catalogVersion:version,manifest:`${version}/manifest.json`,manifestSha256,defaultRulesProfile:'standard'},
-    response=raw=>({ok:true,text:async()=>raw,json:async()=>JSON.parse(raw)}),requests=[],control={pointer:plain(pointer),tamperManifest:!!options.tamperManifest,tamperShard:!!options.tamperShard};
+    response=raw=>({ok:true,text:async()=>raw,json:async()=>JSON.parse(raw)}),requests=[],refreshed=new Set(),control={pointer:plain(pointer),tamperManifest:!!options.tamperManifest,tamperShard:!!options.tamperShard};
   if(options.missingSha)delete control.pointer.manifestSha256;
   const fetch=async (url,init)=>{requests.push({url,cache:init&&init.cache});
     if(url==='data/bg3/current.json')return {ok:true,json:async()=>plain(control.pointer)};
+    if(options.sameVersionReissue&&oldVersion===version){
+      if(init&&init.cache==='reload')refreshed.add(url);const fresh=refreshed.has(url);
+      if(url===`data/bg3/${version}/manifest.json`)return response(fresh?manifestRaw:oldManifestRaw);
+      if(url===`data/bg3/${version}/search-index.json`)return response(fresh?indexRaw:oldIndexRaw);
+      if(url===`data/bg3/${version}/items/aa.json`)return response(fresh?shardRaw:oldShardRaw);
+    }
     if(options.oldUnavailable&&String(url).startsWith(`data/bg3/${oldVersion}/`))return {ok:false,status:404,text:async()=>'',json:async()=>({})};
     if(url===`data/bg3/${oldVersion}/manifest.json`)return response(oldManifestRaw);
     if(url===`data/bg3/${oldVersion}/search-index.json`)return response(oldIndexRaw);
@@ -5312,11 +5319,11 @@ function bg3CatalogUpgradeFixture(options={}) {
 }
 
 async function bg3CatalogUpgradeEngine(fixture,options={}) {
-  const learned=options.learned===false?[]:[{schemaVersion:'dnd-world-bg3-learned-spell/2',id:'bg3learn:'+fixture.spellId,spellId:fixture.spellId,label:'Тестовое заклинание',level:1,school:'Evocation',
-    ruleId:fixture.ruleId,programId:fixture.programId,artifact:fixture.oldSpellArtifact,castResource:{cost:'action',slotLevel:1,sourceKind:'UseCosts',sourceRaw:'ActionPoint:1;SpellSlotsGroup:1',requiresOutOfCombat:false},
+  const learned=options.learned===false?[]:[{schemaVersion:options.learnedSchema||'dnd-world-bg3-learned-spell/2',id:'bg3learn:'+fixture.spellId,spellId:fixture.spellId,label:'Тестовое заклинание',level:1,school:'Evocation',
+    ruleId:fixture.ruleId,programId:options.learnedProgramId||fixture.programId,artifact:fixture.oldSpellArtifact,castResource:{cost:'action',slotLevel:1,sourceKind:'UseCosts',sourceRaw:'ActionPoint:1;SpellSlotsGroup:1',requiresOutOfCombat:false},
     icon:null,classDescriptionUuid:'class-test',progressionTableUuid:'progression-test',learningStrategy:'AddChildren',eligibilityEvidence:'wizard-class-profile',
     learnedFrom:{itemId:fixture.itemA,entryId:'upgrade-a',useId:'learn_spell',rootProgramId:'root-test',rootArtifact:'root-template-programs/aa.json'},costGp:50,rateGpPerLevel:50,learnedAtRound:1,
-    catalogVersion:fixture.oldVersion,manifestSha256:fixture.oldManifestSha256,profile:fixture.profile}],actor=hero('catalog-upgrade-owner',{inventory:[{id:'upgrade-a',itemId:fixture.itemA,qty:1}],bg3LearnedSpells:learned,activeEffectsSchemaVersion:1}),
+    catalogVersion:fixture.oldVersion,manifestSha256:fixture.oldManifestSha256,profile:options.learnedProfile||fixture.profile}],actor=hero('catalog-upgrade-owner',{inventory:[{id:'upgrade-a',itemId:fixture.itemA,qty:1}],bg3LearnedSpells:learned,activeEffectsSchemaVersion:1}),
     e=loadEngine(()=>{throw new Error('catalog upgrade never rolls');},fixture.fetch);
   e.setState({chars:[actor],items:[],activeCharId:actor.id});const oldRef={id:'bg3',version:fixture.oldVersion,profile:fixture.profile};
   if(!fixture.oldVersion.endsWith('-v1'))oldRef.manifestSha256=fixture.oldManifestSha256;assert.equal(e.bg3CatalogUseRefs([oldRef]),true);
@@ -5343,6 +5350,31 @@ test('BG3 saved v1 catalog upgrades only by an explicit GM v2 plan and persists 
   const replay=await e.bg3CatalogUpgradeCommit(plan);assert.equal(replay.ok,false);assert.equal(replay.replay,true);assert.deepEqual(plain(e.bg3CatalogRefs()),plain(JSON.parse(e.storedValue('dndworld2:catalog-refs'))));
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');assert.match(html,/Проверить и обновить/);assert.doesNotMatch(html,/Мастеру: проверить и обновить/);assert.match(html,/Мир изменится только после явного подтверждения/);
   assert.match(html,/bg3CatalogUpgradeVersionIdentity\(bg3Catalog\.preferredVersion\)/,'the GM upgrade control is offered for every pinned catalog revision, not only v1');
+});
+
+test('BG3 same-version reissue bypasses stale HTTP bytes only after full SHA and world-reference verification', async () => {
+  const version='bg3-24532579-v10',fixture=bg3CatalogUpgradeFixture({oldVersion:version,version,sameVersionReissue:true}),
+    {e}=await bg3CatalogUpgradeEngine(fixture),before=plain(e.state()),done=await e.bg3CatalogMigrateSameVersionReissue();
+  assert.equal(done.ok,true,done.reason);assert.equal(done.changed,true);assert.notEqual(fixture.oldManifestSha256,fixture.manifestSha256);
+  assert.deepEqual(plain(e.bg3CatalogRefs()),[{id:'bg3',version,profile:'standard',manifestSha256:fixture.manifestSha256}]);
+  assert.deepEqual(plain(e.state().chars[0].inventory),before.chars[0].inventory,'inventory identity and quantities survive the release repair');
+  const learned=e.state().chars[0].bg3LearnedSpells[0];assert.equal(learned.catalogVersion,version);assert.equal(learned.manifestSha256,fixture.manifestSha256,'learned-spell execution pins move only after exact semantic preflight');
+  assert.equal((await e.bg3CatalogHydrate([fixture.itemA,fixture.itemB])).length,2);
+  for(const suffix of ['/manifest.json','/search-index.json','/items/aa.json']){
+    const caches=fixture.requests.filter(row=>row.url.endsWith(suffix)).map(row=>row.cache);assert.ok(caches.includes('force-cache'),suffix+' starts with the saved cache');assert.ok(caches.includes('reload'),suffix+' retries past stale bytes only after SHA mismatch');
+  }
+  await e.runScheduledSave();assert.deepEqual(JSON.parse(e.storedValue('dndworld2:catalog-refs')),plain(e.bg3CatalogRefs()),'the repaired exact pin uses the normal durable world-save path');
+  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');assert.match(html,/const bg3ProfileMigrationNeeded=[^;]+,bg3Reissue=await bg3CatalogMigrateSameVersionReissue\([^)]*\),bg3World=await bg3CatalogHydrateWorld\(\)/,'startup repairs a reissued version before world hydration and carries legacy profile migration evidence');
+});
+
+test('BG3 standard-only reissue atomically rebinds legacy Honour learned spells to exact Standard programs', async () => {
+  const version='bg3-24532579-v10',fixture=bg3CatalogUpgradeFixture({oldVersion:version,version,sameVersionReissue:true}),
+    {e}=await bg3CatalogUpgradeEngine(fixture,{learnedProfile:'honour',learnedProgramId:'bg3:rule-program:Target_TEST:honour',learnedSchema:'dnd-world-bg3-learned-spell/1'}),
+    done=await e.bg3CatalogMigrateSameVersionReissue({migrateProfileFrom:'honour'});
+  assert.equal(done.ok,true,done.reason);assert.equal(done.changed,true);
+  const learned=e.state().chars[0].bg3LearnedSpells[0];assert.equal(learned.schemaVersion,'dnd-world-bg3-learned-spell/2');assert.equal(learned.profile,'standard');
+  assert.equal(learned.programId,fixture.programId);assert.equal(learned.learnedFrom.useId,fixture.useId);assert.equal(learned.learnedFrom.rootProgramId,fixture.rootProgramId);
+  assert.equal(learned.manifestSha256,fixture.manifestSha256);
 });
 
 test('BG3 production-only v10 recovery upgrades saved v1, v7 and v8 refs after retired assets return 404', async () => {
@@ -5983,7 +6015,7 @@ test('BG3 Story: manual/mixed programs fail closed, explicit manual record chang
 
 test('BG3 Story: state round-trips through local persistence, export and campaign contracts', async () => {
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
-  assert.match(html,/catalogRefs:bg3CatalogRefs\(\),bg3SceneState,bg3StoryState/,'export and campaign payload include Scene and Story state');
+  assert.match(html,/catalogRefs:bg3CatalogStandardRefs\(bg3CatalogRefs\(\)\),bg3SceneState,bg3StoryState/,'export and campaign payload include Standard-only refs plus Scene and Story state');
   assert.match(html,/dndworld2:bg3-story-state/,'local persistence has a dedicated Story state key');
   const e=loadEngine(),raw={schemaVersion:'old',revision:4,flags:{A:true},tags:{hero:{T:true}},quests:{Q:{stage:'S'}},entities:{door:{open:true}},
     committed:{tx:{manual:false}},manualEvents:[{transactionId:'manual'}],ignored:'drop'};
@@ -9949,7 +9981,7 @@ test('public lifecycle and interrupt errors preserve campaign text but hide tech
 });
 
 test('catalogue magic card opens source-pinned detailed rules without an inventory entry or world mutation',async()=>{
-  const {e,actor}=await productionBg3ItemPresentationWorld(productionBg3ItemPresentationObservedFetch());await e.bg3CatalogHydrate([BG3_ELEMENTAL_INFUSION_RING]);const ring=e.bg3LearnSpellTestCatalogItem(BG3_ELEMENTAL_INFUSION_RING);assert.ok(ring);const card=e.itemCardHTML(ring,'',{actorId:actor.id,presentationDetail:false,fullDescription:true});assert.match(card,/ℹ Полные правила/);assert.match(card,/bg3ItemInstructionsOpen\(/);const before=plain(actor),opened=await e.bg3ItemInstructionsOpen(ring.id,actor.id,'','');assert.equal(opened,true,e.elementText('status'));assert.deepEqual(plain(actor),before,'reading the reference never changes the hero or inventory');assert.match(e.elementText('showTitle'),/Кольцо стихийной зарядки/);const body=e.elementText('showBody'),note=e.elementText('showNote');assert.match(body,/Профиль: магический предмет/);assert.match(body,/Постоянные, условные и связанные правила:/);assert.match(body,/Свойство:/);assert.match(body,/Стихийная зарядка/);assert.match(body,/заклинанием урон кислотой, холодом, огнём, электричеством или громом/);assert.match(body,/Следующая попавшая атака оружием наносит дополнительно 1d4 урона того же типа и расходует заряд/);assert.match(body,/Условия активации|Допустимая цель|Последствия|Постоянные модификаторы/);assert.doesNotMatch(body+'\n'+note,/решени.{0,24}мастер|resolved by the DM|await an explicit D&D handler/i);assert.match(note,/справка по игровым свойствам/);
+  const {e,actor}=await productionBg3ItemPresentationWorld(productionBg3ItemPresentationObservedFetch());await e.bg3CatalogHydrate([BG3_ELEMENTAL_INFUSION_RING]);const ring=e.bg3LearnSpellTestCatalogItem(BG3_ELEMENTAL_INFUSION_RING);assert.ok(ring);const card=e.itemCardHTML(ring,'',{actorId:actor.id,presentationDetail:false,fullDescription:true});assert.match(card,/ℹ Полные правила/);assert.match(card,/bg3ItemInstructionsOpen\(/);const before=plain(actor),opened=await e.bg3ItemInstructionsOpen(ring.id,actor.id,'','');assert.equal(opened,true,e.elementText('status'));assert.deepEqual(plain(actor),before,'reading the reference never changes the hero or inventory');assert.match(e.elementText('showTitle'),/Кольцо стихийной зарядки/);const body=e.elementText('showBody'),note=e.elementText('showNote'),propertyAt=body.indexOf('Свойство: Стихийная зарядка'),summaryAt=body.indexOf('Игровые свойства:');assert.match(body,/Профиль: магический предмет/);assert.match(body,/Постоянные, условные и связанные правила:/);assert.match(body,/Свойство: Стихийная зарядка/);assert.ok(propertyAt>=0&&summaryAt>propertyAt,'the exact rule is prominent before the generic item row');assert.match(body,/заклинанием урон кислотой, холодом, огнём, электричеством или громом/);assert.match(body,/на 2 раунда/);assert.match(body,/Следующая попавшая атака оружием наносит дополнительно 1d4 урона того же типа и расходует заряд/);assert.match(body,/после подтверждения попадания/);assert.match(body,/Промах не расходует заряд/);assert.match(body,/новый заряд полностью заменяет прежний заряд и его визуальный эффект/);assert.match(body,/Повторный заряд той же стихии обновляет срок до 2 раундов/);assert.match(body,/последний применимый тип в порядке разрешения урона/);assert.equal((body.match(/^Свойство:/gm)||[]).length,1,'the modal exposes one canonical property instead of transitive status duplicates');assert.equal((body.match(/Постоянные, условные и связанные правила:/g)||[]).length,1);assert.doesNotMatch(body,/Краткая механика:|Связь с движком:|указанное состояние|Отдельных исполняемых последствий|Состояние движка:/i);assert.match(body,/Условия активации/);assert.doesNotMatch(body+'\n'+note,/решени.{0,24}мастер|resolved by the DM|await an explicit D&D handler/i);assert.match(note,/справка по игровым свойствам/);
 });
 
 test('inventory BG3 exact read action suppresses its generic interaction while interaction-only items remain usable',async()=>{

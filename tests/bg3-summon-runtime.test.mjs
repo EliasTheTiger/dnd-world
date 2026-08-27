@@ -752,6 +752,7 @@ function loadEngine(random = () => 0, fetchImpl = null) {
   const html = fs.readFileSync(path.join(repo, 'index.html'), 'utf8');
   let source = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'));
   source = source.replace(/\(async function init\(\)\{[\s\S]*$/, '');
+  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
   const dispatchDeclaration = '  const summonDispatchProof=(record,proof)=>{';
   const dispatchCall = "const done=summonUseItemApplyWrapper(record.entryId,record.casterId,'ground',proof.carrier,record.useId);";
   const auditHook = "globalThis.bg3ItemSummonTestInjectLateFailureOnce=()=>{state.summonLateFailureOnce=true;return true;};";
