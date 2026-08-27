@@ -196,6 +196,7 @@ function loadEngine(storage = new Map()) {
   let source = html.slice(scriptStart, html.lastIndexOf('</script>'));
   source = source.replace(/\(async function init\(\)[\s\S]*$/, '');
   source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
+  source = source.replace('const BG3_ARCHIVE_WORLD_PLOT_AUDIT=false;', 'const BG3_ARCHIVE_WORLD_PLOT_AUDIT=true;');
   source += String.raw`
     let __causalResourceCommits = 0;
     let __causalInstallAssignments = 0;
