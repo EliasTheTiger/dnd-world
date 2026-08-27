@@ -22,8 +22,8 @@ const PROFILES = Object.freeze(['standard', 'honour']);
 
 const EXPECTED = Object.freeze({
   version: 'bg3-24532579-v10',
-  currentSha256: '03dd5a4934cbce33453286a9ba14a02e687d03d21c9f894457f6a47a57f8c899',
-  manifestSha256: '0c9f9ba28daf3f4d2e2466345ea412352e16b7a82b0b093f3ed9a1d579b5dc1b',
+  currentSha256: 'c2387c9e411a470380b8af87d116e591d5115e9c01558168259571849bd2907b',
+  manifestSha256: 'b69e8120ee62e0bc5c3f1af1b096c81f7966285859093b8638f36599f53ff71a',
   carrierRows: 2,
   carrierItems: 1,
   aggregateBytes: 997,

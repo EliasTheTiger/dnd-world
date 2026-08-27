@@ -84,6 +84,7 @@ const EXPECTED_PROFILE_TOTALS = {
 const REPRESENTATIVES = {
   healingPotion: 'bg3:item:rt:efa94853-b819-402d-a257-5c1d56c97992:stats:T0JKX1BvdGlvbl9IZWFsaW5n',
   magicRing: 'bg3:item:rt:eb4e9410-3d33-4986-a5c2-8642ca5bbfc4:stats:REVOX1RoaWVmbGluZ19SaW5nNQ',
+  elementalInfusionRing: 'bg3:item:rt:9ce563ca-82b0-4c28-bd82-8640fd0a5be3:stats:TUFHX0VsZW1lbnRhbEdpc2hfRWxlbWVudGFsSW5mdXNpb25fUmluZw',
   shadowLantern: 'bg3:item:rt:c9ebcfae-8c9a-4acc-8a30-da7830b32121:stats:X09USEVSX3c',
 };
 const compareStrings = (left, right) => left < right ? -1 : left > right ? 1 : 0;
@@ -347,6 +348,22 @@ test('report, manifest gates and representative items make effects and omissions
     assert.ok(bundle.props.trim(), context);
     assert.match(bundle.props, /(эффект|действ).*(нет|не задан|отсутств)|нет.*(эффект|действ)/iu,
       `${context}: explicit no-effect explanation`);
+  }
+
+  const infusionRing = itemById.get(REPRESENTATIVES.elementalInfusionRing);
+  assert.ok(infusionRing);
+  for (const {profile, bundle} of materializationsFor(infusionRing)) {
+    const context = `Ring of Elemental Infusion:${profile}`;
+    assert.equal(bundle.mechanics.engineCoverage.runtimeState, 'ready', context);
+    assert.equal(bundle.mechanics.engineCoverage.effectStatus, 'runtime-ready', context);
+    assert.equal(bundle.mechanics.engineCoverage.counts.readyLifecycle, 1, context);
+    assert.equal(bundle.manualNote, '', `${context}: obsolete DM fallback removed`);
+    assert.equal(bundle.mechanics.manualNote, '', `${context}: mechanics DM fallback removed`);
+    assert.match(bundle.props, /Стихийная зарядка/u, `${context}: named mechanic`);
+    assert.match(bundle.props, /заклинанием.*(?:кислот|холод|огн|электр|гром)/iu,
+      `${context}: exact spell-damage trigger`);
+    assert.match(bundle.props, /1d4.*того же типа.*расходует заряд/iu,
+      `${context}: exact weapon-hit consequence`);
   }
 
   const lantern = itemById.get(REPRESENTATIVES.shadowLantern);

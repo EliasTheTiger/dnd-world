@@ -368,7 +368,7 @@ manifest-pinned `item-placements-report.md`: он публикуется как 
 
 | Артефакт | SHA-256 |
 | --- | --- |
-| `data/bg3/bg3-24532579-v10/manifest.json` | `0c9f9ba28daf3f4d2e2466345ea412352e16b7a82b0b093f3ed9a1d579b5dc1b` |
+| `data/bg3/bg3-24532579-v10/manifest.json` | `b69e8120ee62e0bc5c3f1af1b096c81f7966285859093b8638f36599f53ff71a` |
 | `data/bg3/bg3-24532579-v10/item-mechanics-report.json` | `e16562da09577663f6a6f5dbefc50a56974feceb4fe507503552f6e3358905c5` |
 | `data/bg3/ui/bg3-24532579-v10-placement-browser/manifest.json` | `577054a8f2cca1190960a1e84d20fd14b47980794479602753c014886231d0e2` |
 | `data/bg3/ui/bg3-24532579-v10-item-presentation/manifest.json` | `ae6995957be52f32e714d6939160983e1b3ad201d6f259839eb73307afff330e` |

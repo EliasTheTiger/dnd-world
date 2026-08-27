@@ -25,6 +25,12 @@ const EXPECTED_SOURCE_MANIFEST_SHA256 = 'd1d7618dce4576e75be7e62f913acba30c8ad94
 const PROFILE_ORDER = ['standard', 'honour'];
 const SCRIPT_MARKER_UUID = '403d19b4-b8dc-4481-b853-c010384a6411';
 const ITEM_SHARD_TARGET_BYTES = 210_000;
+const ELEMENTAL_INFUSION_RUNTIME = Object.freeze({
+  itemId: 'bg3:item:rt:9ce563ca-82b0-4c28-bd82-8640fd0a5be3:stats:TUFHX0VsZW1lbnRhbEdpc2hfRWxlbWVudGFsSW5mdXNpb25fUmluZw',
+  passiveId: 'MAG_ElementalGish_ElementalInfusion_Ring_Passive',
+  sourceField: 'PassivesOnEquip',
+  summary: 'Стихийная зарядка: когда владелец наносит заклинанием урон кислотой, холодом, огнём, электричеством или громом, кольцо на 2 раунда получает заряд этого типа. Следующая попавшая атака оружием наносит дополнительно 1d4 урона того же типа и расходует заряд; новый заряд заменяет прежний.',
+});
 const SOURCE_FACT_FIELDS = Object.freeze({
   armorType: 'Stats.ArmorType',
   improvisedWeapon: 'RootTemplate.CanBeImprovisedWeapon',
@@ -320,6 +326,19 @@ function lifecycleContract(ref) {
   };
 }
 
+function exactRuntimeSummary(item, profile, mechanics, lifecycleContracts) {
+  if (item.id !== ELEMENTAL_INFUSION_RUNTIME.itemId || !PROFILE_ORDER.includes(profile)
+    || mechanics.lifecyclePrograms.length !== 1 || lifecycleContracts.length !== 1
+    || lifecycleContracts[0].ready !== true) return '';
+  const ref = mechanics.lifecyclePrograms[0];
+  if (ref?.bg3Id !== ELEMENTAL_INFUSION_RUNTIME.passiveId || ref.kind !== 'passive'
+    || ref.sourceField !== ELEMENTAL_INFUSION_RUNTIME.sourceField || ref.gate !== 'equipped'
+    || ref.sourceProfile !== profile || ref.mode !== 'typed' || ref.projectionMode !== 'typed'
+    || ref.projection?.mode !== 'typed' || ref.projection?.complete !== true
+    || (ref.projection?.unresolved || []).length) return '';
+  return ELEMENTAL_INFUSION_RUNTIME.summary;
+}
+
 function activeRuleReferences(mechanics) {
   const active = mechanics?.provenance?.ruleReferences?.active || {};
   return Object.entries(active).flatMap(([kind, rows]) => (rows || []).map(row => ({kind, ...row})));
@@ -469,6 +488,11 @@ function materializeBundle(item, profile, bundle, context) {
 
   const actionContracts = mechanics.actions.map(actionContract);
   const lifecycleContracts = mechanics.lifecyclePrograms.map(lifecycleContract);
+  const runtimeSummary = exactRuntimeSummary(item, profile, mechanics, lifecycleContracts);
+  if (runtimeSummary) {
+    bundle.manualNote = '';
+    mechanics.manualNote = '';
+  }
   if (mechanics.profile?.kind === 'scroll') mechanics.profile.scroll = scrollProfile(bundle, actionContracts);
   if (mechanics.profile?.kind === 'armor' && sourceFacts.facts.armorType.state === 'value'
     && String(sourceFacts.facts.armorType.value).toLowerCase() === 'none') {
@@ -597,6 +621,7 @@ function materializeBundle(item, profile, bundle, context) {
   if (mechanics.lifecyclePrograms.length) {
     segments.push(`События экипировки/инвентаря: ${readyLifecycle} исполняются, ${blockedLifecycle} заблокированы.`);
   }
+  if (runtimeSummary) segments.push(runtimeSummary);
   if (!readySignals && !blockedSignals && !manual) {
     segments.push('Предметно-специфических действий и эффектов нет.');
   }
