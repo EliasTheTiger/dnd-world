@@ -476,6 +476,16 @@ test('every source and icon reference resolves to an immutable physical record',
 test('real D&D World engine accepts every item mechanics/action/interaction contract', () => {
   const engine = loadEngineAuditApi();
   const summaryById = new Map(search.items.map(row => [row.id, row]));
+  const noAffordanceIdentityByStatus = {
+    'source-inert': 'источник явно не задаёт отдельного предметного эффекта',
+    'inherited-inert': 'учитываются только унаследованные нейтральные правила',
+    'manual-review': 'исходных данных недостаточно для безопасного автоматического применения',
+    'runtime-blocked': 'исходная механика найдена, но её автоматическое применение заблокировано',
+    'script-declared-blocked': 'скриптовый эффект найден, но пока не поддерживается движком',
+    'runtime-ready': 'подтверждённая механика учитывается движком в соответствующем игровом событии',
+    'runtime-partial': 'подтверждённые ветви исполняются, остальные остаются недоступными',
+    'destruction-only': 'источник задаёт только последствия уничтожения самого предмета или объекта',
+  };
   const standardRows=engine.search(search.items,'',{},'standard'),honourRows=engine.search(search.items,'',{},'honour'),standardIds=new Set(standardRows.map(row=>row.id)),honourIds=new Set(honourRows.map(row=>row.id));
   assert.equal(standardRows.length,10282);assert.equal(honourRows.length,10284);assert.equal(standardIds.size,10282);assert.equal(honourIds.size,10284);
   assert.deepEqual(standardIds,new Set(items.filter(item=>item.source.profiles.includes('standard')).map(item=>item.id)),'каждый Standard-предмет достижим точным ID без дедупликации');
@@ -542,7 +552,17 @@ test('real D&D World engine accepts every item mechanics/action/interaction cont
       assert.ok(identityHtml.includes(item.id), `${item.id}@${profile}: card exposes canonical itemId`);
       assert.ok(identityHtml.includes(item.source.catalogVersion), `${item.id}@${profile}: card exposes catalog version`);
       if (!mechanicsSummary.actions && !mechanicsSummary.interactions && !mechanicsSummary.lifecycle) {
-        assert.ok(identityHtml.includes('отдельный игровой эффект источником не задан'), `${item.id}@${profile}: card exposes the exact source-inert boundary`);
+        const effectStatus = effective.mechanics.engineCoverage?.effectStatus || '';
+        const expectedIdentity = noAffordanceIdentityByStatus[effectStatus]
+          || 'сведения о механике пока не удалось безопасно классифицировать';
+        const escapedIdentity = expectedIdentity.replaceAll('ё', 'е').replaceAll('Ё', 'Е');
+        assert.ok(identityHtml.includes(escapedIdentity), `${item.id}@${profile}: card exposes the exact ${effectStatus || 'unknown'} boundary`);
+        if (effectStatus !== 'source-inert') {
+          assert.doesNotMatch(identityHtml, /(?:нет отдельного игрового эффекта|не задает отдельного предметного эффекта|отдельный игровой эффект источником не задан)/iu,
+            `${item.id}@${profile}: only exact source-inert coverage may claim that no separate effect exists`);
+        }
+        assert.doesNotMatch(identityHtml, /(?:manual-review|runtime-(?:ready|blocked|partial)|script-declared-blocked|source-inert|inherited-inert|destruction-only|решени[ея]\s+мастера)/iu,
+          `${item.id}@${profile}: identity uses safe user-facing coverage text`);
       }
     }
   }
