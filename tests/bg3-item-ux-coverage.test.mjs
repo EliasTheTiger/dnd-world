@@ -96,6 +96,11 @@ function classificationAllowLists(source) {
   return found;
 }
 
+function objectLiteralHasKey(source, key) {
+  const token = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(key) ? `${key}:` : `'${key}':`;
+  return source.includes(token);
+}
+
 function actionContract(action) {
   const program = action?.program || {};
   const declared = action?.contract;
@@ -205,8 +210,72 @@ test('каждый пользовательский магический пре�
   assert.equal(indexHtml.includes(PENDULUM_OF_MALAGARD_ID), false,
     'the exact item must not be singled out by a runtime deny-list');
   assert.doesNotMatch(indexHtml,
-    /manual-mechanics-review-required|'manual-review'\s*:\s*'требуется решение мастера'/iu,
+    /'manual-review'\s*:\s*'требуется решение мастера'/iu,
     'public item coverage has no GM-review fallback label');
+});
+
+test('весь v10 coverage census имеет безопасные публичные подписи без raw fallback', () => {
+  const coverageRows = items.flatMap(item => rows(item.source?.profiles).map(profile => ({
+    item,
+    profile,
+    coverage: effectiveMechanics(item, profile)?.engineCoverage || {},
+  })));
+  const values = key => [...new Set(coverageRows.map(row => String(row.coverage[key] || '')).filter(Boolean))].sort();
+  const blockers = [...new Set(coverageRows.flatMap(row => rows(row.coverage.blockerCodes)))].sort();
+  assert.deepEqual(values('runtimeState'), ['blocked', 'inert', 'manual-review', 'partial', 'ready']);
+  assert.deepEqual(values('effectStatus'), [
+    'destruction-only',
+    'inherited-inert',
+    'manual-review',
+    'runtime-blocked',
+    'runtime-partial',
+    'runtime-ready',
+    'script-declared-blocked',
+    'source-inert',
+  ]);
+  assert.deepEqual(values('descriptionStatus'), ['source-absent', 'source-localized', 'unresolved-handle']);
+  assert.deepEqual(blockers, [
+    'active-rule-reference-not-materialized',
+    'blocked-lifecycle-granted-action',
+    'blocked-lifecycle-interrupt',
+    'incomplete-lifecycle-projection',
+    'manual-mechanics-review-required',
+    'script-parameter-runtime-adapter-required',
+    'script-uuid-runtime-adapter-required',
+    'source-lifecycle-manual',
+    'source-lifecycle-mixed',
+    'source-program-manual',
+    'source-program-mixed',
+  ]);
+
+  const labels = sourceSection(
+    'const BG3_ENGINE_RUNTIME_LABELS=',
+    'function bg3SourceFactHasValue(',
+  );
+  for (const value of values('runtimeState')) {
+    assert.equal(objectLiteralHasKey(labels, value), true, `runtimeState ${value} has a public label`);
+  }
+  for (const value of values('effectStatus')) {
+    assert.equal(objectLiteralHasKey(labels, value), true, `effectStatus ${value} has a public label`);
+  }
+  for (const value of values('descriptionStatus')) {
+    assert.equal(objectLiteralHasKey(labels, value), true, `descriptionStatus ${value} has a public label`);
+  }
+  for (const value of blockers) {
+    assert.equal(objectLiteralHasKey(labels, value), true, `blocker ${value} has a public label`);
+  }
+
+  const renderer = sourceSection(
+    'function bg3EngineRuntimeLabel(',
+    'function bg3ItemPlacementEvidenceCount(',
+  );
+  assert.doesNotMatch(renderer,
+    /\|\|\s*coverage\.(?:runtimeState|effectStatus|descriptionStatus)|BG3_ENGINE_CODE_LABELS\[[^\]]+\]\s*\|\|\s*code/,
+    'coverage renderer must never fall back to a raw status or blocker code');
+  assert.match(renderer, /часть исходной механики пока недоступна для автоматического применения/,
+    'future blocker codes receive a safe generic label');
+  assert.match(renderer, /состояние механики не удалось безопасно классифицировать/,
+    'future runtime states receive a safe generic label');
 });
 
 test('v10 unclassified census отделяет technical от review и review сам по себе не разрешает выдачу', () => {
