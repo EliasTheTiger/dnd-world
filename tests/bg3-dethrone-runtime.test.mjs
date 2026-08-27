@@ -901,7 +901,10 @@ test('private Dethrone runtime: zero-HP, spell-turn, active-effect, lifecycle an
   split.engine.setElementValue('castTarget', `ally:${split.target.id}`);
   split.engine.setElementValue('castDethroneDistance', '30');
   assert.equal(split.engine.castConfirm(), false);
-  assert.match(split.engine.elementText('castErr'), /split-reaction-hazard-fail-closed/);
+  assert.equal(split.engine.elementText('castErr'), '✕ Действие предмета сейчас недоступно.');
+  assert.equal(split.engine.bg3ItemDethroneAudit().phase, 'rejected');
+  assert.equal(split.engine.bg3ItemDethroneAudit().reason,
+    'private-item-dethrone-split-reaction-hazard-fail-closed');
   assert.deepEqual(plain({caster: split.caster, target: split.target,
     combat: split.engine.state().combat}), splitBefore);
   split.engine.closeCastModal();
@@ -923,7 +926,10 @@ test('private Dethrone runtime: zero-HP, spell-turn, active-effect, lifecycle an
   try {
     assert.equal(await lifecycle.engine.bg3ItemProgramOpen(lifecycle.entry.id, lifecycle.caster.id,
       lifecycle.useId), false);
-    assert.match(lifecycle.engine.elementText('castErr'), /lifecycle-runtime-state-present/);
+    assert.equal(lifecycle.engine.elementText('castErr'), '✕ Действие предмета сейчас недоступно.');
+    assert.equal(lifecycle.engine.bg3ItemDethroneAudit().phase, 'rejected');
+    assert.equal(lifecycle.engine.bg3ItemDethroneAudit().reason,
+      'private-item-dethrone-lifecycle-runtime-state-present');
     assert.deepEqual(plain({caster: lifecycle.caster, target: lifecycle.target,
       combat: lifecycle.engine.state().combat}), lifecycleBefore);
   } finally {
@@ -941,7 +947,10 @@ test('private Dethrone runtime: zero-HP, spell-turn, active-effect, lifecycle an
     try {
       assert.equal(await interrupted.engine.bg3ItemProgramOpen(interrupted.entry.id,
         interrupted.caster.id, interrupted.useId), false, kind);
-      assert.match(interrupted.engine.elementText('castErr'), /interrupt-composite-state-present/, kind);
+      assert.equal(interrupted.engine.elementText('castErr'), '✕ Действие предмета сейчас недоступно.', kind);
+      assert.equal(interrupted.engine.bg3ItemDethroneAudit().phase, 'rejected', kind);
+      assert.equal(interrupted.engine.bg3ItemDethroneAudit().reason,
+        'private-item-dethrone-interrupt-composite-state-present', kind);
       assert.deepEqual(plain({caster: interrupted.caster, target: interrupted.target,
         combat: interrupted.engine.state().combat}), interruptBefore, kind);
     } finally {

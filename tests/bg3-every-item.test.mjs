@@ -542,7 +542,7 @@ test('real D&D World engine accepts every item mechanics/action/interaction cont
       assert.ok(identityHtml.includes(item.id), `${item.id}@${profile}: card exposes canonical itemId`);
       assert.ok(identityHtml.includes(item.source.catalogVersion), `${item.id}@${profile}: card exposes catalog version`);
       if (!mechanicsSummary.actions && !mechanicsSummary.interactions && !mechanicsSummary.lifecycle) {
-        assert.ok(identityHtml.includes('у источника нет отдельного действия'), `${item.id}@${profile}: card exposes the no-automatic-action boundary`);
+        assert.ok(identityHtml.includes('отдельный игровой эффект источником не задан'), `${item.id}@${profile}: card exposes the exact source-inert boundary`);
       }
     }
   }

@@ -1636,7 +1636,8 @@ test('combat summon spends one action and one scroll atomically, preserves live 
   const row = RUNTIME_ROWS.find(source => source.spellId === 'Target_ArcaneEye');
   const world = await summonWorld({row});
   const {engine, actor, entryId, useId, randomCalls, randomStacks} = world;
-  await prepareSummon(world);
+  const {item, use} = await prepareSummon(world);
+  const expectedCombatLabel = `Предмет «${item.n}»: ${use.label}`;
   const foe = plain(engine.seedFoesDB()[0]);
   engine.state().foesDB.push(foe);
   assert.equal(engine.combatStart([{kind: 'ally', id: actor.id, nat: 20},
@@ -1659,6 +1660,9 @@ test('combat summon spends one action and one scroll atomically, preserves live 
   assert.equal(ctx.target, 'ground');
   assert.equal(ctx.combatActorKey, `ally:${actor.id}`);
   assert.equal(ctx.combatCost, 'action');
+  assert.equal(ctx.combatLabel, expectedCombatLabel);
+  assert.doesNotMatch(ctx.combatLabel, /BG3|Target_|OBJ_|[0-9a-f]{8}-[0-9a-f-]{27,}/i,
+    'combat label contains only the user-facing item and action names');
   assert.equal(ctx.combatCommitted, false);
   assert.equal(Object.prototype.hasOwnProperty.call(ctx, 'position'), false);
   engine.captureNextDispatch(true);
@@ -1707,6 +1711,7 @@ test('combat summon spends one action and one scroll atomically, preserves live 
   const actionLogs = combat.log.filter(entry => entry.kind === 'action'
     && entry.actorKey === `ally:${actor.id}`);
   assert.equal(actionLogs.length, 1);
+  assert.equal(actionLogs[0].text, `${actor.name}: ${expectedCombatLabel} [затрата: действие]`);
   assert.match(actionLogs[0].at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
   const logTime = Date.parse(actionLogs[0].at);
   assert.equal(Number.isFinite(logTime), true);
@@ -1900,7 +1905,7 @@ test('manual summon provenance survives export/import and remains explicitly dis
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(committedResult, true, 'deferred presentation cannot flip the committed return value');
   assert.equal(world.engine.bg3ItemSummonAudit().phase, 'used');
-  assert.equal(world.engine.elementText('saveStatus'), '⚗ BG3-призыв размещён в точной позиции мира.');
+  assert.equal(world.engine.elementText('saveStatus'), '⚗ Призыв размещён в выбранной точке.');
   await world.engine.runScheduledSave();
   const persisted = JSON.parse(world.engine.storedValue('dndworld2:chars'));
   const persistedActor = persisted.find(value => value.id === world.actor.id);

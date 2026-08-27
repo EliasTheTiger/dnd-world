@@ -147,12 +147,14 @@ test('book content is lazy-loaded once through the exact manifest entrypoint', a
   assert.equal(result.results.every(row => row.ok), true);
 });
 
-test('missing BookId fails before mutation while a resolved read mutates then displays RU/EN as text', () => {
+test('missing book content fails before mutation while a resolved read mutates then displays RU/EN as text', () => {
   const payload = exactBookPayload();assert.equal(engine.configure(payload).ok, true);
   const missingEntry = {id: 'entry-missing'};
   const blocked = engine.ready('Book_missing');
   assert.equal(blocked.ok, false);assert.equal(missingEntry.read, undefined);assert.equal(missingEntry.bg3Read, undefined);
-  const preflight = engine.preflight('Book_missing');assert.equal(preflight.ok, false);assert.match(preflight.reason, /BookId/);
+  const preflight = engine.preflight('Book_missing');assert.equal(preflight.ok, false);
+  assert.match(preflight.reason, /Содержимое этой книги отсутствует в каталоге.*предмет и действие не израсходованы/);
+  assert.doesNotMatch(preflight.reason, /BookId|Book_missing/, 'public failure omits the source field and raw identifier');
 
   const entry = {id: 'entry-ok'};const done = engine.commit('Book_0000', entry);
   assert.equal(done.ok, true);assert.equal(entry.read, true);assert.equal(entry.bg3Read.bookId, 'Book_0000');
