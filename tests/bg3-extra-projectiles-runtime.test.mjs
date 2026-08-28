@@ -24,7 +24,7 @@ const PROFILES = Object.freeze(['standard', 'honour']);
 
 const EXPECTED = Object.freeze({
   version: 'bg3-24532579-v10',
-  manifestSha256: 'b69e8120ee62e0bc5c3f1af1b096c81f7966285859093b8638f36599f53ff71a',
+  manifestSha256: '283436220584717c59b245e5ecbd43d107dbcee5d75bab58b048fa54c3e34525',
   sourceRules: 46,
   sourcePrograms: 92,
   sourceFields: 102,

@@ -27,6 +27,7 @@ jobs:
       - name: Verify generated catalogs
         run: |
           node scripts/build-bg3-item-economy.mjs --check
+          node scripts/audit-bg3-v10-economy.mjs --check
           node scripts/build-bg3-item-mechanics.mjs --check
           node scripts/build-bg3-item-presentation.mjs --check
           node scripts/build-bg3-placement-browser.mjs --check

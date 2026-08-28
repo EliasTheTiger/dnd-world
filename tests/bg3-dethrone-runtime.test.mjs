@@ -22,8 +22,8 @@ const PROFILES = Object.freeze(['standard', 'honour']);
 
 const EXPECTED = Object.freeze({
   version: 'bg3-24532579-v10',
-  currentSha256: 'c2387c9e411a470380b8af87d116e591d5115e9c01558168259571849bd2907b',
-  manifestSha256: 'b69e8120ee62e0bc5c3f1af1b096c81f7966285859093b8638f36599f53ff71a',
+  currentSha256: '4e1b85cafee479285fca3a37078537fc5e5d007c7877e297b7995072df3dfdc1',
+  manifestSha256: '283436220584717c59b245e5ecbd43d107dbcee5d75bab58b048fa54c3e34525',
   carrierRows: 2,
   carrierItems: 1,
   aggregateBytes: 997,
@@ -31,7 +31,7 @@ const EXPECTED = Object.freeze({
 });
 
 const ARTIFACT_SHA256 = Object.freeze({
-  'items/13-0002.json': '736af7bb4e8c4e09f50fa02204d638b3c22276770db77c124e68dc51c98a6de4',
+  'items/13-0002.json': '444af9c6bc1653fcb2474cf5d9bada1e15fa9666cc3114b75e63f894c4cccd07',
   'root-template-programs/13-0000.json': '394f5292bce5f324aec2e074147ff6917f7f959739df73f201c319983bc8ec99',
   'rules/spells/fd.json': 'd24d54170dab18c01c8a1be33bc91a6ac6f6e1d7d80996c7071cba1fb685bd3c',
   'item-rule-links/13.json': '05ba0c16101d9ef4b48789f3dffca7090c5867ce187887f7df779641c08e40c2',

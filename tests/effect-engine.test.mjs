@@ -87,7 +87,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       mechanicsErrors, referenceMechanicsErrors, formulaContractErrors, finalizeRollSpec, normalizeResolutionContract,
       itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemToolSchemaErrors, itemMaterialSchemaErrors,itemEditorAddUse,itemEditorToolConfigure,
       itemInteractionsOf, itemInteractionSchemaErrors, itemToolTasks, toolTaskCheckSpec,
-      itemMassKg, legacyItemGoldValue, containerCapacityKg, containerPutPlan, oilUse, lightToggle, focusItemAllowed,
+      itemMassKg, itemGoldValue, itemEntryGoldValue, legacyItemGoldValue, exactCopperFromGp, containerCapacityKg, containerPutPlan, innerWeightOf, innerWeightState, containerContentsMassText, carryWeightState, coinCreditPlan, oilUse, lightToggle, focusItemAllowed,
       valuableSell,foodEat,trapScatter,poisonApply,ritualBurn,writingUse,commitWeaponAttackResource,
       craftingRecipeSchemaErrors, itemCampaignRuleSchemaErrors, itemSpec, itemActions, combatItemActionCost, rollCheck, rollFxEntries, consumeRollFx, itemContextToken,
       scrollUseCheck, wizardSavantMultiplier, scrollCopyPlan, commitScrollCopy, coinCopperTotal, coinSpendPlan, canUseItemCheck,
@@ -112,7 +112,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       bg3CatalogUpgradePlanFor,bg3CatalogUpgradeCommit,bg3CatalogUpgradeReferencedIds,bg3CatalogMigrateSameVersionReissue,
       bg3ItemPresentationEnsure,bg3ItemPresentationEnsureSearch,bg3ItemPresentationLoadDetail,bg3ItemPresentationDetailHTML,bg3ItemPresentationContentMatch,
       itemWorkspaceSearch,itemWorkspaceRowFromBg3,itemWorkspaceRowFromLocal,itemWorkspaceListRowHTML,itemWorkspaceDetailHTML,itemProfileSummaryHTML,
-      itemWorkspaceGrantPlanFor,itemWorkspaceGrantCommit,itemWorkspaceGiveTo,addInvFromBG3,itemCardHTML,itemWorkspaceRelationView,bg3LifecycleBlock,itemCardSurfaceRefresh,bg3InteractionCoveredByExactUse,bg3ItemInstructionsOpen,bg3ItemInstructionPrograms,bg3ItemInstructionProgramLines,bg3ItemInstructionOverview,bg3ItemEngineCoverageHTML,bg3CatalogItemIdentityHTML,
+      itemWorkspaceGrantPlanFor,itemWorkspaceGrantCommit,itemWorkspaceGiveTo,addInvFromBG3,addInvFromDB,bg3ItemSourceInventoryBlock,itemWorkspacePortable,itemCardHTML,itemWorkspaceRelationView,bg3LifecycleBlock,itemCardSurfaceRefresh,bg3InteractionCoveredByExactUse,bg3ItemInstructionsOpen,bg3ItemInstructionPrograms,bg3ItemInstructionProgramLines,bg3ItemInstructionOverview,bg3ItemEngineCoverageHTML,bg3CatalogItemIdentityHTML,
       bg3ItemRuleRows:(...args)=>bg3ItemRuleRows(...args),bg3ItemRuleRowsHTML:(...args)=>bg3ItemRuleRowsHTML(...args),bg3FxPanelEffectHTML,switchTab,openChar,bg3RecipeSummaryHTML,bg3RecipesPanelHTML,bg3RuntimeTabsHTML,bg3CatalogSetRuntimeView,itemWorkspaceFiltersHTML,bg3TreasureUserTableCount,
       itemWorkspaceTestFilters(patch){dbFlt.it=Object.assign({q:'',source:'all',classification:'all',type:'',kind:'',category:'',rarity:'',tag:'',content:'',sort:'name'},patch||{});bg3Catalog.page=0;itemWorkspace.selectedId='';itemWorkspace.presentationSelectedId='';return itemWorkspaceSearch();},
       itemWorkspaceTestSelectHero(id){itemWorkspace.heroId=getCh(String(id||''))?String(id):'';return itemWorkspace.heroId;},
@@ -1703,6 +1703,23 @@ test('один Алмаз хранит цену у экземпляра и по�
     'пять мелких камней не заменяют один алмаз ценой 500 зм там, где правило требует один камень');
 });
 
+test('aggregate material cost: a known zero stays matched without becoming one copper', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), diamond = items.find(it => it.id === 'it_diamond'),
+    revivify = spells.find(sp => sp.id === 'sp_оживление'), caster = hero('zero-value-diamonds', {inventory: [{id: 'free-diamonds', itemId: diamond.id, qty: 4, valueGp: 0}]});
+  e.setState({chars: [caster], items, spells});
+  const plan = e.materialPlanFor(caster, revivify, e.parseComponents(revivify), {aggregate: true});
+  assert.equal(plan.ok, false);
+  assert.match(plan.reason, /Подтвержденная общая стоимость — 0 зм, требуется не менее 300 зм/);
+  assert.doesNotMatch(plan.reason, /не указана оценка|не найден/);
+  assert.deepEqual(plain(caster.inventory), [{id: 'free-diamonds', itemId: diamond.id, qty: 4, valueGp: 0}], 'failed all-zero aggregate is a pure preflight');
+
+  const subCopper = hero('sub-copper-diamonds', {inventory: [{id: 'rounded-diamonds', itemId: diamond.id, qty: 3, valueGp: 99.999}]});
+  e.setState({chars: [subCopper], items, spells});
+  const subCopperBefore=plain(subCopper.inventory),subCopperPlan=e.materialPlanFor(subCopper, revivify, e.parseComponents(revivify), {aggregate: true});
+  assert.equal(subCopperPlan.ok, false);assert.match(subCopperPlan.reason, /точностью до медной монеты/);
+  assert.deepEqual(plain(subCopper.inventory), subCopperBefore, 'three 99.999 gp components cannot round up to a 300 gp aggregate');
+});
+
 test('миграция склеивает все опубликованные дубли и переводит прежние алмазы без потери цены и вложений', () => {
   const e = loadEngine(), items = e.seedItemsDB();
   const spellingAliases = [
@@ -2156,6 +2173,10 @@ test('масса, монеты, вместимость и масло испол�
   assert.equal(e.itemMassKg({weight: '1 фунт'}), 0.454);
   assert.equal(e.legacyItemGoldValue({cost: '5 см'}), 0.5);
   assert.equal(e.legacyItemGoldValue({cost: '7 мм'}), 0.07);
+  assert.equal(e.legacyItemGoldValue({cost: '0,1 см'}), 0.01, 'a fractional silver price resolves exactly to one copper');
+  assert.equal(e.legacyItemGoldValue({cost: '0,5 мм'}), null, 'a sub-copper legacy denomination is not rounded');
+  assert.equal(e.legacyItemGoldValue({cost: '-1 зм'}), null, 'a negative legacy price cannot be parsed from its positive suffix');
+  assert.equal(e.legacyItemGoldValue({cost: '1e2 зм'}), null, 'scientific notation cannot be partially parsed as a legacy price');
 
   const backpack = items.find(it => it.id === 'it_рюкзак'), plate = items.find(it => it.n === 'Латы');
   const carrier = hero('carrier', {inventory: [
@@ -2182,6 +2203,205 @@ test('масса, монеты, вместимость и масло испол�
   e.lightToggle('lamp');
   assert.equal(lamplighter.inventory.find(x => x.id === 'lamp').fuelRounds, 3500,
     'гашение сохраняет остаток, а не возвращает полную флягу');
+});
+
+test('item economy runtime: structured zero, exact copper, nested mass and unit-aware overload stay distinct', () => {
+  const e = loadEngine();
+  const structuredItem = (id, {kg = 0, massState = 'value', gp = 0, valueState = 'value', kind = 'misc', interactions = [], weight = '999 кг', cost = '999 зм', box = false, cap = ''} = {}) => {
+    const mechanics = bg3TestMechanics({kind});
+    mechanics.profile.mass = {state: massState, kg: massState === 'value' ? kg : null, display: massState === 'value' ? `${kg} кг` : 'не применяется', unit: 'kg'};
+    mechanics.profile.value = {state: valueState, gp: valueState === 'value' ? gp : null, cp: valueState === 'value' ? e.exactCopperFromGp(gp) : null, display: valueState === 'value' ? `${gp} зм` : 'не применяется'};
+    mechanics.interactions = interactions;
+    return {id, n: id, type: 'equipment', rarity: 'обычный', tags: [], weight, cost, desc: 'Проверяемая карточка.', schemaVersion: 6, mechanics, box, cap};
+  };
+
+  const zero = structuredItem('economy-zero', {kg: 0, gp: 0, kind: 'valuable', interactions: [{id: 'sell', label: 'Продать', handler: 'valuableSell', cost: 'long'}]}),
+    notApplicable = structuredItem('economy-na', {massState: 'not-applicable', valueState: 'not-applicable'}),
+    sale = structuredItem('economy-sale', {kg: 0.333, gp: 12.37, kind: 'valuable', interactions: [{id: 'sell', label: 'Продать', handler: 'valuableSell', cost: 'long'}]}),
+    malformedSale = structuredItem('economy-malformed-sale', {kg: 0.1, gp: 12.371, kind: 'valuable', interactions: [{id: 'sell', label: 'Продать', handler: 'valuableSell', cost: 'long'}]}),
+    mismatchedSale = structuredItem('economy-mismatched-sale', {kg: 0.1, gp: 12.37, kind: 'valuable', interactions: [{id: 'sell', label: 'Продать', handler: 'valuableSell', cost: 'long'}]});
+  mismatchedSale.mechanics.profile.value.cp = 1238;
+  assert.equal(e.itemGoldValue(zero), 0, 'an explicit structured zero remains a real value');
+  assert.equal(e.itemGoldValue(notApplicable), null, 'N/A never falls through to stale legacy cost text');
+  assert.equal(e.itemMassKg(zero), 0, 'an explicit structured zero remains a real mass');
+  assert.equal(e.itemMassKg(notApplicable), null, 'N/A never falls through to stale legacy weight text');
+  assert.equal(e.itemMassKg({weight: ''}), null, 'unknown legacy mass is not a synthetic zero');
+  assert.equal(e.itemGoldValue(malformedSale), null, 'a structured sub-copper value is not rounded or exposed as a sale price');
+  assert.ok(e.mechanicsErrors(malformedSale.mechanics, 'item').some(message => /медной монеты/.test(message)));
+  assert.equal(e.itemGoldValue(mismatchedSale), null, 'disagreeing gp/cp fields fail closed');
+  assert.ok(e.mechanicsErrors(mismatchedSale.mechanics, 'item').some(message => /gp и cp не согласована/.test(message)));
+  assert.match(e.itemProfileSummaryHTML(mismatchedSale), /Стоимость:<\/b> некорректна — взаимодействие заблокировано/);
+  assert.doesNotMatch(e.itemProfileSummaryHTML(mismatchedSale), /12\.37 зм/);
+  assert.equal(e.itemEntryGoldValue({valueGp: 0}, sale), 0, 'an explicit zero instance value never falls back to the item price');
+
+  const zeroEntry = {id: 'zero-entry', itemId: zero.id, qty: 1}, zeroOwner = hero('zero-owner', {coins: {pm: 0, zm: 0, em: 0, sm: 0, mm: 0}, inventory: [zeroEntry]});
+  e.setState({chars: [zeroOwner], items: [zero], activeCharId: zeroOwner.id});
+  e.setPromptResults(['99']);
+  assert.equal(e.itemInteractionsOf(zero).some(row => row.handler === 'valuableSell'), false, 'a compiled sale interaction cannot make a zero-value item sellable');
+  assert.equal(e.itemActions(zeroOwner, zeroEntry, zero).some(row => row.fn.includes('valuableSell')), false);
+  assert.equal(e.valuableSell(zeroEntry.id), false);
+  assert.equal(e.promptCount(), 0, 'zero value is rejected before a price prompt and no 10 gp fallback is offered');
+  assert.equal(e.coinCopperTotal(zeroOwner), 0);
+  assert.equal(zeroOwner.inventory[0].qty, 1);
+
+  const overrideEntry = {id: 'override-zero-entry', itemId: sale.id, qty: 1, valueGp: 0}, overrideOwner = hero('override-zero-owner', {coins: {pm: 0, zm: 0, em: 0, sm: 0, mm: 0}, inventory: [overrideEntry]});
+  e.setState({chars: [overrideOwner], items: [sale], activeCharId: overrideOwner.id});
+  assert.equal(e.itemActions(overrideOwner, overrideEntry, sale).some(row => row.fn.includes('valuableSell')), false, 'an explicit zero instance price overrides a positive catalog price');
+  assert.equal(e.valuableSell(overrideEntry.id), false);
+  assert.equal(e.promptCount(), 0);
+
+  const saleEntry = {id: 'sale-entry', itemId: sale.id, qty: 2}, merchant = hero('merchant', {coins: {pm: 0, zm: 0, em: 0, sm: 0, mm: 0}, inventory: [saleEntry]});
+  e.setState({chars: [merchant], items: [sale], activeCharId: merchant.id});
+  const saleBefore = plain(merchant);e.setPromptResults(['12.371']);
+  assert.equal(e.valuableSell(saleEntry.id), false, 'a sub-copper sale price is rejected instead of rounded');
+  assert.deepEqual(plain(merchant), saleBefore, 'a rejected sub-copper sale cannot mutate coins or inventory');
+  e.setPromptResults(['12,37']);
+  assert.equal(e.valuableSell(saleEntry.id), true);
+  assert.equal(e.dialogCalls().prompt.at(-1)[1], '12.37', 'the exact structured price, never 10 gp, is the prompt default');
+  assert.equal(e.coinCopperTotal(merchant), 1237, 'fractional gp is committed as exact copper');
+  assert.deepEqual(plain(merchant.coins), {pm: 1, zm: 2, em: 0, sm: 3, mm: 7}, 'sale proceeds use canonical existing denominations');
+  assert.equal(merchant.inventory[0].qty, 1);
+
+  const malformedEntry = {id: 'malformed-entry', itemId: malformedSale.id, qty: 1}, malformedOwner = hero('malformed-owner', {inventory: [malformedEntry]});
+  e.setState({chars: [malformedOwner], items: [malformedSale], activeCharId: malformedOwner.id});
+  assert.equal(e.itemInteractionsOf(malformedSale).some(row => row.handler === 'valuableSell'), false);
+  assert.equal(e.itemActions(malformedOwner, malformedEntry, malformedSale).some(row => row.fn.includes('valuableSell')), false);
+
+  const carried = structuredItem('economy-carried', {kg: 0.333, gp: 1}), inner = structuredItem('economy-inner', {kg: 0.125, gp: 1}), zeroInner = structuredItem('economy-zero-inner', {kg: 0, gp: 1}),
+    ignored = structuredItem('economy-zero-qty', {kg: 50, gp: 1}), box = structuredItem('economy-box', {kg: 0.25, gp: 1, kind: 'container', box: true, cap: '2 кг'}),
+    boxEntry = {id: 'box-entry', itemId: box.id, qty: 1, inside: [{id: 'inner-entry', itemId: inner.id, qty: 2}, {id: 'inner-zero', itemId: ignored.id, qty: 0}]},
+    zeroContents = {id: 'zero-contents', itemId: box.id, qty: 1, inside: [{id: 'known-zero', itemId: zeroInner.id, qty: 2}]},
+    unknownContents = {id: 'unknown-contents', itemId: box.id, qty: 1, inside: [{id: 'unknown-inner', itemId: notApplicable.id, qty: 1}]},
+    knownCarrier = hero('economy-known-carrier', {inventory: [{id: 'carried-entry', itemId: carried.id, qty: 3}, {id: 'ignored-entry', itemId: ignored.id, qty: 0}, boxEntry]}),
+    unknownCarrier = hero('economy-unknown-carrier', {inventory: [{id: 'known-entry', itemId: carried.id, qty: 1}, {id: 'na-entry', itemId: notApplicable.id, qty: 1}]}),
+    unknownNestedCarrier = hero('economy-unknown-nested-carrier', {inventory: [unknownContents]});
+  e.setState({chars: [knownCarrier, unknownCarrier, unknownNestedCarrier], items: [carried, inner, zeroInner, ignored, box, notApplicable], activeCharId: knownCarrier.id});
+  assert.equal(e.innerWeightOf(boxEntry), 0.25);
+  assert.equal(e.innerWeightOf(zeroContents), 0);
+  assert.equal(e.containerContentsMassText(zeroContents), 'вес содержимого 0 кг', 'known zero contents remain visible in the container UI');
+  assert.equal(e.innerWeightOf(unknownContents), null);
+  assert.equal(e.containerContentsMassText(unknownContents), 'вес содержимого неизвестен; подтверждено не менее 0 кг', 'unknown contents are not presented as zero');
+  const unknownCapacity = e.containerPutPlan(knownCarrier, unknownContents, knownCarrier.inventory[0]);
+  assert.equal(unknownCapacity.ok, false);assert.match(unknownCapacity.reason, /Вес содержимого.+неизвестен/);
+  assert.equal(e.carryWeight(knownCarrier), 1.499, 'structured and nested mass keeps 0.001 kg precision while qty zero remains zero');
+  assert.equal(e.carryWeight(unknownCarrier), null, 'a positive top-level N/A mass blocks a fictional exact carry total');
+  assert.equal(e.carryWeight(unknownNestedCarrier), null, 'unknown container contents block a fictional exact carry total');
+  assert.deepEqual(plain(e.carryWeightState(unknownCarrier)), {known: false, kg: 0.333}, 'unknown totals preserve their proven lower bound');
+  assert.equal(e.containerPutPlan(knownCarrier, boxEntry, knownCarrier.inventory[1]).ok, false, 'a zero-quantity entry is never treated as one item by container preflight');
+
+  const heavy = structuredItem('economy-heavy', {kg: 100, gp: 1}), metric = hero('economy-metric', {speed: '9 м', inventory: [{id: 'heavy-m', itemId: heavy.id, qty: 1}]}),
+    imperial = hero('economy-imperial', {speed: '30 ft', inventory: [{id: 'heavy-ft', itemId: heavy.id, qty: 1}]}),
+    mixed = hero('economy-mixed', {speed: '9 м', inventory: [{id: 'heavy-known', itemId: heavy.id, qty: 1}, {id: 'heavy-unknown', itemId: notApplicable.id, qty: 1}]}),
+    mixedContents = {id: 'mixed-contents', itemId: box.id, qty: 1, inside: [{id: 'nested-known', itemId: heavy.id, qty: 1}, {id: 'nested-unknown', itemId: notApplicable.id, qty: 1}]},
+    mixedNested = hero('economy-mixed-nested', {speed: '9 м', inventory: [mixedContents]});
+  e.setState({chars: [metric, imperial, mixed, mixedNested], items: [heavy, notApplicable, box]});
+  assert.equal(e.speedTotal(metric), '6 м');
+  assert.equal(e.speedTotal(imperial), '20 футов', 'overload subtracts 10 feet, not 3 feet');
+  assert.deepEqual(plain(e.carryWeightState(mixed)), {known: false, kg: 100});
+  assert.equal(e.carryWeight(mixed), null);
+  assert.equal(e.speedTotal(mixed), '6 м', 'a proven overweight lower bound still applies when another mass is unknown');
+  assert.deepEqual(plain(e.innerWeightState(mixedContents)), {known: false, kg: 100});
+  assert.equal(e.innerWeightOf(mixedContents), null);
+  assert.equal(e.containerContentsMassText(mixedContents), 'вес содержимого неизвестен; подтверждено не менее 100 кг');
+  assert.deepEqual(plain(e.carryWeightState(mixedNested)), {known: false, kg: 100.25});
+  assert.equal(e.speedTotal(mixedNested), '6 м', 'a proven nested lower bound still applies when another contained mass is unknown');
+
+  const card = e.itemCardHTML(sale, '');
+  assert.equal(card.split('0.333 кг').length - 1, 1, 'structured mass appears once in the card');
+  assert.equal(card.split('12.37 зм').length - 1, 1, 'structured value appears once in the card');
+  assert.doesNotMatch(card, /999 кг|999 зм/, 'legacy mirrors are not rendered beside structured values');
+  const bg3CardItem = plain(sale);bg3CardItem.id = 'bg3:item:test-economy-card';bg3CardItem.desc = '';bg3CardItem.source = {classification: 'playable', category: 'miscellaneous', profiles: ['standard'], availability: {}};
+  const bg3Card = e.itemCardHTML(bg3CardItem, '');
+  assert.equal(bg3Card.split('0.333 кг').length - 1, 1, 'the source fallback and characteristic block do not repeat BG3 mass');
+  assert.equal(bg3Card.split('12.37 зм').length - 1, 1, 'the source fallback and characteristic block do not repeat BG3 value');
+});
+
+test('item economy runtime: every gp mutation rejects sub-copper values without rounding', async () => {
+  const e = loadEngine();
+  assert.equal(e.exactCopperFromGp(0), 0);
+  assert.equal(e.exactCopperFromGp(0.29), 29);
+  assert.equal(e.exactCopperFromGp('12,37'), 1237);
+  assert.equal(e.exactCopperFromGp('12.3700'), 1237);
+  for (const invalid of ['', null, -1, NaN, '1e2', '0.009', '12.371', '99999999999999.99']) assert.equal(e.exactCopperFromGp(invalid), null, String(invalid));
+
+  const mechanics = bg3TestMechanics({kind: 'valuable'});
+  mechanics.profile.mass = {state: 'value', kg: 0.1, display: '0.1 кг', unit: 'kg'};
+  mechanics.profile.value = {state: 'value', mode: 'inventory', gp: null, cp: null, display: 'оценивается по экземпляру', defaultGp: 1.23};
+  const item = {id: 'exact-copper-instance', n: 'Exact copper instance', type: 'equipment', schemaVersion: 6, mechanics},
+    entry = {id: 'priced-entry', itemId: item.id, qty: 1, valueGp: 1.23},
+    actor = hero('exact-copper-owner', {coins: {pm: 0, zm: 20, em: 0, sm: 0, mm: 0}, inventory: [entry]});
+  assert.equal(e.itemEntryGoldValue({valueGp: 0}, item), 0);
+  assert.equal(e.itemEntryGoldValue({valueGp: 1.001}, item), null);
+  assert.equal(e.itemEntryGoldValue({valueGp: '1e2'}, item), null);
+  e.setState({chars: [actor], items: [item], activeCharId: actor.id});
+  const before = plain(actor);
+
+  const rejectedGrant = await e.itemWorkspaceGrantPlanFor(actor.id, item.id, 1, {valueGp: '1.001'});
+  assert.equal(rejectedGrant.ok, false);assert.match(rejectedGrant.reason, /медной монеты/);assert.deepEqual(plain(actor), before, 'grant preflight is pure');
+  const exactGrant = await e.itemWorkspaceGrantPlanFor(actor.id, item.id, 1, {valueGp: '1,23'});
+  assert.equal(exactGrant.ok, true, exactGrant.reason);assert.equal(exactGrant.valueGp, 1.23);assert.deepEqual(plain(actor), before, 'an exact grant remains a preflight');
+
+  e.setPromptResults(['1.001']);assert.equal(e.invValueEdit(entry.id), false);assert.deepEqual(plain(actor), before, 'instance edit rejects sub-copper input without mutation');
+  e.setPromptResults(['1.001']);e.addInvFromDB(item.id);assert.deepEqual(plain(actor), before, 'inventory add rejects sub-copper input without stacking or mutation');
+
+  const exactSpend = e.coinSpendPlan(actor, '12,37');assert.equal(exactSpend.ok, true, exactSpend.reason);assert.equal(exactSpend.target, 1237);
+  for (const invalid of ['0.009', NaN, -1]) {const plan=e.coinSpendPlan(actor, invalid);assert.equal(plan.ok, false);assert.match(plan.reason, /медной монеты/);}
+  assert.deepEqual(plain(actor), before, 'coin spend plans never mutate the purse');
+
+  const editActor=hero('exact-edit-owner',{inventory:[{id:'edit-entry',itemId:item.id,qty:1,valueGp:1.23}]});e.setState({chars:[editActor],items:[item],activeCharId:editActor.id});
+  e.setPromptResults(['2,34']);assert.equal(e.invValueEdit('edit-entry'),true);assert.equal(editActor.inventory[0].valueGp,2.34,'valid edit stores canonical gp from exact copper');
+
+  const malformedGrantActor=hero('malformed-grant-owner',{inventory:[{id:'malformed-grant',itemId:item.id,qty:1,valueGp:'1e2'}]});e.setState({chars:[malformedGrantActor],items:[item],activeCharId:malformedGrantActor.id});
+  const canonicalGrant=await e.itemWorkspaceGrantPlanFor(malformedGrantActor.id,item.id,1,{valueGp:'100'}),grantDone=await e.itemWorkspaceGrantCommit(canonicalGrant);
+  assert.equal(grantDone.ok,true,grantDone.reason);assert.equal(malformedGrantActor.inventory.length,2);assert.equal(malformedGrantActor.inventory[0].qty,1,'valid grant never merges into a malformed exponent-priced stack');
+  assert.equal(malformedGrantActor.inventory.find(row=>row.id===grantDone.entryId).valueGp,100);
+
+  const malformedAddActor=hero('malformed-add-owner',{inventory:[{id:'malformed-add',itemId:item.id,qty:1,valueGp:'1e2'}]});e.setState({chars:[malformedAddActor],items:[item],activeCharId:malformedAddActor.id});
+  e.setPromptResults(['100']);e.addInvFromDB(item.id);assert.equal(malformedAddActor.inventory.length,2);assert.equal(malformedAddActor.inventory[0].qty,1,'valid add never merges into a malformed exponent-priced stack');
+  assert.equal(malformedAddActor.inventory.find(row=>row.id!=='malformed-add').valueGp,100);
+
+  const fixedMechanics=bg3TestMechanics({kind:'valuable'});fixedMechanics.profile.mass={state:'value',kg:0.1,display:'0.1 кг',unit:'kg'};fixedMechanics.profile.value={state:'value',gp:5,cp:500,display:'5 зм'};
+  const fixedItem={id:'exact-copper-fixed',n:'Exact fixed price',type:'equipment',schemaVersion:6,mechanics:fixedMechanics},fixedActor=hero('fixed-price-owner',{inventory:[]});e.setState({chars:[fixedActor],items:[fixedItem],activeCharId:fixedActor.id});
+  const fixedPlan=await e.itemWorkspaceGrantPlanFor(fixedActor.id,fixedItem.id,1,{valueGp:'1.001'});assert.equal(fixedPlan.ok,true,fixedPlan.reason);assert.equal(fixedPlan.valueGp,null,'a fixed-price grant ignores an unexpected instance override');
+  const fixedDone=await e.itemWorkspaceGrantCommit(fixedPlan);assert.equal(fixedDone.ok,true,fixedDone.reason);assert.equal(Object.prototype.hasOwnProperty.call(fixedActor.inventory[0],'valueGp'),false);
+
+  const badFixed={category:'component',tier:1,source:'test',uses:[],component:{matchTokens:['test'],consumedBy:[],valueMode:'fixed',valueGp:99.999}},badDefault={category:'component',tier:1,source:'test',uses:[],component:{matchTokens:['test'],consumedBy:[],valueMode:'inventory',defaultValueGp:99.999}};
+  assert.match(e.itemMaterialSchemaErrors(badFixed).join('\n'),/медной монеты/);assert.match(e.itemMaterialSchemaErrors(badDefault).join('\n'),/медной монеты/);
+  const invalidAuditActor=hero('invalid-audit-owner',{inventory:[{id:'invalid-audit-entry',itemId:item.id,qty:1,valueGp:99.999}]});
+  const auditErrors=e.gameDataAudit({spells:[],abilities:[],items:[item],foes:[],chars:[invalidAuditActor]}).errors.join('\n');assert.match(auditErrors,/invalid-audit-owner.+медной монеты/);
+});
+
+test('item economy runtime: BG3 N/A mass is never grantable through a legacy portable flag', async () => {
+  const itemId = 'bg3:item:rt:eb4e9410-3d33-4986-a5c2-8642ca5bbfc4:stats:REVOX1RoaWVmbGluZ19SaW5nNQ', e = loadEngine(() => 0, selectedBg3FileFetch()), actor = hero('na-mass-recipient', {inventory: []}), profile = selectedBg3Catalog.current.defaultRulesProfile || 'standard';
+  e.setState({chars: [actor], items: [], activeCharId: actor.id});
+  assert.equal(e.bg3CatalogUseRefs([{id: 'bg3', version: selectedBg3Catalog.current.catalogVersion, profile, manifestSha256: selectedBg3Catalog.current.manifestSha256}]), true);
+  await e.bg3CatalogEnsureIndex();await e.bg3CatalogHydrate([itemId]);
+  const item = plain(e.bg3LearnSpellTestCatalogItem(itemId));assert.ok(item);item.mechanics.profile.flags.portable = true;item.mechanics.profile.mass = {state: 'not-applicable', kg: null, display: 'не применяется', unit: 'kg'};item.weight = '0.05 кг';e.bg3LearnSpellTestCatalogRebind(itemId, item);
+  const before = plain(actor.inventory), plan = await e.itemWorkspaceGrantPlanFor(actor.id, itemId, 1);
+  assert.equal(plan.ok, false);assert.match(plan.reason, /вес.+неприменим|вес.+не определён/);assert.deepEqual(plain(actor.inventory), before, 'the failed grant preflight cannot mutate inventory');
+});
+
+test('item economy runtime: BG3 RootTemplate portability facts and technical pressure plates fail closed', async () => {
+  const caltropsId='bg3:item:rt:a1d1b7d9-3721-4aa6-a3fb-a742fa4901d3',pressurePlateIds=[
+    'bg3:item:rt:c8c9435f-b4b9-45d9-89a2-17fb232cb036','bg3:item:rt:67639933-7048-4285-8265-aaf9d6aa67ca',
+    'bg3:item:rt:035f5d5c-2299-4beb-b4b5-beda3fee9a4c','bg3:item:rt:4af72897-b74f-4aa8-8048-84512027fa36',
+    'bg3:item:rt:3940cb9c-3c15-48f7-b170-11708d9f3852','bg3:item:rt:f08b73f9-9cd0-4042-a45f-8537f010e28d',
+    'bg3:item:rt:aa0873d0-acfb-41b5-9b9f-6331703e392b'
+  ],e=loadEngine(() => 0, selectedBg3FileFetch()),actor=hero('source-portability-recipient',{inventory:[]}),profile=selectedBg3Catalog.current.defaultRulesProfile||'standard';
+  e.setState({chars:[actor],items:[],activeCharId:actor.id});
+  assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);
+  await e.bg3CatalogEnsureIndex();await e.bg3CatalogHydrate([caltropsId,...pressurePlateIds]);
+
+  const caltrops=plain(e.bg3LearnSpellTestCatalogItem(caltropsId));assert.ok(caltrops);
+  assert.equal(caltrops.mechanics.sourceFacts.facts.pickable.value,false);assert.equal(caltrops.mechanics.sourceFacts.facts.movable.value,false);
+  caltrops.source.classification='playable';caltrops.source.category='miscellaneous';caltrops.mechanics.profile.flags.portable=true;e.bg3LearnSpellTestCatalogRebind(caltropsId,caltrops);
+  assert.match(e.bg3ItemSourceInventoryBlock(caltrops),/CanBePickedUp=False/);
+  assert.equal(e.itemWorkspacePortable({id:caltropsId,source:'bg3',classification:'playable',sourceCategory:'miscellaneous',item:caltrops}),false,'the UI cannot offer a grant contradicted by RootTemplate facts');
+  const before=plain(actor.inventory),caltropsPlan=await e.itemWorkspaceGrantPlanFor(actor.id,caltropsId,1);
+  assert.equal(caltropsPlan.ok,false);assert.match(caltropsPlan.reason,/CanBePickedUp=False/);assert.deepEqual(plain(actor.inventory),before);
+
+  for(const itemId of pressurePlateIds){const item=plain(e.bg3LearnSpellTestCatalogItem(itemId));assert.ok(item,itemId);item.mechanics.profile.flags.portable=true;e.bg3LearnSpellTestCatalogRebind(itemId,item);const plan=await e.itemWorkspaceGrantPlanFor(actor.id,itemId,1);assert.equal(plan.ok,false,itemId+' must remain outside inventory even with a stale portable flag');}
+  assert.deepEqual(plain(actor.inventory),before,'all source portability failures are pure preflights');
 });
 
 test('классовые фокусы, тяжелое оружие, копье, сеть и иглы исполняют явные ограничения', () => {
@@ -4773,8 +4993,8 @@ test('регрессия уникальных предметов: кольчуж
     carried = hero('carried', {ab: {str: 13, dex: 10, con: 10, int: 10, wis: 10, cha: 10},
       inventory: [{id: 'carried-shirt', itemId: shirt.id, qty: 1}]});
   e.setState({chars: [strong, weak, carried], items, classes});
-  assert.equal(e.carryWeight(strong), 0); assert.equal(e.carryWeight(weak), Math.round(mass * 10) / 10);
-  assert.equal(e.carryWeight(carried), Math.round(mass * 10) / 10, 'льгота действует только на надетый собственный доспех');
+  assert.equal(e.carryWeight(strong), 0); assert.equal(e.carryWeight(weak), mass);
+  assert.equal(e.carryWeight(carried), mass, 'льгота действует только на надетый собственный доспех');
 
   const replacement = items.find(x => x.id !== shirt.id && x.slot === 'CHEST');
   assert.ok(replacement, 'в базе нужна другая нагрудная броня');
@@ -9747,7 +9967,7 @@ async function productionBg3SceneBrowserWorld(observed=productionBg3SceneObserve
 }
 
 const PRODUCTION_BG3_ITEM_PRESENTATION=Object.freeze({
-  manifestSha256:'5ba843ab38cfe19043a01cc5fc0510a492c80cf3d601a15906c0fb0343963361',
+  manifestSha256:'23a1c40fc42f203200100f37ba387c580e6ad7966f0c5a950d31d1ca05768af4',
   safeMarkupItemId:'bg3:item:rt:000cfc9f-b973-48e7-a5c8-f2992a47a943:stats:REVOX1ZvbG9PcGVyYXRpb25fRXJzYXR6RXll',safeMarkupShard:'0000',
   profileItemId:'bg3:item:rt:12f1e6ce-7042-481b-879b-fa81c7688c7d:stats:REVOX0FwcHJlbnRpY2VfRGFnZ2VyT2ZTaGFy',profileShard:'0001',
   emptyItemId:'bg3:item:rt:000ae223-f71c-4749-ba28-e778f9165181',

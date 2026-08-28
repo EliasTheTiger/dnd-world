@@ -5010,27 +5010,29 @@ function fxRollMode(c,stat){
 }
 function speedTotal(c){
   const raw=String(c.speed||'');
-  if(conditionForcesZeroSpeed(effectiveConditions(c))) return '0 '+(/фут/i.test(raw)?'футов':'м');
-  const over=(typeof carryWeight==='function')?(carryWeight(c)>Math.round(eAb(c,'str')*7.5)):false;
+  const usesFeet=value=>/(?:фут|\bft\b|\bfeet\b|\bfoot\b)/i.test(String(value||''));
+  if(conditionForcesZeroSpeed(effectiveConditions(c))) return '0 '+(usesFeet(raw)?'футов':'м');
+  const load=(typeof carryWeightState==='function')?carryWeightState(c):{known:true,kg:(typeof carryWeight==='function'?carryWeight(c):0)},
+    over=load.kg>Math.round(eAb(c,'str')*7.5);
   const m=raw.replace(',','.').match(/-?\d+(?:\.\d+)?/);
   if(!m) return raw;
-  let v=+m[0], add=0, mul=1, setVal=null, unit=/фут/i.test(raw)?' футов':' м';
+  let v=+m[0], add=0, mul=1, setVal=null, unit=usesFeet(raw)?' футов':' м';
   charFxAll(c).filter(f=>f.stat==='speed').forEach(f=>{
     if(f.mode==='mul') mul*=+f.value||1;
     else if(f.mode==='set'){
       const sm=String(f.value).replace(',','.').match(/-?\d+(?:\.\d+)?/);
-      if(sm){ setVal=+sm[0]; unit=/фут/i.test(String(f.value))?' футов':' м'; }
+      if(sm){ setVal=+sm[0]; unit=usesFeet(f.value)?' футов':' м'; }
     } else if(f.mode==='add'){
       const sm=String(f.value).replace(',','.').match(/-?\d+(?:\.\d+)?/);
       if(sm){
-        let d=+sm[0], su=f.unit==='фут'||/фут/i.test(String(f.value))?'фут':'м';
+        let d=+sm[0], su=f.unit==='фут'||usesFeet(f.value)?'фут':'м';
         if((unit.indexOf('фут')>=0)!==(su==='фут')) d=unit.indexOf('фут')>=0?d*(10/3):d*0.3;
         add+=d;
       }
     }
   });
   v=setVal==null?(v+add)*mul:setVal;
-  if(over) v-=3;   /* перегруз: −10 футов по варианту правил 5e */
+  if(over) v-=unit.indexOf('фут')>=0?10:3;
   v=Math.max(0,Math.round(v*10)/10);
   let fastest=v,mode='';
   [['speed.fly','полет'],['speed.climb','лазание'],['speed.swim','плавание']].forEach(([stat,label])=>{
@@ -6061,26 +6063,54 @@ function materialCover(caster){
   });
   return held||pouch||carriedFocus||null;
 }
+function exactCopperFromDecimalUnit(raw,copperPerUnit){
+  if((typeof raw!=='number'&&typeof raw!=='string')||!Number.isSafeInteger(copperPerUnit)||copperPerUnit<0)return null;
+  const text=String(raw).trim().replace(',','.');if(text.length>64)return null;const match=/^(\d+)(?:\.(\d+))?$/.exec(text);
+  if(!match)return null;
+  const fraction=match[2]||'',scale=10n**BigInt(fraction.length),numerator=BigInt(match[1]+fraction)*BigInt(copperPerUnit);
+  if(numerator%scale!==0n)return null;
+  const copper=numerator/scale;
+  return copper<=BigInt(Number.MAX_SAFE_INTEGER)?Number(copper):null;
+}
+function exactCopperFromGp(raw){return exactCopperFromDecimalUnit(raw,100);}
 function legacyItemGoldValue(it){
-  const s=String((it&&it.cost)||'').trim().toLowerCase(),m=s.match(/(\d[\d\s]*(?:[.,]\d+)?)\s*(мм|см|эм|зм|пм)/i);
+  const s=String((it&&it.cost)||'').trim().toLowerCase(),m=s.match(/^(\d[\d\s]*(?:[.,]\d+)?)\s*(мм|см|эм|зм|пм)(?=$|[\s(,.;])/i);
   if(!m) return null;
-  const n=+m[1].replace(/\s/g,'').replace(',','.'),rate={мм:.01,см:.1,эм:.5,зм:1,пм:10}[m[2].toLowerCase()];
-  return Math.round(n*rate*100)/100;
+  const copper=exactCopperFromDecimalUnit(m[1].replace(/\s/g,''),{мм:1,см:10,эм:50,зм:100,пм:1000}[m[2].toLowerCase()]);
+  return copper==null?null:copper/100;
 }
 function itemMassKg(it){
+  const p=it&&it.mechanics&&it.mechanics.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&it.mechanics.mode!=='legacy'&&it.mechanics.profile;
+  if(p){
+    const mass=p.mass;
+    if(!mass||(mass.state!=null&&mass.state!=='value')||mass.applicable===false||mass.kg==null)return null;
+    const kg=Number(mass.kg);
+    return Number.isFinite(kg)&&kg>=0?Math.round(kg*1000)/1000:null;
+  }
   const s=String(it&&it.weight||'').trim().toLowerCase(),m=s.match(/(\d+(?:[.,]\d+)?)\s*(кг|килограмм|фунт|lb)/i);
-  if(!m) return 0;
+  if(!m) return null;
   const n=+m[1].replace(',','.'),kg=/фунт|lb/.test(m[2])?n*0.45359237:n;
   return Math.round(kg*1000)/1000;
 }
 function itemGoldValue(it){
   const p=it&&it.mechanics&&it.mechanics.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&it.mechanics.mode!=='legacy'&&it.mechanics.profile;
-  if(p) return p.value&&p.value.gp!=null?(+p.value.gp||null):null;
+  if(p){
+    const value=p.value;
+    if(!value||(value.state!=null&&value.state!=='value')||value.applicable===false||value.gp==null)return null;
+    const copper=exactCopperFromGp(value.gp);
+    if(copper==null)return null;
+    if(value.cp!=null&&(!Number.isSafeInteger(Number(value.cp))||Number(value.cp)!==copper))return null;
+    return copper/100;
+  }
   return legacyItemGoldValue(it);
 }
 function itemEntryGoldValue(entry,it){
-  if(entry&&Number.isFinite(+entry.valueGp)&&+entry.valueGp>0) return +entry.valueGp;
+  if(entry&&entry.valueGp!=null&&String(entry.valueGp).trim()!==''){const copper=exactCopperFromGp(entry.valueGp);return copper==null?null:copper/100;}
   return itemGoldValue(it);
+}
+function itemEntryGoldValueMatches(entry,valueGp){
+  const expected=exactCopperFromGp(valueGp),actual=exactCopperFromGp(entry&&entry.valueGp);
+  return expected!=null&&actual===expected;
 }
 function itemUsesInventoryValue(it){
   const p=it&&itemProfile(it),v=p&&p.value;
@@ -6107,19 +6137,23 @@ function matGuessEntry(caster, matDesc, matTokens, matForm, spellId){
   return best?best.e:null;
 }
 function aggregateMaterialPlan(caster,comp,cost,spellId){
-  const candidates=[]; let unknown=0,matched=0;
+  const candidates=[]; let unknown=0,matched=0,invalid=null;
   (caster.inventory||[]).forEach(e=>{
     if(matEntryScore(e,comp.matDesc,comp.matTokens,comp.matForm,spellId)<=0) return;
+    const it=itemOf(e.itemId),value=itemEntryGoldValue(e,it),qty=Math.max(0,Math.floor(+e.qty||0)),explicitValue=e&&e.valueGp!=null&&String(e.valueGp).trim()!==''?e.valueGp:null;
+    if(value==null){if(qty&&explicitValue!=null&&exactCopperFromGp(explicitValue)==null){matched++;invalid={e,it,value:explicitValue};return;}unknown+=qty;return;}
     matched++;
-    const it=itemOf(e.itemId),value=itemEntryGoldValue(e,it),qty=Math.max(0,Math.floor(+e.qty||0));
-    if(value==null){ unknown+=qty; return; }
-    if(qty) candidates.push({e,it,value,qty,cents:Math.max(1,Math.round(value*100))});
+    const cents=exactCopperFromGp(value);
+    if(qty&&cents==null){invalid={e,it,value};return;}
+    if(qty&&cents>0)candidates.push({e,it,value,qty,cents});
   });
-  if(!matched) return {ok:false,reason:'Материальный компонент «'+(comp.matDesc||'М')+'» не найден в инвентаре.'};
-  const target=Math.max(1,Math.round(cost*100));
+  if(!matched&&!unknown) return {ok:false,reason:'Материальный компонент «'+(comp.matDesc||'М')+'» не найден в инвентаре.'};
+  if(invalid)return {ok:false,reason:'Оценочная стоимость «'+userFacingItemName(invalid.it,bg3CatalogIsId(invalid.it.id)?'Предмет BG3':'Предмет')+'» ('+invalid.value+' зм) должна быть выражена с точностью до медной монеты.'};
+  const target=exactCopperFromGp(cost);
+  if(target==null||target<=0)return {ok:false,reason:'Требуемая стоимость материального компонента должна быть положительной суммой с точностью до медной монеты.'};
   const available=candidates.reduce((n,x)=>n+x.cents*x.qty,0);
   if(available<target){
-    const known=Math.round(available)/100;
+    const known=available/100;
     return {ok:false,reason:(unknown?'У части подходящих компонентов не указана оценка. ':'')+'Подтвержденная общая стоимость — '+known+' зм, требуется не менее '+cost+' зм.'};
   }
   const maxUnit=Math.max(...candidates.map(x=>x.cents)),limit=target+maxUnit-1;
@@ -6148,7 +6182,8 @@ function aggregateMaterialPlan(caster,comp,cost,spellId){
 }
 function materialPlanFor(caster,sp,comp,mat){
   if(!comp.m) return {ok:true,mode:'none',info:''};
-  const need=matConsumeFor(sp), cost=materialCostFor(sp,comp), cover=materialCover(caster);
+  const need=matConsumeFor(sp), cost=materialCostFor(sp,comp),costCopper=cost?exactCopperFromGp(cost):0, cover=materialCover(caster);
+  if(cost&&costCopper==null)return {ok:false,reason:'Требуемая стоимость материального компонента должна быть выражена с точностью до медной монеты.'};
   if(mat&&mat.substitute){
     if(need>0||cost) return {ok:false,reason:'Фокусировка и мешочек не заменяют расходуемый или стоимостный компонент.'};
     if(!cover) return {ok:false,reason:'Фокусировка или мешочек с компонентами больше не найдены в инвентаре.'};
@@ -6183,9 +6218,15 @@ function materialPlanFor(caster,sp,comp,mat){
   if(comp.matDesc&&matEntryScore(e,comp.matDesc,comp.matTokens,comp.matForm,sp&&sp.id)<=0)
     return {ok:false,reason:'«'+itemName+'» не соответствует компоненту «'+comp.matDesc+'».'};
   const value=itemEntryGoldValue(e,it);
+  const explicitValue=e.valueGp!=null&&String(e.valueGp).trim()!==''?e.valueGp:null;
+  if(cost&&value==null&&explicitValue!=null&&exactCopperFromGp(explicitValue)==null)
+    return {ok:false,reason:'Оценочная стоимость «'+itemName+'» ('+explicitValue+' зм) должна быть выражена с точностью до медной монеты.'};
   if(cost&&value==null)
     return {ok:false,reason:'У экземпляра «'+itemName+'» не указана оценочная стоимость; для этого заклинания требуется не менее '+cost+' зм.'};
-  if(cost&&value<cost)
+  const valueCopper=value==null?null:exactCopperFromGp(value);
+  if(cost&&valueCopper==null)
+    return {ok:false,reason:'Оценочная стоимость «'+itemName+'» ('+value+' зм) должна быть выражена с точностью до медной монеты.'};
+  if(cost&&valueCopper<costCopper)
     return {ok:false,reason:'Стоимость «'+itemName+'» ('+value+' зм) ниже требуемых '+cost+' зм.'};
   if(use!==need) return {ok:false,reason:'Для этого заклинания расход компонента фиксирован: ровно '+need+' шт.'};
   if(use>(e.qty||1)) return {ok:false,reason:'В инвентаре лишь '+(e.qty||1)+' шт. «'+itemName+'» — списать '+use+' нельзя.'};
@@ -6726,6 +6767,16 @@ function mechanicsErrors(m,kind){
   if(kind==='item'){
     if(!m.profile||!ITEM_KIND_RU[m.profile.kind]) out.push('профиль предмета отсутствует или имеет неизвестный kind');
     if(m.profile&&!Array.isArray(m.profile.matchTokens)) out.push('поисковые ключи предмета не структурированы');
+    if(m.profile&&m.profile.value){
+      const value=m.profile.value;
+      if(value.gp!=null){
+        const copper=exactCopperFromGp(value.gp);
+        if(copper==null) out.push('стоимость предмета должна быть неотрицательной и выражаться с точностью до медной монеты');
+        else if(value.cp!=null&&(!Number.isSafeInteger(Number(value.cp))||Number(value.cp)!==copper)) out.push('стоимость предмета в gp и cp не согласована');
+      }
+      if(value.mode==='inventory'&&value.defaultGp!=null&&exactCopperFromGp(value.defaultGp)==null)
+        out.push('оценочная стоимость экземпляра должна выражаться с точностью до медной монеты');
+    }
     if(m.profile&&m.profile.kind==='weapon'){
       const w=m.profile.weapon,d=w&&w.damage,t=w&&w.damageTraits;
       if(!w||!d||!Number.isInteger(+d.cnt)||+d.cnt<0||!Number.isInteger(+d.sides)||+d.sides<0||!Number.isFinite(+d.mod))
@@ -9333,8 +9384,8 @@ function itemMaterialSchemaErrors(material){
     const c=material.component;
     if(!Array.isArray(c.matchTokens)||!c.matchTokens.length||!Array.isArray(c.consumedBy)) out.push('компонент требует matchTokens и consumedBy');
     if(['fixed','inventory'].indexOf(c.valueMode)<0) out.push('компоненту нужен valueMode fixed/inventory');
-    if(c.valueMode==='fixed'&&!(+c.valueGp>0)) out.push('фиксированному компоненту нужен valueGp');
-    if(c.valueMode==='inventory'&&!(+c.defaultValueGp>0)) out.push('компоненту с оценкой экземпляра нужен defaultValueGp');
+    if(c.valueMode==='fixed'&&!(exactCopperFromGp(c.valueGp)>0)) out.push('фиксированному компоненту нужен valueGp с точностью до медной монеты');
+    if(c.valueMode==='inventory'&&!(exactCopperFromGp(c.defaultValueGp)>0)) out.push('компоненту с оценкой экземпляра нужен defaultValueGp с точностью до медной монеты');
     if(c.form!=null&&c.form!==''&&['gem','powder','liquid'].indexOf(c.form)<0) out.push('неизвестная физическая форма компонента');
   }
   if(!Array.isArray(material.uses)) out.push('material.uses должен быть массивом связей');
@@ -9459,7 +9510,7 @@ function inferItemUseMode(it){
 }
 function profileInteractionsFor(it,profile){
   const p=profile||{},out=[],tags=it&&it.tags||[],sellable=tags.indexOf('unique')<0&&tags.indexOf('quest')<0
-    &&String(it&&it.cost||'').trim()!=='—'&&(itemEntryGoldValue(null,it)!=null||p.value&&(+p.value.gp>0||+p.value.defaultGp>0)),
+    &&String(it&&it.cost||'').trim()!=='—'&&(itemGoldValue(it)>0||p.value&&p.value.mode==='inventory'&&+p.value.defaultGp>0),
     add=(id,label,handler,cost,extra)=>out.push(Object.assign({id,label,handler,cost},extra||{}));
   switch(p.kind){
     case 'weapon':
@@ -9499,7 +9550,7 @@ function profileInteractionsFor(it,profile){
 }
 function itemInteractionsOf(it){
   const m=it&&it.mechanics;
-  if(m&&m.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&m.mode!=='legacy'&&Array.isArray(m.interactions)) return m.interactions;
+  if(m&&m.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&m.mode!=='legacy'&&Array.isArray(m.interactions))return m.interactions.filter(row=>row&&(row.handler!=='valuableSell'||itemUsesInventoryValue(it)||itemGoldValue(it)>0));
   return profileInteractionsFor(it,itemProfile(it));
 }
 function compileItemMechanics(it){
@@ -9540,7 +9591,8 @@ function compileItemMechanics(it){
   const compTokens=it.material&&it.material.component&&it.material.component.matchTokens;
   if(Array.isArray(compTokens)) profile.matchTokens=[...new Set(profile.matchTokens.concat(compTokens.map(x=>String(x).toLowerCase().slice(0,5))))];
   profile.mass={kg:itemMassKg(it),display:String(it.weight||''),unit:'kg'};
-  profile.value={gp:legacyItemGoldValue(it),cp:legacyItemGoldValue(it)==null?null:Math.round(legacyItemGoldValue(it)*100),display:String(it.cost||'')};
+  const legacyValueGp=legacyItemGoldValue(it);
+  profile.value={gp:legacyValueGp,cp:legacyValueGp==null?null:exactCopperFromGp(legacyValueGp),display:String(it.cost||'')};
   const component=it.material&&it.material.component;
   if(component&&component.valueMode==='inventory') profile.value={gp:null,mode:'inventory',defaultGp:+component.defaultValueGp||null};
   else if(component&&component.valueGp) profile.value={gp:+component.valueGp,mode:'fixed'};
@@ -9677,13 +9729,22 @@ function coinCopperTotal(c){
   const purse=c&&c.coins||{};
   return Object.keys(COIN_COPPER_VALUE).reduce((sum,key)=>sum+Math.max(0,Math.floor(+purse[key]||0))*COIN_COPPER_VALUE[key],0);
 }
+function coinCreditPlan(c,copper){
+  const amount=Number(copper),before={},after={},added={pm:0,zm:0,em:0,sm:0,mm:0};
+  if(!Number.isSafeInteger(amount)||amount<0)return {ok:false,reason:'Сумма продажи должна выражаться безопасным целым числом медных монет.',amount};
+  Object.keys(COIN_COPPER_VALUE).forEach(key=>before[key]=after[key]=Math.max(0,Math.floor(+(c&&c.coins&&c.coins[key])||0)));
+  let left=amount;
+  ['pm','zm','em','sm','mm'].forEach(key=>{const count=Math.floor(left/COIN_COPPER_VALUE[key]);added[key]=count;after[key]+=count;left-=count*COIN_COPPER_VALUE[key];});
+  return {ok:true,amount,before,after,added};
+}
 /* Строит точное изменение кошелька, не мутируя героя. Сначала сохраняет
    существующие номиналы насколько возможно; если точной суммы нет, одна
    более крупная монета разменивается на канонический набор меньших. */
 function coinSpendPlan(c,costGp){
-  const target=Math.max(0,Math.round((+costGp||0)*100)),before={},after={};
+  const target=exactCopperFromGp(costGp),before={},after={};
   Object.keys(COIN_COPPER_VALUE).forEach(key=>before[key]=after[key]=Math.max(0,Math.floor(+(c&&c.coins&&c.coins[key])||0)));
   const available=coinCopperTotal(c);
+  if(target==null)return {ok:false,reason:'Стоимость должна быть конечной неотрицательной суммой с точностью до медной монеты.',costGp,target,available,before,after};
   if(available<target) return {ok:false,reason:'Нужно '+costGp+' зм, а в кошельке эквивалент только '+Math.floor(available)/100+' зм.',costGp,target,available};
   let left=target;
   const order=['pm','zm','em','sm','mm'];
@@ -10103,7 +10164,7 @@ const bg3RuleRuntime={plans:new Map()};
   rootLoaderRuntime=privateIntrinsics.freeze({string:summonStringBinding,boolean:summonBooleanBinding,stringReplace:privateIntrinsics.stringReplace,arrayIsArray:privateIntrinsics.arrayIsArray,mapConstructor:privateIntrinsics.mapConstructor,objectAssign:privateIntrinsics.objectAssign,numberIsInteger:summonNumberIntegerBinding,error:summonErrorBinding,versionUrl:rootLoaderVersionUrl,assertEpoch:rootLoaderAssertEpoch,materializeSummary:rootLoaderMaterializeSummary,materializeItem:rootLoaderMaterializeItem,available:rootLoaderAvailable,isId:rootLoaderIsId,manifestDescriptor:rootLoaderManifestDescriptor,fetchPinned:(url,sha,mode)=>rootTrustedFetchPinnedLoader(url,sha,mode),fetchArtifact:(url,descriptor)=>rootTrustedFetchArtifactLoader(url,descriptor),fetchJSON:(url,mode)=>core.bg3FetchPinnedJSON(url,'',mode,rootLoaderHost)});
   const rootStaticAuthorityCheck=()=>{if(!rootFunctionAuthorityCheck())return false;
     const catalog=state.productionCatalogRoot&&recipeCatalogRootCheck(state.productionCatalogRoot);return !!(catalog&&catalog.ok);};
-  const rootCatalogVersion='bg3-24532579-v10',rootManifestSha256='b69e8120ee62e0bc5c3f1af1b096c81f7966285859093b8638f36599f53ff71a';
+  const rootCatalogVersion='bg3-24532579-v10',rootManifestSha256='283436220584717c59b245e5ecbd43d107dbcee5d75bab58b048fa54c3e34525';
   const rootStorySpecs=(()=>{const rows=privateMap(),add=(itemId,useId,profile,rootArtifact,linkId,entrypointId,bookId,stage,line,uuid)=>rows.set(useId,privateIntrinsics.freeze({itemId,useId,profile,rootArtifact,linkId,entrypointId,bookId,quest:'LOW_BreakHagHex',stage,evidence:privateIntrinsics.freeze({goal:'Act3b_LOW_HagSurvivorsSupportGroup',module:'GustavDev',line,subjectKind:'root-template',subjectUuid:uuid,instanceUuid:'',rootTemplateUuid:uuid,rootArtifact,actionType:11,actionIndex:0})}));
     add('bg3:item:rt:15dd6e1a-df7a-4cf8-b189-6cfb580fd42b:stats:T0JKX1Njcm9sbA','bg3-use-e6d0bc25d6c6846e5958','standard','root-template-programs/61-0000.json','bg3:story:GustavDev:Act3b_LOW_HagSurvivorsSupportGroup:1432:bb8e6b3ee4e04db9','bg3:story-entrypoint:d01d7b5c9058bc4d8b3288a4','LOW_AuntieEthelsRevenge_RelocationNote','ReadOldGarlowPointerNote',1432,'15dd6e1a-df7a-4cf8-b189-6cfb580fd42b');
     add('bg3:item:rt:15dd6e1a-df7a-4cf8-b189-6cfb580fd42b:stats:T0JKX1Njcm9sbA','bg3-use-e4f7888703126a3f7204','honour','root-template-programs/61-0000.json','bg3:story:GustavDev:Act3b_LOW_HagSurvivorsSupportGroup:1432:bb8e6b3ee4e04db9','bg3:story-entrypoint:7800726656bbd1b6fd89b7ae','LOW_AuntieEthelsRevenge_RelocationNote','ReadOldGarlowPointerNote',1432,'15dd6e1a-df7a-4cf8-b189-6cfb580fd42b');
@@ -10858,7 +10919,7 @@ const bg3RuleRuntime={plans:new Map()};
   const arrowSourceCheck=(item,use,plan)=>{
     const profile=use&&use.program&&use.program.sourceProfile,row=arrowProfileFor(item&&item.id,use&&use.id,profile),extra=plan&&plan.projectile&&plan.projectile.extraProjectiles;
     if(!row)return extra?{ok:false,reason:'private-item-arrow-exact-v10-carrier-required'}:{ok:false,notArrow:true,reason:'private-item-arrow-descriptor-required'};
-    if(!summonStaticAuthorityCheck())return {ok:false,reason:'private-item-arrow-static-authority-changed'};const selection=safeCatalogSelection();if(!selection.ok||selection.version!=='bg3-24532579-v10'||selection.profile!==profile||selection.sha256!=='b69e8120ee62e0bc5c3f1af1b096c81f7966285859093b8638f36599f53ff71a')return {ok:false,reason:'private-item-arrow-active-v10-catalog-required'};
+    if(!summonStaticAuthorityCheck())return {ok:false,reason:'private-item-arrow-static-authority-changed'};const selection=safeCatalogSelection();if(!selection.ok||selection.version!=='bg3-24532579-v10'||selection.profile!==profile||selection.sha256!=='283436220584717c59b245e5ecbd43d107dbcee5d75bab58b048fa54c3e34525')return {ok:false,reason:'private-item-arrow-active-v10-catalog-required'};
     const sealed=summonPlanSealCheck(item,use,plan);if(!sealed.ok||sealed.item!==item)return sealed.ok?{ok:false,reason:'private-item-arrow-source-mismatch'}:sealed;const contract=use.program||{},source=contract.sourceAction&&contract.sourceAction.primary,projection=contract.projection||{},root=sealed.seal.root,consume=use.consume||{},entrypoints=projection.entrypoints||[],transitive=projection.transitive||[];
     if(!item.source||item.source.statsId!=='OBJ_ArrowOfRicochet'||item.source.rootTemplateUuid!=='b11b3f7f-d8ec-41db-93b9-24474aea31e3'||use.handler!=='bg3RuleProgram'||use.cost!=='action'||use.target!=='any'||use.rollPolicy!=='player-input-required'||consume.kind!=='item'||+consume.amount!==1
         ||contract.id!==row.rootId||contract.sourceProfile!==profile||contract.rootArtifact!==arrowRootArtifact||contract.mode!=='typed'||contract.commitPolicy!=='item-action-contract-once'||contract.ruleProgramId!==arrowChain[0].ruleId+':program:'+profile||contract.ruleSourceProfile!==profile||contract.artifact!==arrowChain[0].artifact||contract.invokedRuleResourceCostPolicy!=='caller-item-action'
@@ -10889,7 +10950,7 @@ const bg3RuleRuntime={plans:new Map()};
   const dethroneSourceCheck=(item,use,plan)=>{
     const program=use&&ownData(use,'program'),profileData=program&&program.value&&ownData(program.value,'sourceProfile'),profile=profileData&&profileData.value,row=dethroneProfileFor(item&&item.id,use&&use.id,profile);
     if(!row)return {ok:false,notDethrone:true,reason:'private-item-dethrone-exact-v10-carrier-required'};
-    const selection=safeCatalogSelection();if(!selection.ok||selection.version!=='bg3-24532579-v10'||selection.profile!==profile||selection.sha256!=='b69e8120ee62e0bc5c3f1af1b096c81f7966285859093b8638f36599f53ff71a')return {ok:false,reason:'private-item-dethrone-active-v10-catalog-required'};const definition=dethroneDefinitionCheck(item);if(!definition.ok)return definition;
+    const selection=safeCatalogSelection();if(!selection.ok||selection.version!=='bg3-24532579-v10'||selection.profile!==profile||selection.sha256!=='283436220584717c59b245e5ecbd43d107dbcee5d75bab58b048fa54c3e34525')return {ok:false,reason:'private-item-dethrone-active-v10-catalog-required'};const definition=dethroneDefinitionCheck(item);if(!definition.ok)return definition;
     const sealed=summonPlanSealCheck(item,use,plan);if(!sealed.ok||sealed.item!==item)return sealed.ok?{ok:false,reason:'private-item-dethrone-source-mismatch'}:sealed;const contract=program.value,source=ownData(item,'source'),stats=source&&source.value&&ownData(source.value,'statsId'),rootUuid=source&&source.value&&ownData(source.value,'rootTemplateUuid'),consume=ownData(use,'consume'),primary=ownData(contract,'sourceAction'),primaryRow=primary&&primary.value&&ownData(primary.value,'primary'),attrs=primaryRow&&primaryRow.value&&ownData(primaryRow.value,'attributes'),projection=ownData(contract,'projection'),entrypoints=projection&&projection.value&&ownData(projection.value,'entrypoints'),transitive=projection&&projection.value&&ownData(projection.value,'transitive'),lifecycle=projection&&projection.value&&ownData(projection.value,'bg3LifecycleBindings'),passive=projection&&projection.value&&ownData(projection.value,'bg3StatusPassiveBindings'),unresolved=projection&&projection.value&&ownData(projection.value,'unresolved'),root=sealed.seal.root,expectedRoot=dethroneItemId+':root-action:'+profile+':OnUsePeaceActions:0',expectedProgram=dethroneRuleId+':program:'+profile;
     if(!stats||stats.value!=='UNI_LOW_DethroneScroll'||!rootUuid||rootUuid.value!=='b2e1168a-021d-4a81-a041-6d2e1421a1fb'||use.handler!=='bg3RuleProgram'||use.cost!=='action'||use.target!=='creature'||use.rollPolicy!=='player-input-required'||!consume||!consume.value||consume.value.kind!=='item'||+consume.value.amount!==1||contract.id!==expectedRoot||contract.rootArtifact!==dethroneRootArtifact||contract.mode!=='typed'||contract.commitPolicy!=='item-action-contract-once'||contract.ruleProgramId!==expectedProgram||contract.ruleSourceProfile!==profile||contract.artifact!==dethroneRuleArtifact||contract.invokedRuleResourceCostPolicy!=='caller-item-action'||!primaryRow||primaryRow.value.actionType!==12||primaryRow.value.index!==0||primaryRow.value.trigger!=='OnUsePeaceActions'||primaryRow.value.rootProgramId!==expectedRoot||!attrs||attrs.value.ActionType!=='12'||attrs.value.ClassId!==dethroneWizardClassUuid||attrs.value.Conditions!=='CanUseSpellScroll("'+dethroneSpellId+'")'||attrs.value.Consume!=='True'||attrs.value.SkillID!==dethroneSpellId||!projection||projection.value.schemaVersion!==BG3_ACTION_PROJECTION_SCHEMA||projection.value.context!=='generic'||projection.value.mode!=='typed'||projection.value.complete!==true||projection.value.executionPolicy!=='all-reachable-opcodes-or-fail-closed'||!entrypoints||!privateIntrinsics.arrayIsArray(entrypoints.value)||entrypoints.value.length!==1||!transitive||!privateIntrinsics.arrayIsArray(transitive.value)||transitive.value.length!==0||!lifecycle||!privateIntrinsics.arrayIsArray(lifecycle.value)||lifecycle.value.length!==0||!passive||!privateIntrinsics.arrayIsArray(passive.value)||passive.value.length!==0||!unresolved||!privateIntrinsics.arrayIsArray(unresolved.value)||unresolved.value.length!==0||summonDigest(use)!==row.useSha256||summonDigest(contract)!==row.programSha256||summonDigest(projection.value)!==row.projectionSha256||summonDigest(root)!==row.rootSha256)return {ok:false,reason:'private-item-dethrone-source-descriptor-mismatch'};
     const entry=entrypoints.value[0];if(!entry||entry.kind!=='spell'||entry.ruleId!==dethroneRuleId||entry.bg3Id!==dethroneSpellId||entry.programId!==expectedProgram||entry.artifact!==dethroneRuleArtifact||entry.sourceProfile!==profile||entry.mode!=='typed')return {ok:false,reason:'private-item-dethrone-entrypoint-mismatch'};
@@ -14638,7 +14699,7 @@ function gameDataAudit(data){
       if(!itemIds.has(e.itemId)) errors.push(at+': инвентарь ссылается на неизвестный предмет '+e.itemId);
       if(!Number.isInteger(+e.qty)||+e.qty<1) errors.push(at+': количество предмета '+j+' должно быть целым и положительным');
       const dbItem=ii.find(x=>x.id===e.itemId);
-      if(dbItem&&itemUsesInventoryValue(dbItem)&&!(Number.isFinite(+e.valueGp)&&+e.valueGp>0)) errors.push(at+': у экземпляра «'+dbItem.n+'» не указана положительная оценочная стоимость');
+      if(dbItem&&itemUsesInventoryValue(dbItem)&&!(exactCopperFromGp(e.valueGp)>0)) errors.push(at+': у экземпляра «'+dbItem.n+'» не указана положительная оценочная стоимость с точностью до медной монеты');
     });
     Object.keys(c.equipment||{}).forEach(slot=>{ if(!entries.has(c.equipment[slot])) errors.push(at+': слот '+slot+' ссылается на отсутствующую запись инвентаря'); });
     (c.abilities||[]).forEach(e=>{ if(abilityRefs.has(e.abilityId)) errors.push(at+': повтор способности '+e.abilityId); abilityRefs.add(e.abilityId); if(!abilityIds.has(e.abilityId)) errors.push(at+': неизвестная способность '+e.abilityId); const db=aa.find(x=>x.id===e.abilityId); if(db&&db.uses!=null&&e.cur!=null&&(!Number.isInteger(+e.cur)||+e.cur<0||+e.cur>+db.uses)) errors.push(at+': ресурс способности '+db.n+' вне диапазона'); });
@@ -15117,16 +15178,20 @@ function valuableSell(entryId){
   const e=invEntryOf(c,entryId); if(!e) return;
   const it=itemOf(e.itemId); if(!it) return;
   const itemName=userFacingItemName(it,bg3CatalogIsId(it.id)?'Ценность BG3':'Ценность');
-  const guess=itemEntryGoldValue(e,it)||0;
-  const raw=window.prompt('💰 За сколько золотых продан «'+itemName+'»?\n(в инвентаре '+(e.qty||1)+' шт. — продается одна)', String(guess||10));
+  const guess=itemEntryGoldValue(e,it),qty=e.qty==null?1:Number(e.qty);
+  if(!Number.isFinite(guess)||guess<=0){setStatus('✕ У «'+itemName+'» нет положительной стоимости: продажа недоступна.',true);return false;}
+  if(!Number.isFinite(qty)||qty<=0){setStatus('✕ В инвентаре нет экземпляра «'+itemName+'» для продажи.',true);return false;}
+  const raw=window.prompt('💰 За сколько золотых продан «'+itemName+'»?\n(в инвентаре '+qty+' шт. — продается одна; точность до 1 мм)', String(guess));
   if(raw==null) return;
+  const entered=String(raw).trim().replace(',','.'),copper=exactCopperFromGp(entered);
+  if(copper==null||copper<=0){setStatus('✕ Цена продажи должна быть положительной и выражаться с точностью до медной монеты.',true);return false;}
+  const money=coinCreditPlan(c,copper);if(!money.ok){setStatus('✕ '+money.reason,true);return false;}
   const transitionGuard=bg3InventoryMutationGuard(c,[{entryId:e.id,qty:1}],{context:'valuable-sell'});if(!transitionGuard.ok){setStatus('✕ '+transitionGuard.reason,true);return false;}
-  const gp=Math.max(0,parseInt(raw,10)||0);
-  c.coins=c.coins||{mm:0,sm:0,em:0,zm:0,pm:0};
-  c.coins.zm=(+c.coins.zm||0)+gp;
   const rest=itemSpendOne(c,e,it);
+  Object.assign(c.coins||(c.coins={}),money.after);
   fxInvalidate(); scheduleSave(); renderChars();
-  itemLog(c,'💰 '+c.name+' продает «'+itemName+'» за '+gp+' зм'+rest);
+  itemLog(c,'💰 '+c.name+' продает «'+itemName+'» за '+String(copper/100).replace('.',',')+' зм'+rest);
+  return true;
 }
 /* ── припасы ── */
 function foodEat(entryId){
@@ -15272,18 +15337,30 @@ function containerCapacityKg(it){
   if(!m) return null;
   const n=+m[1].replace(',','.'); return /фунт|lb/i.test(m[2])?Math.round(n*0.45359237*1000)/1000:n;
 }
+function itemWeightQuantity(entry){
+  if(!entry)return 0;if(entry.qty==null)return 1;const qty=Number(entry.qty);return Number.isFinite(qty)&&qty>0?qty:0;
+}
 function containerPutPlan(c,containerEntry,sourceEntry){
   const box=containerEntry&&itemOf(containerEntry.itemId),src=sourceEntry&&itemOf(sourceEntry.itemId);
   if(!c||!box||!src||containerEntry.id===sourceEntry.id) return {ok:false,reason:'Предмет или вместилище не найдено.'};
   if(itemIsBox(src)) return {ok:false,reason:'Нельзя вкладывать одно вместилище в другое.'};
-  const transitionGuard=bg3InventoryMutationGuard(c,[{entryId:sourceEntry.id,qty:Math.max(1,Math.floor(+sourceEntry.qty||1))}],{context:'container-put'});if(!transitionGuard.ok)return transitionGuard;
-  const capacity=containerCapacityKg(box),current=innerWeightOf(containerEntry),add=(itemProfile(src).mass&&+itemProfile(src).mass.kg||0)*Math.max(1,+sourceEntry.qty||1);
+  const qty=itemWeightQuantity(sourceEntry),mass=itemMassKg(src);if(qty<=0)return {ok:false,reason:'В инвентаре нет экземпляров предмета для перемещения.'};
+  if(mass==null)return {ok:false,reason:'Вес предмета не определён; вместимость нельзя проверить.'};
+  const transitionGuard=bg3InventoryMutationGuard(c,[{entryId:sourceEntry.id,qty:Math.max(1,Math.floor(qty))}],{context:'container-put'});if(!transitionGuard.ok)return transitionGuard;
+  const capacity=containerCapacityKg(box),current=innerWeightOf(containerEntry),add=Math.round(mass*qty*1000)/1000;
+  if(current==null)return {ok:false,reason:'Вес содержимого «'+box.n+'» неизвестен; вместимость нельзя проверить.'};
   if(capacity!=null&&current+add>capacity+1e-9) return {ok:false,reason:'Вместимость «'+box.n+'» превышена: '+Math.round((current+add)*100)/100+' кг при пределе '+capacity+' кг.'};
   return {ok:true,caster:c,containerEntry,sourceEntry,box,src,capacity,current,add};
 }
-function innerWeightOf(e){
-  return entryInside(e).reduce((a,x)=>{ const t=itemOf(x.itemId),v=t&&itemProfile(t).mass?+itemProfile(t).mass.kg:itemMassKg(t);
-    return a+((v||0)*(x.qty||1)); },0);
+function innerWeightState(e){
+  let weight=0,known=true;
+  entryInside(e).forEach(x=>{const qty=itemWeightQuantity(x);if(qty<=0)return;const t=itemOf(x.itemId),v=itemMassKg(t);if(v==null){known=false;return;}weight+=v*qty;});
+  return {known,kg:Math.round(weight*1000)/1000};
+}
+function innerWeightOf(e){const state=innerWeightState(e);return state.known?state.kg:null;}
+function containerContentsMassText(e){
+  const state=innerWeightState(e);
+  return state.known?'вес содержимого '+state.kg+' кг':'вес содержимого неизвестен; подтверждено не менее '+state.kg+' кг';
 }
 /* первичное наполнение по описанию предмета */
 function fillContainer(e, it){
@@ -15312,16 +15389,16 @@ function containerRender(){
   const e=invEntryOf(c,boxOpen); if(!e){ boxOpen=null; return; }
   const it=itemOf(e.itemId); if(!it) return;
   const inside=entryInside(e);
-  const pr=itemProfile(it);
+  const pr=itemProfile(it),capacity=String(it.cap||(pr.container&&pr.container.cap)||''),contentsMass=containerContentsMassText(e);
   const itemName=userFacingItemName(it,bg3CatalogIsId(it.id)?'Предмет BG3':'Предмет');
   let h='<div class="note-ital" style="font-size:13.5px;margin-bottom:6px">'
-    +esc(itemName)+(it.cap?' · вмещает '+esc(it.cap):'')+' · внутри предметов: '+inside.length
-    +(innerWeightOf(e)?' · вес содержимого '+Math.round(innerWeightOf(e)*10)/10+' кг':'')+'</div>';
+    +esc(itemName)+(capacity?' · вмещает '+esc(capacity):'')+' · внутри предметов: '+inside.length
+    +' · '+esc(contentsMass)+'</div>';
   if(!inside.length) h+='<p class="note-ital">Внутри пусто.</p>';
   else h+='<div class="fx-panel">'+inside.map(x=>{
-    const t=itemOf(x.itemId); if(!t) return '';
+    const t=itemOf(x.itemId); if(!t) return '';const mass=itemProfile(t).mass,itemMass=mass?mass.display||'':t.weight||'';
     return '<div class="fx-row"><b class="fx-src">'+esc(userFacingItemName(t,bg3CatalogIsId(t.id)?'Предмет BG3':'Предмет'))+'</b>'
-      +'<span class="fx-why">'+esc(ITEM_TYPES[t.type]||t.type)+(t.weight?' · '+esc(t.weight):'')+(x.qty>1?' · '+x.qty+' шт.':'')+'</span>'
+      +'<span class="fx-why">'+esc(ITEM_TYPES[t.type]||t.type)+(itemMass?' · '+esc(itemMass):'')+(x.qty>1?' · '+x.qty+' шт.':'')+'</span>'
       +'<span class="fx-items"><span class="fx-note">'+esc(String(t.desc||'').split('\n')[0].slice(0,90))+'</span></span>'
       +'<button class="btn ghost sm" title="Переложить в основной инвентарь" onclick="containerTake(\''+e.id+'\',\''+x.id+'\')">↥ достать</button>'
       +'</div>';
@@ -18642,7 +18719,7 @@ function itemActions(c, e, it){
     instrumentPlay:x=>B('🎵',x.label,"instrumentPlay('"+e.id+"')",'Проверка Выступления',x.cost),
     gamblePlay:x=>B('🎲',x.label,"gamblePlay('"+e.id+"')",'Проверка игрового набора',x.cost),
     loreRead:x=>B('📖',x.label,"loreRead('"+e.id+"')",'Изучить записи',x.cost),
-    valuableSell:x=>B('💰',x.label,"valuableSell('"+e.id+"')",'Обменять один экземпляр по подтвержденной цене',x.cost),
+    valuableSell:x=>{if(itemEntryGoldValue(e,it)>0)B('💰',x.label,"valuableSell('"+e.id+"')",'Обменять один экземпляр по подтвержденной цене',x.cost);},
     foodEat:x=>B('🍖',x.label,"foodEat('"+e.id+"')",'Закрыть дневную норму пищи',x.cost),
     waterDrink:x=>B(e.full===false?'💧':'🥤',e.full===false?'Наполнить':'Испить',"waterDrink('"+e.id+"')",x.label,x.cost),
     campSet:x=>B('⛺',x.label,"campSet('"+e.id+"')",'Долгий отдых',x.cost),
@@ -18820,9 +18897,13 @@ function bg3ScrollSummaryParts(scroll){
   scroll=scroll||{};const parts=[],knownNumber=value=>value!==null&&value!==''&&Number.isFinite(Number(value));if(knownNumber(scroll.level))parts.push(+scroll.level===0?'заговор':scroll.level+' круг');if(scroll.school)parts.push('школа '+scroll.school);if(knownNumber(scroll.saveDC))parts.push('СЛ '+scroll.saveDC);if(knownNumber(scroll.attackBonus))parts.push('атака '+fmtMod(+scroll.attackBonus));if(typeof scroll.canLearn==='boolean')parts.push(scroll.canLearn?'можно выучить':'нельзя выучить');if(Number.isInteger(scroll.readyActions)||Number.isInteger(scroll.blockedActions))parts.push('действия '+(+scroll.readyActions||0)+' готовы / '+(+scroll.blockedActions||0)+' заблокированы');return parts;
 }
 function itemProfileSummaryHTML(it){
-  const profile=itemProfile(it),flags=profile.flags||{},rows=[],kind=itemWorkspaceKindLabel(profile.kind||it.type),mass=profile.mass&&profile.mass.display||it.weight||'',value=profile.value&&profile.value.display||it.cost||'',coverage=it&&it.mechanics&&it.mechanics.engineCoverage;
+  const profile=itemProfile(it),flags=profile.flags||{},rows=[],kind=itemWorkspaceKindLabel(profile.kind||it.type),massProfile=profile.mass,valueProfile=profile.value,
+    massExpected=massProfile&&(massProfile.state==null||massProfile.state==='value')&&massProfile.applicable!==false&&massProfile.kg!=null,
+    valueExpected=valueProfile&&(valueProfile.state==null||valueProfile.state==='value')&&valueProfile.applicable!==false&&valueProfile.mode!=='inventory'&&valueProfile.gp!=null,
+    mass=massExpected&&itemMassKg(it)==null?'некорректен — взаимодействие заблокировано':(massProfile?massProfile.display||'':it.weight||''),
+    value=valueExpected&&itemGoldValue(it)==null?'некорректна — взаимодействие заблокировано':(valueProfile?valueProfile.display||'':it.cost||''),coverage=it&&it.mechanics&&it.mechanics.engineCoverage;
   rows.push('<b>Назначение:</b> '+esc(kind));if(mass)rows.push('<b>Вес:</b> '+esc(mass));if(value)rows.push('<b>Стоимость:</b> '+esc(value));
-  const flagLabels=[];if(flags.portable===false)flagLabels.push('непереносимый объект мира');else if(flags.portable===true)flagLabels.push('можно хранить в инвентаре');if(flags.magical)flagLabels.push('магический');if(flags.consumable)flagLabels.push('расходуемый');if(flags.metal)flagLabels.push('металл');if(flags.focus)flagLabels.push('магическая фокусировка');if(flags.componentPouch)flagLabels.push('мешочек компонентов');if(flagLabels.length)rows.push('<b>Свойства:</b> '+esc(flagLabels.join(' · ')));
+  const flagLabels=[],sourcePortableBlock=bg3ItemSourceInventoryBlock(it);if(flags.portable===false||sourcePortableBlock)flagLabels.push('непереносимый объект мира');else if(flags.portable===true)flagLabels.push('можно хранить в инвентаре');if(flags.magical)flagLabels.push('магический');if(flags.consumable)flagLabels.push('расходуемый');if(flags.metal)flagLabels.push('металл');if(flags.focus)flagLabels.push('магическая фокусировка');if(flags.componentPouch)flagLabels.push('мешочек компонентов');if(flagLabels.length)rows.push('<b>Свойства:</b> '+esc(flagLabels.join(' · ')));
   if(profile.weapon){const w=profile.weapon,damage=w.damage||{},traits=[],bonus=Number(w.bonus),rawRange=String(w.range||''),rangeNumber=Number(rawRange),rangeLabel=bg3CatalogIsId(it.id)&&Number.isFinite(rangeNumber)&&rangeNumber>0?String(rangeNumber/100).replace('.',',')+' м':rawRange;if(w.category)traits.push(w.category==='martial'?'воинское':'простое');if(w.ranged)traits.push('дальнобойное');if(w.finesse)traits.push('фехтовальное');if(w.light)traits.push('лёгкое');if(w.heavy)traits.push('тяжёлое');if(w.two)traits.push('двуручное');if(w.reach)traits.push('досягаемость');if(w.thrown)traits.push('метательное');if(w.loading)traits.push('перезарядка');if(w.magic)traits.push('магическое');if(w.ammo)traits.push('боеприпас'+(w.ammoType?' '+w.ammoType:''));if(Number.isFinite(bonus)&&bonus!==0)traits.push('бонус '+fmtMod(bonus));const dmg=damage.cnt&&damage.sides?damage.cnt+'d'+damage.sides+(damage.mod?(damage.mod>0?'+':'')+damage.mod:'')+(damage.type?' '+damage.type:''):it.dmg||'';rows.push('<b>Оружие:</b> '+esc([dmg,rangeLabel?'дистанция '+rangeLabel:'',traits.join(', ')].filter(Boolean).join(' · ')));if(w.versatile&&w.versatile.cnt&&w.versatile.sides)rows.push('<b>Двумя руками:</b> '+esc(w.versatile.cnt+'d'+w.versatile.sides+(w.versatile.mod?(w.versatile.mod>0?'+':'')+w.versatile.mod:'')));if(w.special)rows.push('<b>Особенность оружия:</b> '+esc(w.special));const propertyLabels=bg3Array(w.bg3Properties).map(value=>BG3_WEAPON_PROPERTY_LABELS[value]).filter(Boolean);if(propertyLabels.length)rows.push('<b>Свойства:</b> '+esc(propertyLabels.join(' · ')));}
   if(profile.armor){const a=profile.armor,rule=a.acRule||{},parts=[],armorTypes={Padded:'стёганый',Leather:'кожаный',StuddedLeather:'клёпаная кожа',Hide:'шкурный',ChainShirt:'кольчужная рубаха',ScaleMail:'чешуйчатый',BreastPlate:'кираса',HalfPlate:'полулаты',RingMail:'кольчатый',ChainMail:'кольчуга',Splint:'наборный',Plate:'латы'};if(armorTypes[a.bg3ArmorType])parts.push(armorTypes[a.bg3ArmorType]);if(a.ac)parts.push('КД '+a.ac);else if(rule.base)parts.push('база КД '+rule.base);if(rule.dex)parts.push(rule.dexCap==null?'полная Ловкость':'Ловкость максимум +'+rule.dexCap);if(rule.shield)parts.push('щит');if(a.weight)parts.push(a.weight);if(a.strReq)parts.push('Сила '+a.strReq);if(a.stealthDis)parts.push('помеха Скрытности');if(a.don)parts.push('надевание '+a.don);rows.push('<b>Доспех:</b> '+esc(parts.join(' · ')||it.ac||'точные параметры источником не указаны'));}
   if(profile.scroll)rows.push('<b>Свиток:</b> '+esc('заклинание '+(+profile.scroll.level||0)+' круга · СЛ '+(+profile.scroll.saveDC||0)+' · атака '+fmtMod(+profile.scroll.attackBonus||0)));
@@ -19056,7 +19137,7 @@ function bg3ElementalInfusionInstructionLines(it){if(!bg3ElementalInfusionInstru
 function bg3ItemInstructionSummary(it){const summary=String(it&&it.props||'').trim();return bg3CatalogIsId(it&&it.id)?'':summary;}
 function bg3ItemInstructionOverview(it,focusId){
   const lines=[],actions=itemUsesOf(it).filter(action=>!bg3ItemStorageStoryAction(action)),interactions=itemInteractionsOf(it).filter(action=>!bg3ItemStorageStoryAction(action)),effects=itemPassiveFx(it),lifecycle=bg3LifecycleRefsOf(it).filter(effect=>!bg3ItemStorageStoryAction(effect)),profile=itemProfile(it),focus=String(focusId||''),audit=bg3ItemSourceAuditOverride(it),ruleRows=bg3ItemRuleRows(it).filter(row=>!focus||row.focusId===focus),summary=bg3ItemInstructionSummary(it),elementalInfusion=bg3ElementalInfusionInstructionLines(it);
-  lines.push('Профиль: '+(ITEM_KIND_RU[profile.kind]||itemWorkspaceKindLabel(profile.kind)||'предмет')+(it.rarity?' · '+it.rarity:'')+(it.weight?' · '+it.weight:'')+'.');
+  const mass=profile.mass?profile.mass.display||'':it.weight||'';lines.push('Профиль: '+(ITEM_KIND_RU[profile.kind]||itemWorkspaceKindLabel(profile.kind)||'предмет')+(it.rarity?' · '+it.rarity:'')+(mass?' · '+mass:'')+'.');
   if(elementalInfusion.length)lines.push('',...elementalInfusion);else if(summary)lines.push('', 'Краткая механика:', summary);
   if(audit)lines.push('', 'Источник неполон; неподтверждённая автоматизация отключена:', '• '+audit.reason, '• Безопасный порядок: '+audit.manualInstruction);
   if(ruleRows.length){lines.push('',focus?'Выбранное игровое свойство:':'Игровые свойства:');for(const row of ruleRows)lines.push('• '+row.label+' — '+row.text+' ['+(BG3_ITEM_RULE_SUPPORT_LABELS[row.support]||'статус свойства уточняется')+']');}
@@ -19096,10 +19177,8 @@ function bg3ItemSourceFallbackHTML(it){
   const source=it&&it.source||{},mechanics=it&&it.mechanics||{},profile=itemProfile(it)||{},flags=profile.flags||{},classification=String(source.classification||''),status={playable:'предмет инвентаря BG3',duplicate:'вариант предмета BG3','needs-review':'другой предмет или объект BG3','world-object':'объект окружения BG3',technical:'служебная запись каталога BG3'}[classification]||'предмет или объект BG3',facts=[],kind=profile.kind||it.type||'misc',category=itemWorkspaceBg3Category({category:source.category,classification});
   facts.push('назначение — '+itemWorkspaceKindLabel(kind));
   if(category)facts.push('игровая группа — '+itemWorkspaceCategoryLabel(category));
-  if(flags.portable===true)facts.push('переносимость — подтверждена');else if(flags.portable===false)facts.push('непереносимый объект');
+  if(bg3ItemSourceInventoryBlock(it)||flags.portable===false)facts.push('непереносимый объект');else if(flags.portable===true)facts.push('переносимость — подтверждена');
   if(flags.magical===true)facts.push('магический');if(flags.consumable===true)facts.push('расходуемый');
-  const mass=profile.mass&&profile.mass.display||it.weight||'',value=profile.value&&profile.value.display||it.cost||'';
-  if(mass)facts.push('вес — '+mass);if(value)facts.push('стоимость — '+value);
   const manual=mechanics.mode==='manual'?'<div style="margin-top:4px"><b>Механика:</b> точные свойства приведены ниже; неподдержанные операции не исполняются автоматически.</div>':'';
   return '<div class="props-block bg3-source-fallback"><span class="pt">Сведения источника:</span><div class="entry-desc"><b>Описание не указано.</b> Проза источника отсутствует; каталог классифицирует запись как '+esc(status)+', а подтверждённые игровые правила показывает ниже отдельно.</div><div style="margin-top:4px"><b>Подтверждённые характеристики:</b> '+esc(facts.join(' · '))+'</div>'+manual+'</div>';
 }
@@ -19117,8 +19196,6 @@ function itemCardHTML(it, extra, options){
   h+=String(it.desc||'').trim()?descBlock(it.desc,options.fullDescription===true,bg3CatalogIsId(it.id)):(bg3CatalogIsId(it.id)?bg3ItemSourceFallbackHTML(it):'<div class="note-ital" style="font-size:13px">Описание не указано.</div>');
   if(String(it.text||'').trim())h+='<details class="props-block"'+(options.fullDescription===true?' open':'')+'><summary class="toggle-link">Прочитать содержимое</summary><div class="entry-desc" style="margin-top:7px">'+esc(it.text)+'</div></details>';
   const meta=[];
-  if(it.weight) meta.push('<b>Вес:</b> '+esc(it.weight));
-  if(it.cost) meta.push('<b>Цена:</b> '+esc(it.cost));
   if(it.dmg) meta.push('<b>Урон:</b> <span class="dmg">'+esc(it.dmg)+(it.dmgType?' ('+esc(it.dmgType)+')':'')+'</span>');
   if(it.ac) meta.push('<b>КД:</b> '+esc(it.ac));
   if(it.slot) meta.push('<b>Слот:</b> '+esc(ITEM_SLOT_RU[it.slot]||it.slot));
@@ -19226,7 +19303,7 @@ const BG3_ITEM_PRESENTATION_SCHEMA='bg3-ui-item-presentation/1';
 const BG3_ITEM_PRESENTATION_DETAIL_SCHEMA='bg3-ui-item-presentation-detail/1';
 const BG3_ITEM_PRESENTATION_SEARCH_SCHEMA='bg3-ui-item-presentation-search/1';
 const BG3_ITEM_PRESENTATION_BASE='data/bg3/ui/bg3-24532579-v10-item-presentation/';
-const BG3_ITEM_PRESENTATION_MANIFEST_SHA256='5ba843ab38cfe19043a01cc5fc0510a492c80cf3d601a15906c0fb0343963361';
+const BG3_ITEM_PRESENTATION_MANIFEST_SHA256='23a1c40fc42f203200100f37ba387c580e6ad7966f0c5a950d31d1ca05768af4';
 let bg3ItemPresentation={root:null,loading:null,error:'',byItem:new Map(),detailFiles:new Map(),searchFiles:new Map(),details:new Map(),detailShards:new Map(),detailPromises:new Map(),detailErrors:new Map(),searchDocs:new Map(),searchReady:false,searchLoading:null,searchError:''};
 
 /* ═══════════════ BG3: НЕИЗМЕНЯЕМЫЙ ЛЕНИВЫЙ КАТАЛОГ ═══════════════
@@ -25492,8 +25569,14 @@ function itemWorkspaceHero(){
 function itemWorkspaceHeroOptionsHTML(){const selected=itemWorkspaceHero();return chars.map(c=>'<option value="'+esc(c.id)+'"'+(selected&&selected.id===c.id?' selected':'')+'>'+esc(c.name||c.id)+'</option>').join('');}
 function itemWorkspaceSetHero(id){itemWorkspace.heroId=getCh(id)?id:'';renderItemsDB();}
 function itemWorkspaceSetQty(value){const qty=Math.max(1,Math.min(999,Math.floor(+value||1)));itemWorkspace.qty=qty;const input=document.getElementById('itemWorkspaceQty');if(input)input.value=String(qty);}
+function bg3ItemSourceInventoryBlock(it){
+  const facts=it&&it.mechanics&&it.mechanics.sourceFacts&&it.mechanics.sourceFacts.facts||{},pickable=facts.pickable,movable=facts.movable;
+  if(bg3SourceFactHasValue(pickable)&&pickable.value===false)return 'RootTemplate.CanBePickedUp=False: этот объект BG3 нельзя подобрать в инвентарь';
+  if(bg3SourceFactHasValue(movable)&&movable.value===false)return 'RootTemplate.CanBeMoved=False: этот объект BG3 нельзя перемещать в инвентарь';
+  return '';
+}
 function itemWorkspaceReviewPortable(row){return !!(row&&row.source==='bg3'&&row.classification==='needs-review'&&row.sourceCategory&&row.sourceCategory!=='unclassified'&&row.item&&itemProfile(row.item).flags.portable===true);}
-function itemWorkspacePortable(row){return !!(row&&bg3ItemSourceAuditAllows(row,'inventory')&&(row.source==='campaign'||['playable','duplicate'].includes(row.classification)||itemWorkspaceReviewPortable(row)));}
+function itemWorkspacePortable(row){return !!(row&&bg3ItemSourceAuditAllows(row,'inventory')&&!bg3ItemSourceInventoryBlock(row.item)&&(row.source==='campaign'||['playable','duplicate'].includes(row.classification)||itemWorkspaceReviewPortable(row)));}
 function itemWorkspaceHeroToolbarHTML(){const hero=itemWorkspaceHero();return '<div class="items-workspace-toolbar" aria-label="Получатель предмета">'
   +'<div><label for="itemWorkspaceHero">Герой-получатель</label><select id="itemWorkspaceHero" onchange="itemWorkspaceSetHero(this.value)"'+(chars.length?'':' disabled')+'>'+(chars.length?itemWorkspaceHeroOptionsHTML():'<option value="">Сначала создайте героя</option>')+'</select></div>'
   +'<div><label for="itemWorkspaceQty">Количество</label><input id="itemWorkspaceQty" type="number" min="1" max="999" step="1" value="'+itemWorkspace.qty+'" oninput="itemWorkspaceSetQty(this.value)"></div>'
@@ -25531,8 +25614,8 @@ async function bg3CatalogOpen(id){
 async function itemWorkspaceGrantPlanFor(actorId,itemId,qty,opts){
   opts=opts||{};const c=getCh(String(actorId||'')),amount=Number(qty);if(!c)return {ok:false,reason:'выбранный герой не найден'};if(!Number.isInteger(amount)||amount<1||amount>999)return {ok:false,reason:'количество должно быть целым числом от 1 до 999'};
   const epoch=bg3Catalog.epoch;if(bg3CatalogIsId(itemId))await bg3CatalogHydrate([itemId]);if(epoch!==bg3Catalog.epoch)return {ok:false,stale:true,reason:'профиль каталога изменился во время загрузки'};
-  const it=itemOf(itemId);if(!it)return {ok:false,reason:'предмет отсутствует в текущей базе'};const sourceAudit=bg3ItemSourceAuditOverride(it);if(bg3CatalogIsId(itemId)&&sourceAudit&&sourceAudit.inventory===false)return {ok:false,manual:true,reason:sourceAudit.reason};if(bg3CatalogIsId(itemId)){const source=it.source||{},classification=source.classification,inventoryClass=['playable','duplicate'].includes(classification)||(classification==='needs-review'&&source.category&&source.category!=='unclassified');if(!inventoryClass||itemProfile(it).flags.portable!==true)return {ok:false,reason:'этот объект BG3 относится к миру или вспомогательным данным и не переносится в инвентарь'};}
-  let valueGp=opts.valueGp;if(itemUsesInventoryValue(it)){if(valueGp==null)return {ok:false,needsValue:true,item:it,c,qty:amount,reason:'нужна оценочная стоимость экземпляра'};valueGp=Number(valueGp);if(!Number.isFinite(valueGp)||valueGp<=0)return {ok:false,reason:'стоимость должна быть положительным числом'};valueGp=Math.round(valueGp*100)/100;}
+  const it=itemOf(itemId);if(!it)return {ok:false,reason:'предмет отсутствует в текущей базе'};const sourceAudit=bg3ItemSourceAuditOverride(it);if(bg3CatalogIsId(itemId)&&sourceAudit&&sourceAudit.inventory===false)return {ok:false,manual:true,reason:sourceAudit.reason};if(bg3CatalogIsId(itemId)){const source=it.source||{},classification=source.classification,profile=itemProfile(it),sourcePortableBlock=bg3ItemSourceInventoryBlock(it),inventoryClass=['playable','duplicate'].includes(classification)||(classification==='needs-review'&&source.category&&source.category!=='unclassified');if(sourcePortableBlock)return {ok:false,reason:sourcePortableBlock};if(!inventoryClass||profile.flags.portable!==true)return {ok:false,reason:'этот объект BG3 относится к миру или вспомогательным данным и не переносится в инвентарь'};if(itemMassKg(it)==null)return {ok:false,reason:'вес этого предмета BG3 неприменим или не определён; выдача в инвентарь заблокирована'};}
+  let valueGp=null;if(itemUsesInventoryValue(it)){const requestedValueGp=opts.valueGp;if(requestedValueGp==null)return {ok:false,needsValue:true,item:it,c,qty:amount,reason:'нужна оценочная стоимость экземпляра'};const valueCopper=exactCopperFromGp(requestedValueGp);if(valueCopper==null||valueCopper<=0)return {ok:false,reason:'стоимость должна быть положительной суммой с точностью до медной монеты'};valueGp=valueCopper/100;}
   const transition=bg3InventoryMutationGuard(c,[],{context:'catalog-give',additions:[{itemId,qty:amount}]});if(!transition.ok)return transition;
   return {ok:true,kind:'catalog-give-plan',actorId:c.id,itemId:String(itemId),qty:amount,valueGp:valueGp==null?null:valueGp,epoch,c,it,itemSnapshot:JSON.stringify(itemClone(it)),inventorySnapshot:JSON.stringify(itemClone(c.inventory||[])),equipmentSnapshot:JSON.stringify(itemClone(c.equipment||{})),catalogVersion:bg3Catalog.current&&bg3Catalog.current.catalogVersion||'',profile:bg3Catalog.preferredProfile||'',committed:false};
 }
@@ -25541,11 +25624,11 @@ async function itemWorkspaceGrantCommit(plan){
   if(!plan||!plan.ok||plan.kind!=='catalog-give-plan')return {ok:false,reason:'нужен подтверждённый план выдачи'};if(plan.committed)return {ok:false,replay:true,reason:'этот план выдачи уже применён'};const c=getCh(plan.actorId),it=itemOf(plan.itemId);if(!c||!it||c!==plan.c||it!==plan.it||plan.epoch!==bg3Catalog.epoch||plan.catalogVersion!==(bg3Catalog.current&&bg3Catalog.current.catalogVersion||'')||plan.profile!==(bg3Catalog.preferredProfile||'')||plan.itemSnapshot!==JSON.stringify(itemClone(it))||plan.inventorySnapshot!==JSON.stringify(itemClone(c.inventory||[]))||plan.equipmentSnapshot!==JSON.stringify(itemClone(c.equipment||{})))return {ok:false,stale:true,reason:'герой, предмет, инвентарь или каталог изменились до выдачи'};
   if(itemWorkspace.grantCommits.has(plan.actorId))return {ok:false,busy:true,reason:'для этого героя уже выполняется другая выдача'};itemWorkspace.grantCommits.add(plan.actorId);
   try{let transition=bg3InventoryMutationGuard(c,[],{context:'catalog-give-commit',additions:[{itemId:plan.itemId,qty:plan.qty}]});if(!transition.ok)return transition;
-    const draft=itemClone(c),draftIt=itemOf(plan.itemId);let draftEntry=bg3Array(draft.inventory).find(row=>row.itemId===plan.itemId&&(!itemUsesInventoryValue(draftIt)||+row.valueGp===plan.valueGp));if(draftEntry)setInvQty(draftEntry,draftIt,(+draftEntry.qty||1)+plan.qty);else{draftEntry={id:'catalog-grant-preflight',itemId:plan.itemId,qty:plan.qty,notes:''};if(plan.valueGp!=null)draftEntry.valueGp=plan.valueGp;draft.inventory.push(draftEntry);}itemWorkspaceFillContainerPreview(draftEntry,draftIt);
+    const draft=itemClone(c),draftIt=itemOf(plan.itemId);let draftEntry=bg3Array(draft.inventory).find(row=>row.itemId===plan.itemId&&(!itemUsesInventoryValue(draftIt)||itemEntryGoldValueMatches(row,plan.valueGp)));if(draftEntry)setInvQty(draftEntry,draftIt,(+draftEntry.qty||1)+plan.qty);else{draftEntry={id:'catalog-grant-preflight',itemId:plan.itemId,qty:plan.qty,notes:''};if(plan.valueGp!=null)draftEntry.valueGp=plan.valueGp;draft.inventory.push(draftEntry);}itemWorkspaceFillContainerPreview(draftEntry,draftIt);
     let lifecycle;try{lifecycle=await bg3LifecycleReconcile(draft);}catch(error){return {ok:false,rolledBack:true,reason:'выдача отменена до изменения мира: '+String(error&&error.message||error)};}finally{bg3LifecycleRuntime.byChar.delete(draft);}
     if(!lifecycle||lifecycle.ok!==true)return {ok:false,rolledBack:true,reason:'выдача отменена до изменения мира: '+String(lifecycle&&lifecycle.reason||'lifecycle предмета не подготовлен')};
     const live=getCh(plan.actorId),liveItem=itemOf(plan.itemId);if(live!==c||liveItem!==it||plan.epoch!==bg3Catalog.epoch||plan.itemSnapshot!==JSON.stringify(itemClone(liveItem))||plan.inventorySnapshot!==JSON.stringify(itemClone(c.inventory||[]))||plan.equipmentSnapshot!==JSON.stringify(itemClone(c.equipment||{})))return {ok:false,stale:true,reason:'герой, предмет или инвентарь изменились во время подготовки lifecycle'};
-    transition=bg3InventoryMutationGuard(c,[],{context:'catalog-give-commit-barrier',additions:[{itemId:plan.itemId,qty:plan.qty}]});if(!transition.ok)return transition;let entry=(c.inventory||[]).find(row=>row.itemId===plan.itemId&&(!itemUsesInventoryValue(it)||+row.valueGp===plan.valueGp));if(entry)setInvQty(entry,it,(+entry.qty||1)+plan.qty);else{entry={id:'inv_'+uid(),itemId:plan.itemId,qty:plan.qty,notes:''};if(plan.valueGp!=null)entry.valueGp=plan.valueGp;c.inventory.push(entry);}fillContainer(entry,it);plan.committed=true;
+    transition=bg3InventoryMutationGuard(c,[],{context:'catalog-give-commit-barrier',additions:[{itemId:plan.itemId,qty:plan.qty}]});if(!transition.ok)return transition;let entry=(c.inventory||[]).find(row=>row.itemId===plan.itemId&&(!itemUsesInventoryValue(it)||itemEntryGoldValueMatches(row,plan.valueGp)));if(entry)setInvQty(entry,it,(+entry.qty||1)+plan.qty);else{entry={id:'inv_'+uid(),itemId:plan.itemId,qty:plan.qty,notes:''};if(plan.valueGp!=null)entry.valueGp=plan.valueGp;c.inventory.push(entry);}fillContainer(entry,it);plan.committed=true;
     let displayError='';try{bg3LifecycleScheduleForSurface(c,plan.itemId,false);scheduleSave();renderChars();if(activeWorldTab==='itemsdb')renderItemsDB(plan.itemId);}catch(error){displayError=String(error&&error.message||error);}
     return {ok:true,actorId:c.id,itemId:plan.itemId,qty:plan.qty,entryId:entry.id,stackQty:+entry.qty||1,displayError};
   }finally{itemWorkspace.grantCommits.delete(plan.actorId);}
@@ -26396,15 +26479,19 @@ function spellAbOf(c){
 function setSpellAb(v){ const c=cc(); if(!c) return; c.spellAb=v; scheduleSave(); renderChars(); }
 function spellDC(c){ return 8+PROF[c.level]+eMod(c,spellAbOf(c))+fxSum(c,'spell.dc'); }
 function spellAtk(c){ return PROF[c.level]+eMod(c,spellAbOf(c))+fxSum(c,'atk')+fxSum(c,'spell.atk'); }
-function carryWeight(c){
-  let w=0;const equipped=new Set(Object.values(c.equipment||{}).filter(Boolean));
-  (c.inventory||[]).forEach(e=>{ const it=itemOf(e.itemId); if(!it||!it.weight) return;
-    const p=itemProfile(it),v=p&&p.mass?+p.mass.kg:itemMassKg(it),rule=itemCampaignRules(it),ignore=rule&&+rule.ignoreOwnMassAtStrength;
-    const qty=Math.max(0,+e.qty||1)-(equipped.has(e.id)&&ignore&&eAb(c,'str')>=ignore?1:0);
-    if(v&&qty>0) w+=v*qty; });
-  (c.inventory||[]).forEach(e=>{ if(Array.isArray(e.inside)) w+=innerWeightOf(e); });
-  return Math.round(w*10)/10;
+function carryWeightState(c){
+  let w=0,known=true;const equipped=new Set(Object.values(c.equipment||{}).filter(Boolean));
+  (c.inventory||[]).forEach(e=>{
+    const rawQty=Math.max(0,itemWeightQuantity(e));if(rawQty<=0)return;
+    const it=itemOf(e.itemId);if(!it){known=false;return;}
+    const v=itemMassKg(it),rule=itemCampaignRules(it),ignore=rule&&+rule.ignoreOwnMassAtStrength,
+      qty=Math.max(0,rawQty-(equipped.has(e.id)&&ignore&&eAb(c,'str')>=ignore?1:0));
+    if(qty<=0)return;if(v==null){known=false;return;}w+=v*qty;
+  });
+  (c.inventory||[]).forEach(e=>{if(itemWeightQuantity(e)>0&&Array.isArray(e.inside)){const inner=innerWeightState(e);if(!inner.known)known=false;w+=inner.kg;}});
+  return {known,kg:Math.round(w*1000)/1000};
 }
+function carryWeight(c){const state=carryWeightState(c);return state.known?state.kg:null;}
 function spendHitDie(){
   const c=cc(); if(!c) return;
   const hd=classOf(c).hd||8;
@@ -26948,9 +27035,9 @@ function invValueEdit(entryId){
   const suggested=itemEntryGoldValue(e,it)||((itemProfile(it).value||{}).defaultGp)||1;
   const raw=window.prompt('Оценочная стоимость одного экземпляра «'+userFacingItemName(it,'Предмет')+'» в золотых монетах:',String(suggested));
   if(raw==null) return false;
-  const gp=Number(String(raw).trim().replace(',','.'));
-  if(!Number.isFinite(gp)||gp<=0){ alert('Укажите положительную оценочную стоимость в золотых монетах.'); return false; }
-  e.valueGp=Math.round(gp*100)/100;
+  const copper=exactCopperFromGp(raw);
+  if(copper==null||copper<=0){ alert('Укажите положительную оценочную стоимость с точностью до медной монеты.'); return false; }
+  e.valueGp=copper/100;
   scheduleSave(); renderChars(); return true;
 }
 function invNoteClear(entryId){ const c=cc(); if(!c) return;
@@ -27016,11 +27103,11 @@ function addInvFromDB(itemId){
     const suggested=(itemProfile(it).value||{}).defaultGp||1;
     const raw=window.prompt('Оценочная стоимость выдаваемого экземпляра «'+userFacingItemName(it,'Предмет')+'» в золотых монетах:',String(suggested));
     if(raw==null) return;
-    valueGp=Number(String(raw).trim().replace(',','.'));
-    if(!Number.isFinite(valueGp)||valueGp<=0){ alert('Укажите положительную оценочную стоимость в золотых монетах.'); return; }
-    valueGp=Math.round(valueGp*100)/100;
+    const valueCopper=exactCopperFromGp(raw);
+    if(valueCopper==null||valueCopper<=0){ alert('Укажите положительную оценочную стоимость с точностью до медной монеты.'); return; }
+    valueGp=valueCopper/100;
   }
-  const ex=c.inventory.find(x=>x.itemId===itemId&&(!itemUsesInventoryValue(it)||+x.valueGp===valueGp));
+  const ex=c.inventory.find(x=>x.itemId===itemId&&(!itemUsesInventoryValue(it)||itemEntryGoldValueMatches(x,valueGp)));
   let added=ex;
   if(ex) setInvQty(ex,it,(ex.qty||1)+1);
   else { added={id:'inv_'+uid(), itemId, qty:1, notes:''}; if(valueGp!=null) added.valueGp=valueGp; c.inventory.push(added); }
@@ -27060,10 +27147,11 @@ function stInventory(c){
   h+='<h3 class="rubric" style="font-size:22px">Валюта</h3><div class="coin-row">'
    +COINS.map(x=>'<div class="coin"><b>'+x[1]+'</b><input type="number" min="0" value="'+c.coins[x[0]]+'" onchange="updCoin(\''+x[0]+'\',this.value)"></div>').join('')+'</div>';
   /* нагрузка */
-  (function(){ const w=carryWeight(c), cap=Math.round(eAb(c,'str')*7.5), over=w>cap;
+  (function(){ const load=carryWeightState(c), w=load.kg, known=load.known, cap=Math.round(eAb(c,'str')*7.5), over=w>cap;
     const att=attunedEntries(c);
-    h+='<div class="load-row'+(over?' over':'')+'">⚖ Груз: <b>'+w+' кг</b> из '+cap+' кг'
-      +(over?' — перегруз: скорость снижена на 3 м (вариант правил 5e)':'')
+    h+='<div class="load-row'+(over||!known?' over':'')+'">⚖ Груз: '+(known?'<b>'+w+' кг</b> из '+cap+' кг':'<b>неизвестен</b> — подтверждено не менее <b>'+w+' кг</b> из '+cap+' кг; у предмета или содержимого не указан применимый вес')
+      +(over?' — перегруз: скорость снижена на '+(/(?:фут|\bft\b|\bfeet\b|\bfoot\b)/i.test(String(c.speed||''))?'10 футов':'3 м')+' (вариант правил 5e)':'')
+      +(!known&&!over?' — перегруз нельзя определить до заполнения веса':'')
       +' &nbsp;·&nbsp; ✵ Настройка: <b>'+att.length+' из '+ATTUNE_LIMIT+'</b>'
       +(att.length?' — '+att.map(x=>esc(userFacingItemName(itemOf(x.itemId),''))).join(', '):'')+'</div>'; })();
   const bgRec=BACKGROUNDS.find(x=>x.n===c.bg);

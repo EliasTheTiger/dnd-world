@@ -1,23 +1,29 @@
 # Каталог предметов BG3 и движок: открытый статус
 
-Дата среза: **26 августа 2026 года**.  Этот файл — одновременно карта
+Дата среза: **28 августа 2026 года**.  Этот файл — одновременно карта
 локальных материалов, журнал выполненной работы и инструкция по независимой
 проверке. Он намеренно не скрывает промежуточные результаты за внутренними
 инструментами или сетевыми сервисами.
 
-> **Статус среза:** каталог `bg3-24532579-v10` опубликован как неизменяемый
-> аддитивный потомок v9. Корневой runtime `readBook` / `toggleLight` завершён для 2 934
-> профильных строк: 1 467 на активный профиль, включая 1 218 чтений и 249
-> переключений света на 1 466 предметах. Весь срез `standard` исполнен причинно,
-> а `honour` имеет нулевую нормализованную семантическую разницу и отдельные
-> точные Story/read/light/durability-квитанции. Частные runtime `Summon`, Arrow
-> of Many Targets и Scroll of Dethrone также завершены и повторно проверены:
-> `Summon` исполняет 18 из 20 typed-носителей, Arrow — 2 точные строки одного
-> предмета, Dethrone — 2 профильные строки одного свитка. Неоднозначные соседние
-> маршруты остаются fail-closed до оплаты. У всех 10 284 предметов теперь
-> материализованы вес и базовая стоимость BG3: игровые кривые GoldValues
-> закреплены SHA-256, а 171 весовой и 169 ценовых fallback-случаев имеют
-> построчную трассировку и уровень уверенности. Хеши и результаты приведены ниже.
+> **Статус среза:** production публикует только профиль `standard`: 10 282
+> исполняемых варианта из полного union-аудита 10 284 исходных записей; две
+> записи, существующие только вне production-профиля, явно исключены. Вес имеет
+> числовое значение у 10 200 union-записей (10 070 положительных и 130 честных
+> нулевых), ещё у 84 он доказанно неприменим. Стоимость имеет числовое значение
+> у 10 130 записей (10 042 положительные и 88 честных нулевых), ещё у 154 она
+> доказанно неприменима. Для production Standard соответствующие числа —
+> 10 198/84 по весу и 10 128/154 по стоимости. Все 171 весовой и 169 ценовых
+> fallback-случаев имеют построчную трассировку, основание и уровень уверенности;
+> выдуманных заглушек и неразрешённых публикационных случаев нет. Игровые кривые
+> GoldValues, единицы, округление, наследование и контрольные множества нулей/N/A
+> закреплены SHA-256 и перепроверяются генератором `--check`. Отдельный fail-closed
+> контроль закрепляет 11 проверенных конфликтов веса и один конфликт стоимости;
+> любое новое или непросмотренное расхождение блокирует генерацию.
+> Движок проводит все операции с ценой в точных медных монетах и отвергает
+> дробь мельче 0,01 зм без округления. Нулевой вес содержимого контейнера
+> показывается как настоящий ноль, неизвестный вес — отдельно; выдача BG3-объекта
+> блокируется при неприменимой массе или исходных `CanBePickedUp=False` /
+> `CanBeMoved=False`, даже если в старых данных сохранился `portable=true`.
 > Phase 1 v10 дополнительно материализует только явные source facts, `props` и
 > статусы покрытия. Она не меняет программную семантику v9 и не превращает
 > `blocked`, `manual-review` или неизвестные исходные поля в исполняемые эффекты.
@@ -72,7 +78,9 @@ C:\Users\admin\.codex\visualizations\2026\08\12\019ff62f-b4c0-72f2-917b-9630506f
   `scripts/build-bg3-placement-browser.mjs` — детерминированные генераторы с
   режимом `--check`; их результат не является источником игровых последствий;
 - `scripts/build-bg3-item-economy.mjs` — воспроизводимая материализация веса и
-  стоимости с режимами `--write` / `--check`;
+  стоимости; `scripts/audit-bg3-v10-economy.mjs` — строгая повторная проверка
+  всех 10 284 записей, production Standard и контрольных множеств, оба с
+  режимами `--write` / `--check`;
 - `scripts/build-bg3-item-mechanics.mjs` — аддитивная материализация phase 1
   из явных исходных полей с режимами `--write` / `--check`;
 - `data/bg3/bg3-24532579-v10/item-mechanics-report.json` — точный аудит phase 1,
@@ -183,7 +191,9 @@ versioned-файлах, а 193 редактируемые записи камп�
 Поэтому единый поиск и выдача не раздувают localStorage/Firebase копией всей
 базы и не разрушают canonical BG3 ID.
 
-В Standard доступны 10 282 варианта BG3, в Honour — 10 284. Классификация
+В production Standard доступны 10 282 варианта BG3. Две остальные union-записи
+сохраняются только как проверенное исходное свидетельство и не публикуются в
+runtime. Классификация
 отделяет 5 858 переносимых игровых предметов от объектов мира, технических
 строк, дубликатов и записей, требующих проверки. Фильтры включают источник,
 класс, раздел, точную категорию, D&D-тип, редкость, тег и наличие описания,
@@ -368,31 +378,33 @@ manifest-pinned `item-placements-report.md`: он публикуется как 
 
 | Артефакт | SHA-256 |
 | --- | --- |
-| `data/bg3/bg3-24532579-v10/manifest.json` | `b69e8120ee62e0bc5c3f1af1b096c81f7966285859093b8638f36599f53ff71a` |
+| `data/bg3/bg3-24532579-v10/manifest.json` | `283436220584717c59b245e5ecbd43d107dbcee5d75bab58b048fa54c3e34525` |
+| `data/bg3/bg3-24532579-v10/item-economy-report.json` | `e3a3258bd1b29208858b6afb6f37960c82521c0943461a7cd3173d7e967f2066` |
+| `data/bg3/bg3-24532579-v10/source/gold-values.json` | `fae883abf6e82ce37d8ea9081a38b31961bc1e34f846fc7ea8ba09635d70e392` |
 | `data/bg3/bg3-24532579-v10/item-mechanics-report.json` | `e16562da09577663f6a6f5dbefc50a56974feceb4fe507503552f6e3358905c5` |
 | `data/bg3/ui/bg3-24532579-v10-placement-browser/manifest.json` | `577054a8f2cca1190960a1e84d20fd14b47980794479602753c014886231d0e2` |
-| `data/bg3/ui/bg3-24532579-v10-item-presentation/manifest.json` | `ae6995957be52f32e714d6939160983e1b3ad201d6f259839eb73307afff330e` |
+| `data/bg3/ui/bg3-24532579-v10-item-presentation/manifest.json` | `23a1c40fc42f203200100f37ba387c580e6ad7966f0c5a950d31d1ca05768af4` |
 | `data/bg3/bg3-24532579-v9/manifest.json` | `d1d7618dce4576e75be7e62f913acba30c8ad94daf2405878abc837c5116a6fa` |
 | `data/bg3/bg3-24532579-v9/item-economy-report.json` | `9c36cc7386502d8b52e872ded045a42c50aa78edcb75ed58ed6a86fbcbb59672` |
 | `data/bg3/bg3-24532579-v9/source/gold-values.json` | `7537830ba70677aee606d54cea124c4208ea4661e3ca4b8ccb2f38e680761b60` |
 | `data/bg3/ui/bg3-24532579-v9-placement-browser/manifest.json` | `827d77285919be2c66e87090a23bf6e313b4c6626010d25531d26a7ec3731c5e` |
 | `data/bg3/ui/bg3-24532579-v9-item-presentation/manifest.json` | `31e10c3bee524c6ba577a596e21bf503ef78a8042b9dbe40417678dc617324f3` |
 | `data/bg3/bg3-24532579-v8/manifest.json` | `8db8b170c1d03a75876a7c9111b33a00fd89976cc69dbd85f31762eb419c06f0` |
-| `index.html` | `ae9c53dc1a5ad1487b68d776b4e9b11b480e88a4b905790206f42a4f9cc9fce7` |
-| `tests/effect-engine.test.mjs` | `bef84cea6ed73ff415403ea99603297f42b7e4c1ed3219ca0495acd7ffd436b0` |
-| `tests/bg3-ui-projections.test.mjs` | `de0249bf0377598263f59a31993d158964de25c906fa8ff167a5ae0cde49cbe1` |
+| `index.html` | `b5190868abb16b20612e78e9e934a7329d3490fcb58ad52debf16cdc4989e28d` |
+| `tests/effect-engine.test.mjs` | `3a27a6d472ee287548d9c8af137d371517cf9634ebe399e1c450f44fbca66d0b` |
+| `tests/bg3-ui-projections.test.mjs` | `79ab4117cea13807890529e233f9d2683c6c4f208d547e06fa970cb8e6839af5` |
 | `data/bg3/ui/bg3-24532579-v8-placement-browser/manifest.json` | `885ae10a72fdcffb09d135aac681c239ec2a04a99cd9cb66bfba2ea227139a7b` |
-| `data/bg3/ui/bg3-24532579-v8-item-presentation/manifest.json` | `fa38925364c291025f12c099ee45a2c379f808e8c401fa4ae9585c351a68c1c8` |
-| `scripts/build-bg3-placement-browser.mjs` | `30a6a60fa45239c93ac0e885a5bd59089022957c74a2b8986253f91134d4c166` |
-| `scripts/build-bg3-item-presentation.mjs` | `b0eb955a96a650beeda9b710b5fe9616a37dd7b526b32f99b01a2ac44b64229a` |
+| `data/bg3/ui/bg3-24532579-v8-item-presentation/manifest.json` | `2cc6763382c8b82591c77b3904303d1f1592c60783b15d2cd42d9b6e338bc8f4` |
+| `scripts/build-bg3-placement-browser.mjs` | `754603fb10cfbae27cef577f27ee9d7e82afebfdb9e6d39d2b04d40b611e81eb` |
+| `scripts/build-bg3-item-presentation.mjs` | `d70d9da0846c338730e4076534f5a85c6294294ff43d8a9f91285dc5431e4952` |
 | `data/bg3/bg3-24532579-v8/item-placements-report.md` | `fd1b3cfcaad54f159b2e220164c722f8ebb0c78c781448e13b994306681cd2aa` |
-| `tests/bg3-root-actions-causal.test.mjs` | `47c060702a8abbf9d64f78553d614abd91c71144ec2d978d81a041125bc9389f` |
-| `tests/bg3-summon-runtime.test.mjs` | `034d42e4da037355916e46a8d51e3661776c02e193eecc81807a4702836a11fb` |
-| `tests/bg3-action-boundary-causal.test.mjs` | `08b4cf4e15e7d5cd5e0d5a12d77c472bef20e70f621549d36305ce17ca4e8942` |
-| `tests/bg3-item-guards.test.mjs` | `6e43eda38281c904dff5317c02d3b17de7d180b9ca3cb70d287ad96157206945` |
-| `tests/bg3-learn-spell-readiness.test.mjs` | `2200601cf045f2ff5772e131081f7ccfcb65ce6a181d17f770683f80d413a0c2` |
-| `tests/bg3-extra-projectiles-runtime.test.mjs` | `ed42364acdc51cc88e8f55b8ce706582ea8db50b636ff3b259844756f16e3312` |
-| `tests/bg3-dethrone-runtime.test.mjs` | `e177bff14b5d59df055d0049ea16f892f8c83d064f371e4cde8e643c674d2703` |
+| `tests/bg3-root-actions-causal.test.mjs` | `c7dee98d0851186b06f96578e05674431dab4225a5c9804bcb2f9b8828043bd9` |
+| `tests/bg3-summon-runtime.test.mjs` | `d9c32fcebf042c9ed7e6d306968fcc34b9b529c005bb11216c063c872b73da79` |
+| `tests/bg3-action-boundary-causal.test.mjs` | `7b3df1eea886520b23478ef6b0ff235389720b95801c93773a556af8e1ef10b4` |
+| `tests/bg3-item-guards.test.mjs` | `0e5f77017d3bedcdfe2c648367997599e5dbaf4dbcc4f040c2749b571e6f8f53` |
+| `tests/bg3-learn-spell-readiness.test.mjs` | `9fa1819ebbc7725fb94e9df680ddfb684f37cf689a66a44f9122227752fb22d1` |
+| `tests/bg3-extra-projectiles-runtime.test.mjs` | `0626df44a01ac10ba33168e2a617bbf1f6c68b10762e8542c2e0d03e29d3d670` |
+| `tests/bg3-dethrone-runtime.test.mjs` | `da5aebb0520a4586ae6f630ed5619c805816a5efccaeb945fef67bca57b3ac8e` |
 
 ## Зафиксированный срез корневых `readBook` и `toggleLight`
 

@@ -197,6 +197,14 @@ test('generated item costs follow the selected catalog economy contract', t => {
       continue;
     }
     const value = item.mechanics.profile.value;
+    if (Number(revision) >= 10 && value.state === 'not-applicable') {
+      assert.equal(value.gp, null, item.id);
+      assert.equal(value.cp, null, item.id);
+      assert.equal(value.display, 'не применяется', item.id);
+      assert.equal(item.cost, value.display, item.id);
+      continue;
+    }
+    if (Number(revision) >= 10) assert.equal(value.state, 'value', item.id);
     assert.ok(Number.isInteger(value.gp) && value.gp >= 0, item.id);
     assert.equal(value.cp, value.gp * 100, item.id);
     assert.equal(value.display, `${value.gp} зм`, item.id);
