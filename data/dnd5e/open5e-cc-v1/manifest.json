@@ -6,6 +6,12 @@
     "apiRoot": "https://api.open5e.com/v2",
     "documentation": "https://open5e.com/api-docs"
   },
+  "localization": {
+    "schemaVersion": "dnd5e-open-catalog-localization/1",
+    "locale": "ru",
+    "sourceLanguage": "en",
+    "revision": "ru-2026-08-31"
+  },
   "licensePolicy": {
     "required": "CC-BY-4.0",
     "closedBookTextAllowed": false
@@ -76,7 +82,7 @@
     "sourceSpellRecords": 838,
     "excludedSpells": 1,
     "importedSpells": 837,
-    "distinctImportedSpellNames": 521,
+    "distinctImportedSpellNames": 515,
     "structuredImportedSpells": 1,
     "manualFailClosedImportedSpells": 836,
     "importedAbilities": 616,
@@ -114,12 +120,16 @@
   },
   "artifacts": {
     "catalog.js": {
-      "bytes": 2737032,
-      "sha256": "dd3e8e2ae8d859f5f19210f69a15725ec8f7517d8c40b2234bed30a1550c3aca"
+      "bytes": 4056954,
+      "sha256": "744a835a99f8c3cad0fea354e9f8d7444518ab47f68907c0d54469982e5de7f1"
+    },
+    "localization.ru.json": {
+      "bytes": 2258320,
+      "sha256": "e87e5db6bb8e61022723a3aae5aa6666620dd3c42c6a5e2df2dd18c2f32d08a2"
     },
     "NOTICE.md": {
-      "bytes": 1703,
-      "sha256": "1611e26f3749fd7cf7e42ad644dd89f069340cb1183012dce5dac6ee78789c8a"
+      "bytes": 1938,
+      "sha256": "77843c33c60ece43eb4446c5699b82efba8cee1af7871c8368c5e93dc3a2a179"
     }
   }
 }

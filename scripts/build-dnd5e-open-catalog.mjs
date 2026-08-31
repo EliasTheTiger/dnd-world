@@ -9,9 +9,19 @@ const OUTPUT_DIR = join(REPO_ROOT, 'data', 'dnd5e', 'open5e-cc-v1');
 const CATALOG_PATH = join(OUTPUT_DIR, 'catalog.js');
 const MANIFEST_PATH = join(OUTPUT_DIR, 'manifest.json');
 const NOTICE_PATH = join(OUTPUT_DIR, 'NOTICE.md');
+const LOCALIZATION_PATH = join(OUTPUT_DIR, 'localization.ru.json');
 const API_ROOT = 'https://api.open5e.com/v2';
 const SCHEMA_VERSION = 'dnd5e-open-catalog/1';
 const GLOBAL_NAME = 'DND5E_OPEN_CATALOG';
+const LOCALIZATION_SCHEMA_VERSION = 'dnd5e-open-catalog-localization/1';
+const LOCALIZATION_REVISION = 'ru-2026-08-31';
+
+const DOCUMENT_NAMES_RU = Object.freeze({
+  bfrd: 'Справочный документ Black Flag',
+  'spells-that-dont-suck': 'Заклинания, которые не подводят',
+  'srd-2014': 'Справочный документ системы 5.1 (D&D 5e 2014)',
+  'srd-2024': 'Справочный документ системы 5.2 (D&D 5e 2024)',
+});
 
 const SOURCE_PLAN = Object.freeze({
   spells: Object.freeze({
@@ -53,6 +63,35 @@ const DAMAGE_NAMES = Object.freeze({
   thunder: 'звук',
 });
 
+const SPELL_NAME_OVERRIDES_RU = Object.freeze({
+  'Mage Hand': 'Волшебная рука', 'Fire Bolt': 'Огненный снаряд', 'Ray of Frost': 'Луч холода',
+  'Eldritch Blast': 'Мистический заряд', 'Minor Illusion': 'Малая иллюзия', Light: 'Свет',
+  'Dancing Lights': 'Пляшущие огоньки', Message: 'Сообщение', Guidance: 'Указание',
+  'Sacred Flame': 'Священное пламя', Resistance: 'Сопротивление', 'Spare the Dying': 'Уход за умирающим',
+  Prestidigitation: 'Фокусы', Shillelagh: 'Дубинка', 'Poison Spray': 'Ядовитые брызги',
+  Thaumaturgy: 'Чудотворство', 'Magic Missile': 'Волшебная стрела', Shield: 'Щит',
+  'Mage Armor': 'Доспехи мага', 'Cure Wounds': 'Лечение ран', 'Healing Word': 'Лечащее слово',
+  Bless: 'Благословение', Bane: 'Порча', 'Witch Bolt': 'Ведьмин снаряд',
+  'Hellish Rebuke': 'Адский укор', 'Charm Person': 'Очарование личности', 'Detect Magic': 'Обнаружение магии',
+  'Faerie Fire': 'Огонь фей', Entangle: 'Опутывание', 'Fog Cloud': 'Туманное облако',
+  Thunderwave: 'Громовая волна', Sleep: 'Сон', Heroism: 'Героизм', Command: 'Приказ',
+  'Shield of Faith': 'Щит веры', 'Inflict Wounds': 'Причинение ран',
+  "Tasha's Hideous Laughter": 'Убийственный смех Таши', Jump: 'Прыжок', Longstrider: 'Скороход',
+  Invisibility: 'Невидимость', 'Mirror Image': 'Зеркальное отражение', 'Misty Step': 'Туманный шаг',
+  Web: 'Паутина', 'Scorching Ray': 'Палящий луч', 'Enhance Ability': 'Улучшение характеристики',
+  'Prayer of Healing': 'Молебен лечения', 'Lesser Restoration': 'Малое восстановление',
+  'Hold Person': 'Удержание личности', Darkness: 'Тьма', 'Magic Weapon': 'Волшебное оружие',
+  Silence: 'Тишина', Aid: 'Подмога', 'Detect Thoughts': 'Обнаружение мыслей',
+  'Flame Blade': 'Пылающий клинок', Barkskin: 'Древесная кожа', Fireball: 'Огненный шар',
+  'Lightning Bolt': 'Молния', Counterspell: 'Контрзаклинание', 'Dispel Magic': 'Рассеивание магии',
+});
+
+const ABILITY_NAME_OVERRIDES_RU = Object.freeze({
+  Grappler: 'Борец', Alert: 'Бдительный', 'Ability Score Improvement': 'Увеличение характеристик',
+  Defense: 'Защита', 'Great Weapon Fighting': 'Сражение большим оружием',
+  'Magic Initiate': 'Посвящённый в магию', Skilled: 'Умелец', 'Two-Weapon Fighting': 'Сражение двумя оружиями',
+});
+
 const SAVE_KEYS = Object.freeze({strength: 'str', dexterity: 'dex', constitution: 'con', intelligence: 'int', wisdom: 'wis', charisma: 'cha'});
 const SIGNIFICANT_CASTING_OPTION_FIELDS = Object.freeze(['damage_roll', 'target_count', 'duration', 'range', 'concentration', 'shape_size', 'desc']);
 /* Structured execution is opt-in per reviewed source record. API fields are useful
@@ -85,14 +124,75 @@ function documentSource(document, endpoint, key) {
   return {
     provider: 'Open5e',
     documentKey: document.key,
-    documentName: document.name,
+    documentName: DOCUMENT_NAMES_RU[document.key] || document.name,
+    originalDocumentName: document.name,
     publisher: document.publisher?.name || '',
     gamesystem: document.gamesystem?.key || '',
     license: 'CC-BY-4.0',
-    language: 'en',
+    language: 'ru',
+    sourceLanguage: 'en',
+    localizationRevision: LOCALIZATION_REVISION,
     permalink: document.permalink || '',
     apiResource: `${API_ROOT}/${endpoint}/${encodeURIComponent(key)}/`,
   };
+}
+
+function canonicalRussian(value) {
+  return cleanText(value)
+    .replace(/Боец/g, 'Воин')
+    .replace(/бойца/g, 'воина')
+    .replace(/бойцом/g, 'воином')
+    .replace(/Разбойник/g, 'Плут')
+    .replace(/разбойника/g, 'плута')
+    .replace(/Рейнджер/g, 'Следопыт')
+    .replace(/рейнджера/g, 'следопыта')
+    .replace(/Чернокнижник/g, 'Колдун')
+    .replace(/чернокнижника/g, 'колдуна')
+    .replace(/Священник/g, 'Жрец')
+    .replace(/священника/g, 'жреца')
+    .replace(/функцией/gi, 'способностью')
+    .replace(/функцию/gi, 'способность')
+    .replace(/функции/gi, 'способности')
+    .replace(/функция/gi, 'способность')
+    .replace(/очки жизни/gi, 'хиты')
+    .replace(/очков жизни/gi, 'хитов')
+    .replace(/длительный отдых/gi, 'длинный отдых')
+    .replace(/Выведен из строя/g, 'Недееспособный');
+}
+
+async function loadLocalization() {
+  const localization = JSON.parse(await readFile(LOCALIZATION_PATH, 'utf8'));
+  if (localization.schemaVersion !== LOCALIZATION_SCHEMA_VERSION || localization.locale !== 'ru' || localization.revision !== LOCALIZATION_REVISION) {
+    throw new Error('Russian localization schema/revision mismatch');
+  }
+  return localization;
+}
+
+function localizeSpell(row, localization) {
+  const translated = localization.spells?.[row.id];
+  if (!translated) throw new Error(`Russian spell localization is missing: ${row.id}`);
+  const originalName = row.n;
+  for (const field of ['n', 'c', 't', 'r', 'cm', 'd', 'x', 'hi']) {
+    if (translated[field] != null) row[field] = canonicalRussian(translated[field]);
+  }
+  row.n = SPELL_NAME_OVERRIDES_RU[originalName] || row.n;
+  row.open5e.originalName = originalName;
+  return row;
+}
+
+function localizeAbility(row, localization) {
+  const translated = localization.abilities?.[row.id];
+  if (!translated) throw new Error(`Russian ability localization is missing: ${row.id}`);
+  const originalName = row.n;
+  row.n = ABILITY_NAME_OVERRIDES_RU[originalName] || canonicalRussian(translated.n);
+  row.x = canonicalRussian(translated.x);
+  const ownerName = canonicalRussian(String(translated.source || '').split(/\s+·\s+/)[0]);
+  row.source = row.open5e.kind === 'feat'
+    ? row.catalogSource.documentName
+    : `${ownerName} · ${row.catalogSource.documentName}`;
+  row.open5e.originalName = originalName;
+  row.open5e.ownerNameRu = row.open5e.kind === 'feat' ? '' : ownerName;
+  return row;
 }
 
 function rulesetRef(document) {
@@ -294,8 +394,9 @@ function assertCount(label, actual, expected) {
   if (actual !== expected) throw new Error(`${label}: expected ${expected}, received ${actual}`);
 }
 
-function validateCatalog(catalog) {
+function validateCatalog(catalog, localization) {
   if (catalog.schemaVersion !== SCHEMA_VERSION) throw new Error(`Unexpected catalog schema: ${catalog.schemaVersion}`);
+  if (catalog.localization?.locale !== 'ru' || catalog.localization?.revision !== LOCALIZATION_REVISION) throw new Error('Catalog is not pinned to the Russian localization');
   if (!Array.isArray(catalog.spells) || catalog.spells.length !== 837) throw new Error(`Expected 837 retained imported spells, received ${catalog.spells?.length}`);
   if (!Array.isArray(catalog.abilities) || catalog.abilities.length !== 616) throw new Error(`Expected 616 imported abilities, received ${catalog.abilities?.length}`);
   for (const [kind, rows] of [['spell', catalog.spells], ['ability', catalog.abilities]]) {
@@ -306,16 +407,30 @@ function validateCatalog(catalog) {
         throw new Error(`${kind}[${index}] ${row?.id || row?.n || 'unknown'} is incomplete: ${missing.join(', ')}`);
       }
       if (!row.enginePolicy || !['structured', 'manual-fail-closed'].includes(row.enginePolicy.mode)) throw new Error(`${kind}[${index}] has no engine policy`);
+      if (row.catalogSource.language !== 'ru' || row.catalogSource.sourceLanguage !== 'en' || row.catalogSource.localizationRevision !== LOCALIZATION_REVISION) throw new Error(`${kind}[${index}] has no Russian display-language contract`);
+      if (!/[А-ЯЁа-яё]/.test(row.n) || !/[А-ЯЁа-яё]/.test(row.x)) throw new Error(`${kind}[${index}] is not localized into Russian`);
+      const cyrillic = (row.x.match(/[А-ЯЁа-яё]/g) || []).length;
+      const latin = (row.x.match(/[A-Za-z]/g) || []).length;
+      if (latin > 40 && latin > cyrillic * 0.35) throw new Error(`${kind}[${index}] still contains predominantly English prose`);
       if (ids.has(row.id)) throw new Error(`Duplicate ${kind} id: ${row.id}`);
       ids.add(row.id);
     });
   }
-  if (new Set(catalog.spells.map(row => row.n.toLocaleLowerCase('en'))).size < 500) throw new Error('Imported spell catalog has fewer than 500 distinct names');
+  if (new Set(catalog.spells.map(row => row.n.toLocaleLowerCase('ru'))).size < 500) throw new Error('Imported spell catalog has fewer than 500 distinct Russian names');
   if (!catalog.spells.some(row => row.enginePolicy.mode === 'structured')) throw new Error('No imported spell has a reviewed structured engine handler');
+  if (localization) {
+    if (Object.keys(localization.spells || {}).length !== catalog.spells.length || Object.keys(localization.abilities || {}).length !== catalog.abilities.length) throw new Error('Russian localization census mismatch');
+    for (const [kind, rows] of [['spells', catalog.spells], ['abilities', catalog.abilities]]) {
+      const catalogIds = new Set(rows.map(row => row.id));
+      const unknown = Object.keys(localization[kind] || {}).find(id => !catalogIds.has(id));
+      if (unknown) throw new Error(`Russian localization contains an unknown ${kind} id: ${unknown}`);
+    }
+  }
   return catalog;
 }
 
 async function buildCatalog() {
+  const localization = await loadLocalization();
   const documentKeys = unique([...Object.keys(SOURCE_PLAN.spells), ...Object.keys(SOURCE_PLAN.abilities)]);
   const documents = Object.fromEntries(await Promise.all(documentKeys.map(async key => [key, await fetchJson(`${API_ROOT}/documents/${encodeURIComponent(key)}/`)])));
   for (const [key, document] of Object.entries(documents)) {
@@ -352,30 +467,33 @@ async function buildCatalog() {
     schemaVersion: SCHEMA_VERSION,
     provider: 'Open5e API v2',
     license: 'CC-BY-4.0',
+    localization: {locale: 'ru', sourceLanguage: 'en', revision: LOCALIZATION_REVISION},
     sourcePlan: SOURCE_PLAN,
-    spells: normalizedSpells.filter(row => row.n && row.x).sort(compareRecord),
-    abilities: abilityGroups.flat().sort(compareRecord),
+    spells: normalizedSpells.filter(row => row.n && row.x).map(row => localizeSpell(row, localization)).sort(compareRecord),
+    abilities: abilityGroups.flat().map(row => localizeAbility(row, localization)).sort(compareRecord),
     exclusions: excludedSpells.sort((a, b) => a.id.localeCompare(b.id, 'en')),
-  });
-  return {catalog, documents};
+  }, localization);
+  return {catalog, documents, localization};
 }
 
 function noticeText(documents) {
   const rows = Object.values(documents).sort((a, b) => a.key.localeCompare(b.key, 'en')).map(document =>
     `- **${document.name}** (${document.key}) — ${document.author || document.publisher?.name || 'Unknown author'}; publisher: ${document.publisher?.name || '—'}; source: ${document.permalink}; license: [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/).`,
   );
-  return `# Third-party D&D 5e catalog notices\n\nThe generated catalog in this directory contains only source documents that Open5e marks as Creative Commons Attribution 4.0. The project preserves each record's document key, publisher, game-system key, permalink, and Open5e API resource URL.\n\n${rows.join('\n')}\n\nOpen5e API documentation: https://open5e.com/api-docs\n\nNo closed-book spell, feat, class-feature, or species-trait text is included by this generator.\n`;
+  return `# Third-party D&D 5e catalog notices\n\nThe generated catalog in this directory contains only source documents that Open5e marks as Creative Commons Attribution 4.0. The project preserves each record's document key, publisher, game-system key, permalink, and Open5e API resource URL.\n\nThe Russian display text is a project-maintained translation and terminology adaptation of the English source records. Stable source keys, original names, rules metadata, and attribution links are preserved alongside the translation.\n\n${rows.join('\n')}\n\nOpen5e API documentation: https://open5e.com/api-docs\n\nNo closed-book spell, feat, class-feature, or species-trait text is included by this generator.\n`;
 }
 
 async function writeArtifacts() {
-  const {catalog, documents} = await buildCatalog();
+  const {catalog, documents, localization} = await buildCatalog();
   await mkdir(OUTPUT_DIR, {recursive: true});
   const catalogText = `globalThis.${GLOBAL_NAME}=Object.freeze(${JSON.stringify(catalog)});\n`;
   const notice = noticeText(documents);
+  const localizationText = await readFile(LOCALIZATION_PATH, 'utf8');
   const manifest = {
     schemaVersion: SCHEMA_VERSION,
     catalogGlobal: GLOBAL_NAME,
     provider: {name: 'Open5e API v2', apiRoot: API_ROOT, documentation: 'https://open5e.com/api-docs'},
+    localization: {schemaVersion: localization.schemaVersion, locale: localization.locale, sourceLanguage: localization.sourceLanguage, revision: localization.revision},
     licensePolicy: {required: 'CC-BY-4.0', closedBookTextAllowed: false},
     documents: Object.values(documents).sort((a, b) => a.key.localeCompare(b.key, 'en')).map(document => ({
       key: document.key,
@@ -390,7 +508,7 @@ async function writeArtifacts() {
       sourceSpellRecords: Object.values(SOURCE_PLAN.spells).reduce((sum, count) => sum + count, 0),
       excludedSpells: catalog.exclusions.length,
       importedSpells: catalog.spells.length,
-      distinctImportedSpellNames: new Set(catalog.spells.map(row => row.n.toLocaleLowerCase('en'))).size,
+      distinctImportedSpellNames: new Set(catalog.spells.map(row => row.n.toLocaleLowerCase('ru'))).size,
       structuredImportedSpells: catalog.spells.filter(row => row.enginePolicy.mode === 'structured').length,
       manualFailClosedImportedSpells: catalog.spells.filter(row => row.enginePolicy.mode === 'manual-fail-closed').length,
       importedAbilities: catalog.abilities.length,
@@ -402,6 +520,7 @@ async function writeArtifacts() {
     expectedSourceCounts: SOURCE_PLAN,
     artifacts: {
       'catalog.js': {bytes: Buffer.byteLength(catalogText), sha256: sha256(catalogText)},
+      'localization.ru.json': {bytes: Buffer.byteLength(localizationText), sha256: sha256(localizationText)},
       'NOTICE.md': {bytes: Buffer.byteLength(notice), sha256: sha256(notice)},
     },
   };
@@ -420,15 +539,18 @@ function parseCatalogScript(text) {
 }
 
 async function checkArtifacts() {
-  const [catalogText, manifestText, notice] = await Promise.all([
+  const [catalogText, manifestText, notice, localizationText] = await Promise.all([
     readFile(CATALOG_PATH, 'utf8'),
     readFile(MANIFEST_PATH, 'utf8'),
     readFile(NOTICE_PATH, 'utf8'),
+    readFile(LOCALIZATION_PATH, 'utf8'),
   ]);
-  const catalog = validateCatalog(parseCatalogScript(catalogText));
+  const localization = JSON.parse(localizationText);
+  const catalog = validateCatalog(parseCatalogScript(catalogText), localization);
   const manifest = JSON.parse(manifestText);
   if (manifest.schemaVersion !== SCHEMA_VERSION || manifest.catalogGlobal !== GLOBAL_NAME) throw new Error('manifest schema/global mismatch');
-  for (const [name, text] of [['catalog.js', catalogText], ['NOTICE.md', notice]]) {
+  if (manifest.localization?.revision !== LOCALIZATION_REVISION || manifest.localization?.locale !== 'ru') throw new Error('manifest localization mismatch');
+  for (const [name, text] of [['catalog.js', catalogText], ['localization.ru.json', localizationText], ['NOTICE.md', notice]]) {
     const expected = manifest.artifacts?.[name];
     if (!expected || expected.bytes !== Buffer.byteLength(text) || expected.sha256 !== sha256(text)) throw new Error(`${name} integrity mismatch`);
   }
@@ -436,7 +558,7 @@ async function checkArtifacts() {
     sourceSpellRecords: Object.values(SOURCE_PLAN.spells).reduce((sum, count) => sum + count, 0),
     excludedSpells: catalog.exclusions.length,
     importedSpells: catalog.spells.length,
-    distinctImportedSpellNames: new Set(catalog.spells.map(row => row.n.toLocaleLowerCase('en'))).size,
+    distinctImportedSpellNames: new Set(catalog.spells.map(row => row.n.toLocaleLowerCase('ru'))).size,
     structuredImportedSpells: catalog.spells.filter(row => row.enginePolicy.mode === 'structured').length,
     manualFailClosedImportedSpells: catalog.spells.filter(row => row.enginePolicy.mode === 'manual-fail-closed').length,
     importedAbilities: catalog.abilities.length,

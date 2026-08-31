@@ -1214,6 +1214,13 @@ return rows.length;
 }
 function dnd5eOpenCatalogInstalled(target,kind){
 const rows=dnd5eOpenCatalogRows(kind);if(rows.length<500||!Array.isArray(target))return false;
+const byId=new Map(target.filter(Boolean).map(row=>[row.id,row]));return rows.every(row=>{
+const installed=byId.get(row.id);return !!installed&&installed.catalogSource&&installed.catalogSource.language==='ru'
+&&installed.catalogSource.localizationRevision===row.catalogSource.localizationRevision&&installed.n===row.n;
+});
+}
+function dnd5eOpenCatalogIdsPresent(target,kind){
+const rows=dnd5eOpenCatalogRows(kind);if(rows.length<500||!Array.isArray(target))return false;
 const ids=new Set(target.map(row=>row&&row.id).filter(Boolean));return rows.every(row=>ids.has(row.id));
 }
 function spellAutoTags(sp){
@@ -2943,7 +2950,7 @@ if(sp&&n==='Истинное воскрешение') sp.cm='В, С, М (свя�
 if(flag!==ITEM_DATA_MIGRATION_ID) await store.set('dndworld2:itemaudit',ITEM_DATA_MIGRATION_ID);
 if(changed||flag!==ITEM_DATA_MIGRATION_ID){ fxInvalidate(); scheduleSave(); }
 }
-const SPELL_DATA_MIGRATION_ID='spells-v7-open5e-cc-20260831';
+const SPELL_DATA_MIGRATION_ID='spells-v8-open5e-cc-ru-20260831';
 function patchSpellSemanticSaveTags(sp){
 if(!sp||sp.n!=='Страх') return false;
 const before=JSON.stringify([sp.saveTags,sp.mechanics&&sp.mechanics.resolution&&sp.mechanics.resolution.save&&sp.mechanics.resolution.save.tags]);
@@ -2957,7 +2964,7 @@ async function ensureSpellAudit(){
 const flag=await store.get('dndworld2:spellaudit');
 const catalogInstalled=dnd5eOpenCatalogInstalled(spellsDB,'spells');
 if(flag===SPELL_DATA_MIGRATION_ID&&catalogInstalled) return;
-const recoveringPinnedCatalog=flag===SPELL_DATA_MIGRATION_ID&&!catalogInstalled;
+const recoveringPinnedCatalog=!catalogInstalled&&(flag===SPELL_DATA_MIGRATION_ID||dnd5eOpenCatalogIdsPresent(spellsDB,'spells'));
 const installed=dnd5eOpenInstall(spellsDB,'spells');
 Object.keys(SPELL_HI_PATCHES).forEach(id=>{
 const sp=spellsDB.find(s=>s.id===id);
@@ -3104,9 +3111,10 @@ return {changed:linked+added>0,linked,added};
 async function ensureAbilityAudit(){
 const flag=await store.get('dndworld2:abaudit');
 const catalogInstalled=dnd5eOpenCatalogInstalled(abilitiesDB,'abilities');
-const recoveringPinnedCatalog=flag==='7-open5e-cc'&&!catalogInstalled;
+const abilityMigrationId='8-open5e-cc-ru';
+const recoveringPinnedCatalog=!catalogInstalled&&(flag===abilityMigrationId||dnd5eOpenCatalogIdsPresent(abilitiesDB,'abilities'));
 const raceRefs=reconcileRaceAbilityReferences(racesDB,abilitiesDB);
-if(flag==='7-open5e-cc'&&catalogInstalled&&!raceRefs.changed) return;
+if(flag===abilityMigrationId&&catalogInstalled&&!raceRefs.changed) return;
 const installed=dnd5eOpenInstall(abilitiesDB,'abilities');
 const clericArmor=abilitiesDB.find(a=>a.n==='Владение доспехами: Жрец (Домен Жизни)');
 if(clericArmor && clericArmor.x && clericArmor.x.indexOf('легкими и средними')<0)
@@ -3129,7 +3137,7 @@ const db=abilitiesDB.find(a=>a.id===e.abilityId);
 if(db&&db.uses!=null&&e.cur==null) e.cur=db.uses;
 }));
 if(installed<500){if(raceRefs.changed)scheduleSave();return;}
-await store.set('dndworld2:abaudit','7-open5e-cc');
+await store.set('dndworld2:abaudit',abilityMigrationId);
 if(!recoveringPinnedCatalog||raceRefs.changed) scheduleSave();
 }
 
@@ -19617,7 +19625,7 @@ h+='<div class="meta-grid">'
 +'<div><b>Время:</b> '+esc(sp.t||'—')+'</div><div><b>Дистанция:</b> '+esc(sp.r||'—')+'</div>'
 +'<div><b>Компоненты:</b> '+esc(sp.cm||'—')+'</div><div><b>Длительность:</b> '+esc(sp.d||'—')+'</div>'
 +(sp.c?'<div><b>Классы:</b> '+esc(sp.c)+'</div>':'')+'</div>';
-if(sp.catalogSource)h+='<div class="stat-line"><b>Источник:</b> '+esc(sp.catalogSource.documentName)+' · '+esc(sp.catalogSource.gamesystem)+' · CC-BY-4.0 · язык: English</div>';
+if(sp.catalogSource)h+='<div class="stat-line"><b>Источник:</b> '+esc(sp.catalogSource.documentName)+' · '+esc(sp.catalogSource.gamesystem)+' · CC-BY-4.0 · язык: русский</div>';
 if(sp.catalogSource&&sp.mechanics&&sp.mechanics.mode==='manual')h+='<div class="props-block note-ital"><span class="pt">Движок:</span> справочная запись; автоисполнение без явного обработчика заблокировано.</div>';
 else if(sp.catalogSource)h+='<div class="stat-line"><b>Движок:</b> проверенный структурированный обработчик</div>';
 h+=descBlock(sp.x);
@@ -19635,7 +19643,7 @@ let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(ab.n)+'</h4>'
 +'<span class="spacer"></span>'+extra+'</div>';
 h+=descBlock(ab.x);
 h+='<div class="stat-line"><b>Применение:</b> '+abilityModeLabel(ab)+'</div>';
-if(ab.catalogSource)h+='<div class="stat-line"><b>Источник:</b> '+esc(ab.catalogSource.documentName)+' · '+esc(ab.catalogSource.gamesystem)+' · CC-BY-4.0 · язык: English</div>';
+if(ab.catalogSource)h+='<div class="stat-line"><b>Источник:</b> '+esc(ab.catalogSource.documentName)+' · '+esc(ab.catalogSource.gamesystem)+' · CC-BY-4.0 · язык: русский</div>';
 if(ab.bg3Id===BG3_MEDIUM_ARMOR_MASTER.bg3Id)h+='<div class="stat-line"><b>Подтверждённая пассивная черта:</b> Мастер средних доспехов</div>';
 if(ab.uses) h+='<div class="stat-line"><b>Использований:</b> '+esc(String(ab.uses))+(ab.rest?' / '+esc(ab.rest):'')+'</div>';
 return h+'</div>';

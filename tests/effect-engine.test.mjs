@@ -1293,8 +1293,8 @@ test('старый флаг миграции не скрывает отсутс�
   assert.equal(e.dnd5eOpenCatalogInstalled(legacySpells,'spells'),false);
   assert.equal(e.dnd5eOpenCatalogInstalled(legacyAbilities,'abilities'),false);
   e.setState({spells:legacySpells,abilities:legacyAbilities,races:e.seedRacesDB(),chars:[]});
-  await e.storeSet('dndworld2:spellaudit','spells-v7-open5e-cc-20260831');
-  await e.storeSet('dndworld2:abaudit','7-open5e-cc');
+  await e.storeSet('dndworld2:spellaudit','spells-v8-open5e-cc-ru-20260831');
+  await e.storeSet('dndworld2:abaudit','8-open5e-cc-ru');
 
   await e.ensureSpellAudit();await e.ensureAbilityAudit();
 
@@ -1303,7 +1303,31 @@ test('старый флаг миграции не скрывает отсутс�
   assert.equal(abilitiesDB.filter(row=>row.catalogSource?.provider==='Open5e').length,dnd5eOpenCatalogManifest.counts.importedAbilities);
   assert.equal(e.dnd5eOpenCatalogInstalled(spellsDB,'spells'),true);
   assert.equal(e.dnd5eOpenCatalogInstalled(abilitiesDB,'abilities'),true);
+  assert.ok(spellsDB.filter(row=>row.catalogSource?.provider==='Open5e').every(row=>row.catalogSource.language==='ru'&&/[А-ЯЁа-яё]/.test(row.n)));
+  assert.ok(abilitiesDB.filter(row=>row.catalogSource?.provider==='Open5e').every(row=>row.catalogSource.language==='ru'&&/[А-ЯЁа-яё]/.test(row.n)));
   assert.equal(e.worldSavePending(),false,'восстановление производного каталога не раздувает campaign envelope фоновой записью');
+});
+
+test('английская версия Open5e в старом мире заменяется русским производным слоем без записи раздутого снимка', async () => {
+  const e=loadEngine(undefined,null,null,null,{openDnd5eCatalog:true}),spells=e.seedSpellsDB(),abilities=e.seedAbilitiesDB();
+  const spell=spells.find(row=>row.catalogSource?.provider==='Open5e'),ability=abilities.find(row=>row.catalogSource?.provider==='Open5e');
+  const spellId=spell.id,abilityId=ability.id;
+  spell.n=spell.open5e.originalName;spell.x='Legacy English spell description.';spell.catalogSource.language='en';delete spell.catalogSource.localizationRevision;
+  ability.n=ability.open5e.originalName;ability.x='Legacy English ability description.';ability.catalogSource.language='en';delete ability.catalogSource.localizationRevision;
+  e.setState({spells,abilities,races:e.seedRacesDB(),chars:[]});
+  await e.storeSet('dndworld2:spellaudit','spells-v7-open5e-cc-20260831');
+  await e.storeSet('dndworld2:abaudit','7-open5e-cc');
+
+  await e.ensureSpellAudit();await e.ensureAbilityAudit();
+
+  const state=e.state(),localizedSpell=state.spellsDB.find(row=>row.id===spellId),localizedAbility=state.abilitiesDB.find(row=>row.id===abilityId);
+  assert.equal(localizedSpell.catalogSource.language,'ru');
+  assert.equal(localizedAbility.catalogSource.language,'ru');
+  assert.match(localizedSpell.n,/[А-ЯЁа-яё]/);
+  assert.match(localizedAbility.n,/[А-ЯЁа-яё]/);
+  assert.equal(e.dnd5eOpenCatalogInstalled(state.spellsDB,'spells'),true);
+  assert.equal(e.dnd5eOpenCatalogInstalled(state.abilitiesDB,'abilities'),true);
+  assert.equal(e.worldSavePending(),false,'производная локализация не должна раздувать campaign envelope фоновой записью');
 });
 
 test('настоящая миграция Open5e-каталога по-прежнему планирует сохранение мира', async () => {

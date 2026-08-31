@@ -7,6 +7,8 @@ import vm from 'node:vm';
 
 const manifest = JSON.parse(fs.readFileSync('data/dnd5e/open5e-cc-v1/manifest.json', 'utf8'));
 const catalogText = fs.readFileSync('data/dnd5e/open5e-cc-v1/catalog.js', 'utf8');
+const localizationText = fs.readFileSync('data/dnd5e/open5e-cc-v1/localization.ru.json', 'utf8');
+const localization = JSON.parse(localizationText);
 const noticeText = fs.readFileSync('data/dnd5e/open5e-cc-v1/NOTICE.md', 'utf8');
 const sha256 = value => createHash('sha256').update(value).digest('hex');
 
@@ -20,10 +22,15 @@ test('generated D&D 5e catalog is pinned, attributed, and reproducibly checkable
   assert.equal(manifest.schemaVersion, 'dnd5e-open-catalog/1');
   assert.equal(manifest.licensePolicy.required, 'CC-BY-4.0');
   assert.equal(manifest.licensePolicy.closedBookTextAllowed, false);
+  assert.deepEqual(manifest.localization, {
+    schemaVersion: 'dnd5e-open-catalog-localization/1', locale: 'ru', sourceLanguage: 'en', revision: 'ru-2026-08-31',
+  });
   assert.ok(manifest.documents.length >= 4);
   assert.ok(manifest.documents.every(document => document.licenses.some(license => license.key === 'cc-by-40')));
   assert.equal(manifest.artifacts['catalog.js'].bytes, Buffer.byteLength(catalogText));
   assert.equal(manifest.artifacts['catalog.js'].sha256, sha256(catalogText));
+  assert.equal(manifest.artifacts['localization.ru.json'].bytes, Buffer.byteLength(localizationText));
+  assert.equal(manifest.artifacts['localization.ru.json'].sha256, sha256(localizationText));
   assert.equal(manifest.artifacts['NOTICE.md'].bytes, Buffer.byteLength(noticeText));
   assert.equal(manifest.artifacts['NOTICE.md'].sha256, sha256(noticeText));
   execFileSync(process.execPath, ['scripts/build-dnd5e-open-catalog.mjs', '--check'], {stdio: 'pipe'});
@@ -39,6 +46,14 @@ test('retained catalog clears the 500+ census with complete source and engine me
     assert.ok(row.id && row.n && row.x, row.id || 'incomplete record');
     assert.equal(row.catalogSource.provider, 'Open5e');
     assert.equal(row.catalogSource.license, 'CC-BY-4.0');
+    assert.equal(row.catalogSource.language, 'ru');
+    assert.equal(row.catalogSource.sourceLanguage, 'en');
+    assert.equal(row.catalogSource.localizationRevision, 'ru-2026-08-31');
+    assert.match(row.n, /[А-ЯЁа-яё]/, row.id);
+    assert.match(row.x, /[А-ЯЁа-яё]/, row.id);
+    const cyrillic = (row.x.match(/[А-ЯЁа-яё]/g) || []).length;
+    const latin = (row.x.match(/[A-Za-z]/g) || []).length;
+    assert.ok(latin <= 40 || latin <= cyrillic * 0.35, `${row.id} still contains predominantly English prose`);
     assert.ok(['dnd5e-2014-local', 'dnd5e-2024-reference'].includes(row.rulesetRef.id));
     assert.ok(['structured', 'manual-fail-closed'].includes(row.enginePolicy.mode));
   }
@@ -49,6 +64,17 @@ test('retained catalog clears the 500+ census with complete source and engine me
     documentKey: 'srd-2024',
     reason: 'missing-description',
   }]);
+  assert.equal(localization.locale, 'ru');
+  assert.equal(Object.keys(localization.spells).length, 837);
+  assert.equal(Object.keys(localization.abilities).length, 616);
+  const magicMissile = catalog.spells.find(row => row.open5e.originalName === 'Magic Missile');
+  const actionSurge = catalog.abilities.find(row => row.open5e.originalName === 'Action Surge');
+  const alert = catalog.abilities.find(row => row.open5e.originalName === 'Alert');
+  assert.equal(magicMissile.n, 'Волшебная стрела');
+  assert.match(magicMissile.x, /дротик|стрел/i);
+  assert.equal(actionSurge.n, 'Всплеск действий');
+  assert.match(actionSurge.source, /^Воин · Справочный документ/);
+  assert.equal(alert.n, 'Бдительный');
 });
 
 test('HTML loads the pinned catalog before the engine and governance scopes both editions honestly', () => {
@@ -56,6 +82,8 @@ test('HTML loads the pinned catalog before the engine and governance scopes both
   const catalogTag = '<script src="data/dnd5e/open5e-cc-v1/catalog.js"></script>';
   assert.ok(html.indexOf(catalogTag) >= 0);
   assert.ok(html.indexOf(catalogTag) < html.indexOf('<script>', html.indexOf(catalogTag)));
+  assert.doesNotMatch(html, /язык: English/);
+  assert.match(html, /язык: русский/);
   const sources = JSON.parse(fs.readFileSync('data/catalogs/source-manifest.json', 'utf8'));
   const rulesets = JSON.parse(fs.readFileSync('data/rulesets/manifest.json', 'utf8'));
   assert.equal(sources.catalogs.find(row => row.id === 'open5e-cc-2014-spells-v1').expected.count, 499);
