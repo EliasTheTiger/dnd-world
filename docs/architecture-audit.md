@@ -2,6 +2,8 @@
 
 Дата среза: 2026-08-30. Репозиторий: `EliasTheTiger/dnd-world`. Аудит выполнен по рабочему дереву и автоматизирован инструментом `scripts/audit-capabilities.mjs`.
 
+Обновление 2026-08-31: прежний внешний блокер spell/feature-корпуса снят для ограниченного открытого набора. Проект теперь фиксирует и проверяет `open5e-cc-v1` (837 retained spells, 616 retained class/species/feat records); исходный вывод ниже сохранён как состояние на дату аудита и больше не описывает текущую предметную базу.
+
 ## Вывод
 
 Проект является статическим одностраничным приложением: UI, справочники, миграции, игровой движок, Firebase REST-синхронизация и большая часть состояния объединены в `index.html`. Отдельного backend/API и серверной схемы данных нет. Поэтому подсистемы исторически связывались через глобальные массивы и побочные эффекты, а не через версионированные доменные границы.
@@ -15,7 +17,7 @@
 | P0 | Сохранение было набором независимых ключей и snapshot без CAS | `runScheduledSave`, `syncPersistLocal`, Firebase `PUT` | Добавлен `scripts/persistence-core.js`: checksum, revision/parentRevision, CAS, backup, read-back receipt. Legacy keys пока записываются как совместимость. |
 | P0 | Облако могло перетереть параллельную запись | прежний `syncPushNow` выполнял безусловный `PUT` | GET+ETag, parent revision и `if-match`; stale writer получает явный конфликт. |
 | P0 | Действия не имели обязательной durable-фазы | обработчики планировали `scheduleSave()` после мутации | Боевой маршрут подключён к `ActionKernel`; ошибка durable-save откатывает snapshot. |
-| P1 | Нет единого источника правил | проверки `2014` и `5e-2014` были разбросаны по коду | `data/rulesets/manifest.json` фиксирует `dnd5e-2014-local` и BG3 Standard extension. |
+| P1 | Нет единого источника правил | проверки `2014` и `5e-2014` были разбросаны по коду | `data/rulesets/manifest.json` фиксирует `dnd5e-2014-local` и Standard-расширение предметов. |
 | P1 | Определения искались напрямую в массивах | машинный аудит: 60 `itemsDB/spellsDB/...find` | `DefinitionRepository` уже владеет `itemOf`, `spellOf`, `abilityOf`; остальные прямые чтения — миграционный долг. |
 | P1 | Полнота заклинаний/черт не измерялась | `seedSpellsDB`/`seedAbilitiesDB` + выборочные `ensure*Audit` | Каталоги помечены `expected.mode=unknown`; неподтверждённый импорт fail-closed. |
 | P1 | Scene/world имеют параллельные формы | `combat`, `bg3SceneState`, `bg3StoryState`, новый `worldState` | `WorldState` введён и сохраняется, но перенос BG3/combat в единственный write-model ещё не завершён. |
@@ -45,7 +47,7 @@
 | Домен | Источник истины | Переходные копии |
 |---|---|---|
 | Campaign state | `dnd-world-campaign-envelope/1` | `world-snapshot/1`, per-key localStorage |
-| Предметы | Definition Repository: local item layer + immutable pinned BG3 catalog | legacy item fields; item-domain v7 — derived projection |
+| Предметы | Definition Repository: local item layer + immutable pinned item catalog | legacy item fields; item-domain v7 — derived projection |
 | Персонажи и инвентарь | `chars` внутри Campaign Envelope | `dndworld2:chars` |
 | Заклинания/черты | Definition Repository, ruleset ref | inline seeds и patch migrations |
 | Цены/валюта | `DndEconomy`, exact minor units, wallets и audit journal | отображаемые строки `cost` |

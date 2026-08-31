@@ -1,0 +1,125 @@
+{
+  "schemaVersion": "dnd5e-open-catalog/1",
+  "catalogGlobal": "DND5E_OPEN_CATALOG",
+  "provider": {
+    "name": "Open5e API v2",
+    "apiRoot": "https://api.open5e.com/v2",
+    "documentation": "https://open5e.com/api-docs"
+  },
+  "licensePolicy": {
+    "required": "CC-BY-4.0",
+    "closedBookTextAllowed": false
+  },
+  "documents": [
+    {
+      "key": "bfrd",
+      "name": "Black Flag SRD",
+      "author": "Open Design LLC d/b/a Kobold Press",
+      "publisher": "Kobold Press",
+      "gamesystem": "5e-2014",
+      "permalink": "https://koboldpress.com/black-flag-reference-document/",
+      "licenses": [
+        {
+          "key": "cc-by-40",
+          "name": "Creative Commons Attribution 4.0"
+        }
+      ]
+    },
+    {
+      "key": "spells-that-dont-suck",
+      "name": "Spells That Don't Suck",
+      "author": "Ben Somers / somanyrobots, Omega Ankh",
+      "publisher": "Somanyrobots",
+      "gamesystem": "5e-2014",
+      "permalink": "https://www.somanyrobots.com/s/Spells-That-Dont-Suck-compressed.pdf",
+      "licenses": [
+        {
+          "key": "cc-by-40",
+          "name": "Creative Commons Attribution 4.0"
+        }
+      ]
+    },
+    {
+      "key": "srd-2014",
+      "name": "System Reference Document 5.1",
+      "author": "Mike Mearls, Jeremy Crawford, Chris Perkins, Rodney Thompson, Peter Lee, James Wyatt, Robert J. Schwalb, Bruce R. Cordell, Chris Sims, and Steve Townshend, based on original material by E. Gary Gygax and Dave Arneson.",
+      "publisher": "Wizards of the Coast",
+      "gamesystem": "5e-2014",
+      "permalink": "https://dnd.wizards.com/resources/systems-reference-document",
+      "licenses": [
+        {
+          "key": "cc-by-40",
+          "name": "Creative Commons Attribution 4.0"
+        },
+        {
+          "key": "ogl-10a",
+          "name": "OPEN GAME LICENSE Version 1.0a"
+        }
+      ]
+    },
+    {
+      "key": "srd-2024",
+      "name": "System Reference Document 5.2",
+      "author": "Wizards of the Coast",
+      "publisher": "Wizards of the Coast",
+      "gamesystem": "5e-2024",
+      "permalink": "https://dnd.wizards.com/resources/systems-reference-document",
+      "licenses": [
+        {
+          "key": "cc-by-40",
+          "name": "Creative Commons Attribution 4.0"
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "sourceSpellRecords": 838,
+    "excludedSpells": 1,
+    "importedSpells": 837,
+    "distinctImportedSpellNames": 521,
+    "structuredImportedSpells": 1,
+    "manualFailClosedImportedSpells": 836,
+    "importedAbilities": 616,
+    "classFeatures": 454,
+    "speciesTraits": 144,
+    "feats": 18,
+    "manualFailClosedImportedAbilities": 616
+  },
+  "expectedSourceCounts": {
+    "spells": {
+      "srd-2014": 319,
+      "srd-2024": 339,
+      "spells-that-dont-suck": 180
+    },
+    "abilities": {
+      "srd-2014": {
+        "classFeatures": 192,
+        "speciesTraits": 93,
+        "feats": 1,
+        "total": 286
+      },
+      "srd-2024": {
+        "classFeatures": 241,
+        "speciesTraits": 51,
+        "feats": 17,
+        "total": 309
+      },
+      "bfrd": {
+        "classFeatures": 21,
+        "speciesTraits": 0,
+        "feats": 0,
+        "total": 21
+      }
+    }
+  },
+  "artifacts": {
+    "catalog.js": {
+      "bytes": 2737032,
+      "sha256": "dd3e8e2ae8d859f5f19210f69a15725ec8f7517d8c40b2234bed30a1550c3aca"
+    },
+    "NOTICE.md": {
+      "bytes": 1703,
+      "sha256": "1611e26f3749fd7cf7e42ad644dd89f069340cb1183012dce5dac6ee78789c8a"
+    }
+  }
+}

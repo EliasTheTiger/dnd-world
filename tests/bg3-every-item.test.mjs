@@ -550,7 +550,7 @@ test('real D&D World engine accepts every item mechanics/action/interaction cont
       }
       const identityHtml = engine.identityHtml(effective);
       assert.ok(identityHtml.includes(item.id), `${item.id}@${profile}: card exposes canonical itemId`);
-      assert.ok(identityHtml.includes(item.source.catalogVersion), `${item.id}@${profile}: card exposes catalog version`);
+      assert.equal(identityHtml.includes(item.source.catalogVersion), false, `${item.id}@${profile}: public card hides internal catalog version`);
       if (!mechanicsSummary.actions && !mechanicsSummary.interactions && !mechanicsSummary.lifecycle) {
         const effectStatus = effective.mechanics.engineCoverage?.effectStatus || '';
         const expectedIdentity = noAffordanceIdentityByStatus[effectStatus]

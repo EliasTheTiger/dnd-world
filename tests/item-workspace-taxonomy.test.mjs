@@ -274,6 +274,6 @@ test('missing BG3 descriptions render source-backed status and structured facts'
   assert.match(technical, /неподдержанные операции не исполняются автоматически/);
 
   const world = api.card(bg3MissingDescriptionItem('world-object'));
-  assert.match(world, /объект окружения BG3/);
+  assert.match(world, /объект окружения/);
   assert.doesNotMatch(world, /ручной режим/);
 });

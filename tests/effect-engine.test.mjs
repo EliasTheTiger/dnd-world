@@ -22,6 +22,7 @@ function runEffectShard(index,total){
 if(!effectShardActive)nodeTest('effect-engine complete runtime gate',async t=>{const total=16;for(let index=0;index<total;index++)await t.test(`shard ${index+1}/${total}`,()=>runEffectShard(index,total));});
 
 const selectedBg3Catalog = selectBg3Catalog(new URL('..', import.meta.url));
+const dnd5eOpenCatalogManifest = JSON.parse(fs.readFileSync(new URL('../data/dnd5e/open5e-cc-v1/manifest.json', import.meta.url), 'utf8'));
 const productionBg3Version = selectedBg3Catalog.current.catalogVersion;
 const productionBg3Prefix = `data/bg3/${productionBg3Version}/`;
 const productionBg3JsonCache = new Map();
@@ -60,8 +61,14 @@ const BG3_TREASURE_RUNTIME={schemaVersion:'bg3-treasure-runtime/1',tableMode:'al
 
 function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, sharedPrimaryStore = null, options = {}) {
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  let source = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'));
+  const mainScriptMarker = "<script>\n'use strict';";
+  const mainScriptStart = html.indexOf(mainScriptMarker);
+  assert.ok(mainScriptStart >= 0, 'main engine script must be present');
+  let source = html.slice(mainScriptStart + '<script>'.length, html.indexOf('</script>', mainScriptStart));
   source = source.replace(/\(async function init\(\)[\s\S]*$/, '');
+  if (options.openDnd5eCatalog === true) {
+    source = fs.readFileSync(new URL('../data/dnd5e/open5e-cc-v1/catalog.js', import.meta.url), 'utf8') + '\n' + source;
+  }
   if (options.archiveWorldPlotAudit !== false) {
     source = source.replace('const BG3_ARCHIVE_WORLD_PLOT_AUDIT=false;', 'const BG3_ARCHIVE_WORLD_PLOT_AUDIT=true;');
   }
@@ -1230,20 +1237,53 @@ test('кости Благословения входят в итог атаки 
 });
 
 test('контракт проверяет всю мировую базу, предметные применения и статблоки без ошибок', () => {
-  const e = loadEngine();
+  const e = loadEngine(undefined, null, null, null, {openDnd5eCatalog: true});
   const spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB(), items = e.seedItemsDB(), foes = e.seedFoesDB();
   e.setState({spells, abilities, items, foes});
   const audit = e.gameDataAudit({spells, abilities, items, foes});
 
-  assert.deepEqual(plain(audit.counts), {spells: 121, abilities: 77, items: 193, foes: 30, total: 421});
-  assert.ok(audit.variants > 900);
+  const expectedSpells = 121 + dnd5eOpenCatalogManifest.counts.importedSpells;
+  const expectedAbilities = 77 + dnd5eOpenCatalogManifest.counts.importedAbilities;
+  assert.deepEqual(plain(audit.counts), {spells: expectedSpells, abilities: expectedAbilities, items: 193, foes: 30, total: expectedSpells + expectedAbilities + 223});
+  assert.ok(audit.counts.spells >= 500);
+  assert.ok(audit.counts.abilities >= 500);
+  assert.ok(audit.variants > 5000, `audited variants: ${audit.variants}`);
   assert.deepEqual(plain(audit.errors), []);
-  assert.equal(Object.values(audit.modes.spell).reduce((a, b) => a + b, 0), 121);
-  assert.equal(Object.values(audit.modes.ability).reduce((a, b) => a + b, 0), 77);
+  assert.equal(Object.values(audit.modes.spell).reduce((a, b) => a + b, 0), expectedSpells);
+  assert.equal(Object.values(audit.modes.ability).reduce((a, b) => a + b, 0), expectedAbilities);
   assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 193);
   assert.equal(audit.modes.foe.structured, 30);
   assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 193);
   assert.equal(new Set(audit.itemActions.manualNames).size, audit.itemActions.manual);
+});
+
+test('открытый каталог D&D 5e исполняет только проверенные правила, а остальные закрывает до коммита', () => {
+  const e = loadEngine(undefined, null, null, null, {openDnd5eCatalog: true});
+  const spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
+  const importedSpells = spells.filter(row => row.catalogSource?.provider === 'Open5e');
+  const importedAbilities = abilities.filter(row => row.catalogSource?.provider === 'Open5e');
+  assert.equal(importedSpells.length, dnd5eOpenCatalogManifest.counts.importedSpells);
+  assert.equal(importedAbilities.length, dnd5eOpenCatalogManifest.counts.importedAbilities);
+  assert.equal(new Set(importedSpells.map(row => row.id)).size, importedSpells.length);
+  assert.equal(new Set(importedAbilities.map(row => row.id)).size, importedAbilities.length);
+
+  const manualSpell = importedSpells.find(row => row.mechanics.mode === 'manual');
+  assert.ok(manualSpell);
+  assert.match(e.spellExecutionPreflight(manualSpell, {}, 'enemy').reason, /не автоматизированы/);
+
+  const manualAbility = importedAbilities[0];
+  const caster = hero('open-caster', {abilities: [{abilityId: manualAbility.id, cur: 1}]});
+  e.setState({chars: [caster], spells, abilities, activeCharId: caster.id});
+  assert.equal(e.useAbilityApply(manualAbility.id, caster.id, `ally:${caster.id}`, null), false);
+  assert.equal(caster.abilities[0].cur, 1);
+
+  const structured = importedSpells.find(row => row.enginePolicy?.mode === 'structured');
+  assert.equal(structured?.open5e?.key, 'srd_inflict-wounds');
+  const foe = matrixFoe('open-target');
+  e.setState({chars: [caster], foes: [foe], spells, abilities, activeCharId: caster.id});
+  const spec = e.rollSpecOf(structured, {caster, kind: 'spell', slotLvl: 3, target: e.targetInfoOf(`foe:${foe.id}`)});
+  assert.equal(spec.rows.find(row => row.type === 'atk')?.type, 'atk');
+  assert.deepEqual(plain(spec.rows.filter(row => row.type === 'dmg').map(row => [row.cnt, row.sides, row.dmgType])), [[5, 10, 'некротическая энергия']]);
 });
 
 test('расширение 4.5 содержит 58 самостоятельных сущностей без предметов, названных по одному заклинанию', () => {
@@ -4171,7 +4211,7 @@ test('выпуск 4.1 объединяет локальную и облачну
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /const CLOUD_PAUSED=false/);
   assert.equal(e.engineVersion(), '5.0');
-  assert.equal(e.engineLabel(), `Движок ${e.engineVersion()} · BG3 v10`);
+  assert.equal(e.engineLabel(), `Движок ${e.engineVersion()} · каталог предметов`);
 });
 
 test('формулы v2 не содержат броска мастера, ручного попадания или изменяемого преимущества', () => {
@@ -10401,9 +10441,9 @@ test('единый каталог одновременно ищет строги
   assert.ok(swords.some(row=>row.source==='bg3'),'то же поле поиска находит мечи BG3');
 
   e.itemWorkspaceTestFilters();const html=e.renderWorld().itemsdb,heroStart=html.indexOf('id="bg3CatalogPrimary"'),listStart=html.indexOf('class="catalog-result-list"'),listEnd=html.indexOf('id="itemWorkspaceDetail"',listStart),listHtml=html.slice(listStart,listEnd);
-  assert.equal(e.engineVersion(),'5.0');assert.equal(e.engineLabel(),'Движок 5.0 · BG3 v10');
-  const userTotal=available+campaignOnly.length;assert.equal(e.elementText('releaseBadge'),`Движок 5.0 · BG3 v10 · ${fmt(userTotal)} предметов`);
-  assert.equal(e.elementText('itemsTabButton'),`Предметы · BG3 v10 · ${fmt(userTotal)}`);
+  assert.equal(e.engineVersion(),'5.0');assert.equal(e.engineLabel(),'Движок 5.0 · каталог предметов');
+  const userTotal=available+campaignOnly.length;assert.equal(e.elementText('releaseBadge'),`Движок 5.0 · каталог предметов · ${fmt(userTotal)} предметов`);
+  assert.equal(e.elementText('itemsTabButton'),`Предметы · ${fmt(userTotal)}`);
   assert.ok(heroStart>=0&&listStart>heroStart&&listEnd>listStart,'единый master-detail каталог собран в одном блоке');
   assert.match(html,new RegExp(`data-user-items="${userTotal}"`));
   assert.match(html,/Полный арсенал предметов/);assert.doesNotMatch(html,/База предметов/);assert.match(html,/Герой-получатель/);assert.match(html,/Поиск и фильтры предметов/);
@@ -11293,11 +11333,11 @@ test('BG3 MediumArmorMaster GM identity survives world export/import and the edi
   const e=loadEngine(),ability=mediumArmorMasterAbility(e),actor=hero('medium-persist',{abilities:[{abilityId:ability.id,cur:null,notes:'GM confirmed'}]});e.setState({chars:[actor],abilities:[ability],activeCharId:actor.id});
   const payload=plain(e.dndWorldExportPayload());assert.equal(payload.abilities.find(row=>row.id===ability.id).bg3Id,'MediumArmorMaster');assert.equal(payload.chars[0].abilities[0].abilityId,ability.id);
   const imported=loadEngine();imported.setState({chars:payload.chars,abilities:payload.abilities,activeCharId:actor.id});assert.equal(imported.bg3MediumArmorMasterPassiveEvidence(imported.state().chars[0]).value,true);
-  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');assert.match(html,/Подтверждённая пассивная черта BG3/);assert.match(html,/<select id="edAbBg3Id">/);
-  assert.match(html,/<option value="MediumArmorMaster"/);assert.match(html,/Мастер средних доспехов \(BG3\)/);assert.match(html,/«Не подтверждена», чтобы сбросить его/);
+  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');assert.match(html,/Подтверждённая пассивная черта/);assert.match(html,/<select id="edAbBg3Id">/);
+  assert.match(html,/<option value="MediumArmorMaster"/);assert.match(html,/>Мастер средних доспехов<\/option>/);assert.match(html,/«Не подтверждена», чтобы сбросить его/);
   assert.match(html,/if\(bg3Id\)target\.bg3Id=bg3Id;else delete target\.bg3Id/,'the friendly selector has exact set and reset persistence branches');
   assert.match(html,/эффекты самой черты задаются правилами способности отдельно/,'the editor does not imply ownership of the passive body');
-  assert.match(e.abilityCardHTML(ability),/Подтверждённая черта BG3:<\/b> Мастер средних доспехов/);
+  assert.match(e.abilityCardHTML(ability),/Подтверждённая пассивная черта:<\/b> Мастер средних доспехов/);
 });
 
 test('BG3 production catalog keeps every retained Standard MediumArmorMaster predicate ref typed', () => {

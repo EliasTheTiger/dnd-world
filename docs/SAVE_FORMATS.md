@@ -19,5 +19,5 @@ The fixtures under `tests/fixtures/saves/` are synthetic. They contain no campai
 2. Never replace an unsupported future schema with seeds.
 3. Keep the original serialized payload before any forward migration.
 4. Report duplicate IDs and unresolved references before rendering actions.
-5. A BG3 item reference may remain unresolved until its pinned catalog is hydrated; a missing local item reference is immediately diagnostic.
+5. A pinned-catalog item reference may remain unresolved until its catalog is hydrated; a missing local item reference is immediately diagnostic.
 6. A migration is complete only after write, checksum verification and read-back of the new envelope.

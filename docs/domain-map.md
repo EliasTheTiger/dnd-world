@@ -32,7 +32,7 @@ flowchart LR
 | Сущность | Идентификатор | Владелец жизненного цикла | Ссылки |
 |---|---|---|---|
 | Ruleset | `id@version[:profile]` | `RulesetRegistry` | catalog/definition rulesetRef |
-| Catalog | catalog ID + version/hash | Catalog governance/BG3 manifest | definition IDs, artifacts |
+| Catalog | catalog ID + version/hash | Catalog governance/pinned manifest | definition IDs, artifacts |
 | Definition | `kind:id` | `DefinitionRepository` | rulesetRef, source layer |
 | Character | character ID | Campaign state | inventory, spellbook, abilities, wallet |
 | InventoryEntry | entry ID | Character | itemId, qty, instance value/container/equipment refs |

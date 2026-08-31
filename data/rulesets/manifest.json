@@ -14,10 +14,11 @@
       "evidence": [
         {"path": "index.html", "symbol": "referenceMechanicsErrors", "assertion": "spellcasting.edition must equal 2014"},
         {"path": "index.html", "symbol": "combatCanCastAnotherSpell", "assertion": "bonus-action spell restriction is labelled 5e 2014"},
-        {"path": "index.html", "symbol": "gameDataAudit", "assertion": "item rules require edition 5e-2014"}
+        {"path": "index.html", "symbol": "gameDataAudit", "assertion": "item rules require edition 5e-2014"},
+        {"path": "data/dnd5e/open5e-cc-v1/manifest.json", "assertion": "pins the scoped CC-BY 5e-2014 and 5e-2024 reference catalog integrated through explicit engine policies"}
       ],
       "contentSourceSet": "local-authored-core",
-      "completeness": {"status": "unknown", "reason": "No approved canonical spell/feature corpus or expected-ID census is pinned."}
+      "completeness": {"status": "unknown", "reason": "The local authored corpus remains open-ended; the separate open5e-cc-v1 source set has a pinned scoped census but does not claim all published D&D 5e material."}
     },
     {
       "id": "bg3-5e-2014-adaptation",
@@ -33,10 +34,24 @@
       ],
       "contentSourceSet": "bg3-build-24532579",
       "completeness": {"status": "scoped", "scope": "BG3 item catalog only", "reason": "Does not establish completeness of tabletop spells or class/race features."}
+    },
+    {
+      "id": "dnd5e-2024-reference",
+      "version": "1",
+      "title": "D&D 5e 2024 — CC-BY reference catalog",
+      "status": "reference-only",
+      "capabilities": ["reference-spells", "reference-features"],
+      "evidence": [
+        {"path": "data/dnd5e/open5e-cc-v1/manifest.json", "assertion": "pins retained SRD 5.2 records and their CC-BY attribution"},
+        {"path": "index.html", "symbol": "dnd5eOpenAbilityMechanics", "assertion": "2024 reference features fail closed instead of inheriting 2014 execution semantics"}
+      ],
+      "contentSourceSet": "open5e-cc-v1",
+      "completeness": {"status": "scoped", "scope": "retained SRD 5.2 reference records only", "reason": "The 2024 ruleset is not active; its records are searchable and assignable but require an explicit compatible handler before execution."}
     }
   ],
   "sourceSets": [
     {"id": "local-authored-core", "provenanceStatus": "undocumented", "licenseStatus": "not-recorded", "allowedCompletenessClaim": "none"},
+    {"id": "open5e-cc-v1", "provenanceStatus": "generated-and-sha256-pinned", "licenseStatus": "cc-by-4.0-attribution-recorded", "allowedCompletenessClaim": "selected-source-census-only"},
     {"id": "bg3-build-24532579", "provenanceStatus": "locally-pinned-derived-data", "licenseStatus": "not-recorded", "allowedCompletenessClaim": "catalog-source-census-only"}
   ]
 }

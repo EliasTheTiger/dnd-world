@@ -3,11 +3,17 @@
   "sources": [
     {"id": "inline-project-spells", "rulesetRef": {"id": "dnd5e-2014-local", "version": "1"}, "approved": false, "licenseStatus": "not-recorded", "provenance": ["index.html#seedSpellsDB", "index.html#ensureSpellAudit"]},
     {"id": "inline-project-features", "rulesetRef": {"id": "dnd5e-2014-local", "version": "1"}, "approved": false, "licenseStatus": "not-recorded", "provenance": ["index.html#seedAbilitiesDB", "index.html#ensureAbilityAudit"]},
+    {"id": "open5e-cc-2014-v1", "rulesetRef": {"id": "dnd5e-2014-local", "version": "1"}, "approved": true, "licenseStatus": "cc-by-4.0-attribution-recorded", "provenance": ["data/dnd5e/open5e-cc-v1/manifest.json", "data/dnd5e/open5e-cc-v1/NOTICE.md", "data/dnd5e/open5e-cc-v1/catalog.js", "scripts/build-dnd5e-open-catalog.mjs"]},
+    {"id": "open5e-cc-2024-v1", "rulesetRef": {"id": "dnd5e-2024-reference", "version": "1"}, "approved": true, "licenseStatus": "cc-by-4.0-attribution-recorded", "provenance": ["data/dnd5e/open5e-cc-v1/manifest.json", "data/dnd5e/open5e-cc-v1/NOTICE.md", "data/dnd5e/open5e-cc-v1/catalog.js", "scripts/build-dnd5e-open-catalog.mjs"]},
     {"id": "bg3-build-24532579", "rulesetRef": {"id": "bg3-5e-2014-adaptation", "version": "24532579-v10", "profile": "standard"}, "approved": true, "licenseStatus": "approved-for-existing-project-derived-catalog", "provenance": ["data/bg3/current.json", "data/bg3/bg3-24532579-v10/manifest.json"]}
   ],
   "catalogs": [
     {"id": "local-spells", "domain": "spell", "sourceId": "inline-project-spells", "expected": {"mode": "unknown"}, "claim": "Expansion and maximum completeness are blocked until an approved expected-ID corpus is pinned."},
     {"id": "local-features", "domain": "feature", "sourceId": "inline-project-features", "expected": {"mode": "unknown"}, "claim": "Expansion and maximum completeness are blocked until an approved expected-ID corpus is pinned."},
+    {"id": "open5e-cc-2014-spells-v1", "domain": "spell", "sourceId": "open5e-cc-2014-v1", "expected": {"mode": "count-only", "count": 499}, "claim": "Complete only for retained spell records from the pinned 5e-2014 CC-BY source documents; it is not a claim over all published D&D material."},
+    {"id": "open5e-cc-2024-spells-v1", "domain": "spell", "sourceId": "open5e-cc-2024-v1", "expected": {"mode": "count-only", "count": 338}, "claim": "Complete only for retained spell records from the pinned 5e-2024 CC-BY SRD; one source record without a description is explicitly excluded."},
+    {"id": "open5e-cc-2014-features-v1", "domain": "feature", "sourceId": "open5e-cc-2014-v1", "expected": {"mode": "count-only", "count": 307}, "claim": "Complete only for CLASS_LEVEL_FEATURE, species trait, and feat records from the pinned 5e-2014 CC-BY documents; runtime automation coverage is tracked separately."},
+    {"id": "open5e-cc-2024-features-v1", "domain": "feature", "sourceId": "open5e-cc-2024-v1", "expected": {"mode": "count-only", "count": 309}, "claim": "Complete only for CLASS_LEVEL_FEATURE, species trait, and feat records from the pinned 5e-2024 CC-BY SRD; all remain reference-only until an explicit compatible handler exists."},
     {"id": "bg3-standard-items", "domain": "item", "sourceId": "bg3-build-24532579", "expected": {"mode": "count-only", "count": 10282}, "claim": "Complete only against the pinned BG3 Standard item universe census; executable coverage is separate."}
   ]
 }

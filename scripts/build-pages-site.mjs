@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +8,8 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dataRoot = join(repositoryRoot, 'data', 'bg3');
 const outputRoot = join(repositoryRoot, '_site');
 const checkOnly = process.argv.slice(2).includes('--check');
-const runtimeFiles = ['economy-core.js', 'merchant-core.js', 'item-domain-model.js', 'definition-repository.js', 'ruleset-registry.js', 'persistence-core.js', 'action-kernel.js', 'chest-core.js', 'catalog-governance.js', 'world-state-core.js', 'ui-action-contract.js', 'projection-cache.js'];
+const runtimeFiles = ['economy-core.js', 'merchant-core.js', 'item-domain-model.js', 'definition-repository.js', 'ruleset-registry.js', 'persistence-core.js', 'action-kernel.js', 'chest-core.js', 'catalog-governance.js', 'world-state-core.js', 'ui-action-contract.js', 'projection-cache.js', 'public-item-surface.js'];
+const RELEASE_PLACEHOLDER = '__DND_WORLD_RELEASE__';
 
 function invariant(value, message) {
   if (!value) throw new Error(message);
@@ -19,6 +21,17 @@ function sha256(buffer) {
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
+}
+
+function releaseId() {
+  const configured = String(process.env.DND_WORLD_RELEASE || process.env.GITHUB_SHA || '').trim().toLowerCase();
+  if (/^[0-9a-f]{40}$/.test(configured)) return configured;
+  const commit = String(execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+  })).trim().toLowerCase();
+  invariant(/^[0-9a-f]{40}$/.test(commit), 'unable to resolve the release commit');
+  return commit;
 }
 
 async function inspectTree(root) {
@@ -77,31 +90,44 @@ async function validateInputs() {
     join(repositoryRoot, 'assets'),
     join(repositoryRoot, 'data', 'rulesets'),
     join(repositoryRoot, 'data', 'catalogs'),
+    join(repositoryRoot, 'data', 'dnd5e'),
     catalogRoot,
     ...uiNames.map(name => join(uiRoot, name)),
   ];
   const measurements = await Promise.all(roots.map(inspectTree));
-  const indexBytes = (await stat(join(repositoryRoot, 'index.html'))).size;
+  const indexPath = join(repositoryRoot, 'index.html');
+  const indexSource = await readFile(indexPath, 'utf8');
+  invariant(indexSource.includes(RELEASE_PLACEHOLDER), 'index.html is missing the release placeholder');
+  const indexBytes = Buffer.byteLength(indexSource);
   const styleBytes = (await stat(join(repositoryRoot, 'styles.css'))).size;
   const currentBytes = (await stat(currentPath)).size;
   const runtimeBytes = (await Promise.all(runtimeFiles.map(name => stat(join(repositoryRoot, 'scripts', name))))).reduce((sum, row) => sum + row.size, 0);
   const bytes = measurements.reduce((sum, row) => sum + row.bytes, indexBytes + styleBytes + currentBytes + runtimeBytes);
-  const files = measurements.reduce((sum, row) => sum + row.files, 4 + runtimeFiles.length);
+  const files = measurements.reduce((sum, row) => sum + row.files, 6 + runtimeFiles.length);
   invariant(bytes < 10_000_000_000, 'current Pages artifact exceeds the 10 GB upload limit');
 
-  return { currentPath, version, catalogRoot, uiRoot, uiNames, files, bytes };
+  return { currentPath, version, catalogRoot, uiRoot, uiNames, files, bytes, indexSource, release: releaseId() };
 }
 
 async function buildSite(inputs) {
   await rm(outputRoot, { recursive: true, force: true });
   await mkdir(join(outputRoot, 'data', 'bg3', 'ui'), { recursive: true });
+  await mkdir(join(outputRoot, 'releases', inputs.release), { recursive: true });
   await mkdir(join(outputRoot, 'scripts'), { recursive: true });
-  await cp(join(repositoryRoot, 'index.html'), join(outputRoot, 'index.html'));
+  const renderedIndex = inputs.indexSource.replaceAll(RELEASE_PLACEHOLDER, inputs.release);
+  await writeFile(join(outputRoot, 'index.html'), renderedIndex);
+  await writeFile(join(outputRoot, 'releases', inputs.release, 'index.html'), renderedIndex);
+  await writeFile(join(outputRoot, 'release.json'), `${JSON.stringify({
+    schemaVersion: 'dnd-world-release/1',
+    commit: inputs.release,
+    catalogVersion: inputs.version,
+  }, null, 2)}\n`);
   await cp(join(repositoryRoot, 'styles.css'), join(outputRoot, 'styles.css'));
   for (const name of runtimeFiles) await cp(join(repositoryRoot, 'scripts', name), join(outputRoot, 'scripts', name));
   await cp(join(repositoryRoot, 'assets'), join(outputRoot, 'assets'), { recursive: true });
   await cp(join(repositoryRoot, 'data', 'rulesets'), join(outputRoot, 'data', 'rulesets'), { recursive: true });
   await cp(join(repositoryRoot, 'data', 'catalogs'), join(outputRoot, 'data', 'catalogs'), { recursive: true });
+  await cp(join(repositoryRoot, 'data', 'dnd5e'), join(outputRoot, 'data', 'dnd5e'), { recursive: true });
   await cp(inputs.currentPath, join(outputRoot, 'data', 'bg3', 'current.json'));
   await cp(inputs.catalogRoot, join(outputRoot, 'data', 'bg3', inputs.version), { recursive: true });
   for (const name of inputs.uiNames) {
@@ -114,6 +140,7 @@ const inputs = await validateInputs();
 if (!checkOnly) await buildSite(inputs);
 process.stdout.write(`${JSON.stringify({
   status: checkOnly ? 'verified' : 'built',
+  release: inputs.release,
   catalogVersion: inputs.version,
   output: checkOnly ? null : relative(repositoryRoot, outputRoot).replaceAll('\\', '/'),
   files: inputs.files,

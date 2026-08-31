@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -44,6 +44,7 @@ jobs:
         uses: actions/configure-pages@v5
       - name: Verify generated catalogs
         run: |
+          node scripts/build-dnd5e-open-catalog.mjs --check
           node scripts/build-bg3-item-economy.mjs --check
           node scripts/audit-bg3-v10-economy.mjs --check
           node scripts/build-bg3-item-mechanics.mjs --check

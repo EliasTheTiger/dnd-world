@@ -56,4 +56,4 @@ sequenceDiagram
 
 ## Каталог
 
-Source manifest → ruleset/source/license gate → duplicate/expected-ID/executable coverage → import plan → Definition layer. Для spell/features текущий expected set отсутствует, поэтому импорт «до максимума» останавливается до получения утверждённого корпуса.
+Source manifest → ruleset/source/license gate → duplicate/expected-ID/executable coverage → import plan → Definition layer. Локальные spell/features остаются открытым авторским набором, а `open5e-cc-v1` теперь имеет отдельный зафиксированный census: 837 retained spells и 616 retained features с CC-BY provenance. Полнота заявляется только относительно выбранных документов, не относительно всех когда-либо изданных материалов D&D.
