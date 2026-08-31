@@ -1293,8 +1293,8 @@ test('старый флаг миграции не скрывает отсутс�
   assert.equal(e.dnd5eOpenCatalogInstalled(legacySpells,'spells'),false);
   assert.equal(e.dnd5eOpenCatalogInstalled(legacyAbilities,'abilities'),false);
   e.setState({spells:legacySpells,abilities:legacyAbilities,races:e.seedRacesDB(),chars:[]});
-  await e.storeSet('dndworld2:spellaudit','spells-v8-open5e-cc-ru-20260831');
-  await e.storeSet('dndworld2:abaudit','8-open5e-cc-ru');
+  await e.storeSet('dndworld2:spellaudit','spells-v8-open5e-cc-ru-20260831-1');
+  await e.storeSet('dndworld2:abaudit','8-open5e-cc-ru-1');
 
   await e.ensureSpellAudit();await e.ensureAbilityAudit();
 

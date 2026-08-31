@@ -23,7 +23,7 @@ test('generated D&D 5e catalog is pinned, attributed, and reproducibly checkable
   assert.equal(manifest.licensePolicy.required, 'CC-BY-4.0');
   assert.equal(manifest.licensePolicy.closedBookTextAllowed, false);
   assert.deepEqual(manifest.localization, {
-    schemaVersion: 'dnd5e-open-catalog-localization/1', locale: 'ru', sourceLanguage: 'en', revision: 'ru-2026-08-31',
+    schemaVersion: 'dnd5e-open-catalog-localization/1', locale: 'ru', sourceLanguage: 'en', revision: 'ru-2026-08-31.1',
   });
   assert.ok(manifest.documents.length >= 4);
   assert.ok(manifest.documents.every(document => document.licenses.some(license => license.key === 'cc-by-40')));
@@ -48,7 +48,7 @@ test('retained catalog clears the 500+ census with complete source and engine me
     assert.equal(row.catalogSource.license, 'CC-BY-4.0');
     assert.equal(row.catalogSource.language, 'ru');
     assert.equal(row.catalogSource.sourceLanguage, 'en');
-    assert.equal(row.catalogSource.localizationRevision, 'ru-2026-08-31');
+    assert.equal(row.catalogSource.localizationRevision, 'ru-2026-08-31.1');
     assert.match(row.n, /[А-ЯЁа-яё]/, row.id);
     assert.match(row.x, /[А-ЯЁа-яё]/, row.id);
     const cyrillic = (row.x.match(/[А-ЯЁа-яё]/g) || []).length;
@@ -56,6 +56,14 @@ test('retained catalog clears the 500+ census with complete source and engine me
     assert.ok(latin <= 40 || latin <= cyrillic * 0.35, `${row.id} still contains predominantly English prose`);
     assert.ok(['dnd5e-2014-local', 'dnd5e-2024-reference'].includes(row.rulesetRef.id));
     assert.ok(['structured', 'manual-fail-closed'].includes(row.enginePolicy.mode));
+    const visibleRussianText = (row.l === undefined
+      ? [row.n, row.source, row.x]
+      : [row.n, row.c, row.t, row.r, row.cm, row.d, row.x, row.hi]
+    ).join('\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\bBlack Flag\b/g, '')
+      .replace(/\bSRD\b/g, '');
+    assert.doesNotMatch(visibleRussianText, /[A-Za-z]{2,}/, `${row.id} retains an English display term`);
   }
   assert.deepEqual(JSON.parse(JSON.stringify(catalog.exclusions)), [{
     kind: 'spell',
@@ -70,11 +78,15 @@ test('retained catalog clears the 500+ census with complete source and engine me
   const magicMissile = catalog.spells.find(row => row.open5e.originalName === 'Magic Missile');
   const actionSurge = catalog.abilities.find(row => row.open5e.originalName === 'Action Surge');
   const alert = catalog.abilities.find(row => row.open5e.originalName === 'Alert');
+  const shield = catalog.spells.find(row => row.open5e.originalName === 'Shield');
   assert.equal(magicMissile.n, 'Волшебная стрела');
   assert.match(magicMissile.x, /дротик|стрел/i);
   assert.equal(actionSurge.n, 'Всплеск действий');
   assert.match(actionSurge.source, /^Воин · Справочный документ/);
   assert.equal(alert.n, 'Бдительный');
+  assert.equal(shield.r, 'На себя');
+  assert.equal(shield.cm, 'В, С');
+  assert.doesNotMatch(shield.x, /\b(?:AC|Magic Missile)\b/);
 });
 
 test('HTML loads the pinned catalog before the engine and governance scopes both editions honestly', () => {

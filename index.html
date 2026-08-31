@@ -2950,7 +2950,7 @@ if(sp&&n==='Истинное воскрешение') sp.cm='В, С, М (свя�
 if(flag!==ITEM_DATA_MIGRATION_ID) await store.set('dndworld2:itemaudit',ITEM_DATA_MIGRATION_ID);
 if(changed||flag!==ITEM_DATA_MIGRATION_ID){ fxInvalidate(); scheduleSave(); }
 }
-const SPELL_DATA_MIGRATION_ID='spells-v8-open5e-cc-ru-20260831';
+const SPELL_DATA_MIGRATION_ID='spells-v8-open5e-cc-ru-20260831-1';
 function patchSpellSemanticSaveTags(sp){
 if(!sp||sp.n!=='Страх') return false;
 const before=JSON.stringify([sp.saveTags,sp.mechanics&&sp.mechanics.resolution&&sp.mechanics.resolution.save&&sp.mechanics.resolution.save.tags]);
@@ -3111,7 +3111,7 @@ return {changed:linked+added>0,linked,added};
 async function ensureAbilityAudit(){
 const flag=await store.get('dndworld2:abaudit');
 const catalogInstalled=dnd5eOpenCatalogInstalled(abilitiesDB,'abilities');
-const abilityMigrationId='8-open5e-cc-ru';
+const abilityMigrationId='8-open5e-cc-ru-1';
 const recoveringPinnedCatalog=!catalogInstalled&&(flag===abilityMigrationId||dnd5eOpenCatalogIdsPresent(abilitiesDB,'abilities'));
 const raceRefs=reconcileRaceAbilityReferences(racesDB,abilitiesDB);
 if(flag===abilityMigrationId&&catalogInstalled&&!raceRefs.changed) return;

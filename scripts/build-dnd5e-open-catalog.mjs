@@ -14,7 +14,7 @@ const API_ROOT = 'https://api.open5e.com/v2';
 const SCHEMA_VERSION = 'dnd5e-open-catalog/1';
 const GLOBAL_NAME = 'DND5E_OPEN_CATALOG';
 const LOCALIZATION_SCHEMA_VERSION = 'dnd5e-open-catalog-localization/1';
-const LOCALIZATION_REVISION = 'ru-2026-08-31';
+const LOCALIZATION_REVISION = 'ru-2026-08-31.1';
 
 const DOCUMENT_NAMES_RU = Object.freeze({
   bfrd: 'Справочный документ Black Flag',
@@ -92,6 +92,88 @@ const ABILITY_NAME_OVERRIDES_RU = Object.freeze({
   'Magic Initiate': 'Посвящённый в магию', Skilled: 'Умелец', 'Two-Weapon Fighting': 'Сражение двумя оружиями',
 });
 
+/* The pinned translation was generated in bulk and occasionally retained an
+   English rules term inside otherwise Russian prose. Keep this pass explicit:
+   it changes display text only and therefore cannot alter stable ids or engine
+   policies. Longer phrases must precede their individual words. */
+const ENGLISH_RULE_TERMS_RU = Object.freeze([
+  [/\bBoon of Spell Recall\b/gi, 'Дар возвращения заклинания'],
+  [/\bGuards and Wards\b/gi, 'Стражи и охранные руны'],
+  [/\bAntimagic Field\b/gi, 'Преграда магии'],
+  [/\bChannel Divinity\b/gi, 'Божественный канал'],
+  [/\bCharm Person\b/gi, 'Очарование личности'],
+  [/\bDivine Smite\b/gi, 'Божественная кара'],
+  [/\bDispel Magic\b/gi, 'Рассеивание магии'],
+  [/\bEldritch Blast\b/gi, 'Мистический заряд'],
+  [/\bFiend Patron\b/gi, 'Покровитель-исчадие'],
+  [/\bHallowed Ward\b/gi, 'Освящённая защита'],
+  [/\bMagic Missile\b/gi, 'Волшебная стрела'],
+  [/\bMinor Creation\b/gi, 'Малое сотворение'],
+  [/\bMystic Arcanum\b/gi, 'Таинственный аркан'],
+  [/\bNature's Ward\b/gi, 'Защита природы'],
+  [/\bProduce Flame\b/gi, 'Сотворение пламени'],
+  [/\bReshape Reality\b/gi, 'Изменение реальности'],
+  [/\bRoll Redo\b/gi, 'Повторный бросок'],
+  [/\bSpell Glyph\b/gi, 'Заклинательная глифа'],
+  [/\bStarry Wisp\b/gi, 'Звёздный огонёк'],
+  [/\bWild Shape\b/gi, 'Дикий облик'],
+  [/\bBody Bash\b/gi, 'Удар телом'],
+  [/\bFire Starter\b/gi, 'Зажигалка'],
+  [/\bFire Play\b/gi, 'Игра с огнём'],
+  [/\bGrave Spirit\b/gi, 'Могильный дух'],
+  [/\bHit Point\b/gi, 'хит'],
+  [/\bHit Dice\b/gi, 'кости хитов'],
+  [/\bHit Die\b/gi, 'кость хитов'],
+  [/\bLife Domain\b/gi, 'Домен Жизни'],
+  [/\bMinor Fiend\b/gi, 'малое исчадие'],
+  [/\bMystic Metal\b/gi, 'Мистический металл'],
+  [/\bThe Fiend\b/gi, 'Исчадие'],
+  [/\bAbyssal\b/gi, 'Бездонное наследие'],
+  [/\bBlindsight\b/gi, 'слепое зрение'],
+  [/\bChthonic\b/gi, 'Хтоническое наследие'],
+  [/\bCloudkill\b/gi, 'Смертоносное облако'],
+  [/\bCombat\b/gi, 'Бой'],
+  [/\bCorridors\b/gi, 'Коридоры'],
+  [/\bCourage\b/gi, 'Отвага'],
+  [/\bCreature\b/gi, 'Существо'],
+  [/\bDarkness\b/gi, 'Тьма'],
+  [/\bDaylight\b/gi, 'Дневной свет'],
+  [/\bDiscord\b/gi, 'Раздор'],
+  [/\bDruidcraft\b/gi, 'Искусство друидов'],
+  [/\bEnlarge\b/gi, 'Увеличение'],
+  [/\bEnrichment\b/gi, 'Обогащение'],
+  [/\bEvoker\b/gi, 'Воплотитель'],
+  [/\bFear\b/gi, 'Страх'],
+  [/\bFiend\b/gi, 'Исчадие'],
+  [/\bfly\b/gi, 'полёт'],
+  [/\bGuidance\b/gi, 'Указание'],
+  [/\bHex\b/gi, 'Сглаз'],
+  [/\bImage\b/gi, 'Изображение'],
+  [/\bMetamagic\b/gi, 'Метамагия'],
+  [/\bObject\b/gi, 'Объект'],
+  [/\bOvergrowth\b/gi, 'Буйная растительность'],
+  [/\bPain\b/gi, 'Боль'],
+  [/\bPaladin\b/gi, 'Паладин'],
+  [/\bPasswall\b/gi, 'Проход в стене'],
+  [/\bPrestidigitation\b/gi, 'Фокусы'],
+  [/\bReduce\b/gi, 'Уменьшение'],
+  [/\bResistance\b/gi, 'Сопротивление'],
+  [/\bSickened\b/gi, 'Болезнь'],
+  [/\bSilence\b/gi, 'Тишина'],
+  [/\bSlam\b/gi, 'Удар'],
+  [/\bSleep\b/gi, 'Сон'],
+  [/\bSound\b/gi, 'Звук'],
+  [/\bStairs\b/gi, 'Лестницы'],
+  [/\bTiny\b/gi, 'крошечный'],
+  [/\bTongues\b/gi, 'Языки'],
+  [/\bTremorsense\b/gi, 'чувство вибрации'],
+  [/\bTremors\b/gi, 'Дрожь земли'],
+  [/\bTruesight\b/gi, 'истинное зрение'],
+  [/\bWebsense\b/gi, 'чувство паутины'],
+  [/\bWish\b/gi, 'Желание'],
+  [/\bWard\b/gi, 'Защита'],
+]);
+
 const SAVE_KEYS = Object.freeze({strength: 'str', dexterity: 'dex', constitution: 'con', intelligence: 'int', wisdom: 'wis', charisma: 'cha'});
 const SIGNIFICANT_CASTING_OPTION_FIELDS = Object.freeze(['damage_roll', 'target_count', 'duration', 'range', 'concentration', 'shape_size', 'desc']);
 /* Structured execution is opt-in per reviewed source record. API fields are useful
@@ -138,7 +220,42 @@ function documentSource(document, endpoint, key) {
 }
 
 function canonicalRussian(value) {
-  return cleanText(value)
+  const prepared = cleanText(value)
+    .replace(/_+(?=[A-Za-z])/g, '')
+    .replace(/(?<=[A-Za-z][.!?])_+/g, '');
+  const localized = ENGLISH_RULE_TERMS_RU.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), prepared)
+    .replace(/\bвашего (?:DM|GM)\b/gi, 'вашего мастера')
+    .replace(/\bваш (?:DM|GM)\b/gi, 'ваш мастер')
+    .replace(/\bу (?:DM|GM)\b/gi, 'у мастера')
+    .replace(/\b(?:DM|GM)\b/g, 'мастер')
+    .replace(/\bAC\b/g, 'КД')
+    .replace(/\bDC\b/g, 'СЛ')
+    .replace(/\bHP\b/g, 'хиты')
+    .replace(/\bPB\b/g, 'БМ')
+    .replace(/\bINT\b/g, 'ИНТ')
+    .replace(/\bSTR\b/g, 'СИЛ')
+    .replace(/\bCon\b/g, 'Тел')
+    .replace(/\bStr\b/g, 'Сил')
+    .replace(/\bDex\b/g, 'Лов')
+    .replace(/\bCR\b/g, 'ПО')
+    .replace(/\bGP\b/g, 'зм')
+    .replace(/\bCP\b/g, 'мм')
+    .replace(/\bsp\b/g, 'см')
+    .replace(/\bHit\b/g, 'Попадание')
+    .replace(/\bC\b/g, 'К')
+    .replace(/\bR\b/g, 'Р')
+    .replace(/\bM\b/g, 'М')
+    .replace(/\bU-Z\b/g, 'У—Я')
+    .replace(/\bDoors\b/gi, 'Двери')
+    .replace(/\*C\*/g, '*К*')
+    .replace(/\*R\*/g, '*Р*')
+    .replace(/\*M\*/g, '*М*')
+    .replace(/\|C\|/g, '|К|')
+    .replace(/\|R\|/g, '|Р|')
+    .replace(/\|M\|/g, '|М|')
+    .replace(/([:.])g(?=\s*<)/g, '$1')
+    .replace(/\b1d4 x 10\b/g, '1d4 × 10');
+  return localized
     .replace(/Боец/g, 'Воин')
     .replace(/бойца/g, 'воина')
     .replace(/бойцом/g, 'воином')
@@ -175,6 +292,8 @@ function localizeSpell(row, localization) {
   for (const field of ['n', 'c', 't', 'r', 'cm', 'd', 'x', 'hi']) {
     if (translated[field] != null) row[field] = canonicalRussian(translated[field]);
   }
+  if (/^Self\b/i.test(row.open5e.rangeUnit) || row.r === 'Я') row.r = 'На себя';
+  row.cm = row.cm.replace(/\bV\b/g, 'В').replace(/\bS\b/g, 'С').replace(/\bM\b/g, 'М');
   row.n = SPELL_NAME_OVERRIDES_RU[originalName] || row.n;
   row.open5e.originalName = originalName;
   return row;
