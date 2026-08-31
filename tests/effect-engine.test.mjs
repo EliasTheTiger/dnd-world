@@ -126,6 +126,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       itemUseResourcePlan, commitItemUseResource,
       dmgAfterTraits, effectiveFoeConditions, castDispel, rollbackLastCast,
       seedItemsDB, seedSpellsDB, seedAbilitiesDB, seedRacesDB, seedClassesDB, seedFoesDB, gameDataAudit,
+      dnd5eOpenCatalogInstalled,ensureSpellAudit,ensureAbilityAudit,
       reconcileRaceAbilityReferences,
       upgradeFoe, mergeBuiltinFoe, foeSaveMod, foeSkillMod, foeActionReady, foeResetActionState, foeHpDelta, foeFullHeal,
       buildRoku, buildTorgar, buildSeptih, buildLegerem,
@@ -1284,6 +1285,24 @@ test('открытый каталог D&D 5e исполняет только п�
   const spec = e.rollSpecOf(structured, {caster, kind: 'spell', slotLvl: 3, target: e.targetInfoOf(`foe:${foe.id}`)});
   assert.equal(spec.rows.find(row => row.type === 'atk')?.type, 'atk');
   assert.deepEqual(plain(spec.rows.filter(row => row.type === 'dmg').map(row => [row.cnt, row.sides, row.dmgType])), [[5, 10, 'некротическая энергия']]);
+});
+
+test('старый флаг миграции не скрывает отсутствующий Open5e-каталог в сохраненном мире', async () => {
+  const e=loadEngine(undefined,null,null,null,{openDnd5eCatalog:true}),completeSpells=e.seedSpellsDB(),completeAbilities=e.seedAbilitiesDB(),
+    legacySpells=completeSpells.filter(row=>row.catalogSource?.provider!=='Open5e'),legacyAbilities=completeAbilities.filter(row=>row.catalogSource?.provider!=='Open5e');
+  assert.equal(e.dnd5eOpenCatalogInstalled(legacySpells,'spells'),false);
+  assert.equal(e.dnd5eOpenCatalogInstalled(legacyAbilities,'abilities'),false);
+  e.setState({spells:legacySpells,abilities:legacyAbilities,races:e.seedRacesDB(),chars:[]});
+  await e.storeSet('dndworld2:spellaudit','spells-v7-open5e-cc-20260831');
+  await e.storeSet('dndworld2:abaudit','7-open5e-cc');
+
+  await e.ensureSpellAudit();await e.ensureAbilityAudit();
+
+  const {spellsDB,abilitiesDB}=e.state();
+  assert.equal(spellsDB.filter(row=>row.catalogSource?.provider==='Open5e').length,dnd5eOpenCatalogManifest.counts.importedSpells);
+  assert.equal(abilitiesDB.filter(row=>row.catalogSource?.provider==='Open5e').length,dnd5eOpenCatalogManifest.counts.importedAbilities);
+  assert.equal(e.dnd5eOpenCatalogInstalled(spellsDB,'spells'),true);
+  assert.equal(e.dnd5eOpenCatalogInstalled(abilitiesDB,'abilities'),true);
 });
 
 test('расширение 4.5 содержит 58 самостоятельных сущностей без предметов, названных по одному заклинанию', () => {

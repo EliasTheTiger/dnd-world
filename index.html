@@ -1212,6 +1212,10 @@ copy.tags=uniqTags((copy.tags||[]).concat(ability?abilityEnrichTags(copy):spellE
 if(ability){upgradeAbility(copy,true);dnd5eOpenAbilityMechanics(copy);}else{upgradeSpell(copy,true);dnd5eOpenSpellMechanics(copy);}});
 return rows.length;
 }
+function dnd5eOpenCatalogInstalled(target,kind){
+const rows=dnd5eOpenCatalogRows(kind);if(rows.length<500||!Array.isArray(target))return false;
+const ids=new Set(target.map(row=>row&&row.id).filter(Boolean));return rows.every(row=>ids.has(row.id));
+}
 function spellAutoTags(sp){
 const t=[];
 if(sp.l===0) t.push('cantrip');
@@ -2951,8 +2955,8 @@ return before!==JSON.stringify([sp.saveTags,sp.mechanics&&sp.mechanics.resolutio
 }
 async function ensureSpellAudit(){
 const flag=await store.get('dndworld2:spellaudit');
-if(flag===SPELL_DATA_MIGRATION_ID) return;
-dnd5eOpenInstall(spellsDB,'spells');
+if(flag===SPELL_DATA_MIGRATION_ID&&dnd5eOpenCatalogInstalled(spellsDB,'spells')) return;
+const installed=dnd5eOpenInstall(spellsDB,'spells');
 Object.keys(SPELL_HI_PATCHES).forEach(id=>{
 const sp=spellsDB.find(s=>s.id===id);
 if(sp && !sp.hi) sp.hi=SPELL_HI_PATCHES[id];
@@ -2979,6 +2983,7 @@ faerie.tags=uniqTags((faerie.tags||[]).concat(spellEnrichTags(faerie)));
 исправления seed недостаточно: посетители с прежним spellaudit=5 иначе
 продолжали получать только общий тег magical в формуле «Страха». */
 patchSpellSemanticSaveTags(spellsDB.find(x=>x.n==='Страх'));
+if(installed<500)return;
 await store.set('dndworld2:spellaudit',SPELL_DATA_MIGRATION_ID);
 scheduleSave();
 }
@@ -3097,8 +3102,8 @@ return {changed:linked+added>0,linked,added};
 async function ensureAbilityAudit(){
 const flag=await store.get('dndworld2:abaudit');
 const raceRefs=reconcileRaceAbilityReferences(racesDB,abilitiesDB);
-if(flag==='7-open5e-cc'&&!raceRefs.changed) return;
-dnd5eOpenInstall(abilitiesDB,'abilities');
+if(flag==='7-open5e-cc'&&dnd5eOpenCatalogInstalled(abilitiesDB,'abilities')&&!raceRefs.changed) return;
+const installed=dnd5eOpenInstall(abilitiesDB,'abilities');
 const clericArmor=abilitiesDB.find(a=>a.n==='Владение доспехами: Жрец (Домен Жизни)');
 if(clericArmor && clericArmor.x && clericArmor.x.indexOf('легкими и средними')<0)
 clericArmor.x+=' Вы также владеете легкими и средними доспехами и щитами.';
@@ -3119,6 +3124,7 @@ chars.forEach(c=>(c.abilities||[]).forEach(e=>{
 const db=abilitiesDB.find(a=>a.id===e.abilityId);
 if(db&&db.uses!=null&&e.cur==null) e.cur=db.uses;
 }));
+if(installed<500){if(raceRefs.changed)scheduleSave();return;}
 await store.set('dndworld2:abaudit','7-open5e-cc');
 scheduleSave();
 }
