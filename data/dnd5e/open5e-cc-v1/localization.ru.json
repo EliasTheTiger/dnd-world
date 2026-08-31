@@ -2,7 +2,7 @@
   "schemaVersion": "dnd5e-open-catalog-localization/1",
   "locale": "ru",
   "sourceLanguage": "en",
-  "revision": "ru-2026-08-31",
+  "revision": "ru-2026-08-31.1",
   "sourceCatalog": {
     "sha256": "50e8d0f4f7bb1add5f67aac2e1a04ec8a6f082b9ac99a68ccd5a050b4b74de6e",
     "spells": 837,

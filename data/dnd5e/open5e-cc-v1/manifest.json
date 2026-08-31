@@ -10,7 +10,7 @@
     "schemaVersion": "dnd5e-open-catalog-localization/1",
     "locale": "ru",
     "sourceLanguage": "en",
-    "revision": "ru-2026-08-31"
+    "revision": "ru-2026-08-31.1"
   },
   "licensePolicy": {
     "required": "CC-BY-4.0",
@@ -120,12 +120,12 @@
   },
   "artifacts": {
     "catalog.js": {
-      "bytes": 4056954,
-      "sha256": "744a835a99f8c3cad0fea354e9f8d7444518ab47f68907c0d54469982e5de7f1"
+      "bytes": 4065056,
+      "sha256": "667065fd8d89f79ef8f531b733659106e30761cdf9ffcef2c936695c34678f49"
     },
     "localization.ru.json": {
-      "bytes": 2258320,
-      "sha256": "e87e5db6bb8e61022723a3aae5aa6666620dd3c42c6a5e2df2dd18c2f32d08a2"
+      "bytes": 2258322,
+      "sha256": "934e2961beb4e2804a1b1566ecfd86affac41fb71e50ff601f8e90b536422582"
     },
     "NOTICE.md": {
       "bytes": 1938,
