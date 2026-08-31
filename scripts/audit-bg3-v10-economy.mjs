@@ -9,6 +9,7 @@ const REPO_ROOT = resolve(SCRIPT_DIR, '..');
 const CATALOG_VERSION = 'bg3-24532579-v10';
 const CATALOG_ROOT = join(REPO_ROOT, 'data', 'bg3', CATALOG_VERSION);
 const MANIFEST_PATH = join(CATALOG_ROOT, 'manifest.json');
+const SOURCE_MANIFEST_PATH = join(REPO_ROOT, 'data', 'catalogs', 'source-manifest.json');
 const CURRENT_PATH = join(REPO_ROOT, 'data', 'bg3', 'current.json');
 const REPORT_PATH = join(CATALOG_ROOT, 'item-economy-report.json');
 const REPORT_MARKDOWN_PATH = join(CATALOG_ROOT, 'item-economy-report.md');
@@ -682,26 +683,22 @@ function fallbackRow(item, profile, row, unitKey) {
 }
 
 function makeReport(rows, goldSource, directSourceFields) {
-  const excluded = rows.filter(row => !row.standard).map(row => ({
-    itemId: row.item.id,
-    reason: 'source.profiles has no Standard evidence',
-  }));
+  assert(rows.every(row => row.standard), 'Standard-only catalog contains a non-Standard item');
   const weightFallbacks = rows
     .filter(row => row.mass.method !== 'source-weight')
-    .map(row => fallbackRow(row.item, row.standard ? 'standard' : 'blocked-non-standard', row.mass, 'kg'));
+    .map(row => fallbackRow(row.item, 'standard', row.mass, 'kg'));
   const priceFallbacks = rows
     .filter(row => !['gold-value-curve', 'value-override'].includes(row.price.method))
-    .map(row => fallbackRow(row.item, row.standard ? 'standard' : 'blocked-non-standard', row.price, 'gp'));
+    .map(row => fallbackRow(row.item, 'standard', row.price, 'gp'));
   weightFallbacks.sort((a, b) => compareStrings(a.itemId, b.itemId));
   priceFallbacks.sort((a, b) => compareStrings(a.itemId, b.itemId));
-  const union = summarize(rows, () => true);
-  const standard = summarize(rows, row => row.standard);
+  const standard = summarize(rows, () => true);
   const reviewedConflicts = rows.flatMap(row => [
     ['mass', row.mass],
     ['price', row.price],
   ].filter(([, value]) => value.reviewedConflict).map(([dimension, value]) => ({
     itemId: row.item.id,
-    publication: row.standard ? 'standard' : 'blocked-non-standard',
+    publication: 'standard',
     names: {ru: row.item.i18n?.ru?.name || row.item.n || '', en: row.item.i18n?.en?.name || ''},
     dimension,
     method: value.method,
@@ -729,12 +726,7 @@ function makeReport(rows, goldSource, directSourceFields) {
     schemaVersion: 'dnd-world-bg3-item-economy-report/3',
     catalogVersion: CATALOG_VERSION,
     generatedAt: GENERATED_AT,
-    scope: {
-      auditedUnionItems: rows.length,
-      productionStandardItems: standard.items,
-      excludedFromStandardProductionItems: excluded.length,
-      profilePolicy: 'production-standard-only; union-only source records are audited but not published by the Standard loader',
-    },
+    scope: {items: rows.length, rulesProfile: 'standard'},
     source: goldSource,
     formula: {
       mass: {unit: 'kg', precision: 'pinned Stats.Weight must be nonnegative and exactly representable at 0.001 kg or coarser; preserve the source value'},
@@ -743,11 +735,8 @@ function makeReport(rows, goldSource, directSourceFields) {
       currency: {unit: 'gp', copperPerGp: 100, displaySuffix: 'зм', sourceValidation: 'ValueOverride is a nonnegative integer gp; curve inputs are finite and valid before pinned rounding'},
       notApplicable: {numericValue: null, display: NOT_APPLICABLE_DISPLAY, zeroIsNeverUsedAsMissing: true},
     },
-    summary: {auditedUnion: union, productionStandard: standard},
-    controlSets: {
-      auditedUnion: controlSetsFor(rows),
-      productionStandard: controlSetsFor(rows.filter(row => row.standard)),
-    },
+    summary: {standard},
+    controlSets: {standard: controlSetsFor(rows)},
     directSourceFields,
     audit: {
       allItemsResolved: unresolvedWeights === 0 && unresolvedPrices === 0 && invalidResolvedWeights === 0 && invalidResolvedPrices === 0
@@ -760,7 +749,7 @@ function makeReport(rows, goldSource, directSourceFields) {
       invalidDirectPrices: directSourceFields.prices.invalid,
       negativeWeights: directSourceFields.weights.negative,
       negativePrices: directSourceFields.prices.negative,
-      standardOnlyPublication: excluded.length === 2,
+      standardOnly: true,
       legitimateZeroWeights: standard.weights.zero,
       notApplicableWeights: standard.weights.notApplicable,
       legitimateZeroPrices: standard.prices.zero,
@@ -772,7 +761,6 @@ function makeReport(rows, goldSource, directSourceFields) {
       reviewedConflicts: reviewedConflicts.length,
       unreviewedConflicts: 0,
     },
-    excludedFromStandardProduction: excluded,
     reviewedConflicts,
     weightFallbacks,
     priceFallbacks,
@@ -780,27 +768,29 @@ function makeReport(rows, goldSource, directSourceFields) {
 }
 
 function reportMarkdown(report) {
-  const u = report.summary.auditedUnion;
-  const s = report.summary.productionStandard;
+  const s = report.summary.standard;
   const methodRows = target => Object.entries(target.methods).sort(([a], [b]) => compareStrings(a, b))
     .map(([method, count]) => `| ${method} | ${count} |`).join('\n');
   return `# BG3 item economy audit — ${CATALOG_VERSION}\n\n`
-    + `Проверен объединённый набор из **${u.items}** идентификаторов. Источник подтверждает Standard для **${s.items}**; `
-    + `ещё **${report.scope.excludedFromStandardProductionItems}** записи проверены, но не выдаются Standard-загрузчиком.\n\n`
+    + `Проверен полный Standard-каталог из **${s.items}** идентификаторов. Других профилей правил в предметном каталоге нет.\n\n`
     + `Неразрешённых значений: **0**. Настоящий ноль хранится как число; неприменимость хранится как \`null\` и показывается «${NOT_APPLICABLE_DISPLAY}».\n\n`
     + `Проверено конфликтов между применимыми ветвями источника: **${report.audit.reviewedConflicts}**; каждый разрешён явно, непросмотренных конфликтов: **${report.audit.unreviewedConflicts}**.\n\n`
-    + `| Область | Предметов | Вес: значения | Вес: 0 | Вес: неприменим | Цена: значения | Цена: 0 | Цена: неприменима |\n`
+    + `| Профиль | Предметов | Вес: значения | Вес: 0 | Вес: неприменим | Цена: значения | Цена: 0 | Цена: неприменима |\n`
     + `|---|---:|---:|---:|---:|---:|---:|---:|\n`
-    + `| Аудит union | ${u.items} | ${u.weights.values} | ${u.weights.zero} | ${u.weights.notApplicable} | ${u.prices.values} | ${u.prices.zero} | ${u.prices.notApplicable} |\n`
-    + `| Production Standard | ${s.items} | ${s.weights.values} | ${s.weights.zero} | ${s.weights.notApplicable} | ${s.prices.values} | ${s.prices.zero} | ${s.prices.notApplicable} |\n\n`
-    + `## Основания веса — Production Standard\n\n| Метод | Количество |\n|---|---:|\n${methodRows(s.weights)}\n\n`
-    + `## Основания стоимости — Production Standard\n\n| Метод | Количество |\n|---|---:|\n${methodRows(s.prices)}\n\n`
-    + `Каждый fallback и каждый заблокированный для Standard идентификатор перечислен в \`item-economy-report.json\`.\n`;
+    + `| Standard | ${s.items} | ${s.weights.values} | ${s.weights.zero} | ${s.weights.notApplicable} | ${s.prices.values} | ${s.prices.zero} | ${s.prices.notApplicable} |\n\n`
+    + `## Основания веса — Standard\n\n| Метод | Количество |\n|---|---:|\n${methodRows(s.weights)}\n\n`
+    + `## Основания стоимости — Standard\n\n| Метод | Количество |\n|---|---:|\n${methodRows(s.prices)}\n\n`
+    + `Каждый fallback Standard перечислен в \`item-economy-report.json\`.\n`;
 }
 
 function expectedOutput() {
   const catalog = loadCatalog();
-  assert(catalog.items.length === 10_284, `Expected 10,284 union items, found ${catalog.items.length}`);
+  const sourceManifest = readJson(SOURCE_MANIFEST_PATH);
+  const expectedStandardItems = sourceManifest.catalogs?.find(row => row.id === 'bg3-standard-items')?.expected?.count;
+  assert(Number.isInteger(expectedStandardItems) && expectedStandardItems > 0, 'Pinned Standard item census is missing');
+  assert(catalog.items.length === expectedStandardItems,
+    `Expected the complete Standard catalog (${expectedStandardItems}), found ${catalog.items.length}`);
+  assert(catalog.items.length === catalog.manifest.counts.items, `Manifest/item count mismatch: ${catalog.items.length}`);
   assert(new Set(catalog.items.map(item => item.id)).size === catalog.items.length, 'Duplicate item ID');
   assert(catalog.gold.count === 58, `Expected 58 GoldValues curves, found ${catalog.gold.count}`);
   const nonEconomicBefore = nonEconomicDigest(catalog.items);
@@ -820,25 +810,17 @@ function expectedOutput() {
   assert(nonEconomicDigest(catalog.items) === nonEconomicBefore, 'Economy audit changed non-economic item fields');
 
   const report = makeReport(rows, catalog.gold.source, directSourceFields);
-  assert(report.scope.productionStandardItems === 10_282, `Expected 10,282 Standard items, found ${report.scope.productionStandardItems}`);
-  assert(report.scope.excludedFromStandardProductionItems === 2, `Expected 2 non-Standard items, found ${report.scope.excludedFromStandardProductionItems}`);
-  assert(report.audit.weightFallbacks === 171, `Expected 171 mass fallbacks, found ${report.audit.weightFallbacks}`);
-  assert(report.audit.priceFallbacks === 169, `Expected 169 price fallbacks, found ${report.audit.priceFallbacks}`);
-  assert(report.summary.auditedUnion.weights.notApplicable === 84, `Expected 84 non-applicable masses, found ${report.summary.auditedUnion.weights.notApplicable}`);
-  assert(report.summary.auditedUnion.prices.notApplicable === 154, `Expected 154 non-applicable prices, found ${report.summary.auditedUnion.prices.notApplicable}`);
-  assert(report.summary.auditedUnion.prices.zero === 88, `Expected 88 legitimate zero prices, found ${report.summary.auditedUnion.prices.zero}`);
-  assert(report.directSourceFields.weights.values === 10_113 && report.directSourceFields.weights.missing === 171
-    && report.directSourceFields.weights.invalid === 0, 'Unexpected direct Weight field audit');
-  assert(report.directSourceFields.prices.values === 10_115 && report.directSourceFields.prices.missing === 169
-    && report.directSourceFields.prices.invalid === 0, 'Unexpected direct Value field audit');
-  assert(report.audit.reviewedMassConflicts === 11, `Expected 11 reviewed mass conflicts, found ${report.audit.reviewedMassConflicts}`);
-  assert(report.audit.reviewedPriceConflicts === 1, `Expected 1 reviewed price conflict, found ${report.audit.reviewedPriceConflicts}`);
-  assert(report.audit.reviewedConflicts === 12 && report.audit.unreviewedConflicts === 0, 'Economy conflict audit is incomplete');
-  assert(report.controlSets.auditedUnion.zeroMass.sha256 === 'aa13e1dd7adeea1cf158bba6bc8f9ef616c6e1869a812ba27fe433345692c180', 'Union zero-mass set changed');
-  assert(report.controlSets.auditedUnion.notApplicableMass.sha256 === 'd2197d59214ddbd6d0a7e1ff94820790423e3d04b125abe616c57945b043271e', 'Union N/A-mass set changed');
-  assert(report.controlSets.auditedUnion.zeroPrice.sha256 === '44aa24810c2dfef85408d34f3d216c26c6ab12d26eb56d18d3343bc74ef3d388', 'Union zero-price set changed');
-  assert(report.controlSets.auditedUnion.notApplicablePrice.sha256 === '043aae4b2f8b9be1eb6069cd3a5d8fd1389ab9a76fd789dace3c8646c1861011', 'Union N/A-price set changed');
-  assert(report.controlSets.productionStandard.zeroMass.sha256 === '903cda577c05badd2123d6c39efbd3ca6a401bd329843490f586efc17397788a', 'Standard zero-mass set changed');
+  assert(report.scope.items === catalog.items.length, `Expected ${catalog.items.length} Standard items, found ${report.scope.items}`);
+  assert(report.audit.allItemsResolved && report.audit.unresolvedWeights === 0 && report.audit.unresolvedPrices === 0,
+    'Every Standard catalog item must have explicit economy value or not-applicable fields');
+  assert(report.directSourceFields.weights.values + report.directSourceFields.weights.missing === catalog.items.length,
+    'Weight source-field audit does not reconcile');
+  assert(report.directSourceFields.prices.values + report.directSourceFields.prices.missing === catalog.items.length,
+    'Price source-field audit does not reconcile');
+  assert(report.audit.weightFallbacks === report.weightFallbacks.length && report.audit.priceFallbacks === report.priceFallbacks.length,
+    'Economy fallback audit does not reconcile');
+  assert(report.audit.reviewedConflicts === report.reviewedConflicts.length && report.audit.unreviewedConflicts === 0,
+    'Economy conflict audit is incomplete');
 
   const outputs = new Map();
   for (const shard of catalog.itemShards) outputs.set(shard.path, jsonBuffer(shard.payload));
@@ -851,7 +833,7 @@ function expectedOutput() {
     ...manifest.source.economy,
     auditSchemaVersion: report.schemaVersion,
     auditGenerator: 'scripts/audit-bg3-v10-economy.mjs',
-    profilePolicy: 'standard-production-with-union-audit',
+    profilePolicy: 'standard-only',
   };
   manifest.contracts.itemEconomy = {
     schemaVersion: report.schemaVersion,
@@ -861,7 +843,7 @@ function expectedOutput() {
     missingWeightFallback: 'source-backed graph inference or explicit non-inventory not-applicable; otherwise generation fails',
     missingPriceFallback: 'source-backed graph inference or explicit non-economic not-applicable; otherwise generation fails',
     notApplicable: `kg/gp/cp null; display=${NOT_APPLICABLE_DISPLAY}; never numeric zero`,
-    publication: 'Standard only; source records without Standard evidence remain audited but excluded',
+    publication: 'Standard only',
     invalidSourcePolicy: 'negative, malformed, over-precision mass, fractional override, and invalid curve fields fail generation before fallback',
   };
   manifest.counts.itemEconomy = report.summary;
@@ -870,8 +852,9 @@ function expectedOutput() {
   manifest.integrity.allItemsHaveWeightResolution = true;
   manifest.integrity.allItemsHaveCostResolution = true;
   delete manifest.integrity.itemEconomyProfileBundlesExhaustive;
-  manifest.integrity.itemEconomyStandardProductionExhaustive = true;
-  manifest.integrity.itemEconomyUnionAuditExhaustive = true;
+  delete manifest.integrity.itemEconomyStandardProductionExhaustive;
+  delete manifest.integrity.itemEconomyUnionAuditExhaustive;
+  manifest.integrity.itemEconomyStandardExhaustive = true;
   manifest.integrity.itemEconomyNotApplicableUsesNull = true;
   manifest.integrity.itemEconomyUnresolvedValues = 0;
   manifest.integrity.itemEconomySourcePinned = true;
@@ -922,9 +905,7 @@ function main() {
   console.log(JSON.stringify({
     mode: CHECK_ONLY ? 'check' : 'write',
     catalogVersion: CATALOG_VERSION,
-    auditedUnionItems: result.report.scope.auditedUnionItems,
-    productionStandardItems: result.report.scope.productionStandardItems,
-    excludedFromStandardProductionItems: result.report.scope.excludedFromStandardProductionItems,
+    items: result.report.scope.items,
     manifestSha256: result.manifestSha256,
     summary: result.report.summary,
   }, null, 2));

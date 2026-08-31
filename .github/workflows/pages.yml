@@ -16,12 +16,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Use the supported Node.js runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Run every runtime and catalog test
+        run: node --test tests/*.test.*
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+      - name: Use the supported Node.js runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Verify generated catalogs

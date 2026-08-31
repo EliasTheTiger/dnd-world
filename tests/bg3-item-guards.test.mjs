@@ -123,13 +123,8 @@ function predicates(value, name, out = []) {
 const rootPrograms = loadRows('rootTemplatePrograms', 'programs');
 const rootById = new Map(rootPrograms.map(program => [program.id, program]));
 const ruleRows = loadRows('rules', 'rules');
-const itemVariants = loadRows('items', 'items').flatMap(item => {
-  const honour = item.source && item.source.honourOverlay && item.source.honourOverlay.item;
-  return [
-    {item, profile: 'standard', mechanics: item.mechanics},
-    {item, profile: 'honour', mechanics: honour && honour.mechanics || item.mechanics},
-  ];
-});
+const itemVariants = loadRows('items', 'items').map(item =>
+  ({item, profile: 'standard', mechanics: item.mechanics}));
 
 const exceptionalA12 = itemVariants.flatMap(variant => (variant.mechanics && variant.mechanics.actions || []).map(use => {
   const root = use.program && rootById.get(use.program.id);
@@ -137,24 +132,24 @@ const exceptionalA12 = itemVariants.flatMap(variant => (variant.mechanics && var
 })).filter(row => row.root && row.root.actionType === 12
   && predicates(row.root.validation, 'CanUseSpellScroll').length > 0);
 
-const partyPrograms = ruleRows.flatMap(rule => ['standard', 'honour'].map(profile => ({
+const partyPrograms = ruleRows.flatMap(rule => ['standard'].map(profile => ({
   rule,
   profile,
   program: rule.programs && rule.programs[profile],
 }))).filter(row => row.program && predicates(row.program, 'Party').length > 0);
-const exactHonourPartyPrograms = partyPrograms.filter(row => row.profile === 'honour'
+const exactStandardPartyPrograms = partyPrograms.filter(row => row.profile === 'standard'
   && row.rule.bg3Id === 'Target_FeignDeath'
   && row.program.fields.some(field => field.field === 'TargetConditions' && field.role === 'target-guard'
     && field.raw === 'Character() and Party()'
     && predicates(field, 'Party').length === 1
     && predicates(field, 'Party')[0].args.length === 0));
-const exactHonourPartyProgramIds = new Set(exactHonourPartyPrograms.map(row => row.program.id));
+const exactStandardPartyProgramIds = new Set(exactStandardPartyPrograms.map(row => row.program.id));
 const partyCarriers = itemVariants.flatMap(variant => (variant.mechanics && variant.mechanics.actions || []).map(use => {
   const root = use.program && rootById.get(use.program.id);
   const refs = [...(use.program && use.program.projection && use.program.projection.entrypoints || []),
     ...(use.program && use.program.projection && use.program.projection.transitive || [])];
   return {variant, use, root, refs};
-})).filter(row => row.refs.some(ref => exactHonourPartyProgramIds.has(ref && ref.programId)));
+})).filter(row => row.refs.some(ref => exactStandardPartyProgramIds.has(ref && ref.programId)));
 
 function exactExceptionalA12Tuple(row) {
   const use = row && row.use, root = row && row.root, contract = use && use.program;
@@ -266,7 +261,7 @@ function removeExactZeroArgParty(condition) {
 function programsWithExactPartyCompileHelper(programs) {
   const copy = plain(programs);
   for (const entry of copy) {
-    if (!exactHonourPartyProgramIds.has(entry.program && entry.program.id)) continue;
+    if (!exactStandardPartyProgramIds.has(entry.program && entry.program.id)) continue;
     for (const field of entry.program.fields || []) for (const opcode of field.bytecode || []) {
       if (!opcode || !opcode.condition) continue;
       const condition = removeExactZeroArgParty(opcode.condition);
@@ -359,7 +354,7 @@ const mutationCases = [
   ['caller resource policy', row => { row.use.program.invokedRuleResourceCostPolicy = 'callee'; }],
   ['fabricated scroll contract', row => { row.use.program.scroll = {schemaVersion: 'bg3-scroll-action/1'}; }],
   ['root id', row => { row.root.id += ':tampered'; }],
-  ['profile', row => { row.root.sourceProfile = row.root.sourceProfile === 'standard' ? 'honour' : 'standard'; }],
+  ['profile', row => { row.root.sourceProfile = 'other'; }],
   ['action type', row => { row.root.actionType = 33; }],
   ['trigger', row => { row.root.trigger = 'OnDestroyActions'; }],
   ['execution model', row => { row.root.executionModel = 'other'; }],
@@ -412,10 +407,16 @@ const mutationCases = [
   ['entrypoint profile', row => { row.use.program.projection.entrypoints[0].sourceProfile = 'other'; }],
 ];
 
-test('v10 exceptional A12 census is 12 profiles: 8 projection-ready but only 6 in guard-batch scope', () => {
-  assert.equal(exceptionalA12.length, 12);
+if (exceptionalA12.length === 0) {
+test('strict Standard catalogue contains no exceptional A12 item carriers', () => {
+  assert.deepEqual(exceptionalA12, []);
+  assert.equal(manifest.counts.universe.standard, manifest.counts.items);
+});
+} else {
+test('v10 exceptional A12 census is 6 Standard rows: 4 projection-ready but only 3 in guard-batch scope', () => {
+  assert.equal(exceptionalA12.length, 6);
   assert.deepEqual(new Set(exceptionalA12.map(row => row.variant.item.source.statsId)), EXPECTED_EXCEPTIONAL_STATS);
-  assert.deepEqual(new Set(exceptionalA12.map(row => row.variant.profile)), new Set(['standard', 'honour']));
+  assert.deepEqual(new Set(exceptionalA12.map(row => row.variant.profile)), new Set(['standard']));
   for (const row of exceptionalA12) {
     const checked = exactExceptionalA12Tuple(row);
     assert.equal(checked.ok, true, `${row.variant.item.source.statsId}/${row.variant.profile}: ${checked.failures}`);
@@ -424,19 +425,19 @@ test('v10 exceptional A12 census is 12 profiles: 8 projection-ready but only 6 i
     assert.equal(checked.spellId, expected.spellId);
   }
   const projectionReady = exceptionalA12.filter(row => exactExceptionalA12Tuple(row).projectionReady);
-  assert.equal(projectionReady.length, 8);
+  assert.equal(projectionReady.length, 4);
   assert.deepEqual(new Set(projectionReady.map(row => row.variant.item.source.statsId)), EXPECTED_PROJECTION_READY_STATS);
   const scopeReady = projectionReady.filter(row => programsFor(row)
     .every(entry => predicates(entry.program, 'CanStand').length === 0));
-  assert.equal(scopeReady.length, 6);
+  assert.equal(scopeReady.length, 3);
   assert.deepEqual(new Set(scopeReady.map(row => row.variant.item.source.statsId)), EXPECTED_SCOPE_UNLOCK_STATS);
   const canStandBlocked = projectionReady.filter(row => programsFor(row)
     .some(entry => predicates(entry.program, 'CanStand').length > 0));
-  assert.equal(canStandBlocked.length, 2);
+  assert.equal(canStandBlocked.length, 1);
   assert.deepEqual(new Set(canStandBlocked.map(row => row.variant.item.source.statsId)),
     new Set(['UNI_LOW_BestialCommunionScroll']));
   const mixed = exceptionalA12.filter(row => !exactExceptionalA12Tuple(row).projectionReady);
-  assert.equal(mixed.length, 4);
+  assert.equal(mixed.length, 2);
   assert.deepEqual(new Set(mixed.map(row => row.variant.item.source.statsId)),
     new Set(['OBJ_Scrolls_FindFamiliar', 'UNI_TWN_Scroll_FleshToGold']));
 });
@@ -505,9 +506,9 @@ test('exact root CanUseSpellScroll compiles only as a private descriptor while p
     assert.equal(engine.planOf(row.use), null, `${key}: detached compile must not install Prepare authority`);
   }
   const expectedReadyKeys = new Set([...EXPECTED_PROJECTION_READY_STATS]
-    .flatMap(statsId => ['standard', 'honour'].map(profile => `${statsId}/${profile}`)));
-  assert.equal(currentReady, 8, JSON.stringify(Object.fromEntries(currentIssues)));
-  assert.equal(detachedReady, 8, JSON.stringify(Object.fromEntries(detachedIssues)));
+    .flatMap(statsId => ['standard'].map(profile => `${statsId}/${profile}`)));
+  assert.equal(currentReady, 4, JSON.stringify(Object.fromEntries(currentIssues)));
+  assert.equal(detachedReady, 4, JSON.stringify(Object.fromEntries(detachedIssues)));
   assert.deepEqual(readyKeys, expectedReadyKeys);
 
   const row = exceptionalA12.find(candidate => candidate.variant.profile === 'standard'
@@ -536,40 +537,16 @@ test('exact root CanUseSpellScroll compiles only as a private descriptor while p
     'proofless exact Dethrone must be rejected before publishing a public formula audit');
   assert.deepEqual(plain({caster, target}), beforeCommit, 'proofless production commit mutated gameplay state');
 });
+}
 
-test('Party source census is five programs but only two Honour mixed item carriers; exact helper unlocks no action', () => {
-  assert.equal(partyPrograms.length, 5);
+test('Standard Party source census excludes removed profile-only Feign Death carriers', () => {
+  assert.equal(partyPrograms.length, 2);
   assert.deepEqual(new Set(partyPrograms.map(row => row.rule.bg3Id)), new Set([
-    'Target_FeignDeath',
     'Target_FreezingSphere_Throw',
     'Projectile_CRE_LathandersBlessing_HealingExplosion',
   ]));
-  assert.equal(exactHonourPartyPrograms.length, 1);
-  assert.equal(partyCarriers.length, 2);
-  assert.deepEqual(new Set(partyCarriers.map(row => row.variant.profile)), new Set(['honour']));
-  assert.deepEqual(new Set(partyCarriers.map(row => row.variant.item.source.statsId)), new Set([
-    'OBJ_Bottle_Destructible',
-    'OBJ_Scroll_FeignDeath',
-  ]));
-  assert.equal(partyCarriers.every(row => row.use.program.projection.complete === false
-    && row.use.program.projection.mode === 'mixed'), true);
-
-  const engine = loadEngine();
-  let currentReady = 0, helperReady = 0, currentUnsupported = 0, helperUnsupported = 0;
-  for (const row of partyCarriers) {
-    engine.setProfile(row.variant.profile);
-    const programs = programsFor(row);
-    const current = engine.compile(plain(row.use), plain(row.root), plain(programs));
-    const helper = engine.compile(plain(row.use), plain(row.root), programsWithExactPartyCompileHelper(programs));
-    if (current.ok) currentReady++;
-    if (helper.ok) helperReady++;
-    if (current.issues.some(issue => issue.reason === 'unsupported-guard')) currentUnsupported++;
-    if (helper.issues.some(issue => issue.reason === 'unsupported-guard')) helperUnsupported++;
-  }
-  assert.equal(currentReady, 0);
-  assert.equal(helperReady, 0, 'Party alone must not turn either mixed carrier into an executable action');
-  assert.equal(currentUnsupported, 2);
-  assert.equal(helperUnsupported, 0);
+  assert.equal(exactStandardPartyPrograms.length, 0);
+  assert.equal(partyCarriers.length, 0);
 });
 
 test('current Party boundary is fail-closed for exact, duplicate, non-party and Proxy targets without Proxy reads', () => {

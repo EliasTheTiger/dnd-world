@@ -3,10 +3,8 @@
   "catalogVersion": "bg3-24532579-v10",
   "generatedAt": "2026-08-27T00:00:00.000Z",
   "scope": {
-    "auditedUnionItems": 10284,
-    "productionStandardItems": 10282,
-    "excludedFromStandardProductionItems": 2,
-    "profilePolicy": "production-standard-only; union-only source records are audited but not published by the Standard loader"
+    "items": 10282,
+    "rulesProfile": "standard"
   },
   "source": {
     "game": "Baldur's Gate 3",
@@ -52,53 +50,7 @@
     }
   },
   "summary": {
-    "auditedUnion": {
-      "items": 10284,
-      "weights": {
-        "resolved": 10284,
-        "values": 10200,
-        "positive": 10070,
-        "zero": 130,
-        "notApplicable": 84,
-        "blocked": 0,
-        "methods": {
-          "source-weight": 10113,
-          "root-ancestor": 62,
-          "not-applicable": 72,
-          "visual-and-physics-template": 3,
-          "embedded-root-uuid": 1,
-          "root-source-not-applicable": 1,
-          "reviewed-conflict": 3,
-          "physics-template": 9,
-          "reviewed-conflict-not-applicable": 8,
-          "reviewed-not-applicable": 3,
-          "reviewed-exception": 1,
-          "root-sibling": 4,
-          "visual-template": 3,
-          "root-resolved-stats": 1
-        }
-      },
-      "prices": {
-        "resolved": 10284,
-        "values": 10130,
-        "positive": 10042,
-        "zero": 88,
-        "notApplicable": 154,
-        "blocked": 0,
-        "methods": {
-          "gold-value-curve": 9254,
-          "value-override": 861,
-          "root-not-applicable": 118,
-          "not-applicable": 32,
-          "embedded-root-price": 1,
-          "root-source-not-applicable": 1,
-          "root-ancestor-price": 13,
-          "reviewed-not-applicable": 3,
-          "root-resolved-stats": 1
-        }
-      }
-    },
-    "productionStandard": {
+    "standard": {
       "items": 10282,
       "weights": {
         "resolved": 10282,
@@ -146,25 +98,7 @@
     }
   },
   "controlSets": {
-    "auditedUnion": {
-      "zeroMass": {
-        "count": 130,
-        "sha256": "aa13e1dd7adeea1cf158bba6bc8f9ef616c6e1869a812ba27fe433345692c180"
-      },
-      "notApplicableMass": {
-        "count": 84,
-        "sha256": "d2197d59214ddbd6d0a7e1ff94820790423e3d04b125abe616c57945b043271e"
-      },
-      "zeroPrice": {
-        "count": 88,
-        "sha256": "44aa24810c2dfef85408d34f3d216c26c6ab12d26eb56d18d3343bc74ef3d388"
-      },
-      "notApplicablePrice": {
-        "count": 154,
-        "sha256": "043aae4b2f8b9be1eb6069cd3a5d8fd1389ab9a76fd789dace3c8646c1861011"
-      }
-    },
-    "productionStandard": {
+    "standard": {
       "zeroMass": {
         "count": 129,
         "sha256": "903cda577c05badd2123d6c39efbd3ca6a401bd329843490f586efc17397788a"
@@ -185,13 +119,13 @@
   },
   "directSourceFields": {
     "weights": {
-      "values": 10113,
+      "values": 10111,
       "missing": 171,
       "invalid": 0,
       "negative": 0
     },
     "prices": {
-      "values": 10115,
+      "values": 10113,
       "missing": 169,
       "invalid": 0,
       "negative": 0,
@@ -208,7 +142,7 @@
     "invalidDirectPrices": 0,
     "negativeWeights": 0,
     "negativePrices": 0,
-    "standardOnlyPublication": true,
+    "standardOnly": true,
     "legitimateZeroWeights": 129,
     "notApplicableWeights": 84,
     "legitimateZeroPrices": 88,
@@ -220,16 +154,6 @@
     "reviewedConflicts": 12,
     "unreviewedConflicts": 0
   },
-  "excludedFromStandardProduction": [
-    {
-      "itemId": "bg3:item:rt:7a48ed48-8ae0-4258-9cb9-831b6c18912c:stats:T0JKX01vb25iZWFt",
-      "reason": "source.profiles has no Standard evidence"
-    },
-    {
-      "itemId": "bg3:item:rt:bf601b0f-ac97-4c29-838c-9b45a9d99485:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
-      "reason": "source.profiles has no Standard evidence"
-    }
-  ],
   "reviewedConflicts": [
     {
       "itemId": "bg3:item:rt:035f5d5c-2299-4beb-b4b5-beda3fee9a4c",

@@ -5,6 +5,5 @@
 | Профиль | Представлений | Actions ready / blocked | Lifecycle ready / blocked | Взаимодействия | Прямые effects | Доказанные непривязанные механики |
 |---|---:|---:|---:|---:|---:|---:|
 | Standard | 10282 | 2305 / 2873 | 1496 / 1002 | 3608 | 291 | 127 |
-| Honour | 10284 | 2300 / 2878 | 1487 / 999 | 3608 | 291 | 128 |
 
 Все прежние action/effect/interaction/lifecycle program payloads сохранены без изменения семантики: `dd12545ebdbd3ee82500f5bd9bacd5b84519df6969cdf1e2ef6f7fedc76f7b55`. Полные очереди blocked descriptors и неизвестных характеристик находятся в `item-mechanics-report.json`.

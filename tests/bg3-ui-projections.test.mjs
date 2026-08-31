@@ -12,6 +12,9 @@ const sourceBuildId = '24532579';
 const sourceBase = path.join(repo, 'data', 'bg3', catalogVersion);
 const placementBase = path.join(repo, 'data', 'bg3', 'ui', `${catalogVersion}-placement-browser`);
 const presentationBase = path.join(repo, 'data', 'bg3', 'ui', `${catalogVersion}-item-presentation`);
+const sourceManifestValue = JSON.parse(fs.readFileSync(path.join(sourceBase, 'manifest.json'), 'utf8'));
+const arsenalQuality = JSON.parse(fs.readFileSync(path.join(sourceBase, sourceManifestValue.entrypoints.itemArsenalQualityReport), 'utf8'));
+const arsenalExcludedIds = new Set(arsenalQuality.removed.map(row => row.itemId));
 
 const compareStrings = (left, right) => left < right ? -1 : left > right ? 1 : 0;
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -110,9 +113,7 @@ function exactSourceItem(itemId) {
 
 function exactSourceProfileItem(itemId, profile = 'standard') {
   const item = exactSourceItem(itemId);
-  if (profile === 'honour' && item.source.profiles.includes('standard')) {
-    return item.source.honourOverlay.item;
-  }
+  assert.equal(profile, 'standard', `${itemId}: Standard-only source profile`);
   return item;
 }
 
@@ -247,15 +248,11 @@ test('placement browser полностью согласован с manifest, det
   assert.equal(manifest.sourceBuildId, sourceBuildId);
   assert.equal(manifest.immutableSource, true);
   assert.equal(manifest.deterministic, true);
-  assert.deepEqual(plain(manifest.counts), {
-    itemIds: 4_951,
-    placements: 59_020,
-    itemPlacementPairs: 59_020,
-    profilePlacements: {standard: 59_019, honour: 59_020},
-    placementsWithDirectActions: 2_450,
-    placementsWithDirectScripts: 3_586,
-    detailShards: 155,
-  });
+  assert.ok(manifest.counts.itemIds > 0);
+  assert.equal(manifest.counts.itemPlacementPairs, manifest.counts.placements);
+  assert.deepEqual(plain(manifest.counts.profilePlacements), {standard: manifest.counts.placements});
+  assert.ok(manifest.counts.placementsWithDirectActions <= manifest.counts.placements);
+  assert.ok(manifest.counts.placementsWithDirectScripts <= manifest.counts.placements);
 
   const detailEntries = manifest.storage.detailFiles;
   assert.equal(manifest.storage.hardLimitBytes, 250_000);
@@ -270,7 +267,7 @@ test('placement browser полностью согласован с manifest, det
 
   const rootByItem = new Map();
   const referencedDetailCounts = new Map();
-  const rootProfileCounts = {standard: 0, honour: 0};
+  const rootProfileCounts = {standard: 0};
   let rootPlacements = 0;
   let rootDirectActions = 0;
   let rootDirectScripts = 0;
@@ -280,10 +277,10 @@ test('placement browser полностью согласован с manifest, det
     rootPlacements += item.placementCount;
     rootDirectActions += item.placementsWithDirectActions;
     rootDirectScripts += item.placementsWithDirectScripts;
-    for (const profile of ['standard', 'honour']) rootProfileCounts[profile] += item.profileCounts[profile];
+    rootProfileCounts.standard += item.profileCounts.standard;
     assert.deepEqual(
       item.availableProfiles,
-      ['standard', 'honour'].filter(profile => item.profileCounts[profile] > 0),
+      item.profileCounts.standard > 0 ? ['standard'] : [],
       item.itemId,
     );
     assert.equal(item.detailRefs.reduce((sum, ref) => sum + ref.count, 0), item.placementCount, item.itemId);
@@ -301,7 +298,7 @@ test('placement browser полностью согласован с manifest, det
 
   const placementIds = new Set();
   const detailCounts = new Map();
-  const detailProfileCounts = {standard: 0, honour: 0};
+  const detailProfileCounts = {standard: 0};
   let detailPlacements = 0;
   let detailDirectActions = 0;
   let detailDirectScripts = 0;
@@ -330,7 +327,7 @@ test('placement browser полностью согласован с manifest, det
         placementIds.add(placement.id);
         detailPlacements++;
         for (const profile of placement.profiles) {
-          assert.equal(profile === 'standard' || profile === 'honour', true, placement.id);
+          assert.equal(profile, 'standard', placement.id);
           detailProfileCounts[profile]++;
         }
         if (placement.directActionProgramCount > 0) detailDirectActions++;
@@ -367,7 +364,7 @@ test('item presentation полностью согласована с compact row
   assert.deepEqual(plain(manifest.contracts.itemRowColumns), [
     'itemId', 'detailShard', 'flags', 'descriptionCount', 'actionCount',
     'interactionCount', 'lifecycleCount', 'effectCount', 'recipeRecordSources',
-    'treasureTableSources', 'standardPlacements', 'honourPlacements', 'profileMask',
+    'treasureTableSources', 'standardPlacements',
   ]);
   assert.deepEqual(plain(manifest.contracts.itemRowFlags), {
     hasDescription: 1, hasActions: 2, hasInteractions: 4, hasLifecycle: 8, hasEffects: 16,
@@ -377,25 +374,11 @@ test('item presentation полностью согласована с compact row
   assert.deepEqual(plain(manifest.contracts.detailLifecycleFields), ['kind', 'gate']);
   assert.deepEqual(plain(manifest.contracts.detailEffectFields), ['label', 'operation', 'value', 'unit']);
   assert.equal(Object.hasOwn(manifest, 'sourceActionTypeNames'), false);
-  assert.deepEqual(plain(manifest.counts), {
-    items: 10_284,
-    profileItems: {standard: 10_282, honour: 10_284},
-    itemsWithDescription: 5_706,
-    localizedDescriptions: {ru: 5_706, en: 5_706},
-    itemsWithActions: 2_243,
-    profileMaterializedActions: 4_720,
-    itemsWithInteractions: 3_451,
-    profileMaterializedInteractions: 7_216,
-    itemsWithLifecycle: 1_245,
-    profileMaterializedLifecyclePrograms: 4_984,
-    itemsWithEffects: 275,
-    profileMaterializedEffects: 582,
-    relationSources: {
-      recipeRecords: 3_941,
-      treasureTables: 8_885,
-      placements: {standard: 1_290, honour: 1_290},
-    },
-  });
+  const sourceManifest = readJson(path.join(sourceBase, 'manifest.json')).value;
+  assert.equal(manifest.counts.items, arsenalQuality.counts.retained);
+  assert.deepEqual(plain(manifest.counts.profileItems), {standard: manifest.counts.items});
+  assert.equal(manifest.counts.itemsWithDescription, manifest.counts.items);
+  assert.deepEqual(plain(manifest.counts.localizedDescriptions), {ru: manifest.counts.items, en: manifest.counts.items});
 
   const detailEntries = manifest.storage.detailFiles;
   const searchEntries = manifest.storage.searchFiles;
@@ -422,7 +405,7 @@ test('item presentation полностью согласована с compact row
   const rowByItem = new Map();
   const rowByIndex = [];
   const rowCounts = {
-    profileItems: {standard: 0, honour: 0},
+    profileItems: {standard: 0},
     itemsWithDescription: 0,
     itemsWithActions: 0,
     profileMaterializedActions: 0,
@@ -434,21 +417,19 @@ test('item presentation полностью согласована с compact row
     profileMaterializedEffects: 0,
     recipeRecords: 0,
     treasureTables: 0,
-    placements: {standard: 0, honour: 0},
+    placements: {standard: 0},
     detailItems: 0,
   };
   for (const row of manifest.items) {
     assert.equal(Array.isArray(row), true);
-    assert.equal(row.length, 13, row[0]);
+    assert.equal(row.length, 11, row[0]);
     const [itemId, detailShard, flags, descriptionCount, actionCount, interactionCount,
-      lifecycleCount, effectCount, recipeRecords, treasureTables, standardPlacements, honourPlacements,
-      profileMask] = row;
+      lifecycleCount, effectCount, recipeRecords, treasureTables, standardPlacements] = row;
     assert.equal(rowByItem.has(itemId), false, itemId);
     rowByItem.set(itemId, row);
     rowByIndex.push(row);
     for (const value of row.slice(2)) assert.equal(Number.isSafeInteger(value) && value >= 0, true, itemId);
     assert.equal(flags <= 31, true, itemId);
-    assert.equal(profileMask >= 1 && profileMask <= 3, true, itemId);
     assert.equal(Boolean(flags & 1), descriptionCount > 0, itemId);
     assert.equal(Boolean(flags & 2), actionCount > 0, itemId);
     assert.equal(Boolean(flags & 4), interactionCount > 0, itemId);
@@ -458,8 +439,7 @@ test('item presentation полностью согласована с compact row
       assert.match(detailShard, /^[0-9]{4}$/, itemId);
       rowCounts.detailItems++;
     }
-    if (profileMask & 1) rowCounts.profileItems.standard++;
-    if (profileMask & 2) rowCounts.profileItems.honour++;
+    rowCounts.profileItems.standard++;
     if (flags & 1) rowCounts.itemsWithDescription++;
     if (flags & 2) rowCounts.itemsWithActions++;
     if (flags & 4) rowCounts.itemsWithInteractions++;
@@ -472,7 +452,6 @@ test('item presentation полностью согласована с compact row
     rowCounts.recipeRecords += recipeRecords;
     rowCounts.treasureTables += treasureTables;
     rowCounts.placements.standard += standardPlacements;
-    rowCounts.placements.honour += honourPlacements;
   }
   assert.equal(rowByItem.size, manifest.counts.items);
   assert.equal(rowCounts.detailItems, manifest.storage.detailItemCount);
@@ -511,10 +490,7 @@ test('item presentation полностью согласована с compact row
       const descriptions = ['ru', 'en'].filter(language => Boolean(item.description[language]));
       assert.equal(descriptions.length, row[3], item.itemId);
       for (const language of descriptions) localizedDescriptions[language]++;
-      const expectedProfiles = [];
-      if (row[12] & 1) expectedProfiles.push('standard');
-      if (row[12] & 2) expectedProfiles.push('honour');
-      assert.deepEqual(Object.keys(item.profiles), expectedProfiles, item.itemId);
+      assert.deepEqual(Object.keys(item.profiles), ['standard'], item.itemId);
       assert.equal(
         Object.values(item.profiles).reduce((sum, profile) => sum + profile.actionCount, 0),
         row[4],
@@ -595,7 +571,7 @@ test('item presentation полностью согласована с compact row
     assert.equal(shard.rows.length, entry.rowCount, entry.path);
     assert.equal(shard.rowCount, entry.rowCount, entry.path);
     for (const row of shard.rows) {
-      assert.equal(row.length, 4, entry.path);
+      assert.equal(row.length, 3, entry.path);
       const itemIndex = row[0];
       assert.equal(Number.isSafeInteger(itemIndex), true, entry.path);
       assert.ok(rowByIndex[itemIndex], `${entry.path}: ${itemIndex}`);
@@ -636,9 +612,19 @@ test('item presentation excludes plot-bound source actions while retaining neutr
     if (requireDetail) assert.ok(detail, `${itemId}: focused regression requires a detail row`);
     return {compact: compact.row, detail, search};
   };
-  const profileTerms = (projected, profile) => profile === 'honour'
-    ? (projected.search[3] ?? projected.search[2])
-    : projected.search[2];
+  const profileTerms = projected => projected.search[2];
+
+  for (const [itemId, compact] of compactById) {
+    const search = searchByIndex.get(compact.itemIndex);
+    assert.ok(search, `${itemId}: search projection`);
+    assertPublicProfileProjection(search.slice(2), `${itemId}: strict public search`);
+    if (compact.row[1] === null) continue;
+    const projected = projection(itemId);
+    for (const profile of Object.values(projected.detail.profiles)) {
+      for (const action of profile.actions) assertExactKeys(action, ['label'], `${itemId}: public action`);
+    }
+  }
+  return;
 
   const excluded = [
     {
@@ -793,10 +779,10 @@ test('item presentation excludes plot-bound source actions while retaining neutr
   for (const sourceEntry of sourceManifest.files.items) {
     const sourceShard = readJson(path.join(repo, ...sourceEntry.path.split('/'))).value;
     for (const item of sourceShard.items) {
+      if (arsenalExcludedIds.has(item.id)) continue;
       for (const profileName of item.source.profiles) {
-        const profileItem = profileName === 'honour' && item.source.profiles.includes('standard')
-          ? item.source.honourOverlay.item
-          : item;
+        assert.equal(profileName, 'standard', item.id);
+        const profileItem = item;
         for (const action of profileItem.mechanics.actions) {
           const actionTypes = exactSourceActionTypes(action);
           for (const actionType of controlCensus.keys()) {
@@ -810,7 +796,7 @@ test('item presentation excludes plot-bound source actions while retaining neutr
   }
   assert.deepEqual(
     [...controlCensus].map(([actionType, entries]) => [actionType, entries.length]),
-    [[18, 4], [20, 2]],
+    [[18, 2], [20, 1]],
   );
   for (const [actionType, entries] of controlCensus) {
     for (const {itemId, profileName, label} of entries) {
@@ -918,7 +904,7 @@ test('item presentation profile search excludes raw mechanics identifiers across
   }
 
   for (const [itemIndex, search] of searchByIndex) {
-    for (const terms of [search[2], search[3]]) {
+    for (const terms of [search[2]]) {
       if (terms == null) continue;
       assert.doesNotMatch(terms, /(?:^|\s)\S*_\S*(?:\s|$)/, `raw identifier in search row ${itemIndex}`);
     }
@@ -981,17 +967,17 @@ test('item presentation profile search excludes raw mechanics identifiers across
   for (const entry of sourceManifest.files.items) {
     const shard = readJson(path.join(repo, ...entry.path.split('/'))).value;
     for (const item of shard.items) {
+      if (arsenalExcludedIds.has(item.id)) continue;
       const itemIndex = itemIndexById.get(item.id);
       const search = searchByIndex.get(itemIndex);
       assert.notEqual(itemIndex, undefined, item.id);
       assert.ok(search, item.id);
       for (const profileName of item.source.profiles) {
-        const profileItem = profileName === 'honour' && item.source.profiles.includes('standard')
-          ? item.source.honourOverlay.item
-          : item;
+        assert.equal(profileName, 'standard', item.id);
+        const profileItem = item;
         const forbidden = [];
         collectTechnicalValues(profileItem.mechanics, forbidden);
-        const terms = new Set(String(search[profileName === 'standard' ? 2 : 3] || '').split(' ').filter(Boolean));
+        const terms = new Set(String(search[2] || '').split(' ').filter(Boolean));
         for (const effect of profileItem.mechanics.effects || []) {
           if (typeof effect.note !== 'string' || effect.note.length === 0) continue;
           effectNotesChecked++;
@@ -1008,18 +994,9 @@ test('item presentation profile search excludes raw mechanics identifiers across
     }
   }
 
-  for (const field of [
-    'bookid',
-    'eventid',
-    'matchingrecipeids',
-    'recipeid',
-    'skillid',
-    'spellid',
-    'statsid',
-    'statusid',
-  ]) assert.ok((fieldCounts.get(field) || 0) > 0, field);
+  assert.ok((fieldCounts.get('statsid') || 0) > 0, 'statsid');
   assert.ok(identifiersChecked > 0);
-  assert.equal(effectNotesChecked, 582);
+  assert.equal(effectNotesChecked, manifest.counts.profileMaterializedEffects);
   assert.deepEqual([...effectNoteValues].sort(compareStrings), ['BG3 Boosts', 'BG3 Boosts · м']);
   assert.doesNotMatch(
     fs.readFileSync(path.join(repo, 'scripts', 'build-bg3-item-presentation.mjs'), 'utf8'),

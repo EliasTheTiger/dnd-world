@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "dnd-world-world-snapshot/1",
+  "snapshotRevision": 7,
+  "chars": [
+    {
+      "id": "fixture-hero",
+      "name": "Fixture Hero",
+      "inventory": [{"id": "fixture-entry", "itemId": "fixture-rope", "qty": 1}],
+      "spellbook": [{"spellId": "fixture-light"}],
+      "abilities": [{"abilityId": "fixture-brave", "cur": 1}]
+    }
+  ],
+  "items": [{"id": "fixture-rope", "n": "Fixture Rope"}],
+  "spells": [{"id": "fixture-light", "n": "Fixture Light"}],
+  "abilities": [{"id": "fixture-brave", "n": "Fixture Brave"}],
+  "races": [],
+  "classes": [],
+  "rules": [],
+  "foes": [{"id": "fixture-goblin", "n": "Fixture Goblin"}],
+  "combat": {"order": [{"kind": "ally", "id": "fixture-hero"}, {"kind": "foe", "id": "fixture-goblin"}]},
+  "catalogRefs": []
+}

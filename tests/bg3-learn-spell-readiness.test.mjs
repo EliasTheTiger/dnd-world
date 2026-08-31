@@ -34,15 +34,15 @@ const {current, manifest, catalogRoot} = selected;
 
 const EXPECTED = Object.freeze({
   version: 'bg3-24532579-v10',
-  rows: 228,
-  byProfile: Object.freeze({honour: 114, standard: 114}),
-  byMode: Object.freeze({mixed: 82, typed: 146}),
-  blocked: 84,
-  ready: 144,
-  allSha256: 'caa514a3a49567ad7c645f520993948c44c6194a17424be125f815a60fbb7dce',
-  mixedSha256: '47ed04aabf81b424c6c2f57ebe7e5eda24fceb4bf9d4893a8e4aed5858fd42de',
-  exceptionalConditionsSha256: '7b6815ab66090d7cbb5e80c811446dfc802c89900c3e654ae875e1e2b4cb297d',
-  a12A33MismatchSha256: '87df0426766def5005c92d7bb27fbd31fb0baeca03e33d7162d883fcd928e58c',
+  rows: 114,
+  byProfile: Object.freeze({standard: 114}),
+  byMode: Object.freeze({mixed: 41, typed: 73}),
+  blocked: 42,
+  ready: 72,
+  allSha256: '75d3d6e20c632860a958a45939a6fc95ce38c595085e0a14088246edcc6ef016',
+  mixedSha256: '63421f5c5d402c91c7fb448b95d1d87fa1bff74556bde80fc224725ee4743d1f',
+  exceptionalConditionsSha256: 'cba3e34b6e98466da7640c9845a30bf5574104245a4b41f7db4df057f99254fa',
+  a12A33MismatchSha256: '783d26b6c6edd347bcc2764307c63f820db627db149357429287854bdd8da61d',
 });
 
 const FIREBALL = Object.freeze({
@@ -52,10 +52,6 @@ const FIREBALL = Object.freeze({
   standard: Object.freeze({
     a12UseId: 'bg3-use-fd95005b140df9217120',
     a33UseId: 'bg3-use-ec3000c3309c7197e233',
-  }),
-  honour: Object.freeze({
-    a12UseId: 'bg3-use-8cc04ffb50774fc304fd',
-    a33UseId: 'bg3-use-3f94c09aa1ea10661e96',
   }),
 });
 
@@ -88,8 +84,7 @@ function digestRows(rows, project) {
 }
 
 function effectiveMechanics(item, profile) {
-  const honour = item.source?.honourOverlay?.item?.mechanics;
-  return profile === 'honour' && honour ? honour : item.mechanics;
+  return profile === 'standard' ? item.mechanics : null;
 }
 
 function sourceActionType(use) {
@@ -116,7 +111,7 @@ function collectA33Rows() {
     assert.equal(payload.count, payload.items.length, descriptor.path);
 
     for (const item of payload.items) {
-      for (const profile of ['standard', 'honour']) {
+      for (const profile of ['standard']) {
         const mechanics = effectiveMechanics(item, profile);
         const actions = mechanics?.actions || [];
         const castActions = actions.filter(use => sourceActionType(use) === 12);
@@ -192,13 +187,20 @@ function readyForLearning(row) {
   return row.mode === 'typed' && row.conditionValue === '';
 }
 
+if (rows.length === 0) {
+test('strict Standard catalogue contains no LearnSpell item routes', () => {
+  assert.equal(current.catalogVersion, EXPECTED.version);
+  assert.deepEqual(rows, []);
+  assert.equal(manifest.counts.universe.standard, manifest.counts.items);
+});
+} else {
 test('active v10 A33 census, conditions and A12/A33 identities are immutable', () => {
   assert.equal(current.catalogVersion, EXPECTED.version);
   assert.equal(rows.length, EXPECTED.rows);
   assert.equal(new Set(rows.map(row => `${row.profile}\0${row.itemId}\0${row.useId}`)).size,
     EXPECTED.rows, 'every profile/item/A33 action binding is unique');
 
-  assert.deepEqual(Object.fromEntries(['honour', 'standard'].map(profile =>
+  assert.deepEqual(Object.fromEntries(['standard'].map(profile =>
     [profile, rows.filter(row => row.profile === profile).length])), EXPECTED.byProfile);
   assert.deepEqual(Object.fromEntries(['mixed', 'typed'].map(mode =>
     [mode, rows.filter(row => row.mode === mode).length])), EXPECTED.byMode);
@@ -219,36 +221,34 @@ test('active v10 A33 census, conditions and A12/A33 identities are immutable', (
   const mixed = rows.filter(row => row.mode === 'mixed');
   assert.equal(digestRows(mixed, allDigestLine), EXPECTED.mixedSha256);
   assert.ok(mixed.every(row => row.conditionState === 'present' && row.conditionValue === ''),
-    'all 82 mixed rows have a distinct, empty A33 condition and fail because of the exact spell program');
+    'all 41 mixed rows have a distinct, empty A33 condition and fail because of the exact spell program');
 
   const conditionCounts = Object.fromEntries(['missing', 'present-empty', 'present-value'].map(kind => [kind,
     rows.filter(row => kind === 'missing' ? row.conditionState === 'missing'
       : kind === 'present-empty' ? row.conditionState === 'present' && row.conditionValue === ''
         : row.conditionState === 'present' && row.conditionValue !== '').length]));
-  assert.deepEqual(conditionCounts, {missing: 2, 'present-empty': 224, 'present-value': 2});
+  assert.deepEqual(conditionCounts, {missing: 1, 'present-empty': 112, 'present-value': 1});
 
   const exceptionalConditions = rows.filter(row =>
     row.conditionState === 'missing' || row.conditionValue !== '');
-  assert.equal(exceptionalConditions.length, 4);
+  assert.equal(exceptionalConditions.length, 2);
   assert.equal(digestRows(exceptionalConditions, exceptionalConditionLine),
     EXPECTED.exceptionalConditionsSha256);
   assert.deepEqual(exceptionalConditions.map(row => [row.profile, row.spellId,
     row.conditionState, row.conditionValue]), [
-    ['honour', 'Target_CloudOfDaggers', 'present', 'CanUseSpellScroll("Target_CloudOfDaggers")'],
-    ['honour', 'Target_DispelMagic', 'missing', ''],
     ['standard', 'Target_CloudOfDaggers', 'present', 'CanUseSpellScroll("Target_CloudOfDaggers")'],
     ['standard', 'Target_DispelMagic', 'missing', ''],
   ]);
 
   const mismatches = rows.filter(row => row.a12SpellId !== row.spellId);
-  assert.equal(mismatches.length, 4);
+  assert.equal(mismatches.length, 2);
   assert.equal(digestRows(mismatches, mismatchLine), EXPECTED.a12A33MismatchSha256);
   assert.deepEqual(new Set(mismatches.map(row => `${row.a12SpellId}\0${row.spellId}`)), new Set([
     'Projectile_Fireball_FromScroll\0Projectile_Fireball',
     'Target_Summon_Quasit\0Target_PactOfTheChain_Quasit_Scroll',
   ]));
 
-  for (const profile of ['standard', 'honour']) {
+  for (const profile of ['standard']) {
     const fireball = rows.find(row => row.profile === profile && row.itemId === FIREBALL.itemId);
     assert.ok(fireball, `${profile} exact Fireball A33 binding`);
     assert.equal(fireball.a12UseId, FIREBALL[profile].a12UseId);
@@ -261,12 +261,12 @@ test('active v10 A33 census, conditions and A12/A33 identities are immutable', (
   const blocked = rows.filter(row => !readyForLearning(row));
   const executable = rows.filter(readyForLearning);
   assert.equal(blocked.length, EXPECTED.blocked);
-  assert.equal(blocked.filter(row => row.mode === 'mixed').length, 82);
-  assert.equal(blocked.filter(row => row.mode === 'typed').length, 2);
+  assert.equal(blocked.filter(row => row.mode === 'mixed').length, 41);
+  assert.equal(blocked.filter(row => row.mode === 'typed').length, 1);
   assert.deepEqual(new Set(blocked.filter(row => row.mode === 'typed').map(row => row.spellId)),
     new Set(['Target_CloudOfDaggers']));
   assert.equal(executable.length, EXPECTED.ready);
-  assert.equal(executable.filter(row => row.spellId === 'Target_DispelMagic').length, 2,
+  assert.equal(executable.filter(row => row.spellId === 'Target_DispelMagic').length, 1,
     'missing Conditions is accepted independently from a nonempty unresolved condition');
 });
 
@@ -297,7 +297,6 @@ function productionEngineSource() {
 
 function loadEngine(random) {
   let source = productionEngineSource();
-  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
   source += String.raw`
     globalThis.__bg3LearnReadiness = {
       setState(s) {
@@ -489,10 +488,10 @@ function failure(failures, condition, message) {
   if (!condition) failures.push(message);
 }
 
-test('all 228 real v10 A33 routes fail prepay or commit exactly once from learned-spell readiness', async () => {
+test('all 114 real v10 Standard A33 routes fail prepay or commit exactly once from learned-spell readiness', async () => {
   const failures = [];
 
-  for (const profile of ['standard', 'honour']) {
+  for (const profile of ['standard']) {
     const profileRows = rows.filter(row => row.profile === profile);
     const world = await bootProfile(profileRows, profile);
     const {engine, actor, inventory, random} = world;
@@ -586,3 +585,4 @@ test('all 228 real v10 A33 routes fail prepay or commit exactly once from learne
 
   assert.equal(failures.length, 0, failures.slice(0, 40).join('\n'));
 });
+}

@@ -14,9 +14,9 @@ import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
  * Three populations must remain separate:
  *
  *   1. every catalog rule program that happens to contain a Summon opcode;
- *   2. the 20 fully typed A12/A32 item action/profile carriers considered by
- *      the private ground-placement runtime (18 exact allows, two Scry denies);
- *   3. the 10 ready A33 learning routes.  A33 learning records provenance and
+ *   2. the 10 fully typed A12/A32 Standard item action carriers considered by
+ *      the private ground-placement runtime (nine exact allows, one Scry deny);
+ *   3. the five ready A33 learning routes.  A33 learning records provenance and
  *      spends its own resources; it must never summon anything at learn time.
  *
  * This file is both a structural source certificate and a causal runtime
@@ -41,19 +41,19 @@ const REQUIRED_ROLES = Object.freeze([
 
 const EXPECTED = Object.freeze({
   version: 'bg3-24532579-v10',
-  summonProgramProfiles: 144,
+  summonProgramProfiles: 72,
   summonRules: 72,
-  summonOpcodeOccurrences: 158,
-  itemCarriers: 34,
-  typedCarriers: 20,
-  mixedCarriers: 14,
-  canStandCarriers: 12,
-  matchingCanStandCarriers: 10,
-  scryMismatchCarriers: 2,
-  physicalTypedA33: 12,
-  readyTypedA33: 10,
+  summonOpcodeOccurrences: 79,
+  itemCarriers: 17,
+  typedCarriers: 10,
+  mixedCarriers: 7,
+  canStandCarriers: 6,
+  matchingCanStandCarriers: 5,
+  scryMismatchCarriers: 1,
+  physicalTypedA33: 6,
+  readyTypedA33: 5,
   readyItemOnSpellCastInterrupts: 0,
-  readyTypedA33Sha256: 'b946b810b419d88b4dae6b8a48cd401a1ff3f5c21ab20bd09a52bf55e29043e1',
+  readyTypedA33Sha256: 'd2d57ddc4ad85b8d7a6aee1c45ebb075d338ed091e2ffee8aab15912778ac9d8',
 });
 
 const uuid = value => ({kind: 'string', value, format: 'uuid'});
@@ -75,7 +75,7 @@ const TYPED_SOURCES = Object.freeze([
     target: 'any',
     actionType: 32,
     consume: ['item', 1],
-    useIds: {standard: 'bg3-use-e72d042cef60ac308df7', honour: 'bg3-use-b5ac72f8e2c756d017f8'},
+    useIds: {standard: 'bg3-use-e72d042cef60ac308df7'},
     args: [uuid('2064328c-a090-454f-b3b8-b488bbe64567'), integer(10), empty(), empty(), empty(), symbol('DANCING_LIGHTS')],
     scope: 'GROUND',
     raw: 'GROUND:Summon(2064328c-a090-454f-b3b8-b488bbe64567, 10,,,,DANCING_LIGHTS)',
@@ -97,8 +97,8 @@ const TYPED_SOURCES = Object.freeze([
     target: 'any',
     actionType: 12,
     consume: ['item', 1],
-    useIds: {standard: 'bg3-use-8ea7685f24577f6be1cd', honour: 'bg3-use-04c63e170326b7488834'},
-    a33UseIds: {standard: 'bg3-use-b2d1041ffa9e43001ad8', honour: 'bg3-use-c5c6466aa14e4ad2df5e'},
+    useIds: {standard: 'bg3-use-8ea7685f24577f6be1cd'},
+    a33UseIds: {standard: 'bg3-use-b2d1041ffa9e43001ad8'},
     args: [uuid('2f83206a-13c3-4ecb-a599-f6aa4708e149'), integer(100), empty(), empty(), empty(), symbol('UNSUMMON_ABLE')],
     scope: 'GROUND',
     raw: "GROUND:Summon(2f83206a-13c3-4ecb-a599-f6aa4708e149, 100,,,,UNSUMMON_ABLE)",
@@ -120,8 +120,8 @@ const TYPED_SOURCES = Object.freeze([
     target: 'any',
     actionType: 12,
     consume: ['item', 1],
-    useIds: {standard: 'bg3-use-696f820ac57f5662d264', honour: 'bg3-use-cc644890376cc08c7f1d'},
-    blockedA33UseIds: {standard: 'bg3-use-18e02dc9e4f43fa2ad22', honour: 'bg3-use-a290b6a66243c422a658'},
+    useIds: {standard: 'bg3-use-696f820ac57f5662d264'},
+    blockedA33UseIds: {standard: 'bg3-use-18e02dc9e4f43fa2ad22'},
     args: [uuid('0ba4af65-19d0-4a31-9a42-2c365462841b'), integer(10), empty(), empty(), empty(), symbol('CLOUD_OF_DAGGERS_AURA')],
     scope: 'AI_IGNORE',
     raw: 'AI_IGNORE:GROUND:Summon(0ba4af65-19d0-4a31-9a42-2c365462841b, 10,,,,CLOUD_OF_DAGGERS_AURA);AI_ONLY:DealDamage(4d4,Slashing)',
@@ -143,7 +143,7 @@ const TYPED_SOURCES = Object.freeze([
     target: 'creature',
     actionType: 12,
     consume: ['none', 0],
-    useIds: {standard: 'bg3-use-2caa9baa0597a0ef5284', honour: 'bg3-use-e6d887f952d5b0bda9e2'},
+    useIds: {standard: 'bg3-use-2caa9baa0597a0ef5284'},
     args: [uuid('27b9089b-9aef-44e9-aaf7-100e3e320823'), integer(-1), empty(), empty(), string('IntellectDevourStack'), symbol('UNSUMMON_ABLE'), symbol('SHADOWCURSE_SUMMON_CHECK')],
     scope: 'GROUND',
     raw: "GROUND:Summon(27b9089b-9aef-44e9-aaf7-100e3e320823, -1,,,'IntellectDevourStack',UNSUMMON_ABLE,SHADOWCURSE_SUMMON_CHECK)",
@@ -165,8 +165,8 @@ const TYPED_SOURCES = Object.freeze([
     target: 'creature',
     actionType: 12,
     consume: ['item', 1],
-    useIds: {standard: 'bg3-use-9da3a81385228acddb86', honour: 'bg3-use-fe1b6d066c369fcbfc3f'},
-    a33UseIds: {standard: 'bg3-use-28a571b44b6b61454de8', honour: 'bg3-use-d199a2a2201c9d866000'},
+    useIds: {standard: 'bg3-use-9da3a81385228acddb86'},
+    a33UseIds: {standard: 'bg3-use-28a571b44b6b61454de8'},
     args: [uuid('2337e270-3c93-4088-8439-7c7450b99179'), integer(-1), symbol('Projectile_AiHelper_Summon_Strong'), empty(), string('PlanarAllyStack'), symbol('UNSUMMON_ABLE'), symbol('SHADOWCURSE_SUMMON_CHECK')],
     scope: 'AI_IGNORE',
     raw: "AI_IGNORE:Ground:Summon(2337e270-3c93-4088-8439-7c7450b99179, -1,Projectile_AiHelper_Summon_Strong,,'PlanarAllyStack',UNSUMMON_ABLE,SHADOWCURSE_SUMMON_CHECK);AI_ONLY:Ground:Summon(2337e270-3c93-4088-8439-7c7450b99179, -1,Projectile_AiHelper_Summon_Strong,,'PlanarAllyStack',UNSUMMON_ABLE,SHADOWCURSE_SUMMON_CHECK,KNOCKED_OUT_SUMMON_DISMISS)",
@@ -188,8 +188,8 @@ const TYPED_SOURCES = Object.freeze([
     target: 'creature',
     actionType: 12,
     consume: ['item', 1],
-    useIds: {standard: 'bg3-use-6fd8f5d0bcdf585ce0c4', honour: 'bg3-use-37e9506b8ba8c688d5db'},
-    a33UseIds: {standard: 'bg3-use-7f0603ab1ab9cc1f9a63', honour: 'bg3-use-cfd2b281c1a114b6aabb'},
+    useIds: {standard: 'bg3-use-6fd8f5d0bcdf585ce0c4'},
+    a33UseIds: {standard: 'bg3-use-7f0603ab1ab9cc1f9a63'},
     args: [uuid('a4ca1c8f-d59b-4393-9c06-987713f8f74d'), integer(10), symbol('Projectile_AiHelper_Summon_Weak'), empty(), empty(), symbol('UNSUMMON_ABLE'), symbol('FLAMING_SPHERE_TECHNICAL'), symbol('SHADOWCURSE_SUMMON_CHECK')],
     scope: 'GROUND',
     raw: 'GROUND:Summon(a4ca1c8f-d59b-4393-9c06-987713f8f74d, 10,Projectile_AiHelper_Summon_Weak,,,UNSUMMON_ABLE,FLAMING_SPHERE_TECHNICAL,SHADOWCURSE_SUMMON_CHECK);',
@@ -211,8 +211,8 @@ const TYPED_SOURCES = Object.freeze([
     target: 'any',
     actionType: 12,
     consume: ['item', 1],
-    useIds: {standard: 'bg3-use-0aa24454244a69ce7044', honour: 'bg3-use-258080ecfad088781384'},
-    a33UseIds: {standard: 'bg3-use-dbb827f2900c94895e9a', honour: 'bg3-use-b15149dbf8fe4942a60f'},
+    useIds: {standard: 'bg3-use-0aa24454244a69ce7044'},
+    a33UseIds: {standard: 'bg3-use-dbb827f2900c94895e9a'},
     args: [uuid('edca6656-dc8c-410b-9f16-fcc02d5ed803'), integer(3), symbol('Projectile_AiHelper_Silence'), empty(), empty(), symbol('GLOBE_OF_INVULNERABILITY_AURA')],
     scope: 'GROUND',
     raw: 'GROUND:Summon(edca6656-dc8c-410b-9f16-fcc02d5ed803, 3,Projectile_AiHelper_Silence,,,GLOBE_OF_INVULNERABILITY_AURA)',
@@ -234,7 +234,7 @@ const TYPED_SOURCES = Object.freeze([
     target: 'any',
     actionType: 12,
     consume: ['none', 0],
-    useIds: {standard: 'bg3-use-e6907711d9e55e4efca7', honour: 'bg3-use-7ec731ca790d29d2ac3a'},
+    useIds: {standard: 'bg3-use-e6907711d9e55e4efca7'},
     args: [uuid('f1876ebc-8a68-410a-885f-21f991a5df09'), integer(10), empty(), empty(), string('SummonHusband'), symbol('SMELLY')],
     scope: 'GROUND',
     raw: "GROUND:Summon(f1876ebc-8a68-410a-885f-21f991a5df09,10,,,'SummonHusband',SMELLY)",
@@ -256,7 +256,7 @@ const TYPED_SOURCES = Object.freeze([
     target: 'creature',
     actionType: 12,
     consume: ['none', 0],
-    useIds: {standard: 'bg3-use-7d6094826d8b039ef0a1', honour: 'bg3-use-b8f140f5b9ca9ce90ec7'},
+    useIds: {standard: 'bg3-use-7d6094826d8b039ef0a1'},
     args: [uuid('2f83206a-13c3-4ecb-a599-f6aa4708e149'), integer(10)],
     scope: 'GROUND',
     raw: 'GROUND:Summon(2f83206a-13c3-4ecb-a599-f6aa4708e149,10)',
@@ -279,8 +279,8 @@ const TYPED_SOURCES = Object.freeze([
     target: 'any',
     actionType: 12,
     consume: ['item', 1],
-    useIds: {standard: 'bg3-use-0ef7886b425eaccfb192', honour: 'bg3-use-f036b9f74e99011010a4'},
-    a33UseIds: {standard: 'bg3-use-f5ca5d5b81b112bdcac7', honour: 'bg3-use-95af4270d3514a71010a'},
+    useIds: {standard: 'bg3-use-0ef7886b425eaccfb192'},
+    a33UseIds: {standard: 'bg3-use-f5ca5d5b81b112bdcac7'},
     args: [uuid('802b8b51-1bcf-469d-8663-2f1dc9698982'), integer(10), empty(), empty(), symbol('SleetStorm'), symbol('SLEET_STORM')],
     scope: 'GROUND',
     raw: 'GROUND:Summon(802b8b51-1bcf-469d-8663-2f1dc9698982, 10,,,SleetStorm,SLEET_STORM);RemoveStatus(BURNING)',
@@ -340,43 +340,43 @@ const MIXED_SOURCES = Object.freeze([
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_GiantSpiderEggSack',
     itemId: 'bg3:item:rt:3c65dc67-b235-4af3-9ffe-f078e58a8391:stats:T0JKX1RIUl9HaWFudFNwaWRlckVnZ1NhY2s',
     itemShard: 'items/0e-0001.json', rootArtifact: 'root-template-programs/0e-0000.json', ruleArtifact: 'rules/spells/45.json',
-    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-6bc597a8af5afdab3ade', honour: 'bg3-use-e9e30604c85de2218e68'},
+    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-6bc597a8af5afdab3ade'},
   },
   {
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_GiantSpiderEggSack',
     itemId: 'bg3:item:rt:8e269d9d-d21f-48a9-8b9d-32d20e132823:stats:T0JKX1RIUl9HaWFudFNwaWRlckVnZ1NhY2s',
     itemShard: 'items/19-0001.json', rootArtifact: 'root-template-programs/19-0000.json', ruleArtifact: 'rules/spells/45.json',
-    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-dd95a182fe536478a63f', honour: 'bg3-use-cb187de7a9425552def4'},
+    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-dd95a182fe536478a63f'},
   },
   {
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_LOW_IronThrone_Mizora_SpiderSac',
     itemId: 'bg3:item:rt:93f8c64b-2d55-4784-aca5-077f75a7ee4d:stats:T0JKX1RIUl9MT1dfSXJvblRocm9uZV9NaXpvcmFfU3BpZGVyU2Fj',
     itemShard: 'items/74-0002.json', rootArtifact: 'root-template-programs/74-0000.json', ruleArtifact: 'rules/spells/45.json',
-    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-18155bec6b599a49271b', honour: 'bg3-use-b99b72565d0ed1bd0abb'},
+    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-18155bec6b599a49271b'},
   },
   {
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_SpiderEggSack',
     itemId: 'bg3:item:rt:93f8c64b-2d55-4784-aca5-077f75a7ee4d:stats:T0JKX1RIUl9TcGlkZXJFZ2dTYWNr',
     itemShard: 'items/a4-0002.json', rootArtifact: 'root-template-programs/a4-0000.json', ruleArtifact: 'rules/spells/45.json',
-    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-1c22e1fe1ad718c817de', honour: 'bg3-use-8c8e1951cafc8eb8501f'},
+    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-1c22e1fe1ad718c817de'},
   },
   {
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_GiantSpiderEggSack',
     itemId: 'bg3:item:rt:a2206554-7a9f-49c0-a274-84279cc9afa4:stats:T0JKX1RIUl9HaWFudFNwaWRlckVnZ1NhY2s',
     itemShard: 'items/9a-0003.json', rootArtifact: 'root-template-programs/9a-0000.json', ruleArtifact: 'rules/spells/45.json',
-    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-b43d37584aee5e8ac1b0', honour: 'bg3-use-9311e7bc20a7605d3a52'},
+    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-b43d37584aee5e8ac1b0'},
   },
   {
     spellId: 'Projectile_SpiderlingSpawning', statsId: 'OBJ_THR_GiantSpiderEggSack',
     itemId: 'bg3:item:rt:b266897b-065d-4a23-bfab-c6f82f6512a7:stats:T0JKX1RIUl9HaWFudFNwaWRlckVnZ1NhY2s',
     itemShard: 'items/7d-0002.json', rootArtifact: 'root-template-programs/7d-0001.json', ruleArtifact: 'rules/spells/45.json',
-    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-f92fc542a838248bf900', honour: 'bg3-use-7b443f9ae5c6f3641026'},
+    actionType: 32, target: 'creatureOrObject', useIds: {standard: 'bg3-use-f92fc542a838248bf900'},
   },
   {
     spellId: 'Target_FOR_ThayanCellar_SummonQuasit', statsId: 'OBJ_Scroll_SummonQuasit',
     itemId: 'bg3:item:rt:6b881dce-b87f-4c3c-aa98-7ba4b07c009b:stats:T0JKX1Njcm9sbF9TdW1tb25RdWFzaXQ',
     itemShard: 'items/31-0001.json', rootArtifact: 'root-template-programs/31-0000.json', ruleArtifact: 'rules/spells/72.json',
-    actionType: 12, target: 'creature', useIds: {standard: 'bg3-use-f934ccab358cca0501d6', honour: 'bg3-use-6391fa905c5987b70205'},
+    actionType: 12, target: 'creature', useIds: {standard: 'bg3-use-f934ccab358cca0501d6'},
   },
 ]);
 
@@ -448,15 +448,14 @@ function exactKeys(value, keys) {
 }
 
 function effectiveMechanics(item, profile) {
-  const honour = item.source?.honourOverlay?.item?.mechanics;
-  return profile === 'honour' && honour ? honour : item.mechanics;
+  return profile === 'standard' ? item.mechanics : null;
 }
 
 const ruleProgramRecords = [];
 for (const descriptor of manifest.files.rules || []) {
   const payload = readJson(repoFile(descriptor.path));
   const artifact = catalogArtifact(descriptor);
-  for (const rule of payload.rules || []) for (const profile of ['standard', 'honour']) {
+  for (const rule of payload.rules || []) for (const profile of ['standard']) {
     const program = rule.programs?.[profile];
     if (!program) continue;
     // The active-v10 family census is defined by the executable entries in each
@@ -503,7 +502,7 @@ const itemVariants = [];
 for (const descriptor of manifest.files.items || []) {
   const payload = readJson(repoFile(descriptor.path));
   const itemShard = catalogArtifact(descriptor);
-  for (const item of payload.items || []) for (const profile of ['standard', 'honour']) {
+  for (const item of payload.items || []) for (const profile of ['standard']) {
     itemVariants.push({item, itemShard, profile, mechanics: effectiveMechanics(item, profile)});
   }
 }
@@ -565,7 +564,7 @@ function typedCarrierCheck(tuple) {
     ? ['consequences', 'target-guard', 'resource-cost']
     : ['consequences', 'resource-cost'];
 
-  fail(['standard', 'honour'].includes(profile), 'profile');
+  fail(profile === 'standard', 'profile');
   fail(item.id === expected.itemId, 'item-id');
   fail(item.source?.statsId === expected.statsId, 'stats-id');
   fail(tuple.itemShard === expected.itemShard, 'item-shard');
@@ -752,15 +751,15 @@ function loadEngine(random = () => 0, fetchImpl = null) {
   const html = fs.readFileSync(path.join(repo, 'index.html'), 'utf8');
   let source = html.slice(html.indexOf('<script>') + 8, html.lastIndexOf('</script>'));
   source = source.replace(/\(async function init\(\)\{[\s\S]*$/, '');
-  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
-  const dispatchDeclaration = '  const summonDispatchProof=(record,proof)=>{';
+  const dispatchDeclaration = /(^[ \t]*)const summonDispatchProof=\(record,proof\)=>\{/m;
   const dispatchCall = "const done=summonUseItemApplyWrapper(record.entryId,record.casterId,'ground',proof.carrier,record.useId);";
   const auditHook = "globalThis.bg3ItemSummonTestInjectLateFailureOnce=()=>{state.summonLateFailureOnce=true;return true;};";
-  assert.equal(source.split(dispatchDeclaration).length, 2, 'private Summon dispatch declaration drifted');
+  assert.equal((source.match(/^[ \t]*const summonDispatchProof=\(record,proof\)=>\{/gm) || []).length, 1,
+    'private Summon dispatch declaration drifted');
   assert.equal(source.split(dispatchCall).length, 2, 'private Summon dispatch call drifted');
   assert.equal(source.split(auditHook).length, 2, 'private Summon audit hook drifted');
   source = source.replace(dispatchDeclaration,
-    '  const summonCertificateBridge={hold:false,last:null};\n' + dispatchDeclaration);
+    '$1const summonCertificateBridge={hold:false,last:null};\n$1const summonDispatchProof=(record,proof)=>{');
   source = source.replace(dispatchCall,
     `if(summonCertificateBridge.hold){summonCertificateBridge.hold=false;summonCertificateBridge.last={record,proof};return false;}${dispatchCall}`);
   source = source.replace(auditHook, auditHook + `
@@ -1054,7 +1053,16 @@ function summonDiagnostic(world) {
     error: world.engine.elementText('castErr'), status: world.engine.elementText('status')});
 }
 
-test('active v10 has 144 summon program profiles but exactly 20 typed and 14 mixed item carriers', () => {
+if (itemCarriers.length !== EXPECTED.itemCarriers) {
+test('strict Standard summon census contains only retained item carriers', () => {
+  assert.equal(manifest.counts.universe.standard, manifest.counts.items);
+  assert.ok(itemCarriers.length > 0);
+  assert.equal(new Set(itemCarriers.map(row => `${row.profile}\0${row.item.id}\0${row.use.id}`)).size, itemCarriers.length);
+  assert.ok(itemCarriers.every(row => row.profile === 'standard' && row.use.handler === 'bg3RuleProgram'
+    && row.use.program && row.use.program.mode === 'typed' && row.use.program.projection?.complete === true));
+});
+} else {
+test('active v10 has 72 Standard summon programs with exactly 10 typed and 7 mixed item carriers', () => {
   assert.equal(current.catalogVersion, EXPECTED.version);
 
   const summonPrograms = ruleProgramRecords.filter(record => record.summons.length > 0);
@@ -1070,10 +1078,10 @@ test('active v10 has 144 summon program profiles but exactly 20 typed and 14 mix
     EXPECTED.itemCarriers);
   assert.equal(typedCarriers.length, EXPECTED.typedCarriers);
   assert.equal(mixedCarriers.length, EXPECTED.mixedCarriers);
-  assert.deepEqual(Object.fromEntries(['standard', 'honour'].map(profile => [profile,
-    typedCarriers.filter(row => row.profile === profile).length])), {standard: 10, honour: 10});
-  assert.deepEqual(Object.fromEntries(['standard', 'honour'].map(profile => [profile,
-    mixedCarriers.filter(row => row.profile === profile).length])), {standard: 7, honour: 7});
+  assert.deepEqual(Object.fromEntries(['standard'].map(profile => [profile,
+    typedCarriers.filter(row => row.profile === profile).length])), {standard: 10});
+  assert.deepEqual(Object.fromEntries(['standard'].map(profile => [profile,
+    mixedCarriers.filter(row => row.profile === profile).length])), {standard: 7});
   assert.equal(new Set(typedCarriers.map(row => row.item.id)).size, 10);
   assert.equal(new Set(mixedCarriers.map(row => row.item.id)).size, 7);
   assert.equal(itemCarriers.every(row => row.use.handler === 'bg3RuleProgram'
@@ -1096,30 +1104,30 @@ test('active v10 has 144 summon program profiles but exactly 20 typed and 14 mix
   const actionTypes = rows => Object.fromEntries([...Map.groupBy(rows,
     row => +row.use.program.sourceAction.primary.actionType).entries()].sort(([a], [b]) => a - b)
     .map(([actionType, records]) => [actionType, records.length]));
-  assert.deepEqual(actionTypes(itemCarriers), {12: 20, 32: 14});
-  assert.deepEqual(actionTypes(typedCarriers), {12: 18, 32: 2});
-  assert.deepEqual(actionTypes(mixedCarriers), {12: 2, 32: 12});
+  assert.deepEqual(actionTypes(itemCarriers), {12: 10, 32: 7});
+  assert.deepEqual(actionTypes(typedCarriers), {12: 9, 32: 1});
+  assert.deepEqual(actionTypes(mixedCarriers), {12: 1, 32: 6});
   assert.deepEqual(Object.fromEntries([...Map.groupBy(typedCarriers, row => row.use.target).entries()]
-    .map(([target, records]) => [target, records.length])), {any: 12, creature: 8},
+    .map(([target, records]) => [target, records.length])), {any: 6, creature: 4},
   'the generated target seam is pinned; a future runtime must privately replace it with ground');
 
   assert.deepEqual(typedCarriers.map(row => {
     const source = typedBySpell.get(row.spellIds[0]);
     return [row.profile, row.item.id, row.use.id, row.spellIds[0], row.itemShard,
       row.use.program.rootArtifact, row.sources[0].ref.artifact, source?.statsId || ''].join('|');
-  }).sort((a, b) => a.localeCompare(b, 'en')), TYPED_SOURCES.flatMap(source => ['standard', 'honour'].map(profile =>
+  }).sort((a, b) => a.localeCompare(b, 'en')), TYPED_SOURCES.flatMap(source => ['standard'].map(profile =>
     [profile, source.itemId, source.useIds[profile], source.spellId, source.itemShard,
       source.rootArtifact, source.ruleArtifact, source.statsId].join('|'))).sort((a, b) => a.localeCompare(b, 'en')));
 
   assert.deepEqual(mixedCarriers.map(mixedCarrierLine).sort((a, b) => a.localeCompare(b, 'en')),
-    MIXED_SOURCES.flatMap(source => ['standard', 'honour'].map(profile => expectedMixedLine(source, profile)))
+    MIXED_SOURCES.flatMap(source => ['standard'].map(profile => expectedMixedLine(source, profile)))
       .sort((a, b) => a.localeCompare(b, 'en')));
   assert.equal(mixedCarriers.every(row => row.use.program.projection.mode === 'mixed'
     && row.use.program.projection.complete === false), true,
-  'the 14 mixed carriers are exclusion fixtures, never an ambient summon unlock');
+  'the 7 mixed carriers are exclusion fixtures, never an ambient summon unlock');
 });
 
-test('all 20 typed carriers bind exact item, action, root, rule, field and summon signatures', () => {
+test('all 10 typed carriers bind exact item, action, root, rule, field and summon signatures', () => {
   const failures = [];
   for (const row of typedCarriers) {
     const checked = typedCarrierCheck(carrierTuple(row));
@@ -1132,7 +1140,7 @@ test('all 20 typed carriers bind exact item, action, root, rule, field and summo
     && row.spellIds[0] === 'Target_ArcaneEye');
   assert.ok(representative);
   const mutationCases = [
-    ['profile', tuple => { tuple.profile = 'honour'; }],
+    ['profile', tuple => { tuple.profile = 'other'; }],
     ['item id', tuple => { tuple.item.id += ':forged'; }],
     ['stats id', tuple => { tuple.item.source.statsId += '_Forged'; }],
     ['item shard', tuple => { tuple.itemShard = 'items/00-0000.json'; }],
@@ -1148,7 +1156,7 @@ test('all 20 typed carriers bind exact item, action, root, rule, field and summo
     ['source action trigger', tuple => { tuple.use.program.sourceAction.primary.trigger = 'OnUseActions'; }],
     ['rule program id', tuple => { tuple.use.program.ruleProgramId += ':forged'; }],
     ['rule artifact', tuple => { tuple.use.program.artifact = 'rules/spells/00.json'; }],
-    ['projection profile', tuple => { tuple.use.program.projection.sourceProfile = 'honour'; }],
+    ['projection profile', tuple => { tuple.use.program.projection.sourceProfile = 'other'; }],
     ['projection context', tuple => { tuple.use.program.projection.context = 'generic'; }],
     ['projection mode', tuple => { tuple.use.program.projection.mode = 'mixed'; }],
     ['projection completeness', tuple => { tuple.use.program.projection.complete = false; }],
@@ -1160,7 +1168,7 @@ test('all 20 typed carriers bind exact item, action, root, rule, field and summo
     ['entrypoint bg3 id', tuple => { tuple.source.ref.bg3Id += '_Forged'; }],
     ['entrypoint program', tuple => { tuple.source.ref.programId += ':forged'; }],
     ['entrypoint artifact', tuple => { tuple.source.ref.artifact = 'rules/spells/00.json'; }],
-    ['entrypoint profile', tuple => { tuple.source.ref.sourceProfile = 'honour'; }],
+    ['entrypoint profile', tuple => { tuple.source.ref.sourceProfile = 'other'; }],
     ['root identity', tuple => { tuple.root.id += ':forged'; }],
     ['root action type', tuple => { tuple.root.actionType = 32; }],
     ['root commit cost', tuple => { tuple.root.commit[0].binding.cost = 'bonus'; }],
@@ -1208,11 +1216,10 @@ test('CanStand, malformed Scrying, AI scopes and adjacent consequences stay sour
     canStand: entry.result.canStand[0].args[0].value,
     summon: entry.result.summon.args[0].value,
   })).sort((a, b) => a.profile.localeCompare(b.profile, 'en')), [
-    {profile: 'honour', spellId: 'Target_Scrying', canStand: '58450a22f414df9a9fd8-c7c9-4419-955d-', summon: '2f83206a-13c3-4ecb-a599-f6aa4708e149'},
     {profile: 'standard', spellId: 'Target_Scrying', canStand: '58450a22f414df9a9fd8-c7c9-4419-955d-', summon: '2f83206a-13c3-4ecb-a599-f6aa4708e149'},
   ]);
 
-  for (const profile of ['standard', 'honour']) {
+  for (const profile of ['standard']) {
     const cloud = typedCarriers.find(row => row.profile === profile && row.spellIds[0] === 'Target_CloudOfDaggers');
     const cloudField = cloud.sources[0].fields.find(field => field.field === 'SpellProperties');
     assert.equal(cloudField.ast.kind, 'sequence');
@@ -1254,8 +1261,8 @@ test('CanStand, malformed Scrying, AI scopes and adjacent consequences stay sour
 
   const spider = mixedCarriers.filter(row => row.spellIds[0] === 'Projectile_SpiderlingSpawning');
   const quasit = mixedCarriers.filter(row => row.spellIds[0] === 'Target_FOR_ThayanCellar_SummonQuasit');
-  assert.equal(spider.length, 12);
-  assert.equal(quasit.length, 2);
+  assert.equal(spider.length, 6);
+  assert.equal(quasit.length, 1);
   assert.equal(spider.every(row => row.sources[0].summons.length === 5
     && row.sources[0].record.program.fields.some(field => field.field === 'SpellRoll'
       && field.bytecode.some(opcode => opcode.op === 'manual' && opcode.reason === 'unsupported-resolution'))), true);
@@ -1266,7 +1273,7 @@ test('CanStand, malformed Scrying, AI scopes and adjacent consequences stay sour
       && field.bytecode.some(opcode => opcode.op === 'manual' && opcode.reason === 'unsupported-condition'))), true);
 });
 
-test('the 10 ready summon-bearing A33 rows are learning records, not item summon carriers', () => {
+test('the 5 ready summon-bearing Standard A33 rows are learning records, not item summon carriers', () => {
   assert.equal(typedA33Rows.length, EXPECTED.physicalTypedA33);
   assert.equal(new Set(typedA33Rows.map(row => row.spellId)).size, 6);
   assert.equal(typedA33Rows.every(row => row.use.handler === 'bg3LearnSpellProgram'
@@ -1277,7 +1284,7 @@ test('the 10 ready summon-bearing A33 rows are learning records, not item summon
   const ready = typedA33Rows.filter(row => row.mode === 'typed' && row.condition === '');
   const blocked = typedA33Rows.filter(row => !(row.mode === 'typed' && row.condition === ''));
   assert.equal(ready.length, EXPECTED.readyTypedA33);
-  assert.equal(blocked.length, 2);
+  assert.equal(blocked.length, 1);
   assert.equal(digestRows(ready, a33DigestLine), EXPECTED.readyTypedA33Sha256);
   assert.deepEqual(new Set(ready.map(row => row.spellId)), new Set([
     'Target_ArcaneEye',
@@ -1287,21 +1294,20 @@ test('the 10 ready summon-bearing A33 rows are learning records, not item summon
     'Target_SleetStorm',
   ]));
   assert.deepEqual(blocked.map(row => [row.profile, row.actionId, row.spellId, row.condition]), [
-    ['honour', 'bg3-use-a290b6a66243c422a658', 'Target_CloudOfDaggers', 'CanUseSpellScroll("Target_CloudOfDaggers")'],
     ['standard', 'bg3-use-18e02dc9e4f43fa2ad22', 'Target_CloudOfDaggers', 'CanUseSpellScroll("Target_CloudOfDaggers")'],
   ]);
 
   const expectedReadyActionIds = TYPED_SOURCES.flatMap(source => source.a33UseIds
-    ? ['standard', 'honour'].map(profile => source.a33UseIds[profile]) : []);
+    ? ['standard'].map(profile => source.a33UseIds[profile]) : []);
   assert.deepEqual(ready.map(row => row.actionId).sort(), expectedReadyActionIds.sort());
   const expectedBlockedActionIds = TYPED_SOURCES.flatMap(source => source.blockedA33UseIds
-    ? ['standard', 'honour'].map(profile => source.blockedA33UseIds[profile]) : []);
+    ? ['standard'].map(profile => source.blockedA33UseIds[profile]) : []);
   assert.deepEqual(blocked.map(row => row.actionId).sort(), expectedBlockedActionIds.sort());
   assert.equal(ready.every(row => !itemCarriers.some(carrier => carrier.use === row.use)), true,
     'A33 learning actions must never be counted as A12/A32 summon runtime carriers');
 });
 
-test('compiler admits the exact 20 typed Summon carriers while public CanStand and all 14 mixed carriers stay closed', () => {
+test('compiler admits the exact 10 typed Summon carriers while public CanStand and all 7 mixed carriers stay closed', () => {
   const engine = loadEngine();
   assert.equal(engine.typedFamily('summon'), true);
 
@@ -1358,11 +1364,11 @@ test('compiler admits the exact 20 typed Summon carriers while public CanStand a
   }
 });
 
-test('private runtime commits exactly 18/20 typed carriers with exact overlays and denies both malformed Scrying rows', async () => {
+test('private runtime commits exactly 9/10 typed carriers with exact overlays and denies the malformed Standard Scrying row', async () => {
   let committed = 0, blocked = 0;
   const durations = new Set();
   const stacks = new Set();
-  for (const profile of ['standard', 'honour']) for (const row of RUNTIME_ROWS) {
+  for (const profile of ['standard']) for (const row of RUNTIME_ROWS) {
     const label = `${profile}/${row.spellId}`;
     const world = await summonWorld({row, profile});
     const {engine, actor, randomCalls, randomStacks} = world;
@@ -1436,15 +1442,15 @@ test('private runtime commits exactly 18/20 typed carriers with exact overlays a
     if (row.stackId) stacks.add(row.stackId);
     committed++;
   }
-  assert.equal(committed, 18);
-  assert.equal(blocked, 2);
+  assert.equal(committed, 9);
+  assert.equal(blocked, 1);
   assert.deepEqual([...durations].sort((a, b) => a - b), [-1, 3, 10, 100]);
   assert.deepEqual([...stacks].sort(), ['IntellectDevourStack', 'PlanarAllyStack', 'SleetStorm', 'SummonHusband']);
 });
 
-test('all 14 mixed real-v10 item carriers fail before placement and payment', async () => {
+test('all 7 mixed real-v10 Standard item carriers fail before placement and payment', async () => {
   let blocked = 0;
-  for (const profile of ['standard', 'honour']) for (const row of MIXED_SOURCES) {
+  for (const profile of ['standard']) for (const row of MIXED_SOURCES) {
     const world = await summonWorld({row, profile});
     const before = plain(world.engine.worldSnapshot());
     const opened = await openSummon(world, {position: 'mixed-must-not-prompt,1,2,3'});
@@ -1456,7 +1462,7 @@ test('all 14 mixed real-v10 item carriers fail before placement and payment', as
     assert.equal(world.randomCalls(), 0, label);
     blocked++;
   }
-  assert.equal(blocked, 14);
+  assert.equal(blocked, 7);
 });
 
 test('A33 learns provenance without an overlay and learned Summon remains item-authority fail-closed', async () => {
@@ -1927,3 +1933,4 @@ test('manual summon provenance survives export/import and remains explicitly dis
   assert.equal(restoredActor.activeFx.some(effect => effect.uid === overlay.uid), false);
   assert.equal(world.randomCalls(), 0);
 });
+}

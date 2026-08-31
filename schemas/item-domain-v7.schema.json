@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dnd-world.local/schemas/item-domain-v7.schema.json",
+  "title": "D&D World canonical item domain model",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "id", "canonicalId", "aliasOf", "name", "taxonomy",
+    "description", "icon", "source", "rarity", "economy", "stack", "equipment", "charges",
+    "consumable", "gameplay", "tags", "handlers", "references", "provenance"
+  ],
+  "properties": {
+    "schemaVersion": {"const": "dnd-world-item/7"},
+    "id": {"type": "string", "minLength": 1},
+    "canonicalId": {"type": "string", "minLength": 1},
+    "aliasOf": {"type": ["string", "null"]},
+    "name": {"type": "string", "minLength": 1},
+    "taxonomy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "subcategory", "type", "subtype", "sourceCategory"],
+      "properties": {
+        "category": {"enum": ["weapon", "armor", "equipment", "consumable", "tool", "material", "document", "container", "quest", "world-object"]},
+        "subcategory": {"enum": ["misc", "magic", "food", "material", "water", "lore", "weapon", "shield", "container", "light", "potion", "poison", "scroll", "armor", "ammo", "trap", "instrument", "focus", "firestarter", "oil", "gamble", "ritual", "writing", "tool", "valuable", "camp", "rope", "component", "armor-accessory", "miscellaneous", "readable", "source-unclassified", "other", "quest-item", "alchemy-extract", "drink", "grenade", "key", "alchemy-ingredient", "alchemy", "ammunition"]},
+        "type": {"enum": ["weapon", "armor", "equipment", "potion", "scroll", "ring", "wondrous"]},
+        "subtype": {"enum": ["misc", "magic", "food", "material", "water", "lore", "weapon", "shield", "container", "light", "potion", "poison", "scroll", "armor", "ammo", "trap", "instrument", "focus", "firestarter", "oil", "gamble", "ritual", "writing", "tool", "valuable", "camp", "rope", "component"]},
+        "sourceCategory": {"type": ["string", "null"]}
+      }
+    },
+    "description": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "language", "source"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1},
+        "language": {"enum": ["ru", "en"]},
+        "source": {"enum": ["source-localized", "catalog"]}
+      }
+    },
+    "icon": {
+      "oneOf": [
+        {"type": "object", "additionalProperties": false, "required": ["kind", "src", "width", "height", "sha256", "source"], "properties": {"kind": {"const": "asset"}, "src": {"type": "string", "minLength": 1}, "width": {"type": "number", "exclusiveMinimum": 0}, "height": {"type": "number", "exclusiveMinimum": 0}, "sha256": {"type": ["string", "null"]}, "source": {"enum": ["source-artifact", "catalog-asset"]}}},
+        {"type": "object", "additionalProperties": false, "required": ["kind", "value", "source"], "properties": {"kind": {"const": "glyph"}, "value": {"type": "string", "minLength": 1}, "source": {"const": "engine-taxonomy"}}}
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label", "version"],
+      "properties": {"kind": {"enum": ["game-build", "campaign", "built-in-catalog"]}, "label": {"type": "string", "minLength": 1}, "version": {"type": ["string", "null"]}}
+    },
+    "rarity": {"enum": ["common", "uncommon", "rare", "very-rare", "legendary", "artifact"]},
+    "economy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cost", "weight"],
+      "properties": {
+        "cost": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["amount", "currency", "copper", "tradeable", "source"],
+          "properties": {
+            "amount": {"type": "number", "minimum": 0},
+            "currency": {"enum": ["cp", "sp", "ep", "gp", "pp"]},
+            "copper": {"type": "integer", "minimum": 0},
+            "tradeable": {"type": "boolean"},
+            "source": {"enum": ["source", "inventory-instance", "legacy-conversion", "not-applicable"]}
+          }
+        },
+        "weight": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unit", "portable", "source"],
+          "properties": {
+            "value": {"type": "number", "minimum": 0},
+            "unit": {"const": "kg"},
+            "portable": {"type": "boolean"},
+            "source": {"enum": ["source", "legacy-conversion", "not-applicable"]}
+          }
+        }
+      }
+    },
+    "stack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["defaultQuantity", "maximum", "source"],
+      "properties": {
+        "defaultQuantity": {"type": "integer", "minimum": 1},
+        "maximum": {"type": "integer", "minimum": 1},
+        "source": {"enum": ["source", "rules-default"]}
+      }
+    },
+    "equipment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slots", "requirements", "attunement"],
+      "properties": {
+        "slots": {"type": "array", "uniqueItems": true, "items": {"enum": ["main-hand", "off-hand", "chest", "head", "hands", "feet", "legs", "neck", "ring", "cloak"]}},
+        "requirements": {"$ref": "#/$defs/requirements"},
+        "attunement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required", "requirements"],
+          "properties": {
+            "required": {"type": "boolean"},
+            "requirements": {"type": "array", "items": {"type": "object"}}
+          }
+        }
+      }
+    },
+    "charges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "maximum", "initial", "recovery", "lastCharge"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "maximum": {"type": "integer", "minimum": 0},
+        "initial": {"type": "integer", "minimum": 0},
+        "recovery": {"type": "array", "items": {"$ref": "#/$defs/recovery"}},
+        "lastCharge": {"type": ["object", "null"]}
+      }
+    },
+    "consumable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "resource", "amount"],
+      "properties": {
+        "value": {"type": "boolean"},
+        "resource": {"enum": ["none", "item"]},
+        "amount": {"type": "integer", "minimum": 0}
+      }
+    },
+    "gameplay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actions", "passive", "defaultDuration", "rolls", "checks", "damage", "healing", "conditions", "modifiers", "environment"],
+      "properties": {
+        "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
+        "passive": {"$ref": "#/$defs/passive"},
+        "defaultDuration": {"$ref": "#/$defs/duration"},
+        "rolls": {"type": "array"},
+        "checks": {"type": "array"},
+        "damage": {"type": "array"},
+        "healing": {"type": "array"},
+        "conditions": {"type": "array"},
+        "modifiers": {"type": "array"},
+        "environment": {"type": "array"}
+      }
+    },
+    "tags": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "handlers": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/handler"}},
+    "references": {"type": "array", "items": {"$ref": "#/$defs/reference"}},
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "sourceItemId", "sourceRootTemplateUuid", "migration", "blockedCapabilities"],
+      "properties": {
+        "source": {"enum": ["bg3", "dnd-world"]},
+        "sourceItemId": {"type": "string", "minLength": 1},
+        "sourceRootTemplateUuid": {"type": ["string", "null"]},
+        "migration": {"const": "item-domain-v7-machine-semantics-20260830"},
+        "blockedCapabilities": {"type": "array", "items": {"$ref": "#/$defs/blockedCapability"}}
+      }
+    }
+  },
+  "$defs": {
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["predicate", "operator", "value"],
+        "properties": {
+          "predicate": {"enum": ["equipped", "attuned", "held", "unarmored", "willing", "downed", "blocked-tags", "required-tags", "damage-types", "required-save-tags", "any-save-tags", "ally-below-half-within-m", "minimum-strength", "proficiency"]},
+          "operator": {"enum": ["equals", "gte", "includes-any", "includes-all", "excludes-all"]},
+          "value": {}
+        }
+      }
+    },
+    "duration": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {"kind": {"enum": ["instant", "rounds", "until-target-turn-start", "until-target-turn-end", "until-long-rest", "source-program", "while-requirements-hold", "concentration"]}, "amount": {"type": "number", "minimum": 1}, "maximum": {"$ref": "#/$defs/duration"}},
+      "additionalProperties": false
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trigger", "formula"],
+      "properties": {
+        "trigger": {"enum": ["dawn", "short-rest", "long-rest", "short-or-long-rest"]},
+        "formula": {"$ref": "#/$defs/formula"}
+      }
+    },
+    "formula": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dice", "sides", "modifier"],
+      "properties": {"dice": {"type": "integer", "minimum": 0}, "sides": {"type": "integer", "minimum": 0}, "modifier": {"type": "number"}}
+    },
+    "handler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "executor"],
+      "properties": {"id": {"type": "string", "minLength": 1}, "executor": {"type": "string", "minLength": 1}}
+    },
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "artifact", "handlerId"],
+      "properties": {"kind": {"const": "program"}, "id": {"type": "string", "minLength": 1}, "artifact": {"type": "string", "minLength": 1}, "handlerId": {"type": "string", "minLength": 1}}
+    },
+    "blockedCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sourceId", "reasonCode"],
+      "properties": {"kind": {"const": "source-action"}, "sourceId": {"type": "string"}, "reasonCode": {"type": "string", "minLength": 1}}
+    },
+    "passive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effects", "duration", "conditions", "modifiers"],
+      "properties": {"effects": {"type": "array"}, "duration": {"$ref": "#/$defs/duration"}, "conditions": {"type": "array"}, "modifiers": {"type": "array"}}
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "activation", "handler", "targets", "requirements", "restrictions", "resourceCost", "result", "source"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "label": {"type": "string", "minLength": 1},
+        "activation": {"type": "object", "additionalProperties": false, "required": ["cost", "amount"], "properties": {"cost": {"enum": ["action", "attack", "bonus", "reaction", "object", "turnfree", "free", "long"]}, "amount": {"const": 1}}},
+        "handler": {"$ref": "#/$defs/handler"},
+        "targets": {"type": "object", "additionalProperties": false, "required": ["kind", "count"], "properties": {"kind": {"enum": ["self", "ally", "enemy", "creature", "any", "object", "creature-or-object", "none"]}, "count": {"type": "integer", "minimum": 1}}},
+        "requirements": {"$ref": "#/$defs/requirements"},
+        "restrictions": {"type": "array", "items": {"oneOf": [
+          {"type": "object", "additionalProperties": false, "required": ["kind", "value"], "properties": {"kind": {"const": "resolution-gate"}, "value": {"enum": ["hit", "failedSave", "always"]}}},
+          {"type": "object", "additionalProperties": false, "required": ["kind", "events"], "properties": {"kind": {"const": "ends-on-event"}, "events": {"type": "array", "items": {"enum": ["attack", "spell"]}}}}
+        ]}},
+        "resourceCost": {"type": "object", "additionalProperties": false, "required": ["kind", "amount"], "properties": {"kind": {"enum": ["none", "item", "charges", "kit"]}, "amount": {"type": "number", "minimum": 0}}},
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["effects", "duration", "rolls", "checks", "damage", "healing", "conditions", "modifiers", "environment"],
+          "properties": {"effects": {"type": "array"}, "duration": {"$ref": "#/$defs/duration"}, "rolls": {"type": "array"}, "checks": {"type": "array"}, "damage": {"type": "array"}, "healing": {"type": "array"}, "conditions": {"type": "array"}, "modifiers": {"type": "array"}, "environment": {"type": "array"}}
+        },
+        "source": {"type": "object", "additionalProperties": false, "required": ["kind", "id", "programId", "references"], "properties": {"kind": {"enum": ["bg3-action", "item-use", "interaction"]}, "id": {"type": "string"}, "programId": {"type": ["string", "null"]}, "references": {"type": "array", "items": {"$ref": "#/$defs/reference"}}}}
+      }
+    }
+  }
+}

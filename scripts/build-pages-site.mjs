@@ -7,6 +7,7 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dataRoot = join(repositoryRoot, 'data', 'bg3');
 const outputRoot = join(repositoryRoot, '_site');
 const checkOnly = process.argv.slice(2).includes('--check');
+const runtimeFiles = ['economy-core.js', 'merchant-core.js', 'item-domain-model.js', 'definition-repository.js', 'ruleset-registry.js', 'persistence-core.js', 'action-kernel.js', 'chest-core.js', 'catalog-governance.js', 'world-state-core.js', 'ui-action-contract.js', 'projection-cache.js'];
 
 function invariant(value, message) {
   if (!value) throw new Error(message);
@@ -74,14 +75,18 @@ async function validateInputs() {
 
   const roots = [
     join(repositoryRoot, 'assets'),
+    join(repositoryRoot, 'data', 'rulesets'),
+    join(repositoryRoot, 'data', 'catalogs'),
     catalogRoot,
     ...uiNames.map(name => join(uiRoot, name)),
   ];
   const measurements = await Promise.all(roots.map(inspectTree));
   const indexBytes = (await stat(join(repositoryRoot, 'index.html'))).size;
+  const styleBytes = (await stat(join(repositoryRoot, 'styles.css'))).size;
   const currentBytes = (await stat(currentPath)).size;
-  const bytes = measurements.reduce((sum, row) => sum + row.bytes, indexBytes + currentBytes);
-  const files = measurements.reduce((sum, row) => sum + row.files, 3);
+  const runtimeBytes = (await Promise.all(runtimeFiles.map(name => stat(join(repositoryRoot, 'scripts', name))))).reduce((sum, row) => sum + row.size, 0);
+  const bytes = measurements.reduce((sum, row) => sum + row.bytes, indexBytes + styleBytes + currentBytes + runtimeBytes);
+  const files = measurements.reduce((sum, row) => sum + row.files, 4 + runtimeFiles.length);
   invariant(bytes < 10_000_000_000, 'current Pages artifact exceeds the 10 GB upload limit');
 
   return { currentPath, version, catalogRoot, uiRoot, uiNames, files, bytes };
@@ -90,8 +95,13 @@ async function validateInputs() {
 async function buildSite(inputs) {
   await rm(outputRoot, { recursive: true, force: true });
   await mkdir(join(outputRoot, 'data', 'bg3', 'ui'), { recursive: true });
+  await mkdir(join(outputRoot, 'scripts'), { recursive: true });
   await cp(join(repositoryRoot, 'index.html'), join(outputRoot, 'index.html'));
+  await cp(join(repositoryRoot, 'styles.css'), join(outputRoot, 'styles.css'));
+  for (const name of runtimeFiles) await cp(join(repositoryRoot, 'scripts', name), join(outputRoot, 'scripts', name));
   await cp(join(repositoryRoot, 'assets'), join(outputRoot, 'assets'), { recursive: true });
+  await cp(join(repositoryRoot, 'data', 'rulesets'), join(outputRoot, 'data', 'rulesets'), { recursive: true });
+  await cp(join(repositoryRoot, 'data', 'catalogs'), join(outputRoot, 'data', 'catalogs'), { recursive: true });
   await cp(inputs.currentPath, join(outputRoot, 'data', 'bg3', 'current.json'));
   await cp(inputs.catalogRoot, join(outputRoot, 'data', 'bg3', inputs.version), { recursive: true });
   for (const name of inputs.uiNames) {
@@ -108,5 +118,6 @@ process.stdout.write(`${JSON.stringify({
   output: checkOnly ? null : relative(repositoryRoot, outputRoot).replaceAll('\\', '/'),
   files: inputs.files,
   bytes: inputs.bytes,
+  runtime: runtimeFiles.map(name => `scripts/${name}`),
   ui: inputs.uiNames,
 }, null, 2)}\n`);

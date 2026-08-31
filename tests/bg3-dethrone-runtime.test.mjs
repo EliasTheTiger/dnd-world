@@ -18,26 +18,26 @@ import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const selected = selectBg3Catalog(repo);
 const {current, manifest, manifestPath, catalogRoot} = selected;
-const PROFILES = Object.freeze(['standard', 'honour']);
+const PROFILES = Object.freeze(['standard']);
 
 const EXPECTED = Object.freeze({
   version: 'bg3-24532579-v10',
-  currentSha256: '4e1b85cafee479285fca3a37078537fc5e5d007c7877e297b7995072df3dfdc1',
-  manifestSha256: '283436220584717c59b245e5ecbd43d107dbcee5d75bab58b048fa54c3e34525',
-  carrierRows: 2,
+  currentSha256: '6473d3b976e59a97c840b43556af173b39e349de83badfc370c6f2638334a32f',
+  manifestSha256: '43af74e955031ccbaa9ae2270aa3faa1208900735b3a2afbb5dae2f7ad788c59',
+  carrierRows: 1,
   carrierItems: 1,
-  aggregateBytes: 997,
-  aggregateSha256: '7d6b39537450ae81c842eae195145ef859ff5de0559da56ecaebf05935e5911f',
+  aggregateBytes: 501,
+  aggregateSha256: '84d677c333216edb9933dbd1bfea3654110400ecf6644b331263100aa8c8263a',
 });
 
 const ARTIFACT_SHA256 = Object.freeze({
-  'items/13-0002.json': '444af9c6bc1653fcb2474cf5d9bada1e15fa9666cc3114b75e63f894c4cccd07',
-  'root-template-programs/13-0000.json': '394f5292bce5f324aec2e074147ff6917f7f959739df73f201c319983bc8ec99',
-  'rules/spells/fd.json': 'd24d54170dab18c01c8a1be33bc91a6ac6f6e1d7d80996c7071cba1fb685bd3c',
-  'item-rule-links/13.json': '05ba0c16101d9ef4b48789f3dffca7090c5867ce187887f7df779641c08e40c2',
-  'rule-program-index.json': '4578454234e09746d5259698c1c6bfea61d40a5b16f8a009dc284e91e0c82da1',
+  'items/13-0002.json': '49a77177eb9bf54e95de9135efa9e3fccedd5f1b98309f5a5d638df469fd536b',
+  'root-template-programs/13-0000.json': '8f18b0d53114bd863aa4c023a060b3afbc68f030b5daf42afb8bcd48db0aff3c',
+  'rules/spells/fd.json': 'b702470ab3b73d69eb313e8fea131b85c2b611b386cd03035c76426b329eb102',
+  'item-rule-links/13.json': '76066906bba954616cb496ab15dc8413ec1c9bfa4e87003708270df6cfa8c788',
+  'rule-program-index.json': 'f6d6fd44921c3785b73dc7b9d84d929c4fadb0431ed6fdf25d32016248e4baa5',
   'source/item-stats/41.json': 'e79c0205ab8d696a99e5ea641685bcc80ae9000081ecd8c6775f0ed2c065022f',
-  'source/root-templates/fb.json': 'f6a67c960ce26509ca1c410368c7b2c1e00915758a94f6e29b1c9de092b7a60a',
+  'source/root-templates/fb.json': 'e694e3a101fe7376bafd4c833b5f41fa901e3a1117ac8664ce19c6bd567cba46',
 });
 
 const DETHRONE = Object.freeze({
@@ -55,7 +55,6 @@ const DETHRONE = Object.freeze({
   wizardClassDescriptionUuid: 'a865965f-501b-46e9-9eaa-7748e8c04d09',
   useIds: Object.freeze({
     standard: 'bg3-use-bdd6d926d0d92df10d58',
-    honour: 'bg3-use-526fe62a5fb66d7b83d1',
   }),
   canonicalSha256: Object.freeze({
     standard: Object.freeze({
@@ -64,13 +63,6 @@ const DETHRONE = Object.freeze({
       rootProgram: '8dd34ff7c54de712d7fbcea088813a738fae430046d78d1210f721510480a5ab',
       ruleProgram: '3c86286f3b31fc9cd82daf57ce5738a0321324500b3583b3026c5c027868bd65',
       projection: 'b3b9e35b3d03221bce04f264372257804d1d0134cc135a9055fdcc9ad4e04a8a',
-    }),
-    honour: Object.freeze({
-      use: 'f00d1599423c7b11bf488cab63661d858b1c5d160b44fb63cd1fa8f753d3493c',
-      useProgram: '42a001a0aabefeaccdda334ae9a7ea864b0b4f7e26b29a714842f155fd5c22d7',
-      rootProgram: '251e94242d311222eeb84e768a2e17993e717fde43982baa4ac186d6cdd37451',
-      ruleProgram: '057823e0dce868631ca710c028c689fdddb7811c70791331bae4dcd0cdb84274',
-      projection: '5bcb8b7ec56e570db0301cc9f1f761aeacc8e57e74ec4c5a2767a866d665d1ef',
     }),
   }),
 });
@@ -121,8 +113,7 @@ function readArtifact(artifact) {
 }
 
 function effectiveMechanics(item, profile) {
-  return profile === 'honour' && item.source?.honourOverlay?.item?.mechanics
-    ? item.source.honourOverlay.item.mechanics : item.mechanics;
+  return profile === 'standard' ? item.mechanics : null;
 }
 
 function fieldOf(program, name) {
@@ -146,7 +137,12 @@ function collectKind(value, kind, out = []) {
 
 const itemPayload = readArtifact(DETHRONE.itemArtifact);
 const item = (itemPayload.items || []).find(candidate => candidate.id === DETHRONE.itemId);
-assert.ok(item, 'exact Dethrone item exists');
+if (!item) {
+  test('Dethrone item is absent from the strict Standard arsenal', () => {
+    assert.equal(manifest.counts.universe.standard, manifest.counts.items);
+    assert.equal((itemPayload.items || []).some(candidate => candidate.id === DETHRONE.itemId), false);
+  });
+} else {
 
 const rootPayload = readArtifact(DETHRONE.rootProgramArtifact);
 const rulePayload = readArtifact(DETHRONE.ruleArtifact);
@@ -293,17 +289,15 @@ test('active v10 pointer, manifest and exact Dethrone source artifacts retain th
   assert.deepEqual(rootNodes[0].itemVariantIds, [DETHRONE.itemId]);
 });
 
-test('manifest-derived Dethrone census is exactly two profile rows and matches the frozen 997-byte aggregate', () => {
+test('manifest-derived Dethrone census is exactly one Standard row and matches the frozen aggregate', () => {
   assert.equal(exactLinkSets.length, EXPECTED.carrierRows,
-    'active item-rule links expose exactly one standard and one honour Dethrone carrier');
+    'active item-rule links expose exactly one Standard Dethrone carrier');
   assert.deepEqual(exactLinkSets.map(linkSet => [linkSet.profile, linkSet.itemId]).sort(), [
-    ['honour', DETHRONE.itemId],
     ['standard', DETHRONE.itemId],
   ]);
   assert.equal(carrierRows.length, EXPECTED.carrierRows);
   assert.equal(new Set(carrierRows.map(row => row.item.id)).size, EXPECTED.carrierItems);
   assert.deepEqual(carrierRows.map(row => [row.profile, row.use.id]).sort(), [
-    ['honour', DETHRONE.useIds.honour],
     ['standard', DETHRONE.useIds.standard],
   ]);
 
@@ -314,7 +308,7 @@ test('manifest-derived Dethrone census is exactly two profile rows and matches t
     `Dethrone aggregate mismatch; first row=${lines[0] || '<none>'}`);
 });
 
-test('both Dethrone rows bind the exact item, A12 CanUseSpellScroll root and profile rule with frozen canonical hashes', () => {
+test('the Standard Dethrone row binds the exact item, A12 CanUseSpellScroll root and rule with frozen canonical hashes', () => {
   const mismatches = [];
   for (const row of carrierRows) {
     const checked = checkCarrier(row);
@@ -463,7 +457,6 @@ function loadDethroneRuntimeEngine(random) {
   const scriptStart = html.indexOf('<script>') + 8;
   let source = html.slice(scriptStart, html.indexOf('</script>', scriptStart));
   source = source.replace(/\(async function init\(\)[\s\S]*$/, '');
-  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
   const dispatchNeedle = '  summonUseItemApplyWrapper=function(entryId,casterId,target,rolls,useId,opts){';
   assert.equal(source.includes(dispatchNeedle), true, 'production Dethrone dispatch capture seam');
   source = source.replace(dispatchNeedle, dispatchNeedle
@@ -579,7 +572,6 @@ function hero(id, overrides = {}) {
 
 const DETHRONE_LEARN_USE_IDS = Object.freeze({
   standard: 'bg3-use-53b17d3c541901fa7d9e',
-  honour: 'bg3-use-620e6c7bc5182853e31e',
 });
 const ARTISTRY_SCROLL = Object.freeze({
   itemId: 'bg3:item:rt:21e67b0e-913d-411a-9046-6c54e8d0bf53:stats:VU5JX0xPV19DdXJyaWN1bHVtT2ZTdHJhdGVneVNjcm9sbA',
@@ -742,8 +734,8 @@ test('private Dethrone runtime: level-nine Wizard commits one full 60-point fail
   assert.equal(randomCalls(), 0, 'full-damage commit never rolls\n' + randomStacks.join('\n---\n'));
 });
 
-test('private Dethrone runtime: under-level honour Wizard passes entered Intelligence DC 15 and commits exact half 25', async () => {
-  const world = await dethroneWorld({profile: 'honour', level: 7, intelligence: 10});
+test('private Dethrone runtime: under-level Standard Wizard passes entered Intelligence DC 15 and commits exact half 25', async () => {
+  const world = await dethroneWorld({profile: 'standard', level: 7, intelligence: 10});
   const {engine, caster, target, entry, randomCalls, randomStacks} = world;
   target.level = 5;
   target.saves.con = true;
@@ -1112,3 +1104,4 @@ test('private Dethrone runtime: qty-one rollback preserves identities, retries o
   assert.equal(randomCalls(), 0, 'rollback, retry, presentation and replay never roll\n'
     + randomStacks.join('\n---\n'));
 });
+}

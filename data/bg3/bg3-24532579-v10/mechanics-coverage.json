@@ -1,33 +1,33 @@
 {
   "schemaVersion": "bg3-mechanics-coverage/1",
   "catalogVersion": "bg3-24532579-v10",
-  "items": 10284,
+  "items": 10282,
   "modes": {
-    "structured": 9757,
-    "manual": 527
+    "structured": 9756,
+    "manual": 526
   },
   "profileKinds": {
-    "misc": 5760,
-    "magic": 372,
-    "food": 226,
-    "material": 106,
-    "water": 58,
-    "lore": 1409,
-    "weapon": 813,
-    "shield": 88,
+    "misc": 5758,
     "container": 482,
+    "weapon": 813,
+    "lore": 1409,
+    "food": 226,
+    "magic": 372,
+    "instrument": 38,
+    "scroll": 118,
     "light": 319,
     "potion": 149,
-    "poison": 10,
-    "scroll": 118,
-    "armor": 219,
-    "ammo": 36,
+    "shield": 88,
     "trap": 81,
-    "instrument": 38
+    "armor": 219,
+    "material": 106,
+    "ammo": 36,
+    "water": 58,
+    "poison": 10
   },
   "interactionBacked": 3451,
-  "equipmentStructured": 307,
-  "ruleGraphLinked": 9284,
+  "equipmentStructured": 2188,
+  "ruleGraphLinked": 9282,
   "directEffectMapped": 275,
   "directEffectEntries": 291,
   "directEffectPrimitives": {
@@ -52,7 +52,7 @@
     "typedOpcodes": 19956,
     "manualOpcodes": 2352,
     "playerRollRequests": 2205,
-    "rootTemplatePrograms": 35729,
+    "rootTemplatePrograms": 17864,
     "itemActions": {
       "items": 5034,
       "actions": 5178
@@ -61,22 +61,22 @@
       "items": 1245,
       "programs": 2498,
       "gates": {
-        "equipped": 949,
         "equipped-main-hand": 1499,
+        "equipped": 949,
+        "equipped-off-hand": 8,
         "on-hit": 27,
         "inventory": 13,
-        "equipped-off-hand": 8,
         "granted-action": 2
       },
       "kinds": {
-        "passive": 699,
         "spell": 1675,
+        "passive": 699,
         "status": 124
       },
       "inheritedDefaultsExecutable": 0
     }
   },
-  "manualExplicit": 527,
+  "manualExplicit": 526,
   "silentRuleDrops": 0,
   "note": "Rule references and nested RootTemplate actions are losslessly linked. Typed deterministic opcodes are compiled only from source Stats/LSX fields; unknown functors remain non-executable manual opcodes and localized text is never executable."
 }

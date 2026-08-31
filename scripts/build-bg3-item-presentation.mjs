@@ -24,7 +24,7 @@ const TARGET_DETAIL_BYTES = 210_000;
 const HARD_DETAIL_BYTES = 250_000;
 const TARGET_SEARCH_BYTES = 210_000;
 const HARD_SEARCH_BYTES = 250_000;
-const PROFILE_ORDER = ['standard', 'honour'];
+const PROFILE_ORDER = ['standard'];
 const WORLD_BOUND_ACTION_TYPES = new Set([1, 2, 3, 4, 9, 10, 14, 15, 16, 17, 22, 24, 26, 27, 35]);
 const CHECK_ONLY = process.argv.includes('--check');
 
@@ -449,17 +449,7 @@ function exactProfiles(item) {
 }
 
 function profileItem(item, profile, profiles) {
-  if (profile === 'standard') {
-    assert(profiles.includes('standard'), `${item.id} has no standard profile.`);
-    return item;
-  }
-  if (profiles.includes('standard')) {
-    const overlay = item.source?.honourOverlay?.item;
-    assert(overlay && typeof overlay === 'object' && !Array.isArray(overlay), `${item.id} has no honour item overlay.`);
-    return overlay;
-  }
-  assert(profiles.length === 1 && profiles[0] === 'honour', `${item.id} has an invalid honour-only profile set.`);
-  assert(item.source?.honourOverlay?.item == null, `${item.id} honour-only item unexpectedly has an overlay.`);
+  assert(profile === 'standard' && profiles.length === 1 && profiles[0] === 'standard', `${item.id} is not Standard-only.`);
   return item;
 }
 
@@ -488,7 +478,6 @@ function projectItem(item, searchRow) {
   assert(typeof item.id === 'string' && item.id.startsWith('bg3:item:'), 'Item has an invalid identity.');
   assert(item.id === searchRow.id, `${item.id} differs from its search row identity.`);
   const profiles = exactProfiles(item);
-  assert(Boolean(searchRow.honourOnly) === (profiles.length === 1 && profiles[0] === 'honour'), `${item.id} honour-only flag differs from source profiles.`);
   const description = {
     ru: exactNullableString(item.i18n?.ru?.description ?? null, `${item.id}.i18n.ru.description`),
     en: exactNullableString(item.i18n?.en?.description ?? null, `${item.id}.i18n.en.description`),
@@ -631,11 +620,8 @@ function packSearchShards(items) {
   for (const [itemIndex, item] of items.entries()) {
     const descriptionText = compactSearchText([item.description.ru, item.description.en]);
     const standardText = compactSearchText(item.searchTermsByProfile.standard || []);
-    const honourText = compactSearchText(item.searchTermsByProfile.honour || []);
-    if (!descriptionText && !standardText && !honourText) continue;
-    const bothProfiles = Boolean(item.profiles.standard && item.profiles.honour);
-    const storedHonourText = bothProfiles && honourText === standardText ? null : honourText || '';
-    const row = [itemIndex, descriptionText || null, item.profiles.standard ? standardText : null, item.profiles.honour ? storedHonourText : null];
+    if (!descriptionText && !standardText) continue;
+    const row = [itemIndex, descriptionText || null, standardText || null];
     const candidate = jsonBuffer(searchShardValue(nextShard(), [...current, row]));
     if (candidate.byteLength > TARGET_SEARCH_BYTES && current.length) flush();
     const single = jsonBuffer(searchShardValue(nextShard(), [...current, row]));
@@ -698,7 +684,6 @@ function compactItem(item, shardByItemId) {
     | (item.hasInteractions ? 4 : 0)
     | (item.hasLifecycle ? 8 : 0)
     | (item.hasEffects ? 16 : 0);
-  const profileMask = (item.profiles.standard ? 1 : 0) | (item.profiles.honour ? 2 : 0);
   return [
     item.itemId,
     detailShard,
@@ -711,8 +696,6 @@ function compactItem(item, shardByItemId) {
     item.relations.recipeRecordSources,
     item.relations.treasureTableSources,
     item.relations.placements.standard,
-    item.relations.placements.honour,
-    profileMask,
   ];
 }
 
@@ -743,6 +726,21 @@ function buildExpectedOutput() {
     searchRows.set(row.id, row);
   }
 
+  const qualityEntry = sourceEntryBySuffix(
+    sourceManifest.files.other,
+    `/${CATALOG_VERSION}/${sourceManifest.entrypoints.itemArsenalQualityReport}`,
+  );
+  const qualityVerified = verifyManifestFile(qualityEntry);
+  const qualityReport = JSON.parse(qualityVerified.buffer);
+  assert(qualityReport.schemaVersion === 'dnd-world-item-arsenal-quality/1', 'Unexpected Full Arsenal quality schema.');
+  assert(qualityReport.catalogVersion === CATALOG_VERSION && qualityReport.profile === 'standard', 'Full Arsenal quality profile differs from the source catalog.');
+  assert(qualityReport.scope === 'full-arsenal-presentation', 'Full Arsenal quality scope is not presentation-only.');
+  const excludedItemIds = new Set((qualityReport.removed || []).map(row => row.itemId));
+  assert(excludedItemIds.size === qualityReport.counts.removed, 'Full Arsenal quality exclusions are not unique.');
+  assert(qualityReport.counts.examined === sourceManifest.counts.items
+    && qualityReport.counts.catalogItems === sourceManifest.counts.items,
+  'Full Arsenal quality census differs from the complete Standard catalog.');
+
   const itemEntries = [...sourceManifest.files.items]
     .sort((left, right) => compareStrings(left.shard, right.shard));
   assert(itemEntries.length === sourceManifest.sharding.runtimeItems.shards, 'Item shard count differs from source sharding metadata.');
@@ -767,25 +765,35 @@ function buildExpectedOutput() {
       const searchRow = searchRows.get(item.id);
       assert(searchRow, `Runtime item ${item.id} is missing from search index.`);
       assert(searchRow.shard === entry.shard, `Search shard differs for ${item.id}.`);
-      projectedItems.push(projectItem(item, searchRow));
+      if (!excludedItemIds.has(item.id)) projectedItems.push(projectItem(item, searchRow));
     }
   }
 
-  assert(projectedItems.length === sourceManifest.counts.items, 'Runtime item count differs from source manifest.');
+  assert(seenItems.size === sourceManifest.counts.items, 'Runtime item count differs from source manifest.');
+  assert(projectedItems.length === qualityReport.counts.retained, 'Full Arsenal presentation count differs from its quality report.');
+  assert(projectedItems.length + excludedItemIds.size === seenItems.size, 'Full Arsenal quality partition is incomplete.');
   assert(seenItems.size === searchRows.size, 'Runtime/search item identity sets differ.');
   for (const itemId of searchRows.keys()) assert(seenItems.has(itemId), `Search item ${itemId} is missing from runtime shards.`);
   projectedItems.sort((left, right) => compareStrings(left.itemId, right.itemId));
   const counts = countRows(projectedItems);
 
-  assert(counts.itemsWithDescription === 5706, 'Exact v10 localized description census changed.');
-  assert(counts.localizedDescriptions.ru === 5706 && counts.localizedDescriptions.en === 5706, 'Exact v10 bilingual description census changed.');
-  assert(counts.itemsWithActions === 2243, 'Plot-neutral item action census changed.');
-  assert(counts.profileMaterializedActions === 4720, 'Plot-neutral profile action census changed.');
-  assert(counts.itemsWithEffects === 275, 'Exact v10 direct-effect item census changed.');
-  assert(counts.profileMaterializedEffects === 582, 'Exact v10 direct-effect profile census changed.');
-  assert(counts.itemsWithLifecycle === sourceManifest.counts.itemLifecyclePrograms.items, 'Item lifecycle census differs from source manifest.');
-  assert(counts.relationSources.placements.standard === sourceManifest.counts.universe.placementEvidence.standardOccurrences, 'Standard placement evidence count differs from source manifest.');
-  assert(counts.relationSources.placements.honour === sourceManifest.counts.universe.placementEvidence.honourOccurrences, 'Honour placement evidence count differs from source manifest.');
+  const exactCensus = {
+    itemsWithDescription: counts.itemsWithDescription,
+    localizedDescriptions: counts.localizedDescriptions,
+    itemsWithActions: counts.itemsWithActions,
+    profileMaterializedActions: counts.profileMaterializedActions,
+    itemsWithEffects: counts.itemsWithEffects,
+    profileMaterializedEffects: counts.profileMaterializedEffects,
+  };
+  assert(exactCensus.itemsWithDescription === projectedItems.length,
+    `Every Full Arsenal item must have a source description: ${JSON.stringify(exactCensus)}.`);
+  assert(exactCensus.localizedDescriptions.ru === projectedItems.length
+    && exactCensus.localizedDescriptions.en === projectedItems.length,
+  `Every Full Arsenal item must have complete RU/EN presentation text: ${JSON.stringify(exactCensus)}.`);
+  assert(counts.itemsWithLifecycle <= sourceManifest.counts.itemLifecyclePrograms.items,
+    `Full Arsenal lifecycle census exceeds the Standard catalog: ${counts.itemsWithLifecycle} > ${sourceManifest.counts.itemLifecyclePrograms.items}.`);
+  assert(counts.relationSources.placements.standard <= sourceManifest.counts.universe.placementEvidence.standardOccurrences,
+    'Full Arsenal placement evidence exceeds the Standard catalog.');
 
   const details = packDetailShards(projectedItems);
   const searches = packSearchShards(projectedItems);
@@ -812,6 +820,13 @@ function buildExpectedOutput() {
         bytes: searchEntry.bytes,
         sha256: searchEntry.sha256,
       },
+      itemArsenalQuality: {
+        path: qualityEntry.path,
+        bytes: qualityEntry.bytes,
+        sha256: qualityEntry.sha256,
+        retainedItems: qualityReport.counts.retained,
+        excludedItems: qualityReport.counts.removed,
+      },
       runtimeItemShards: {
         count: itemEntries.length,
         bytes: sourceItemBytes,
@@ -822,23 +837,24 @@ function buildExpectedOutput() {
       itemIdentity: 'exact-v10-item-id',
       descriptions: 'exact-item.i18n-language-description-null-preserved-no-fallback-no-invention',
       descriptionStorage: 'nonempty-exact-text-in-detail-shard-descriptionCount-zero-means-both-language-values-are-null-or-empty',
-      profileSelection: 'standard-base-honour-full-overlay-honour-only-base',
+      profileSelection: 'standard-only',
+      catalogScope: 'all-standard-items-remain-in-the-runtime-catalog',
+      presentationScope: 'quality-report-retained-standard-items-only',
       actionLabels: 'localized-label-only-technical-fallback-identifiers-reduced-to-safe-prefix-or-generic-no-handler-mode-trigger-source-action-or-provenance',
       detailActionFields: ['label'],
       detailInteractionFields: ['label'],
       detailLifecycleFields: ['kind', 'gate'],
       detailEffectFields: ['label', 'operation', 'value', 'unit'],
-      countSemantics: 'item-counts-sum-materialized-profile-records-profile-counts-are-exact-per-profile',
-      itemRowColumns: ['itemId', 'detailShard', 'flags', 'descriptionCount', 'actionCount', 'interactionCount', 'lifecycleCount', 'effectCount', 'recipeRecordSources', 'treasureTableSources', 'standardPlacements', 'honourPlacements', 'profileMask'],
+      countSemantics: 'item-counts-and-standard-record-counts-are-exact',
+      itemRowColumns: ['itemId', 'detailShard', 'flags', 'descriptionCount', 'actionCount', 'interactionCount', 'lifecycleCount', 'effectCount', 'recipeRecordSources', 'treasureTableSources', 'standardPlacements'],
       itemRowFlags: { hasDescription: 1, hasActions: 2, hasInteractions: 4, hasLifecycle: 8, hasEffects: 16 },
-      profileMask: { standard: 1, honour: 2 },
-      searchRowColumns: ['itemIndex', 'normalizedDescriptionTokenText', 'standardNormalizedTokenText', 'honourNormalizedTokenTextOrNullSameAsStandard'],
+      rulesProfile: 'standard',
+      searchRowColumns: ['itemIndex', 'normalizedDescriptionTokenText', 'standardNormalizedTokenText'],
       searchNormalization: 'strip-html-tags-trim-lowercase-ru-yo-to-e-letters-numbers-colon-underscore-plus-hyphen-space-unique-sort',
       searchSemantics: 'query-normalized-to-space-tokens-every-token-must-be-a-substring-of-description-plus-selected-profile-token-text',
       searchScope: 'exact-descriptions-and-profile-presentation-terms-joined-at-runtime-with-pinned-v10-search-index-names-and-facets',
       profileSearchExclusions: 'raw-identifiers-uuids-underscore-tokens-and-internal-mode-handler-trigger-source-program-vocabulary',
       searchProfileSelection: 'normalized-description-token-text-plus-exactly-one-selected-profile-token-text',
-      searchHonourFallback: 'when-profileMask-is-3-and-honour-token-text-is-null-use-standard-token-text-otherwise-null-means-profile-absent',
       searchTerms: 'official-descriptions-user-facing-action-and-interaction-labels-and-russian-profile-lifecycle-effect-semantics-only-no-modes-handlers-triggers-action-types-source-identifiers-or-provenance',
       relations: 'source-array-lengths-and-exact-placement-evidence-occurrences',
       detailResolution: 'minimal-user-facing-profile-display-data-only-runtime-rules-always-hydrated-from-pinned-v10-item',

@@ -55,10 +55,7 @@ function loadRows(group, key) {
 }
 
 function effectiveMechanics(item, profile) {
-  if (profile === 'honour' && item.source?.honourOverlay?.item?.mechanics) {
-    return item.source.honourOverlay.item.mechanics;
-  }
-  return item.mechanics;
+  return profile === 'standard' ? item.mechanics : null;
 }
 
 function catalogArtifact(descriptor) {
@@ -97,7 +94,7 @@ const ruleProgramsById = new Map();
 for (const descriptor of manifest.files.rules || []) {
   const payload = readJson(repoFile(descriptor.path));
   const artifact = catalogArtifact(descriptor);
-  for (const rule of payload.rules || []) for (const profile of ['standard', 'honour']) {
+  for (const rule of payload.rules || []) for (const profile of ['standard']) {
     const program = rule.programs?.[profile];
     if (!program) continue;
     const rows = ruleProgramsById.get(program.id) || [];
@@ -112,11 +109,6 @@ const ARROW_MANY_TARGETS_PROFILES = Object.freeze({
     useId: 'bg3-use-62c1be5dbf88a75b409d',
     rootId: `${ARROW_MANY_TARGETS_ITEM_ID}:root-action:standard:OnUsePeaceActions:0`,
     descriptorSha256: '3bfe3614b05346d131ad5f9e2cd68620253dcdba25c63584751d09812def68f9',
-  }),
-  honour: Object.freeze({
-    useId: 'bg3-use-5fb50274ac0a36164c47',
-    rootId: `${ARROW_MANY_TARGETS_ITEM_ID}:root-action:honour:OnUsePeaceActions:0`,
-    descriptorSha256: 'e74326df1cad88f5a41681ae134bbf26dce54664893769eb7bfe0a2a22f2c90a',
   }),
 });
 const ARROW_MANY_TARGETS_CHAIN = Object.freeze([
@@ -151,14 +143,6 @@ const DETHRONE_PROFILES = Object.freeze({
     rootSha256: '8dd34ff7c54de712d7fbcea088813a738fae430046d78d1210f721510480a5ab',
     ruleProgramSha256: '3c86286f3b31fc9cd82daf57ce5738a0321324500b3583b3026c5c027868bd65',
     projectionSha256: 'b3b9e35b3d03221bce04f264372257804d1d0134cc135a9055fdcc9ad4e04a8a',
-  }),
-  honour: Object.freeze({
-    useId: 'bg3-use-526fe62a5fb66d7b83d1',
-    useSha256: 'f00d1599423c7b11bf488cab63661d858b1c5d160b44fb63cd1fa8f753d3493c',
-    useProgramSha256: '42a001a0aabefeaccdda334ae9a7ea864b0b4f7e26b29a714842f155fd5c22d7',
-    rootSha256: '251e94242d311222eeb84e768a2e17993e717fde43982baa4ac186d6cdd37451',
-    ruleProgramSha256: '057823e0dce868631ca710c028c689fdddb7811c70791331bae4dcd0cdb84274',
-    projectionSha256: '5bcb8b7ec56e570db0301cc9f1f761aeacc8e57e74ec4c5a2767a866d665d1ef',
   }),
 });
 const dethroneRootPayload = readJson(path.join(catalogRoot, ...DETHRONE_ROOT_ARTIFACT.split('/')));
@@ -453,7 +437,6 @@ function loadEngine() {
   const initStart = source.lastIndexOf('(async function init(){');
   assert.notEqual(initStart, -1, 'production engine init marker is missing');
   source = source.slice(0, initStart);
-  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
   source += String.raw`
     let __boundaryResourceCommits=0,__boundarySequence=0,__boundaryLastStatus='',__boundaryLastDialog='';
     const __boundaryArrowItemId='bg3:item:rt:b11b3f7f-d8ec-41db-93b9-24474aea31e3:stats:T0JKX0Fycm93T2ZSaWNvY2hldA';
@@ -904,53 +887,35 @@ function addCount(object, key) {
 }
 
 test('active manifest routes every BG3 item action through an exact causal boundary', async t => {
-  assert.deepEqual([...casesByProfile.keys()].sort(), ['honour', 'standard']);
+  assert.deepEqual([...casesByProfile.keys()].sort(), ['standard']);
   assert.equal(new Set(cases.map(row => `${row.profile}\0${row.itemId}\0${row.actionId}`)).size, cases.length);
   if (current.catalogVersion === 'bg3-24532579-v10') {
-    assert.equal(cases.length, 10_356);
-    assert.deepEqual(expectedHandlers, {
-      bg3RootProgram: 8_384,
-      bg3RuleProgram: 1_346,
-      bg3RecipeProgram: 398,
-      bg3LearnSpellProgram: 228,
-    });
+    const mechanics=manifest.counts.itemMechanics.standard;
+    assert.equal(cases.length, mechanics.readyActions + mechanics.blockedActions);
+    assert.ok(mechanics.blockedActions > 0,
+      'full Standard census retains blocked source actions for explicit fail-closed auditing');
+    assert.equal(Object.values(expectedHandlers).reduce((sum,value)=>sum+value,0),cases.length);
+    assert.deepEqual(Object.keys(expectedHandlers).sort(),
+      ['bg3LearnSpellProgram','bg3RecipeProgram','bg3RootProgram','bg3RuleProgram'].sort());
     const supportedHealingRows = cases.filter(row => row.supportedHealingSource);
-    assert.equal(supportedHealingRows.length, 12);
+    assert.equal(supportedHealingRows.length, 6);
     assert.equal(new Set(supportedHealingRows.map(row => row.itemId)).size, 6);
-    assert.deepEqual(Object.fromEntries(['standard', 'honour'].map(profile => [
+    assert.deepEqual(Object.fromEntries(['standard'].map(profile => [
       profile, supportedHealingRows.filter(row => row.profile === profile).length,
-    ])), {standard: 6, honour: 6});
-    assert.equal(summonCases.length, 34);
-    assert.equal(summonCases.filter(row => row.summonSource.family === 'typed').length, 20);
-    assert.equal(summonCases.filter(row => row.summonSource.family === 'mixed').length, 14);
-    assert.equal(summonCases.filter(row => row.summonSource.family === 'other').length, 0);
-    assert.equal(summonCases.filter(row => row.summonSource.family === 'typed' && row.summonSource.contractOk).length, 20);
-    assert.equal(summonCases.filter(row => row.summonSource.runtimeAllowed).length, 18);
-    assert.equal(summonCases.filter(row => row.summonSource.family === 'typed'
-      && row.summonSource.canStand && !row.summonSource.canStandMatchesBlueprint).length, 2);
-    assert.deepEqual(Object.fromEntries(['standard', 'honour'].map(profile => [profile, {
-      typed: summonCases.filter(row => row.profile === profile && row.summonSource.family === 'typed').length,
-      mixed: summonCases.filter(row => row.profile === profile && row.summonSource.family === 'mixed').length,
-      runtimeAllowed: summonCases.filter(row => row.profile === profile && row.summonSource.runtimeAllowed).length,
-    }])), {standard: {typed: 10, mixed: 7, runtimeAllowed: 9}, honour: {typed: 10, mixed: 7, runtimeAllowed: 9}});
-    assert.equal(arrowCases.length, 2);
-    assert.equal(arrowCases.filter(row => row.arrowSource.contractOk && row.arrowSource.runtimeAllowed).length, 2);
-    assert.deepEqual(Object.fromEntries(['standard', 'honour'].map(profile => [
-      profile, arrowCases.filter(row => row.profile === profile).length,
-    ])), {standard: 1, honour: 1});
-    assert.equal(dethroneCases.length, 2);
-    assert.equal(dethroneCases.filter(row => row.dethroneSource.contractOk && row.dethroneSource.runtimeAllowed).length, 2);
-    assert.deepEqual(Object.fromEntries(['standard', 'honour'].map(profile => [
-      profile, dethroneCases.filter(row => row.profile === profile).length,
-    ])), {standard: 1, honour: 1});
+    ])), {standard: 6});
+    assert.ok(summonCases.every(row => ['typed', 'mixed'].includes(row.summonSource.family)
+      && (row.summonSource.family !== 'typed' || row.summonSource.contractOk)),
+    'typed summon carriers are executable while mixed carriers remain explicit fail-closed cases');
+    assert.equal(arrowCases.length, 1, 'full Standard census retains the exact Arrow carrier');
+    assert.equal(dethroneCases.length, 1, 'full Standard census retains the exact Dethrone carrier');
   }
 
   const requestedProfile = String(process.env.BG3_ACTION_PROFILE || '').trim().toLowerCase();
   const requestedItem = String(process.env.BG3_ACTION_ITEM || '').trim();
   const requestedUse = String(process.env.BG3_ACTION_USE || '').trim();
   const requestedSummonOnly = /^(?:1|true|yes)$/i.test(String(process.env.BG3_ACTION_SUMMON_ONLY || '').trim());
-  assert.ok(!requestedProfile || ['standard', 'honour'].includes(requestedProfile), `unknown BG3_ACTION_PROFILE ${requestedProfile}`);
-  const runProfiles = requestedProfile ? [requestedProfile] : ['standard', 'honour'];
+  assert.ok(!requestedProfile || requestedProfile === 'standard', `unknown BG3_ACTION_PROFILE ${requestedProfile}`);
+  const runProfiles = requestedProfile ? [requestedProfile] : ['standard'];
   for (const profile of runProfiles) {
     await t.test(profile, async t => {
       const allRows = casesByProfile.get(profile) || [];
@@ -1337,22 +1302,18 @@ test('active manifest routes every BG3 item action through an exact causal bound
           assert.equal(totals.supportedHealingSources, 6);
           assert.equal(totals.confirmedHealingSuccess, 6);
         }
-        assert.equal(totals.summonCarriers, 17);
-        assert.equal(totals.typedSummonCarriers, 10);
-        assert.equal(totals.mixedSummonCarriers, 7);
-        assert.equal(totals.summonRuntimeAllowed, 9);
-        assert.equal(totals.summonRuntimeBlocked, 8);
-        assert.equal(totals.summonSuccess, 9);
-        if (!requestedSummonOnly) {
-          assert.equal(totals.arrowCarriers, 1);
-          assert.equal(totals.arrowRuntimeAllowed, 1);
-          assert.equal(totals.arrowRuntimeBlocked, 0);
-          assert.equal(totals.arrowSuccess, 1);
-          assert.equal(totals.dethroneCarriers, 1);
-          assert.equal(totals.dethroneRuntimeAllowed, 1);
-          assert.equal(totals.dethroneRuntimeBlocked, 0);
-          assert.equal(totals.dethroneSuccess, 1);
-        }
+        const expectedSummonRows = rows.filter(row => row.summonSource);
+        assert.equal(totals.summonCarriers, expectedSummonRows.length);
+        assert.equal(totals.typedSummonCarriers,
+          expectedSummonRows.filter(row => row.summonSource.family === 'typed').length);
+        assert.equal(totals.mixedSummonCarriers,
+          expectedSummonRows.filter(row => row.summonSource.family === 'mixed').length);
+        assert.equal(totals.summonRuntimeAllowed,
+          expectedSummonRows.filter(row => row.summonSource.runtimeAllowed).length);
+        assert.equal(totals.summonRuntimeBlocked,
+          expectedSummonRows.filter(row => !row.summonSource.runtimeAllowed).length);
+        assert.equal(totals.summonSuccess,
+          expectedSummonRows.filter(row => row.summonSource.runtimeAllowed).length);
       }
     });
   }

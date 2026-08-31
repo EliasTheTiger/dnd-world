@@ -5,17 +5,13 @@
     "definitions": 59023,
     "duplicateInstanceUuids": 3,
     "files": 401,
-    "honourDirectStatsOccurrences": 1290,
-    "honourDirectTemplateStatsPairs": 608,
-    "honourEffectiveInstances": 59020,
     "standardDirectStatsOccurrences": 1290,
     "standardDirectTemplateStatsPairs": 608,
     "standardEffectiveInstances": 59019,
     "uniqueInstances": 59020,
     "placements": 59020,
     "profiles": {
-      "standard": 59019,
-      "honour": 59020
+      "standard": 59019
     },
     "variantResolution": {
       "level-instance.stats": 2580,
@@ -34,6 +30,12 @@
     },
     "directActionTypes": {
       "1": 192,
+      "3": 398,
+      "4": 2,
+      "5": 78,
+      "7": 11,
+      "8": 950,
+      "9": 65,
       "10": 15,
       "11": 679,
       "12": 20,
@@ -47,17 +49,11 @@
       "26": 86,
       "27": 4,
       "28": 3,
-      "3": 398,
       "30": 1,
       "31": 5,
       "32": 2,
       "34": 1,
-      "35": 42,
-      "4": 2,
-      "5": 78,
-      "7": 11,
-      "8": 950,
-      "9": 65
+      "35": 42
     },
     "directScriptDeclarations": 3771,
     "directScriptOverrideDeclarations": 340
@@ -84,15 +80,6 @@
       "Gustav",
       "GustavDev",
       "GustavX"
-    ],
-    "honour": [
-      "Shared",
-      "SharedDev",
-      "Gustav",
-      "GustavDev",
-      "GustavX",
-      "Honour",
-      "HonourX"
     ]
   },
   "collisions": [
@@ -103,8 +90,7 @@
         "bg3:placement-definition:2c5bca7e-8649-4217-9ebb-52b20a506e99:b19185b55491e5a2199650d3"
       ],
       "selectedByProfile": {
-        "standard": "bg3:placement-definition:2c5bca7e-8649-4217-9ebb-52b20a506e99:1371b4330d4ed763c7cd3166",
-        "honour": "bg3:placement-definition:2c5bca7e-8649-4217-9ebb-52b20a506e99:1371b4330d4ed763c7cd3166"
+        "standard": "bg3:placement-definition:2c5bca7e-8649-4217-9ebb-52b20a506e99:1371b4330d4ed763c7cd3166"
       }
     },
     {
@@ -114,8 +100,7 @@
         "bg3:placement-definition:655333cd-32a6-41ce-b1b1-2edb74e23317:44c7e7dc7d88a929d9218c48"
       ],
       "selectedByProfile": {
-        "standard": "bg3:placement-definition:655333cd-32a6-41ce-b1b1-2edb74e23317:44c7e7dc7d88a929d9218c48",
-        "honour": "bg3:placement-definition:655333cd-32a6-41ce-b1b1-2edb74e23317:44c7e7dc7d88a929d9218c48"
+        "standard": "bg3:placement-definition:655333cd-32a6-41ce-b1b1-2edb74e23317:44c7e7dc7d88a929d9218c48"
       }
     },
     {
@@ -125,8 +110,7 @@
         "bg3:placement-definition:f938e0a4-fb50-4d69-8b40-18e9bba30a22:9800b14d4ce2ec7248938183"
       ],
       "selectedByProfile": {
-        "standard": "bg3:placement-definition:f938e0a4-fb50-4d69-8b40-18e9bba30a22:9800b14d4ce2ec7248938183",
-        "honour": "bg3:placement-definition:f938e0a4-fb50-4d69-8b40-18e9bba30a22:9800b14d4ce2ec7248938183"
+        "standard": "bg3:placement-definition:f938e0a4-fb50-4d69-8b40-18e9bba30a22:9800b14d4ce2ec7248938183"
       }
     }
   ],
@@ -137,17 +121,10 @@
   "sourceBuildId": "24532579",
   "variantUniverse": {
     "standard": 10282,
-    "honour": 10284,
     "union": 10284,
     "both": 10282,
-    "honourOnly": 2,
     "standardBreakdown": {
       "pair": 9995,
-      "template-only": 134,
-      "stats-only": 153
-    },
-    "honourBreakdown": {
-      "pair": 9997,
       "template-only": 134,
       "stats-only": 153
     },
@@ -160,28 +137,16 @@
         "removedStandaloneVariants": 78,
         "calculatedExpected": 10282,
         "actual": 10282
-      },
-      "honour": {
-        "baseline": 9979,
-        "placementPairs": 608,
-        "addedVariants": 383,
-        "removedStandaloneVariants": 78,
-        "calculatedExpected": 10284,
-        "actual": 10284
       }
     },
     "placementEvidence": {
       "standardPairs": 608,
-      "honourPairs": 608,
       "standardOccurrences": 1290,
-      "honourOccurrences": 1290,
       "unresolvedRoots": {
-        "standard": [],
-        "honour": []
+        "standard": []
       },
       "unresolvedPairs": {
-        "standard": [],
-        "honour": []
+        "standard": []
       }
     }
   },

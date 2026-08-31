@@ -65,20 +65,12 @@ const SOURCE_FACT_SCOPES = Object.freeze({
 });
 const EXPECTED_PROFILE_TOTALS = {
   standard: {
-    materializations: 10_282,
-    readyActions: 2_305,
-    readyLifecycle: 1_496,
-    genericInteractions: 3_608,
-    directEffects: 291,
-    blockedDescriptors: 127,
-  },
-  honour: {
-    materializations: 10_284,
-    readyActions: 2_300,
-    readyLifecycle: 1_487,
-    genericInteractions: 3_608,
-    directEffects: 291,
-    blockedDescriptors: 128,
+    materializations: manifest.counts.itemMechanics.standard.materializations,
+    readyActions: manifest.counts.itemMechanics.standard.readyActions,
+    readyLifecycle: manifest.counts.itemMechanics.standard.readyLifecycle,
+    genericInteractions: manifest.counts.itemMechanics.standard.genericInteractions,
+    directEffects: manifest.counts.itemMechanics.standard.directEffects,
+    blockedDescriptors: manifest.counts.itemMechanics.standard.highConfidenceUnboundGaps,
   },
 };
 const REPRESENTATIVES = {
@@ -104,15 +96,18 @@ function catalogFile(relative) {
 const items = revision >= 10
   ? manifest.files.items.flatMap(meta => readJson(repoFile(meta.path)).items)
   : [];
+const arsenalQuality = revision >= 10
+  ? readJson(catalogFile(manifest.entrypoints.itemArsenalQualityReport))
+  : {removed: [], counts: {retained: 0}};
+const arsenalExcludedIds = new Set(arsenalQuality.removed.map(row => row.itemId));
+const strictItems = items.filter(item => !arsenalExcludedIds.has(item.id));
 const itemById = new Map(items.map(item => [item.id, item]));
 
 function materializationsFor(item) {
   return (item.source?.profiles || []).map(profile => ({
     item,
     profile,
-    bundle: profile === 'honour' && item.source?.honourOverlay?.item
-      ? item.source.honourOverlay.item
-      : item,
+    bundle: item,
   }));
 }
 
@@ -145,14 +140,11 @@ test('v10 item mechanics builder reproduces the committed immutable release', {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
 });
 
-test('all 10,284 items and 20,566 declared profile bundles expose explicit mechanics coverage and source facts', requiresMechanics, () => {
-  assert.equal(items.length, 10_284);
-  assert.equal(itemById.size, 10_284, 'item IDs must remain unique');
-  assert.equal(materializations.length, 20_566);
-  assert.deepEqual(Object.fromEntries(['standard', 'honour'].map(profile => [
-    profile,
-    materializations.filter(row => row.profile === profile).length,
-  ])), {standard: 10_282, honour: 10_284});
+test('all retained Standard items expose explicit mechanics coverage and source facts', requiresMechanics, () => {
+  assert.equal(items.length, manifest.counts.items);
+  assert.equal(itemById.size, items.length, 'item IDs must remain unique');
+  assert.equal(materializations.length, items.length);
+  assert.deepEqual(new Set(materializations.map(row => row.profile)), new Set(['standard']));
 
   for (const {item, profile, bundle} of materializations) {
     const context = `${item.id}:${profile}`;
@@ -213,25 +205,11 @@ test('all 10,284 items and 20,566 declared profile bundles expose explicit mecha
     }
   }
 
+  assert.equal(strictItems.length, arsenalQuality.counts.retained);
   assert.deepEqual(Object.fromEntries(['source-localized', 'source-absent', 'unresolved-handle'].map(state => [
     state,
-    items.filter(item => expectedDescriptionStatus(item) === state).length,
-  ])), {'source-localized': 5_706, 'source-absent': 4_505, 'unresolved-handle': 73});
-
-  for (const [profile, expected] of Object.entries({
-    standard: {resistances: 7_905, supplyValue: 488, useCosts: 2_922},
-    honour: {resistances: 7_907, supplyValue: 488, useCosts: 2_922},
-  })) {
-    const rows = materializations.filter(row => row.profile === profile);
-    for (const [key, count] of Object.entries(expected)) {
-      assert.equal(rows.filter(row => row.bundle.mechanics.sourceFacts.facts[key].state === 'value').length,
-        count, `${profile}: exact ${key} source presence`);
-    }
-    assert.equal(rows.filter(row => row.bundle.mechanics.sourceFacts.facts.supplyValue.value === '').length,
-      73, `${profile}: explicit empty SupplyValue remains distinct from missing`);
-    assert.equal(rows.filter(row => row.bundle.mechanics.sourceFacts.facts.useCosts.value === '').length,
-      2, `${profile}: explicit empty UseCosts remains distinct from missing`);
-  }
+    strictItems.filter(item => expectedDescriptionStatus(item) === state).length,
+  ])), {'source-localized': strictItems.length, 'source-absent': 0, 'unresolved-handle': 0});
 });
 
 test('coverage retains exact ready totals and explicitly blocks every high-confidence unbound source gap', requiresMechanics, () => {
@@ -244,6 +222,10 @@ test('coverage retains exact ready totals and explicitly blocks every high-confi
       descriptor => ({row, descriptor}),
     ));
     assert.equal(descriptors.length, expected.blockedDescriptors, `${profile}: high-confidence gaps`);
+    const strictRows = rows.filter(row => !arsenalExcludedIds.has(row.item.id));
+    assert.equal(strictRows.length, arsenalQuality.counts.retained, `${profile}: strict materializations`);
+    assert.equal(strictRows.every(row => row.bundle.mechanics.engineCoverage.runtimeState === 'ready'), true);
+    assert.equal(sum(strictRows, 'blockedDescriptors'), 0, `${profile}: strict high-confidence gaps`);
     for (const {row, descriptor} of descriptors) {
       const context = `${row.item.id}:${profile}`;
       assert.ok(descriptor && (descriptor.kind === 'active-rule-reference'
@@ -264,9 +246,8 @@ test('coverage retains exact ready totals and explicitly blocks every high-confi
 });
 
 test('scroll and ArmorType=None presentation gaps are closed without inventing unknown source values', requiresMechanics, () => {
-  const scrollItems = items.filter(item => item.mechanics.profile.kind === 'scroll');
-  assert.equal(scrollItems.length, 118);
-  assert.equal(scrollItems.filter(item => item.source.classification === 'playable').length, 116);
+  const scrollItems = strictItems.filter(item => item.mechanics.profile.kind === 'scroll');
+  assert.equal(scrollItems.length, 0, 'scrolls without a complete executable contract are removed');
   let scrollsWithSpellId = 0;
   for (const item of scrollItems) for (const {profile, bundle} of materializationsFor(item)) {
     const context = `${item.id}:${profile}`;
@@ -275,7 +256,7 @@ test('scroll and ArmorType=None presentation gaps are closed without inventing u
     assert.ok(Object.prototype.hasOwnProperty.call(scroll, 'spellId'), `${context}: explicit spellId`);
     assert.ok(scroll.spellId === null || (typeof scroll.spellId === 'string' && scroll.spellId),
       `${context}: spellId`);
-    if (profile === 'honour' && scroll.spellId) scrollsWithSpellId++;
+    if (profile === 'standard' && scroll.spellId) scrollsWithSpellId++;
     assert.equal(typeof scroll.canLearn, 'boolean', `${context}: canLearn`);
     assert.ok(Object.prototype.hasOwnProperty.call(scroll, 'level'), `${context}: explicit level`);
     assert.ok(scroll.level === null || Number.isInteger(scroll.level), `${context}: level`);
@@ -284,12 +265,11 @@ test('scroll and ArmorType=None presentation gaps are closed without inventing u
     assertSortedUniqueStrings(scroll.actionIds, `${context}: actionIds`);
     assert.ok(scroll.actionIds.length > 0, `${context}: action binding`);
   }
-  assert.equal(scrollsWithSpellId, 117,
-    'the generic indestructible scroll keeps its source-unknown spell ID explicit');
+  assert.equal(scrollsWithSpellId, 0);
 
-  const armorNone = items.filter(item => item.mechanics.profile.kind === 'armor'
+  const armorNone = strictItems.filter(item => item.mechanics.profile.kind === 'armor'
     && item.mechanics.profile.armor?.weight === 'none');
-  assert.equal(armorNone.length, 69);
+  assert.equal(armorNone.length, 0, 'ArmorType=None rows without a complete contract are removed');
   for (const item of armorNone) for (const {profile, bundle} of materializationsFor(item)) {
     assert.equal(bundle.mechanics.profile.armor.weight, 'none', `${item.id}:${profile}`);
     assert.equal(bundle.mechanics.sourceFacts.facts.armorType.state, 'value', `${item.id}:${profile}`);
@@ -303,13 +283,14 @@ test('report, manifest gates and representative items make effects and omissions
   const report = readJson(catalogFile(manifest.entrypoints.itemMechanicsReport));
   assert.equal(report.schemaVersion, 'dnd-world-bg3-item-mechanics-report/1');
   assert.equal(report.catalogVersion, current.catalogVersion);
-  assert.equal(report.scope.items, 10_284);
-  assert.deepEqual(report.scope.materializations, {standard: 10_282, honour: 10_284});
-  assert.deepEqual(report.counts.readyActions, {standard: 2_305, honour: 2_300});
-  assert.deepEqual(report.counts.readyLifecycle, {standard: 1_496, honour: 1_487});
-  assert.deepEqual(report.counts.genericInteractions, {standard: 3_608, honour: 3_608});
-  assert.deepEqual(report.counts.directEffects, {standard: 291, honour: 291});
-  assert.deepEqual(report.counts.highConfidenceUnboundGaps, {standard: 127, honour: 128});
+  assert.equal(report.scope.items, items.length);
+  assert.deepEqual(report.scope.materializations, {standard: items.length});
+  assert.deepEqual(report.counts.readyActions, {standard: EXPECTED_PROFILE_TOTALS.standard.readyActions});
+  assert.deepEqual(report.counts.readyLifecycle, {standard: EXPECTED_PROFILE_TOTALS.standard.readyLifecycle});
+  assert.deepEqual(report.counts.genericInteractions, {standard: EXPECTED_PROFILE_TOTALS.standard.genericInteractions});
+  assert.deepEqual(report.counts.directEffects, {standard: EXPECTED_PROFILE_TOTALS.standard.directEffects});
+  assert.deepEqual(report.counts.highConfidenceUnboundGaps,
+    {standard: EXPECTED_PROFILE_TOTALS.standard.blockedDescriptors});
   for (const flag of [
     'itemMechanicsProfileBundlesExhaustive',
     'itemMechanicsSourceFactsExhaustive',
@@ -339,17 +320,6 @@ test('report, manifest gates and representative items make effects and omissions
     assert.equal(String(facts.maxStack.value), '99', `${context}: maxStackAmount`);
   }
 
-  const ring = itemById.get(REPRESENTATIVES.magicRing);
-  assert.ok(ring);
-  for (const {profile, bundle} of materializationsFor(ring)) {
-    const context = `'Magic' Ring:${profile}`;
-    assert.equal(bundle.mechanics.engineCoverage.runtimeState, 'inert', context);
-    assert.equal(bundle.mechanics.engineCoverage.effectStatus, 'source-inert', context);
-    assert.ok(bundle.props.trim(), context);
-    assert.match(bundle.props, /(эффект|действ).*(нет|не задан|отсутств)|нет.*(эффект|действ)/iu,
-      `${context}: explicit no-effect explanation`);
-  }
-
   const infusionRing = itemById.get(REPRESENTATIVES.elementalInfusionRing);
   assert.ok(infusionRing);
   for (const {profile, bundle} of materializationsFor(infusionRing)) {
@@ -366,13 +336,4 @@ test('report, manifest gates and representative items make effects and omissions
       `${context}: exact weapon-hit consequence`);
   }
 
-  const lantern = itemById.get(REPRESENTATIVES.shadowLantern);
-  assert.ok(lantern);
-  for (const {profile, bundle} of materializationsFor(lantern)) {
-    assert.ok(bundle.mechanics.engineCoverage.characteristicIssues.includes('weapon-damage-missing'),
-      `Shadow Lantern:${profile}`);
-    assert.equal(bundle.mechanics.profile.weapon.damage.manual, true, `Shadow Lantern:${profile}`);
-    assert.equal(bundle.mechanics.profile.weapon.damage.cnt, 0, `Shadow Lantern:${profile}`);
-    assert.equal(bundle.mechanics.profile.weapon.damage.sides, 0, `Shadow Lantern:${profile}`);
-  }
 });

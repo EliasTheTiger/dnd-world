@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>D&amp;D World — пользовательская проверка экономики</title>
+  <style>
+    body{font:15px/1.4 system-ui,sans-serif;margin:24px;background:#f7f1df;color:#251c15}
+    h1{margin:0 0 8px}.summary{position:sticky;top:0;background:#fff8e7;border:1px solid #9a7b48;padding:12px;z-index:2}
+    #cases{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;margin-top:14px}
+    .case{display:flex;align-items:center;gap:8px;border:1px solid #c9b58c;background:white;padding:8px;text-align:left}
+    .case[data-status="passed"]{border-color:#397543;background:#edf8ee}.case[data-status="failed"]{border-color:#a52c2c;background:#fff0f0}
+    .status{margin-left:auto;font-weight:700}.failure{color:#9e241c;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <h1>Пользовательская матрица экономики</h1>
+  <p>Каждая кнопка — отдельный браузерный сценарий над тем же CurrencyService, который использует приложение.</p>
+  <div class="summary" aria-live="polite">
+    <b id="total">Всего: 0</b> · <span id="passed">Зелёных: 0</span> · <span id="failed">Красных: 0</span>
+    <button id="runAll" type="button">Запустить все вручную</button>
+    <div id="failure" class="failure"></div>
+  </div>
+  <main id="cases"></main>
+  <script src="../scripts/economy-core.js"></script>
+  <script>
+  (()=>{
+    'use strict';
+    const api=window.DndEconomy,ids=['mm','sm','em','zm','pm'],rates={mm:1n,sm:10n,em:50n,zm:100n,pm:1000n},abbr={mm:'мм',sm:'см',em:'эм',zm:'зм',pm:'пм'},cases=[];
+    const makeService=()=>new api.CurrencyService({currencies:api.DND5E_CURRENCIES,idFactory:(()=>{let n=0;return()=>`browser-${++n}`;})(),clock:()=> '2026-08-30T16:00:00.000Z'}),
+      add=(name,run)=>cases.push({name,run}),equal=(actual,expected,label)=>{if(actual!==expected)throw new Error(`${label}: ${actual} !== ${expected}`);};
+
+    for(const from of ids)for(const to of ids)for(let amount=1;amount<=5;amount++)add(`Конвертация ${amount} ${from} → ${to}`,()=>{
+      const service=makeService(),converted=service.convert({amount:String(amount),currencyId:from},to),canonical=service.convert({amount:converted.amount,currencyId:to},'mm');
+      equal(canonical.amount,(BigInt(amount)*rates[from]).toString(),'канонические медные единицы');return true;
+    });
+    for(const id of ids)for(let amount=1;amount<=20;amount++)add(`Форматирование ${amount} ${id}`,()=>{
+      equal(makeService().format({amount:String(amount),currencyId:id}),`${amount} ${abbr[id]}`,'отображение');return true;
+    });
+    for(let index=0;index<100;index++)add(`Достаточность средств ${index}`,()=>{
+      const service=makeService(),available=BigInt(index*9),required=available+BigInt(index%4===0?0:1),wallet=api.createWallet(`browser-afford-${index}`,api.DND5E_RULESET,{mm:available.toString()}),result=service.canAfford(wallet,{amountMinor:required.toString()});
+      equal(result.ok,index%4===0,'граница достаточности');return true;
+    });
+    for(let index=1;index<=100;index++)add(`Контекстная цена ${index}`,()=>{
+      const bp=6000+index*40,model=api.createItemPriceModel({itemId:`browser-price-${index}`,rawPrice:'100 зм',source:{type:'browser-catalog',reference:`browser-price-${index}`}}),settings={merchantType:{market:{basisPoints:String(bp),source:{type:'browser-setting',reference:`market-${index}`}}}},quote=api.quotePrice(model,'purchase',{merchantType:'market'},settings);
+      equal(quote.amountMinor,String(bp),'цена в медных единицах');return true;
+    });
+    for(let index=1;index<=50;index++)add(`Пользовательское списание ${index}`,async()=>{
+      const service=makeService(),wallet=api.createWallet(`browser-debit-${index}`,api.DND5E_RULESET,{mm:String(500+index)}),result=await service.debit(wallet,{amountMinor:String(index)},{userId:'browser-gm',reason:'browser debit matrix'});
+      equal(result.ok,true,'операция');equal(service.totalMinor(wallet),'500','остаток');return true;
+    });
+    for(let index=1;index<=25;index++)add(`Покупка ${index}`,async()=>{
+      const service=makeService(),buyer=api.createWallet(`browser-buyer-${index}`,api.DND5E_RULESET,{mm:'1000'}),merchant=api.createWallet(`browser-merchant-buy-${index}`,api.DND5E_RULESET,{mm:'0'}),result=await service.purchase({buyer,merchant,price:{amountMinor:String(index)},itemId:`browser-purchase-${index}`,userId:'browser-player',reason:'browser purchase',consequence:()=>true});
+      equal(result.ok,true,'покупка');equal(service.totalMinor(buyer),String(1000-index),'кошелёк покупателя');equal(service.totalMinor(merchant),String(index),'кошелёк торговца');equal(service.getJournal({type:'purchase'}).length,1,'журнал покупки');return true;
+    });
+    for(let index=1;index<=25;index++)add(`Продажа ${index}`,async()=>{
+      const service=makeService(),seller=api.createWallet(`browser-seller-${index}`,api.DND5E_RULESET,{mm:'0'}),merchant=api.createWallet(`browser-merchant-sale-${index}`,api.DND5E_RULESET,{mm:'1000'}),result=await service.sale({seller,merchant,price:{amountMinor:String(index)},itemId:`browser-sale-${index}`,userId:'browser-player',reason:'browser sale',consequence:()=>true});
+      equal(result.ok,true,'продажа');equal(service.totalMinor(seller),String(index),'кошелёк продавца');equal(service.totalMinor(merchant),String(1000-index),'кошелёк торговца');equal(service.getJournal({type:'sale'}).length,1,'журнал продажи');return true;
+    });
+    for(let index=1;index<=25;index++)add(`Обмен валюты ${index}`,async()=>{
+      const service=makeService(),wallet=api.createWallet(`browser-exchange-${index}`,api.DND5E_RULESET,{sm:String(index+1),mm:'0'}),result=await service.exchange(wallet,{amount:String(index),currencyId:'sm'},'mm','reject',{userId:'browser-player',reason:'browser exchange'});
+      equal(result.ok,true,'обмен');equal(wallet.balances.sm,'1','остаток серебра');equal(wallet.balances.mm,String(index*10),'полученная медь');equal(service.totalMinor(wallet),String((index+1)*10),'сохранение стоимости');return true;
+    });
+    for(let index=1;index<=25;index++)add(`Ручная корректировка ${index}`,async()=>{
+      const service=makeService(),wallet=api.createWallet(`browser-adjust-${index}`,api.DND5E_RULESET,{zm:String(index)}),result=await service.manualAdjust(wallet,{currencyId:'zm',newAmount:String(index+5),userId:'browser-gm',reason:`browser correction ${index}`}),details=result.operation&&result.operation.details;
+      equal(result.ok,true,'корректировка');equal(details.oldValue,String(index),'старое значение');equal(details.newValue,String(index+5),'новое значение');equal(result.operation.userId,'browser-gm','пользователь');equal(result.operation.reason,`browser correction ${index}`,'причина');equal(result.operation.at,'2026-08-30T16:00:00.000Z','время');return true;
+    });
+    for(let index=1;index<=25;index++)add(`Конкурентное списание ${index}`,async()=>{
+      const service=makeService(),wallet=api.createWallet(`browser-race-${index}`,api.DND5E_RULESET,{mm:'1'}),results=await Promise.all([service.debit(wallet,{amountMinor:'1'},{userId:'browser-a',reason:'race A'}),service.debit(wallet,{amountMinor:'1'},{userId:'browser-b',reason:'race B'})]);
+      equal(results.filter(result=>result.ok).length,1,'единственный успешный коммит');equal(results.filter(result=>!result.ok&&result.reason==='insufficient-funds').length,1,'единственный отказ');equal(service.totalMinor(wallet),'0','остаток');equal(service.getJournal({type:'debit'}).length,1,'журнал');return true;
+    });
+    for(let index=1;index<=50;index++)add(`Неопределённая цена ${index}`,()=>{
+      const model=api.createItemPriceModel({itemId:`browser-unknown-${index}`,rawPrice:`по решению мастера ${index}`,source:{type:'browser-legacy',reference:`unknown-${index}`}});
+      equal(model.status,'manualReviewRequired','статус');equal(api.quotePrice(model,'purchase',{},{}).manualReviewRequired,true,'блокировка покупки');return true;
+    });
+
+    const root=document.getElementById('cases'),buttons=[],refresh=()=>{
+      const passed=buttons.filter(button=>button.dataset.status==='passed').length,failed=buttons.filter(button=>button.dataset.status==='failed').length;
+      document.getElementById('total').textContent=`Всего: ${buttons.length}`;document.getElementById('passed').textContent=`Зелёных: ${passed}`;document.getElementById('failed').textContent=`Красных: ${failed}`;
+    };
+    cases.forEach((scenario,index)=>{
+      const button=document.createElement('button');button.type='button';button.className='case';button.dataset.testid='qa-case';button.dataset.index=String(index);button.dataset.status='pending';button.innerHTML=`<span>${index+1}. ${scenario.name}</span><span class="status">ожидает</span>`;
+      button.addEventListener('click',async()=>{if(button.dataset.status==='running')return;button.dataset.status='running';button.querySelector('.status').textContent='…';try{await scenario.run();button.dataset.status='passed';button.querySelector('.status').textContent='✓';}catch(error){button.dataset.status='failed';button.querySelector('.status').textContent='✕';document.getElementById('failure').textContent=`${index+1}. ${scenario.name}: ${String(error&&error.message||error)}`;}refresh();});
+      buttons.push(button);root.appendChild(button);
+    });
+    document.getElementById('runAll').addEventListener('click',async()=>{for(const button of buttons){button.click();while(button.dataset.status==='running')await new Promise(resolve=>setTimeout(resolve,0));}});refresh();
+  })();
+  </script>
+</body>
+</html>

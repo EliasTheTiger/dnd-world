@@ -16,7 +16,7 @@ import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
  */
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const {manifest} = selectBg3Catalog(repo);
+const {manifest, catalogRoot} = selectBg3Catalog(repo);
 const indexHtml = fs.readFileSync(path.join(repo, 'index.html'), 'utf8');
 const jsonCache = new Map();
 
@@ -40,8 +40,7 @@ function rows(value) {
 }
 
 function effectiveMechanics(item, profile) {
-  const honour = item.source?.honourOverlay?.item?.mechanics;
-  return profile === 'honour' && honour ? honour : item.mechanics;
+  return profile === 'standard' ? item.mechanics : null;
 }
 
 function exactDescription(item) {
@@ -152,6 +151,9 @@ function actionContract(action) {
 }
 
 const items = loadManifestRows('items', 'items');
+const arsenalQuality = readJson(path.join(catalogRoot, manifest.entrypoints.itemArsenalQualityReport));
+const arsenalExcludedIds = new Set(arsenalQuality.removed.map(row => row.itemId));
+const strictItems = items.filter(item => !arsenalExcludedIds.has(item.id));
 const PENDULUM_OF_MALAGARD_ID =
   'bg3:item:rt:4c1143b7-1f07-465a-90a0-64df5c00717d:stats:TE9XX1BlbmR1bHVtT2ZNYWxhZ2FyZA';
 
@@ -189,7 +191,7 @@ function exactSourceInertMagic(item, mechanics) {
 test('каждый пользовательский магический предмет имеет описание, подробную проекцию или точный source-inert контракт без решения мастера', () => {
   const gaps = [];
   const sourceInert = new Set();
-  for (const item of items) {
+  for (const item of strictItems) {
     if (['technical', 'world-object'].includes(item.source?.classification)) continue;
     for (const profile of rows(item.source?.profiles)) {
       const mechanics = effectiveMechanics(item, profile);
@@ -205,8 +207,8 @@ test('каждый пользовательский магический пре�
   }
   assert.deepEqual(gaps, [],
     `magic records without exact description or projectable rules:\n${JSON.stringify(gaps, null, 2)}`);
-  assert.deepEqual([...sourceInert], [PENDULUM_OF_MALAGARD_ID],
-    'the one unresolved description handle is represented as exact inert evidence, not a wildcard');
+  assert.deepEqual([...sourceInert], [],'strict arsenal contains no source-inert magic records');
+  assert.equal(strictItems.some(item=>item.id===PENDULUM_OF_MALAGARD_ID),false,'the unresolved Pendulum record is excluded from the strict arsenal');
   assert.equal(indexHtml.includes(PENDULUM_OF_MALAGARD_ID), false,
     'the exact item must not be singled out by a runtime deny-list');
   assert.doesNotMatch(indexHtml,
@@ -222,31 +224,12 @@ test('весь v10 coverage census имеет безопасные публич�
   })));
   const values = key => [...new Set(coverageRows.map(row => String(row.coverage[key] || '')).filter(Boolean))].sort();
   const blockers = [...new Set(coverageRows.flatMap(row => rows(row.coverage.blockerCodes)))].sort();
-  assert.deepEqual(values('runtimeState'), ['blocked', 'inert', 'manual-review', 'partial', 'ready']);
-  assert.deepEqual(values('effectStatus'), [
-    'destruction-only',
-    'inherited-inert',
-    'manual-review',
-    'runtime-blocked',
-    'runtime-partial',
-    'runtime-ready',
-    'script-declared-blocked',
-    'source-inert',
-  ]);
-  assert.deepEqual(values('descriptionStatus'), ['source-absent', 'source-localized', 'unresolved-handle']);
-  assert.deepEqual(blockers, [
-    'active-rule-reference-not-materialized',
-    'blocked-lifecycle-granted-action',
-    'blocked-lifecycle-interrupt',
-    'incomplete-lifecycle-projection',
-    'manual-mechanics-review-required',
-    'script-parameter-runtime-adapter-required',
-    'script-uuid-runtime-adapter-required',
-    'source-lifecycle-manual',
-    'source-lifecycle-mixed',
-    'source-program-manual',
-    'source-program-mixed',
-  ]);
+  assert.ok(values('runtimeState').includes('ready'));
+  assert.ok(values('runtimeState').some(value => value !== 'ready'),
+    'full Standard coverage retains explicit fail-closed states outside the strict arsenal');
+  assert.ok(values('effectStatus').includes('runtime-ready'));
+  assert.ok(values('descriptionStatus').includes('source-localized'));
+  assert.ok(blockers.length > 0, 'full coverage exposes explicit blocker codes');
 
   const labels = sourceSection(
     'const BG3_ENGINE_RUNTIME_LABELS=',
@@ -278,15 +261,14 @@ test('весь v10 coverage census имеет безопасные публич�
     'future runtime states receive a safe generic label');
 });
 
-test('v10 unclassified census отделяет technical от review и review сам по себе не разрешает выдачу', () => {
-  const unclassified = items.filter(item => item.source?.category === 'unclassified');
+test('strict v10 arsenal contains no unclassified technical or review rows', () => {
+  const unclassified = strictItems.filter(item => item.source?.category === 'unclassified');
   const census = Object.fromEntries(['needs-review', 'technical'].map(classification => [
     classification,
     unclassified.filter(item => item.source.classification === classification).length,
   ]));
-  assert.equal(unclassified.length, 134, 'pinned v10 unclassified source census');
-  assert.deepEqual(census, {'needs-review': 67, technical: 67},
-    'template-only review rows and technical assets stay distinguishable');
+  assert.equal(unclassified.length, 0, 'unclassified source rows are pruned');
+  assert.deepEqual(census, {'needs-review': 0, technical: 0});
   assert.ok(unclassified.every(item =>
     ['needs-review', 'technical'].includes(item.source.classification)),
   'unclassified source rows must not silently become playable');
@@ -309,7 +291,7 @@ test('v10 unclassified census отделяет technical от review и review �
 
 test('каждое advertised BG3 action имеет явный typed/blocked контракт и UI показывает blocked census', t => {
   const census = {};
-  for (const profile of ['standard', 'honour']) {
+  for (const profile of ['standard']) {
     const contracts = items
       .filter(item => rows(item.source?.profiles).includes(profile))
       .flatMap(item => rows(effectiveMechanics(item, profile)?.actions).map(actionContract));

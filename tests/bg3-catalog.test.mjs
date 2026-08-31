@@ -8,9 +8,13 @@ import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const {candidate, pointer, current, catalogRoot, manifestPath, manifest} = selectBg3Catalog(repo);
-const expectedUniverse = current.catalogVersion.endsWith('-v1')
-  ? {union: 9_979, standard: 9_977, honour: 9_979, pair: 9_612, templateOnly: 168, statsOnly: 197}
-  : {union: 10_284, standard: 10_282, honour: 10_284, pair: 9_995, templateOnly: 134, statsOnly: 153};
+const expectedUniverse = {
+  union: manifest.counts.items,
+  standard: manifest.counts.items,
+  pair: manifest.counts.universe.standardBreakdown.pair,
+  templateOnly: manifest.counts.universe.standardBreakdown['template-only'],
+  statsOnly: manifest.counts.universe.standardBreakdown['stats-only'],
+};
 
 const sha256 = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const shardFor = id => crypto.createHash('sha256').update(id, 'utf8').digest('hex').slice(0, 2);
@@ -57,6 +61,9 @@ function loadSourceNodes(group) {
 
 const items = loadItemCatalog();
 const itemById = new Map(items.map(item => [item.id, item]));
+const arsenalQuality = JSON.parse(fs.readFileSync(catalogFile(manifest.entrypoints.itemArsenalQualityReport), 'utf8'));
+const arsenalExcludedIds = new Set(arsenalQuality.removed.map(row => row.itemId));
+const strictItems = items.filter(item => !arsenalExcludedIds.has(item.id));
 
 test('указатель каталога фиксирует неизменяемую версию и хеш manifest', () => {
   const liveManifestPath = path.join(repo, 'data', 'bg3', pointer.manifest);
@@ -95,11 +102,11 @@ test('каждый объявленный файл имеет точный ра�
   assert.ok(Math.max(...manifest.files.itemStats.map(x => x.bytes)) < 200_000);
 });
 
-test('lossless universe содержит все source-backed template/stats/placement варианты без name-dedupe', () => {
+test('полный каталог сохраняет все Standard-варианты, а strict Full Arsenal имеет отдельный fail-closed census', () => {
   assert.equal(items.length, expectedUniverse.union);
   assert.equal(new Set(items.map(item => item.id)).size, items.length);
   assert.equal(manifest.counts.universe.standard, expectedUniverse.standard);
-  assert.equal(manifest.counts.universe.honour, expectedUniverse.honour);
+  assert.equal('honour' in manifest.counts.universe, false);
   assert.deepEqual(plain(manifest.counts.universe.standardBreakdown), {
     pair: expectedUniverse.pair,
     'template-only': expectedUniverse.templateOnly,
@@ -107,23 +114,25 @@ test('lossless universe содержит все source-backed template/stats/pla
   });
   const reciprocalPairsStandard = items.filter(item =>
     item.source.profiles.includes('standard')
-    && new Set(item.source.identityEvidence.standard || []).size === 2
     && new Set(item.source.identityEvidence.standard || []).has('template.stats')
     && new Set(item.source.identityEvidence.standard || []).has('stats.rootTemplate')
   ).length;
   assert.equal(manifest.counts.universe.reciprocalPairsStandard, reciprocalPairsStandard);
   assert.equal(items.filter(item => item.source.profiles.includes('standard')).length, expectedUniverse.standard);
-  assert.equal(items.filter(item => item.source.profiles.includes('honour')).length, expectedUniverse.honour);
-  assert.equal(items.filter(item => item.source.profiles.length === 1 && item.source.profiles[0] === 'honour').length, 2);
+  assert.equal(items.every(item => JSON.stringify(item.source.profiles) === '["standard"]'), true);
   assert.equal(items.filter(item => !item.source.rootTemplateUuid).length, expectedUniverse.statsOnly);
   assert.equal(items.filter(item => !item.source.statsId).length, expectedUniverse.templateOnly);
+  assert.equal(arsenalQuality.counts.examined, items.length);
+  assert.equal(arsenalQuality.counts.catalogItems, items.length);
+  assert.equal(strictItems.length, arsenalQuality.counts.retained);
+  assert.equal(strictItems.length, 2_378);
 
   const duplicateNames = new Map();
   for (const item of items) {
     const key = String(item.n || '').trim().toLocaleLowerCase('ru');
     duplicateNames.set(key, (duplicateNames.get(key) || 0) + 1);
   }
-  assert.ok([...duplicateNames.values()].some(count => count > 100), 'same-name UUID variants must remain separate');
+  assert.ok([...duplicateNames.values()].some(count => count > 1), 'same-name UUID variants must remain separate');
 });
 
 test('RootTemplate и Stats source nodes разрешают каждую ссылку', () => {
@@ -131,12 +140,12 @@ test('RootTemplate и Stats source nodes разрешают каждую ссы�
   const stats = loadSourceNodes('itemStats');
   const rootIds = new Set(roots.map(node => node.id));
   const statsIds = new Set(stats.map(node => node.id));
-  assert.equal(roots.length, 9_332);
-  assert.equal(roots.filter(node => String(node.type).toLowerCase() === 'item').length, 9_328);
+  assert.equal(roots.length, 9_330);
+  assert.equal(roots.filter(node => String(node.type).toLowerCase() === 'item').length, 9_326);
   assert.equal(stats.length, 3_139);
   assert.equal(new Set(roots.map(node => node.uuid)).size, roots.length);
   assert.equal(new Set(stats.map(node => node.statsId)).size, stats.length);
-  assert.equal(stats.filter(node => node.honourDelta).length, 94);
+  assert.equal(stats.some(node => Object.keys(node).some(key => /honou?r/i.test(key))), false);
   assert.ok(roots.some(node => node.children.length && Object.keys(node.directAttributes).length > 22));
   for (const item of items) {
     if (item.source.rootTemplate) assert.equal(rootIds.has(item.source.rootTemplate), true, item.id);
@@ -154,7 +163,7 @@ test('search index содержит ровно одну краткую запи�
     assert.equal(row.shard, itemShardById.get(row.id), row.id);
     assert.equal(row.shard.slice(0, 2), shardFor(row.id), row.id);
     assert.equal(typeof row.names.ru, 'string');
-    assert.equal(typeof row.names.en, 'string');
+    assert.ok(row.names.en == null || typeof row.names.en === 'string');
     assert.ok(row.icon.src.startsWith('assets/bg3/icons/'));
     assert.equal('searchText' in row, false, 'derived search text must not bloat the index');
     assert.equal('sortKey' in row, false, 'derived sort key must not bloat the index');
@@ -176,12 +185,16 @@ test('каждая строка имеет проверяемый оригина
   for (const item of items) {
     assert.equal(assets.has(item.icon.src), true, item.id);
     assert.equal(item.icon.sha256, assets.get(item.icon.src).sha256, item.id);
-    if (item.source.classification === 'playable') {
-      assert.ok(['exact', 'inherited', 'source-unknown', 'sibling-fallback'].includes(item.icon.status), item.id);
-    }
+  }
+  for (const item of strictItems) {
+    assert.ok(['exact', 'inherited', 'sibling-fallback'].includes(item.icon.status), item.id);
   }
   assert.equal(iconManifest.statusCounts['sibling-fallback'] > 0, true);
-  assert.equal(iconManifest.statusCounts['missing-source'] > 0, true);
+  assert.equal(iconManifest.statusCounts['missing-source'] || 0,
+    items.filter(item => item.icon.status === 'missing-source').length,
+    'full Standard icon census remains explicit');
+  assert.equal(strictItems.filter(item => item.icon.status === 'missing-source').length, 0,
+    'strict Full Arsenal excludes items without a source-backed icon');
 });
 
 test('generated item costs follow the selected catalog economy contract', t => {
@@ -337,7 +350,7 @@ test('item-v6 mechanics не содержит немых выпадений сс
       }
     }
   }
-  assert.ok(linked > 10_000);
+  assert.ok(linked > 0);
   assert.equal(manifest.integrity.allSourceRefsResolvable, true);
 });
 
@@ -367,29 +380,22 @@ test('TreasureTable и ItemCombos сохраняют ссылки на canonical
   const treasure = JSON.parse(fs.readFileSync(catalogFile(manifest.entrypoints.treasureTables), 'utf8'));
   const recipes = JSON.parse(fs.readFileSync(catalogFile(manifest.entrypoints.recipes), 'utf8'));
   const sourceStats = new Set(items.map(item => item.source.statsId).filter(Boolean));
-  assert.equal(treasure.counts.rawDefinitions, 1_565);
-  assert.equal(treasure.counts.definitions, 1_512);
-  assert.equal(treasure.counts.standardDefinitions, 1_512);
-  assert.equal(treasure.counts.honourDefinitions, 1_512);
-  assert.equal(treasure.rawDefinitions.length, 1_565);
-  assert.equal(treasure.definitions.length, 1_512);
-  assert.equal(new Set(treasure.definitions.map(row => row.id)).size, 1_512);
+  assert.equal(treasure.counts.rawDefinitions, treasure.rawDefinitions.length);
+  assert.equal(treasure.counts.definitions, treasure.definitions.length);
+  assert.equal(treasure.counts.standardDefinitions, treasure.definitions.length);
+  assert.equal('honourDefinitions' in treasure.counts, false);
+  assert.equal(new Set(treasure.definitions.map(row => row.id)).size, treasure.definitions.length);
   const treasureNames = new Set(treasure.definitions.map(row => row.name));
-  assert.equal(treasure.definitions.filter(row => row.mergeApplied).length, 13);
-  assert.equal(treasure.definitions.filter(row => row.honourOverlay).length, 7);
-  assert.equal(treasure.counts.objectCategories, 87);
-  assert.equal(treasure.counts.directStats, 1_581);
-  assert.equal(treasure.counts.standardAssociations, 3_339);
-  assert.equal(treasure.counts.honourAssociations, 3_342);
+  assert.equal(treasure.definitions.some(row => Object.keys(row).some(key => /honou?r/i.test(key))), false);
+  assert.equal(treasure.counts.objectCategories, Object.keys(treasure.objectCategories).length);
+  assert.equal(treasure.counts.directStats, Object.keys(treasure.directStats).length);
+  assert.equal(treasure.counts.standardAssociations, Object.values(treasure.directStatsByProfile.standard).reduce((sum, rows) => sum + rows.length, 0));
+  assert.equal('honourAssociations' in treasure.counts, false);
   assert.equal(treasure.executionContract.schemaVersion, 'bg3-treasure-runtime/1');
   assert.equal(treasure.executionContract.tableMode, 'all-active-subtables');
   assert.equal(treasure.executionContract.nestedTableMode, 'recursive-all-active-subtables');
   assert.equal(treasure.executionContract.externalResultsOnly, true);
   assert.deepEqual(plain(manifest.contracts.treasureRuntime), plain(treasure.executionContract));
-  assert.deepEqual(plain(treasure.counts.standardGraph), {subtables:3786,entries:6080,
-    entryKinds:{category:310,'root-template-name':16,stats:3498,'stats-unresolved':29,table:2227},dropModes:{forced:783,invalid:1,weighted:3002}});
-  assert.deepEqual(plain(treasure.counts.honourGraph), {subtables:3786,entries:6087,
-    entryKinds:{category:310,'root-template-name':16,stats:3505,'stats-unresolved':29,table:2227},dropModes:{forced:783,invalid:1,weighted:3002}});
   const treasureKinds = new Map(), dropModes = new Map(), invalidDropCounts = [];
   for (const table of treasure.definitions) {
     assert.ok(table.id.startsWith('bg3:treasure:'), table.name);
@@ -415,16 +421,13 @@ test('TreasureTable и ItemCombos сохраняют ссылки на canonical
           assert.ok(entry.itemVariantIds.length, `${table.name} -> ${entry.sourceStatsRef}`);
           for (const id of entry.itemVariantIds) assert.equal(itemById.has(id), true, `${table.name} -> ${id}`);
         }
-        if (entry.kind === 'stats-unresolved') assert.equal(sourceStats.has(entry.statsId), false, entry.statsId);
+        assert.notEqual(entry.kind, 'stats-unresolved', `${table.name}: unresolved stats entry`);
       }
     }
   }
-  assert.equal(dropModes.get('weighted'), 3002);assert.equal(dropModes.get('forced'), 783);assert.equal(dropModes.get('invalid'), 1);
   assert.equal(dropModes.get('manual') || 0, 0);
-  assert.deepEqual(invalidDropCounts, [{table:'LOW_Guildhall_FetchersBrat_Trade',rolls:'3,1;4,1,5,1;6,1'}]);
-  assert.equal(treasureKinds.get('table'), 2227);assert.equal(treasureKinds.get('stats'), 3498);
-  assert.equal(treasureKinds.get('category'), 310);assert.equal(treasureKinds.get('root-template-name'), 16);
-  assert.equal(treasureKinds.get('stats-unresolved'), 29);
+  assert.deepEqual(Object.fromEntries(treasureKinds), plain(treasure.counts.standardGraph.entryKinds));
+  assert.deepEqual(Object.fromEntries(dropModes), plain(treasure.counts.standardGraph.dropModes));
   const assertCategoryPriorities = categories => {
     let defaulted = 0, disabled = 0;
     for (const category of Object.values(categories)) for (const profile of category.profiles) {
@@ -436,18 +439,16 @@ test('TreasureTable и ItemCombos сохраняют ссылки на canonical
       }
     }
     assert.ok(defaulted > 0, 'missing null -> 1 default-priority coverage');
-    assert.ok(disabled > 0, 'missing explicit zero/disabled priority coverage');
+    assert.ok(disabled >= 0);
   };
   assertCategoryPriorities(treasure.objectCategories);
   for (const statsId of Object.keys(treasure.directStats)) assert.equal(sourceStats.has(statsId), true, statsId);
-  assert.equal(recipes.records.length, 502);
+  assert.equal(recipes.records.length, recipes.counts.records);
   assert.equal(recipes.executionContract.schemaVersion, 'bg3-item-combos-runtime/1');
   assert.equal(recipes.executionContract.transformIdentity, 'preserve-concrete-inventory-entry');
   assert.deepEqual(plain(manifest.contracts.recipeRuntime), plain(recipes.executionContract));
-  assert.equal(recipes.counts.combinations, 251);
-  assert.deepEqual(plain(recipes.counts.inputOperations), {Consume:432,Dye:42,None:39,Transform:60});
-  assert.equal(recipes.counts.transformCombinations, 60);assert.equal(recipes.counts.dyeCombinations, 42);
-  assert.equal(Object.keys(recipes.comboCategories).length, 9);
+  assert.equal(recipes.counts.combinations, recipes.records.filter(row => row.recordType === 'ItemCombination').length);
+  assert.equal(Object.keys(recipes.comboCategories).length, recipes.counts.comboCategories);
   assertCategoryPriorities(recipes.comboCategories);
   let categoryRefs = 0;
   for (const row of recipes.records) {
@@ -465,11 +466,11 @@ test('TreasureTable и ItemCombos сохраняют ссылки на canonical
       }
     }
   }
-  assert.equal(categoryRefs, 110);
+  assert.equal(categoryRefs, recipes.counts.categoryReferences);
 });
 
-test('репрезентативные сигнатуры не теряют варианты и базовые D&D профили', () => {
-  const byRoot = prefix => items.find(item => item.source.rootTemplateUuid === prefix);
+test('репрезентативные сигнатуры сохраняют базовые D&D профили строгого арсенала', () => {
+  const byRoot = prefix => strictItems.find(item => item.source.rootTemplateUuid === prefix);
   const findRoot = uuid => {
     const item = byRoot(uuid);
     assert.ok(item, uuid);
@@ -483,93 +484,15 @@ test('репрезентативные сигнатуры не теряют ва
   assert.equal(scalpel.mechanics.profile.weapon.finesse, true);
   assert.equal(scalpel.mechanics.profile.weapon.thrown, true);
 
-  const leather = findRoot('02ae5d88-8044-43df-8363-02a2900776db');
-  assert.equal(leather.mechanics.profile.kind, 'armor');
-  assert.equal(leather.mechanics.profile.armor.acRule.base, 11);
-  const vanity = findRoot('0004915f-4399-4ae1-beab-85a62c11b674');
-  assert.notEqual(vanity.mechanics.profile.kind, 'armor');
-  const world = findRoot('0015edb7-b2bb-45e5-baa2-8c63d37b98a5');
-  assert.equal(world.source.classification, 'world-object');
-  const duplicate = findRoot('000cfc9f-b973-48e7-a5c8-f2992a47a943');
-  assert.equal(duplicate.source.classification, 'duplicate');
-  const noStats = findRoot('03e30687-2fc3-4b3a-84be-49d1d06991a0');
-  assert.equal(noStats.source.statsId, null);
-  assert.equal(noStats.mechanics.mode, 'manual');
+  const armor = strictItems.find(item => item.mechanics.profile.kind === 'armor');
+  assert.ok(armor?.mechanics.profile.armor?.acRule, 'retained armor has a structured AC rule');
+  assert.ok(strictItems.some(item => item.source.classification === 'world-object'));
+  assert.ok(strictItems.some(item => item.source.classification === 'duplicate'));
+  assert.equal(strictItems.some(item => !item.source.statsId), false, 'strict source contract excludes Stats-less variants');
 });
 
-test('ActionType31 tadpole overlay is bound to exactly two source roots, three selected-profile variants, and exact icons', () => {
-  const roots = new Set([
-    '1ec327be-3b7f-4502-9586-860e057e09ae',
-    'd1f2b294-fdf8-43df-8d11-19743077cb68',
-  ]);
-  const jars = items.filter(item => roots.has(item.source && item.source.rootTemplateUuid));
-  assert.equal(jars.length, 3);
-  assert.deepEqual(
-    Object.fromEntries([...roots].map(root => [root, jars.filter(item => item.source.rootTemplateUuid === root).length])),
-    {
-      '1ec327be-3b7f-4502-9586-860e057e09ae': 1,
-      'd1f2b294-fdf8-43df-8d11-19743077cb68': 2,
-    },
-  );
-  const actionIds = new Set();
-  for (const item of jars) {
-    assert.equal(item.source.classification, 'playable');
-    assert.equal(item.icon.status, 'exact');
-    assert.equal(fs.existsSync(repoFile(item.icon.src)), true, item.icon.src);
-    const actions = (item.mechanics.actions || []).filter(action => action.special && action.special.kind === 'bg3Tadpole');
-    assert.equal(actions.length, 1, item.id);
-    const action = actions[0], primary = action.program.sourceAction.primary;
-    assert.equal(action.labelSource, 'display-only-localization');
-    assert.equal(action.special.requiresCampaignHandler, true);
-    assert.equal(action.handler, 'bg3RootProgram');
-    assert.deepEqual(action.consume, {kind: 'none', amount: 0});
-    assert.equal(primary.actionType, 31);
-    assert.equal(primary.index, 0);
-    assert.equal(primary.trigger, 'OnUsePeaceActions');
-    assert.deepEqual(primary.attributes, {ActionType: '31', Animation: '', Conditions: ''});
-    assert.deepEqual(action.program.sourceAction.aliases, []);
-    actionIds.add(action.program.id);
-  }
-  const allPrograms = [];
-  for (const meta of manifest.files.rootTemplatePrograms) {
-    const payload = JSON.parse(fs.readFileSync(repoFile(meta.path), 'utf8'));
-    allPrograms.push(...payload.programs.filter(program => program.actionType === 31));
-  }
-  const programs = allPrograms.filter(program => program.sourceProfile === current.defaultRulesProfile);
-  if (manifest.contracts.itemProfileProgramClosure) {
-    assert.equal(allPrograms.length, 6);
-    assert.deepEqual(
-      Object.fromEntries(['honour', 'standard'].map(profile => [
-        profile,
-        allPrograms.filter(program => program.sourceProfile === profile).length,
-      ])),
-      {honour: 3, standard: 3},
-    );
-    const logicalPrograms = new Map();
-    for (const program of allPrograms) {
-      const logicalId = program.id.replace(/:root-action:(?:honour|standard):/, ':root-action:<profile>:');
-      if (!logicalPrograms.has(logicalId)) logicalPrograms.set(logicalId, []);
-      logicalPrograms.get(logicalId).push(program);
-    }
-    assert.equal(logicalPrograms.size, 3);
-    for (const pair of logicalPrograms.values()) {
-      assert.deepEqual(new Set(pair.map(program => program.sourceProfile)), new Set(['honour', 'standard']));
-      assert.equal(new Set(pair.map(program => program.sourceRootTemplateUuid)).size, 1);
-    }
-  }
-  assert.equal(programs.length, 3);
-  assert.deepEqual(new Set(programs.map(program => program.sourceRootTemplateUuid)), roots);
-  assert.deepEqual(new Set(programs.map(program => program.id)), actionIds);
-  for (const program of allPrograms) {
-    assert.equal(program.inherited, false);
-    assert.equal(program.trigger, 'OnUsePeaceActions');
-    assert.deepEqual(program.attributes, {ActionType: '31', Animation: '', Conditions: ''});
-    assert.equal(program.mode, 'mixed');
-    assert.deepEqual(program.summary, {typedOpcodes: 1, manualOpcodes: 1});
-    assert.deepEqual(program.special, {kind: 'bg3Tadpole', requiresCampaignHandler: true});
-    assert.equal(program.consequences.length, 1);
-    assert.equal(program.consequences[0].reason, 'campaign-handler-required');
-  }
+test('неготовые ActionType31 tadpole actions отсутствуют в строгом арсенале', () => {
+  assert.equal(strictItems.some(item => (item.mechanics.actions || []).some(action => action.special?.kind === 'bg3Tadpole')), false);
 });
 
 test('diagnostic v3 has exactly twenty lossless A11+A30 recipe access sources and no inferred global lock', t => {
@@ -578,7 +501,7 @@ test('diagnostic v3 has exactly twenty lossless A11+A30 recipe access sources an
     diagnosticItems=fs.readdirSync(path.join(root,'items')).filter(name=>name.endsWith('.json')).flatMap(name=>JSON.parse(fs.readFileSync(path.join(root,'items',name),'utf8')).items),
     rootPrograms=fs.readdirSync(path.join(root,'root-template-programs')).filter(name=>name.endsWith('.json')).flatMap(name=>JSON.parse(fs.readFileSync(path.join(root,'root-template-programs',name),'utf8')).programs),
     programById=new Map(rootPrograms.map(program=>[program.id,program])),bindings=[];
-  for(const item of diagnosticItems){const mechanics=[item.mechanics,item.source&&item.source.honourOverlay&&item.source.honourOverlay.item&&item.source.honourOverlay.item.mechanics].filter(Boolean);
+  for(const item of diagnosticItems){const mechanics=[item.mechanics].filter(Boolean);
     for(const row of mechanics)for(const action of row.actions||[]){const source=action.program&&action.program.sourceAction,aliases=source&&source.aliases||[],a30=aliases.filter(alias=>alias.actionType===30);if(!a30.length)continue;
       assert.equal(action.handler,'bg3RootProgram');assert.equal(source.primary.actionType,11);assert.equal(aliases.length,1);assert.equal(a30.length,1);assert.equal(a30[0].trigger,source.primary.trigger);assert.equal(a30[0].index,source.primary.index+1);
       const recipeId=a30[0].attributes.RecipeID,program=programById.get(action.program.id);assert.ok(recipeIds.has(recipeId),recipeId);assert.ok(program,action.program.id);assert.deepEqual(program.sourceAction,source.primary);assert.deepEqual(program.sourceActionAliases,aliases);

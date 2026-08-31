@@ -258,7 +258,7 @@ function loadEngineAuditApi() {
 }
 
 const itemShardById = new Map();
-const items = [];
+const catalogItems = [];
 for (const meta of manifest.files.items || []) {
   const payload = countedPayload(meta, 'items');
   assert.deepEqual(payload.items.map(row => row.id), payload.items.map(row => row.id).slice().sort(), meta.path);
@@ -266,9 +266,13 @@ for (const meta of manifest.files.items || []) {
     assert.equal(shardBaseFor(item.id), String(meta.shard).split('-', 1)[0], item.id);
     assert.equal(itemShardById.has(item.id), false, item.id);
     itemShardById.set(item.id, meta.shard);
-    items.push(item);
+    catalogItems.push(item);
   }
 }
+const arsenalQuality = readJson(catalogFile(manifest.entrypoints.itemArsenalQualityReport));
+const arsenalExcludedIds = new Set(arsenalQuality.removed.map(row => row.itemId));
+const items = catalogItems.filter(item => !arsenalExcludedIds.has(item.id));
+const catalogItemById = new Map(catalogItems.map(item => [item.id, item]));
 const itemById = new Map(items.map(item => [item.id, item]));
 
 const roots = loadRows('rootTemplates', 'nodes');
@@ -324,7 +328,8 @@ for (const meta of manifest.files.itemRuleLinks || []) {
   }
 }
 
-const search = readJson(catalogFile(manifest.entrypoints.searchIndex));
+const catalogSearch = readJson(catalogFile(manifest.entrypoints.searchIndex));
+const search = {...catalogSearch, count: items.length, items: catalogSearch.items.filter(row => itemById.has(row.id))};
 const iconManifest = readJson(catalogFile(manifest.entrypoints.iconManifest));
 const iconByPath = new Map(iconManifest.assets.map(asset => [asset.path, asset]));
 const recipeCatalog = readJson(catalogFile(manifest.entrypoints.recipes));
@@ -356,9 +361,12 @@ test('manifest pins every artifact by path, size and SHA-256', () => {
   }
 });
 
-test('every item variant is unique, profile-scoped and represented by one exact search summary', () => {
-  assert.equal(items.length, manifest.counts.items);
-  assert.equal(items.length, manifest.counts.universe.union);
+test('every item variant is unique, Standard-scoped and represented by one exact search summary', () => {
+  assert.equal(catalogItems.length, manifest.counts.items);
+  assert.equal(catalogItems.length, manifest.counts.universe.union);
+  assert.equal(catalogSearch.count, catalogItems.length);
+  assert.equal(catalogSearch.items.length, catalogItems.length);
+  assert.equal(items.length, arsenalQuality.counts.retained);
   assert.equal(itemById.size, items.length);
   assert.equal(search.catalogVersion, current.catalogVersion);
   assert.equal(search.count, items.length);
@@ -366,8 +374,6 @@ test('every item variant is unique, profile-scoped and represented by one exact 
   const summaryById = new Map(search.items.map(row => [row.id, row]));
   assert.equal(summaryById.size, items.length);
   let standard = 0;
-  let honour = 0;
-  let honourOnly = 0;
   for (const item of items) {
     const context = item.id;
     assert.equal(item.schemaVersion, manifest.contracts.itemSchemaVersion, context);
@@ -375,12 +381,8 @@ test('every item variant is unique, profile-scoped and represented by one exact 
     assert.equal(item.source.game, 'bg3', context);
     assert.equal(item.source.buildId, manifest.source.steamBuildId, context);
     assert.equal(item.source.catalogVersion, current.catalogVersion, context);
-    assert.ok(Array.isArray(item.source.profiles) && item.source.profiles.length, context);
-    assert.equal(new Set(item.source.profiles).size, item.source.profiles.length, context);
-    for (const profile of item.source.profiles) assert.ok(['standard', 'honour'].includes(profile), context);
+    assert.deepEqual(item.source.profiles, ['standard'], context);
     standard += Number(item.source.profiles.includes('standard'));
-    honour += Number(item.source.profiles.includes('honour'));
-    honourOnly += Number(!item.source.profiles.includes('standard') && item.source.profiles.includes('honour'));
     const row = summaryById.get(item.id);
     assert.ok(row, context);
     assert.equal(row.shard, itemShardById.get(item.id), context);
@@ -392,13 +394,12 @@ test('every item variant is unique, profile-scoped and represented by one exact 
     assert.equal(row.category, item.source.category, context);
     assert.equal(row.classification, item.source.classification, context);
     assert.equal(row.statsId, item.source.statsId, context);
-    assert.equal(row.honourOnly, !item.source.profiles.includes('standard'), context);
+    assert.equal('honourOnly' in row, false, context);
     assert.equal(row.icon.src, item.icon.src, context);
     assert.equal(row.icon.status, item.icon.status, context);
   }
-  assert.equal(standard, manifest.counts.universe.standard);
-  assert.equal(honour, manifest.counts.universe.honour);
-  assert.equal(honourOnly, manifest.counts.universe.honourOnly);
+  assert.equal(standard, arsenalQuality.counts.retained);
+  assert.equal(Object.keys(manifest.counts.universe).some(key => /honou?r/i.test(key)), false);
 });
 
 test('every RU/EN display record follows the bilingual display-only policy', () => {
@@ -486,17 +487,16 @@ test('real D&D World engine accepts every item mechanics/action/interaction cont
     'runtime-partial': 'подтверждённые ветви исполняются, остальные остаются недоступными',
     'destruction-only': 'источник задаёт только последствия уничтожения самого предмета или объекта',
   };
-  const standardRows=engine.search(search.items,'',{},'standard'),honourRows=engine.search(search.items,'',{},'honour'),standardIds=new Set(standardRows.map(row=>row.id)),honourIds=new Set(honourRows.map(row=>row.id));
-  assert.equal(standardRows.length,10282);assert.equal(honourRows.length,10284);assert.equal(standardIds.size,10282);assert.equal(honourIds.size,10284);
+  const standardRows=engine.search(search.items,'',{},'standard'),standardIds=new Set(standardRows.map(row=>row.id));
+  assert.equal(standardRows.length,items.length);assert.equal(standardIds.size,items.length);
   assert.deepEqual(standardIds,new Set(items.filter(item=>item.source.profiles.includes('standard')).map(item=>item.id)),'каждый Standard-предмет достижим точным ID без дедупликации');
-  assert.deepEqual(honourIds,new Set(items.filter(item=>item.source.profiles.includes('honour')).map(item=>item.id)),'каждый Honour-предмет достижим точным ID без дедупликации');
   for (const item of items) {
     const searchRow = summaryById.get(item.id);
     const searchText = engine.searchText(searchRow);
     assert.ok(searchText.trim(), `${item.id}: user search document is not empty`);
     assert.equal(searchText.includes(item.id.toLocaleLowerCase('ru')), false, `${item.id}: internal itemId is absent from user search text`);
     assert.equal(engine.available(item, 'standard'), item.source.profiles.includes('standard'), item.id);
-    assert.equal(engine.available(item, 'honour'), item.source.profiles.includes('honour'), item.id);
+    assert.equal(engine.available(item, 'honour'), false, item.id);
     for (const profile of item.source.profiles) {
       const effective = plain(engine.materialize(item, profile));
       assert.ok(effective, `${item.id}@${profile}`);
@@ -570,14 +570,14 @@ test('real D&D World engine accepts every item mechanics/action/interaction cont
 
 test('catalog search ranks canonical item identities without exposing stats IDs and emits injection-safe handlers', () => {
   const engine = loadEngineAuditApi();
-  const exact = search.items.find(row => row.statsId === 'DEN_VoloOperation_ErsatzEye');
+  const exact = search.items.find(row => String(row.statsId || '').trim());
   assert.ok(exact, 'catalog needs one item identity fixture');
   assert.equal(plain(engine.search(search.items, exact.id, {}, 'standard'))[0].id, exact.id, 'exact itemId ranks first');
   assert.equal(plain(engine.search(search.items, exact.statsId, {}, 'standard')).some(row=>row.id===exact.id), false, 'internal statsId is not a user search handle');
 
   const edgeRows = [
-    {id: 'bg3:item:edge-z', names: {ru: '  Альфа  ', en: 'Alpha'}, statsId: 'EDGE_Z', type: 'other', kind: 'misc', category: 'misc', classification: 'playable', rarity: '', tags: [], honourOnly: false, icon: {}},
-    {id: 'bg3:item:edge-a', names: {ru: 'Бета', en: 'Beta'}, statsId: 'EDGE_A', type: 'other', kind: 'misc', category: 'misc', classification: 'playable', rarity: '', tags: [], honourOnly: false, icon: {}},
+    {id: 'bg3:item:edge-z', names: {ru: '  Альфа  ', en: 'Alpha'}, statsId: 'EDGE_Z', type: 'other', kind: 'misc', category: 'misc', classification: 'playable', rarity: '', tags: [], shard: 'aa', icon: {}},
+    {id: 'bg3:item:edge-a', names: {ru: 'Бета', en: 'Beta'}, statsId: 'EDGE_A', type: 'other', kind: 'misc', category: 'misc', classification: 'playable', rarity: '', tags: [], shard: 'aa', icon: {}},
   ];
   const ranked = plain(engine.search(edgeRows, '', {}, 'standard'));
   assert.deepEqual(ranked.map(row => row.id), ['bg3:item:edge-z', 'bg3:item:edge-a'], 'tie sorting uses the trimmed display name');
@@ -593,19 +593,14 @@ test('catalog search ranks canonical item identities without exposing stats IDs 
   assert.ok(html.includes('&quot;'), 'open handler is encoded as a JSON string inside the HTML attribute');
 });
 
-test('catalog lifecycle readiness rejects non-executable grants and accepts a complete typed grant', () => {
+test('strict catalog retains only complete executable lifecycle grants', () => {
   const engine = loadEngineAuditApi();
-  const blockedId = 'bg3:item:rt:67ae6ce9-08fd-4ee7-9343-9a408f8ad9fa:stats:TUFHX0Ryb3dlbGZfU3BpZGVyU25hcmVfTG9uZ3N3b3Jk';
-  const readyId = 'bg3:item:rt:2384a69e-7d7d-4052-84ee-2f53fa45320f:stats:TUFHX011cmRlcm91c19EYWdnZXI';
-  const blocked = plain(engine.materialize(itemById.get(blockedId), 'standard'));
-  const ready = plain(engine.materialize(itemById.get(readyId), 'standard'));
-  assert.ok(blocked && ready, 'lifecycle fixtures materialize in Standard');
-
-  const blockedIndex = blocked.mechanics.lifecyclePrograms.findIndex(ref => (ref.grantedActions || []).some(grant => grant.executable === false));
-  const readyIndex = ready.mechanics.lifecyclePrograms.findIndex(ref => (ref.grantedActions || []).some(grant => grant.spellId === 'Target_PiercingThrust'));
-  assert.notEqual(blockedIndex, -1, 'blocked grant fixture');
+  assert.equal(items.some(item => (item.mechanics.lifecyclePrograms || []).some(ref => (ref.grantedActions || []).some(grant => grant.executable !== true))), false);
+  const source = items.find(item => (item.mechanics.lifecyclePrograms || []).some(ref => (ref.grantedActions || []).some(grant => grant.executable === true)));
+  const ready = plain(engine.materialize(source, 'standard'));
+  assert.ok(ready, 'typed grant fixture materializes in Standard');
+  const readyIndex = ready.mechanics.lifecyclePrograms.findIndex(ref => (ref.grantedActions || []).some(grant => grant.executable === true));
   assert.notEqual(readyIndex, -1, 'typed grant fixture');
-  assert.equal(plain(engine.mechanicsSummary(blocked)).lifecycleContracts[blockedIndex].state, 'blocked');
   assert.equal(plain(engine.mechanicsSummary(ready)).lifecycleContracts[readyIndex].state, 'typed');
 
   const malformed = plain(ready);
@@ -613,19 +608,14 @@ test('catalog lifecycle readiness rejects non-executable grants and accepts a co
   assert.equal(plain(engine.mechanicsSummary(malformed)).lifecycleContracts[readyIndex].state, 'blocked', 'projection-mode disagreement fails closed');
 });
 
-test('catalog lifecycle readiness rejects blocked interrupts and accepts a complete executable interrupt', () => {
+test('strict catalog retains only complete executable lifecycle interrupts', () => {
   const engine = loadEngineAuditApi();
-  const blockedId = 'bg3:item:rt:517231eb-e812-43ed-9ce3-482ba7ed31e6:stats:TUFHX1RoZUNsb3Zlcl9TY2ltaXRhcg';
-  const readyId = 'bg3:item:rt:d64e1a13-18a5-4cdc-ac02-977523435f8f:stats:V1BOX0dyZWF0Y2x1Yl8x';
-  const blocked = plain(engine.materialize(itemById.get(blockedId), 'standard'));
-  const ready = plain(engine.materialize(itemById.get(readyId), 'standard'));
-  assert.ok(blocked && ready, 'interrupt fixtures materialize in Standard');
-
-  const blockedIndex = blocked.mechanics.lifecyclePrograms.findIndex(ref => (ref.grantedInterrupts || []).some(interrupt => interrupt.executable === false));
-  const readyIndex = ready.mechanics.lifecyclePrograms.findIndex(ref => (ref.grantedInterrupts || []).some(interrupt => interrupt.interruptId === 'Interrupt_Overwhelm'));
-  assert.notEqual(blockedIndex, -1, 'blocked interrupt fixture');
+  assert.equal(items.some(item => (item.mechanics.lifecyclePrograms || []).some(ref => (ref.grantedInterrupts || []).some(interrupt => interrupt.executable !== true))), false);
+  const source = items.find(item => (item.mechanics.lifecyclePrograms || []).some(ref => (ref.grantedInterrupts || []).some(interrupt => interrupt.executable === true)));
+  const ready = plain(engine.materialize(source, 'standard'));
+  assert.ok(ready, 'typed interrupt fixture materializes in Standard');
+  const readyIndex = ready.mechanics.lifecyclePrograms.findIndex(ref => (ref.grantedInterrupts || []).some(interrupt => interrupt.executable === true));
   assert.notEqual(readyIndex, -1, 'ready interrupt fixture');
-  assert.equal(plain(engine.mechanicsSummary(blocked)).lifecycleContracts[blockedIndex].state, 'blocked');
   assert.equal(plain(engine.mechanicsSummary(ready)).lifecycleContracts[readyIndex].state, 'typed');
 
   const malformed = plain(ready);
@@ -633,15 +623,13 @@ test('catalog lifecycle readiness rejects blocked interrupts and accepts a compl
   assert.equal(plain(engine.mechanicsSummary(malformed)).lifecycleContracts[readyIndex].state, 'blocked', 'interrupt blocker fails closed');
 });
 
-test('catalog cards disclose missing descriptions without exposing internal source identity', () => {
+test('strict catalog cards always expose source-backed descriptions without internal source identity', () => {
   const engine = loadEngineAuditApi();
   const missing = items.find(item => !String(item.desc || '').trim());
   const described = items.find(item => String(item.desc || '').trim());
-  assert.ok(missing && described, 'catalog contains both description shapes');
-  const missingHtml = engine.cardHtml(missing);
+  assert.equal(missing, undefined, 'incomplete descriptions are removed from the strict catalog');
+  assert.ok(described);
   const describedHtml = engine.cardHtml(described);
-  assert.ok(missingHtml.includes('Описание не указано.'), 'missing source text is disclosed, not invented');
-  assert.doesNotMatch(missingHtml,/Технический источник и целостность|Root \/ Stats:|build 24532579/,'missing-description card does not render an internal identity block');
   assert.equal(describedHtml.includes('Описание не указано.'), false, 'real descriptions are shown without the fallback notice');
   assert.doesNotMatch(describedHtml,/Технический источник и целостность|Root \/ Stats:|build 24532579/,'described card does not render an internal identity block');
 });
@@ -717,7 +705,9 @@ test('every action has an exact causal program, player-entered rolls and one res
       }
     }
   }
-  assert.equal(actionCount, manifest.counts.itemRuleActions.actions);
+  assert.equal(actionCount,
+    items.reduce((total, item) => total + (item.mechanics.actions || []).length, 0),
+    'strict Full Arsenal action census');
   assert.equal(actionKeys.size, actionCount);
 });
 
@@ -747,14 +737,14 @@ test('rule, root, lifecycle and item-link programs resolve with zero silent drop
     assert.equal(program.summary.typedOpcodes + program.summary.manualOpcodes, opcodes.length, program.id);
   }
   for (const linkSet of itemRuleLinks) {
-    assert.ok(itemById.has(linkSet.itemId), linkSet.id);
-    assert.ok(['standard', 'honour'].includes(linkSet.profile), linkSet.id);
+    assert.ok(catalogItemById.has(linkSet.itemId), linkSet.id);
+    assert.equal(linkSet.profile, 'standard', linkSet.id);
     assert.equal(linkSet.unresolved.length, 0, linkSet.id);
     for (const linked of linkSet.linked) {
       assert.ok(programKeys.has(`${linked.artifact}\0${linked.programId}`), `${linkSet.id}: ${linked.programId}`);
     }
   }
-  for (const item of items) {
+  for (const item of catalogItems) {
     const linkRef = item.mechanics.rulePrograms;
     const linkSet = itemRuleLinkById.get(linkRef.id);
     assert.ok(linkSet, `${item.id}: ${linkRef.id}`);
@@ -809,75 +799,13 @@ test('rule, root, lifecycle and item-link programs resolve with zero silent drop
   assert.equal(coverage.silentRuleDrops, 0);
 });
 
-test('every Honour mechanics overlay resolves its own actions, links and lifecycle programs', () => {
-  for (const item of items) {
-    const overlay = item.source.honourOverlay;
-    if (!overlay) continue;
-    assert.equal(typeof overlay.rootTemplateActionsChanged, 'boolean', item.id);
-    assert.ok(overlay.item && overlay.item.mechanics, item.id);
-    const effective = Object.assign({}, item, overlay.item, {source: item.source});
-    const mechanics = effective.mechanics;
-    const context = `${item.id}@honour`;
-    const linkRef = mechanics.rulePrograms;
-    assert.equal(linkRef.profile, 'honour', context);
-    assert.equal(linkRef.unresolvedCount, 0, context);
-    const linkSet = itemRuleLinkById.get(linkRef.id);
-    assert.ok(linkSet, `${context}: ${linkRef.id}`);
-    assert.equal(itemRuleLinkArtifactById.get(linkRef.id), linkRef.artifact, context);
-    assert.equal(linkSet.itemId, item.id, context);
-    assert.equal(linkSet.profile, 'honour', context);
-    assert.equal(linkSet.unresolved.length, 0, context);
-    assert.deepEqual(plain(linkSet.ruleReferences), plain(mechanics.provenance.ruleReferences), context);
-    const rootRef = mechanics.rootTemplatePrograms;
-    assert.equal(rootRef.profile, 'honour', context);
-    assert.ok(rootProgramsByArtifact.has(rootRef.artifact), `${context}: ${rootRef.artifact}`);
-    assert.equal(
-      rootProgramsByArtifact.get(rootRef.artifact).filter(program => program.id.startsWith(`${item.id}:root-action:honour:`)).length,
-      rootRef.count,
-      context,
-    );
-    for (const action of mechanics.actions || []) {
-      const actionContext = `${context}/${action.id}`;
-      const rootProgram = rootProgramByKey.get(`${action.program.rootArtifact}\0${action.program.id}`);
-      assert.ok(rootProgram, actionContext);
-      assert.equal(action.rollPolicy, 'player-input-required', actionContext);
-      assert.equal(action.program.commitPolicy, 'item-action-contract-once', actionContext);
-      assert.equal(rootProgram.executionModel, 'validate-commit-consequences', actionContext);
-      assert.equal(rootProgram.commit.filter(op => op.op === 'commitFromItemAction').length, 1, actionContext);
-      for (const opcode of collectOpcodes([rootProgram.validation, rootProgram.commit, rootProgram.consequences])) {
-        assertOpcodeContract(opcode, actionContext);
-      }
-      if (action.handler === 'bg3RuleProgram') {
-        assert.equal(action.program.invokedRuleResourceCostPolicy, 'caller-item-action', actionContext);
-      }
-      if (action.program.ruleProgramId) {
-        if (action.program.invokedRuleResourceCostPolicy != null) {
-          assert.equal(action.program.invokedRuleResourceCostPolicy, 'caller-item-action', actionContext);
-        }
-        assert.ok(programKeys.has(`${action.program.artifact}\0${action.program.ruleProgramId}`), actionContext);
-        assertProjectionRefs(action.program.projection, programKeys, actionContext);
-      }
-    }
-    for (const lifecycle of mechanics.lifecyclePrograms || []) {
-      const lifecycleContext = `${context}/${lifecycle.id}`;
-      assert.ok(programKeys.has(`${lifecycle.artifact}\0${lifecycle.programId}`), lifecycleContext);
-      assert.equal(lifecycle.executionPolicy, 'preflight-fail-closed', lifecycleContext);
-      assertProjectionRefs(lifecycle.projection, programKeys, lifecycleContext);
-      if (lifecycle.sourceApplication) {
-        assert.equal(lifecycle.sourceApplication.executionPolicy, 'all-opcodes-or-fail-closed', lifecycleContext);
-        for (const opcode of collectOpcodes(lifecycle.sourceApplication.bytecode)) assertOpcodeContract(opcode, lifecycleContext);
-      }
-    }
-  }
-});
-
 test('story references and causal program shards resolve to exact catalog variants', () => {
   const story = readJson(catalogFile(manifest.entrypoints.storyItems));
   assert.equal(story.catalogVersion, current.catalogVersion);
   const compactById = new Map((story.links || []).map(link => [link.id, link]));
   assert.equal(compactById.size, story.counts.linkedBlocks);
   for (const [itemId, links] of Object.entries(story.itemLinks || {})) {
-    assert.ok(itemById.has(itemId), itemId);
+    assert.ok(catalogItemById.has(itemId), itemId);
     assert.ok(Array.isArray(links), itemId);
     for (const linkId of links) assert.ok(compactById.has(linkId), `${itemId}: ${linkId}`);
   }
@@ -920,7 +848,7 @@ test('story references and causal program shards resolve to exact catalog varian
       assert.equal(link.program.localizedTextExecutable, false, link.id);
       for (const reference of link.references || []) {
         assert.ok(reference.itemVariantIds.length > 0, `${link.id}: ${reference.uuid}`);
-        for (const itemId of reference.itemVariantIds) assert.ok(itemById.has(itemId), `${link.id}: ${itemId}`);
+        for (const itemId of reference.itemVariantIds) assert.ok(catalogItemById.has(itemId), `${link.id}: ${itemId}`);
       }
     }
   }
@@ -959,7 +887,7 @@ test('world placements resolve every profile overlay to one exact item variant w
       assert.equal(shardBaseFor(placement.id), String(meta.shard).split('-', 1)[0], placement.id);
       assert.equal(placement.placementEpoch, 0, placement.id);
       for (const [profile, overlay] of Object.entries(placement.effectiveByProfile)) {
-        const item = itemById.get(overlay.variantId);
+        const item = catalogItemById.get(overlay.variantId);
         assert.ok(item, `${placement.id}/${profile}: ${overlay.variantId}`);
         assert.ok(item.source.profiles.includes(profile), `${placement.id}/${profile}`);
         assert.equal(item.source.rootTemplateUuid, overlay.rootTemplateUuid, `${placement.id}/${profile}`);
@@ -1001,7 +929,7 @@ test('world placements resolve every profile overlay to one exact item variant w
       assert.match(set.definitionId, new RegExp(`^bg3:placement-definition:${set.instanceUuid}:`), set.id);
       assert.equal(typeof set.definitionSha256, 'string', set.id);
       assert.match(set.definitionSha256, /^[0-9a-f]{64}$/, set.id);
-      assert.ok(Array.isArray(set.profiles) && set.profiles.every(profile => ['standard','honour'].includes(profile)), set.id);
+      assert.deepEqual(set.profiles, ['standard'], set.id);
       assert.ok(Array.isArray(set.programs), set.id);directPrograms += set.programs.length;
       for (const program of set.programs) {
         assert.equal(program.schemaVersion, 'bg3-placement-action-program/1', program.id);
@@ -1024,7 +952,8 @@ test('world placements resolve every profile overlay to one exact item variant w
   }
   assert.equal(programSetById.size, manifest.counts.placementActionProgramSets);
   assert.equal(directPrograms, manifest.counts.placementActionPrograms);
-  assert.equal(programSetById.size, 6_124);assert.equal(directPrograms, 2_641);
+  assert.equal(programSetById.size, placementRoot.counts.directActionProgramSets);
+  assert.equal(directPrograms, placementRoot.counts.directActionPrograms);
   for (const placement of fullById.values()) for (const [profile, overlay] of Object.entries(placement.effectiveByProfile)) {
     if (!overlay.directActionProgramSetId) {
       assert.deepEqual(overlay.directActionProgramIds, [], `${placement.id}/${profile}`);continue;
@@ -1060,9 +989,7 @@ test('every variant belongs to one deterministic mechanics-signature group with 
     if (item.id < group.representative) group.representative = item.id;
     for (const profile of item.source.profiles) {
       effectiveProfileRecords++;
-      const effective = profile === 'honour' && item.source.honourOverlay
-        ? Object.assign({}, item, item.source.honourOverlay.item, {source: item.source})
-        : item;
+      const effective = item;
       const profileSignature = compactSignature(effective);
       const profileDigest = sha256Text(profileSignature);
       if (!profileGroups.has(profileDigest)) profileGroups.set(profileDigest, {
@@ -1076,7 +1003,7 @@ test('every variant belongs to one deterministic mechanics-signature group with 
   }
   assert.equal([...groups.values()].reduce((sum, group) => sum + group.count, 0), items.length);
   for (const group of groups.values()) assert.ok(itemById.has(group.representative), group.representative);
-  assert.equal(effectiveProfileRecords, manifest.counts.universe.standard + manifest.counts.universe.honour);
+  assert.equal(effectiveProfileRecords, arsenalQuality.counts.retained);
   assert.equal([...profileGroups.values()].reduce((sum, group) => sum + group.count, 0), effectiveProfileRecords);
   const ranked = [...groups.entries()]
     .map(([signature, group]) => ({signature, count: group.count, representative: group.representative}))

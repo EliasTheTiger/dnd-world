@@ -3,8 +3,6 @@
 Catalog: `bg3-24532579-v10`  
 Source definitions: **59,023**  
 Stable MapKey instances: **59,020**  
-Standard/Honour effective placements: **59,019 / 59,020**  
-Projected item variants (Standard/Honour/union): **10,282 / 10,284 / 10,284**  
 Direct `level-instance.stats` pairs: **608**; occurrences: **1,290**  
 Unresolved roots / direct pairs / ambiguous variants: **0 / 0 / 0**  
 Profile collisions resolved by module order: **3**  

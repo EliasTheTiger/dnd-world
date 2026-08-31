@@ -5,10 +5,9 @@
   "rollPolicy": "player-input-required",
   "localizedTextExecutable": false,
   "definitions": 2963,
-  "programs": 5898,
+  "programs": 2941,
   "programsByProfile": {
-    "standard": 2941,
-    "honour": 2957
+    "standard": 2941
   },
   "programsByKind": {
     "status": 2646,
@@ -249,55 +248,7 @@
     },
     "total": 2963
   },
-  "rootTemplatePrograms": {
-    "programs": 35729,
-    "modes": {
-      "typed": 30051,
-      "mixed": 5678
-    },
-    "actionTypes": {
-      "26": 19083,
-      "19": 28,
-      "23": 474,
-      "4": 326,
-      "5": 5892,
-      "32": 188,
-      "11": 2438,
-      "8": 3044,
-      "1": 1272,
-      "9": 538,
-      "7": 852,
-      "12": 364,
-      "33": 228,
-      "10": 48,
-      "15": 216,
-      "24": 282,
-      "14": 238,
-      "18": 4,
-      "3": 114,
-      "30": 40,
-      "16": 22,
-      "31": 6,
-      "20": 2,
-      "35": 28,
-      "2": 2
-    },
-    "opcodes": {
-      "playSoundOnDestroy": 19071,
-      "commitFromItemAction": 10396,
-      "manual": 5678,
-      "openRecipePreflight": 398,
-      "createSurfaceOnDestroy": 324,
-      "applyDestroyParameters": 5892,
-      "invokeRuleProgram": 498,
-      "readBook": 2436,
-      "toggleLight": 498,
-      "invokeStatusProgram": 848,
-      "guard": 426,
-      "createPuddleOnDestroy": 46,
-      "unlockRecipe": 40
-    }
-  },
+  "rootTemplatePrograms": 17864,
   "itemLinks": {
     "linked": 60417,
     "unresolved": 0,
@@ -313,16 +264,16 @@
     "items": 1245,
     "programs": 2498,
     "gates": {
-      "equipped": 949,
       "equipped-main-hand": 1499,
+      "equipped": 949,
+      "equipped-off-hand": 8,
       "on-hit": 27,
       "inventory": 13,
-      "equipped-off-hand": 8,
       "granted-action": 2
     },
     "kinds": {
-      "passive": 699,
       "spell": 1675,
+      "passive": 699,
       "status": 124
     },
     "inheritedDefaultsExecutable": 0

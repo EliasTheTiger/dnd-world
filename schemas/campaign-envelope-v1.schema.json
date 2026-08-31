@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dnd-world.local/schemas/campaign-envelope-v1.schema.json",
+  "title": "D&D World campaign persistence envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "campaignId", "revision", "parentRevision", "transactionId", "rulesetRefs", "catalogRefs", "state", "writtenAt", "checksum"],
+  "properties": {
+    "schemaVersion": {"const": "dnd-world-campaign-envelope/1"},
+    "campaignId": {"type": "string", "minLength": 1},
+    "revision": {"type": "integer", "minimum": 0},
+    "parentRevision": {"type": "integer", "minimum": -1},
+    "transactionId": {"type": "string", "pattern": "^[A-Za-z0-9:._-]+$"},
+    "rulesetRefs": {"type": "array", "items": {"type": "object"}},
+    "catalogRefs": {"type": "array", "items": {"type": "object"}},
+    "state": {"type": "object"},
+    "writtenAt": {"type": "string", "minLength": 1},
+    "checksum": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

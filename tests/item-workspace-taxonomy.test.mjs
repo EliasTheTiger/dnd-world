@@ -15,6 +15,7 @@ function loadWorkspaceAudit() {
   const html = fs.readFileSync(path.join(repo, 'index.html'), 'utf8');
   const scriptStart = html.indexOf('<script>') + 8;
   let source = html.slice(scriptStart, html.indexOf('</script>', scriptStart));
+  source = fs.readFileSync(path.join(repo, 'scripts', 'item-domain-model.js'), 'utf8') + '\n' + source;
   source = source.replace(/\(async function init\(\)[\s\S]*$/, '');
   source += `
     globalThis.__itemWorkspaceTaxonomyAudit = {
@@ -25,6 +26,14 @@ function loadWorkspaceAudit() {
       tagOptions(values) { return itemWorkspaceTagOptions(JSON.parse(JSON.stringify(values || []))); },
       tagMatches(values, key) { return itemWorkspaceTagMatches(JSON.parse(JSON.stringify(values || [])), key); },
       portable(row) { return itemWorkspacePortable(row); },
+      strictCampaign(type, tags) {
+        const item = seedItemsDB().find(row => row.type === type && itemArsenalReadiness(row).ok);
+        if (!item) throw new Error('strict campaign fixture not found: ' + type);
+        const copy = JSON.parse(JSON.stringify(item));
+        copy.tags = [...new Set([...(copy.tags || []), ...(tags || [])])];
+        return copy;
+      },
+      taxonomy(row) { return itemWorkspaceTaxonomyKey(JSON.parse(JSON.stringify(row))); },
       setWorld(campaignItems, bg3Rows) {
         itemsDB = JSON.parse(JSON.stringify(campaignItems || []));
         bg3Catalog.epoch++;
@@ -35,7 +44,7 @@ function loadWorkspaceAudit() {
         bg3CatalogSearchCache = {epoch: -1, profile: '', rows: [], docs: new Map(), availableCount: 0, facets: null};
         itemWorkspaceSearchResultCache = {key: '', rows: []};
       },
-      facets() { return [...itemWorkspaceFacetValues().categories].sort(); },
+      facets() { return [...itemWorkspaceFacetValues().taxonomies].map(([value, label]) => ({value, label})).sort((a, b) => a.label.localeCompare(b.label, 'ru')); },
       search(filters) {
         dbFlt.it = Object.assign({q:'',source:'all',classification:'all',type:'',kind:'',category:'',rarity:'',tag:'',content:'',sort:'name'}, JSON.parse(JSON.stringify(filters || {})));
         itemWorkspaceSearchResultCache = {key: '', rows: []};
@@ -205,9 +214,9 @@ test('raw BG3 unclassified category is preserved and split into honest workspace
   assert.equal(api.portable(reviewedInventory), true, 'a classified review row still needs an exact portable profile');
 });
 
-test('facets and workspace filtering do not duplicate potion or scroll categories', () => {
+test('the unified taxonomy facet keeps campaign and BG3 potion and scroll rows together', () => {
   const api = loadWorkspaceAudit();
-  const campaign = [campaignItem('campaign-potion', 'potion'), campaignItem('campaign-scroll', 'scroll')];
+  const campaign = [plain(api.strictCampaign('potion'))];
   const bg3 = [
     bg3Summary('BG3 potion', 'consumable.potion', 'playable', {type: 'potion', kind: 'potion'}),
     bg3Summary('BG3 scroll', 'consumable.scroll', 'playable', {type: 'scroll', kind: 'scroll'}),
@@ -215,19 +224,16 @@ test('facets and workspace filtering do not duplicate potion or scroll categorie
     bg3Summary('BG3 review', 'unclassified', 'needs-review'),
   ];
   api.setWorld(campaign, bg3);
-  const facets = plain(api.facets());
-  assert.ok(facets.includes('consumable.potion'));
-  assert.ok(facets.includes('consumable.scroll'));
-  assert.ok(facets.includes('technical-object'));
-  assert.ok(facets.includes('world-object.needs-review'));
-  assert.equal(facets.includes('potion'), false);
-  assert.equal(facets.includes('scroll'), false);
-  assert.equal(facets.includes('unclassified'), false);
+  const facets = plain(api.facets()),potionRow=plain(api.campaignRow(campaign[0])),potionTaxonomy=api.taxonomy(potionRow),scrollTaxonomy=api.taxonomy(plain(api.bg3Row(bg3[1])));
+  assert.equal(facets.filter(option=>option.value===potionTaxonomy).length,1);
+  assert.equal(facets.filter(option=>option.value===scrollTaxonomy).length,1);
+  assert.ok(facets.some(option=>/Зель/.test(option.label)));
+  assert.ok(facets.some(option=>/Свит/.test(option.label)));
 
-  const potions = plain(api.search({category: 'consumable.potion'}));
+  const potions = plain(api.search({taxonomy: potionTaxonomy}));
   assert.deepEqual(potions.map(row => row.source).sort(), ['bg3', 'campaign']);
   assert.ok(potions.every(row => row.category === 'consumable.potion'));
-  assert.equal(plain(api.search({category: 'potion'})).length, 0);
+  assert.equal(plain(api.search({taxonomy: 'potion'})).length, 0);
 });
 
 test('semantic property filters collapse duplicate campaign and BG3 tag labels', () => {
@@ -245,7 +251,7 @@ test('semantic property filters collapse duplicate campaign and BG3 tag labels',
   assert.equal(api.tagMatches(['bg3-consumable-potion'], potionKey), true);
 
   api.setWorld(
-    [campaignItem('campaign-potion-tag', 'potion', {tags: ['potion']})],
+    [plain(api.strictCampaign('potion', ['potion']))],
     [bg3Summary('BG3 potion tag', 'consumable.potion', 'playable', {
       type: 'potion', kind: 'potion', tags: ['bg3', 'bg3-consumable-potion'],
     })],

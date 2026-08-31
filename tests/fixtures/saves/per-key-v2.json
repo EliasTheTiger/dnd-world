@@ -1,0 +1,12 @@
+{
+  "dndworld2:chars": "[{\"id\":\"fixture-hero\",\"inventory\":[]}]",
+  "dndworld2:items": "[]",
+  "dndworld2:spells": "[]",
+  "dndworld2:abilities": "[]",
+  "dndworld2:races": "[]",
+  "dndworld2:classes": "[]",
+  "dndworld2:rules": "[]",
+  "dndworld2:foes": "[]",
+  "dndworld2:combat": "{\"order\":[]}",
+  "dndworld2:catalog-refs": "[]"
+}

@@ -3,9 +3,9 @@
   "catalogVersion": "bg3-24532579-v10",
   "manifest": {
     "path": "manifest.json",
-    "bytes": 3463822,
-    "sha256": "577054a8f2cca1190960a1e84d20fd14b47980794479602753c014886231d0e2"
+    "bytes": 3287281,
+    "sha256": "2d39468615bd34c83aa7e7d484058b63ce98b298fa39861720aca9495984d0e3"
   },
-  "detailSetSha256": "999a790a6a7de2e4a23abeef62487fab2b240d8baa2c81ae15b673d363628be3",
-  "generatedFileSetSha256": "557b2cb6008c27a961977c55967a70ce6606acaf060cb8835058fdd5fd620c11"
+  "detailSetSha256": "0ea9b3cd3667d6f051abbe299a98422cc8f385dc50ef379bdf7c4d53932ef2f4",
+  "generatedFileSetSha256": "b6396374845b73fed6c28b243932743385137b39913b903a9428d0261a5da917"
 }

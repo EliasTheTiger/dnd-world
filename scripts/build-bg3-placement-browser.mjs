@@ -20,7 +20,7 @@ const OUTPUT_ROOT = join(REPO_ROOT, 'data', 'bg3', 'ui', `${CATALOG_VERSION}-pla
 const DETAIL_ROOT = join(OUTPUT_ROOT, 'detail');
 const TARGET_DETAIL_BYTES = 210_000;
 const HARD_DETAIL_BYTES = 250_000;
-const PROFILE_ORDER = ['standard', 'honour'];
+const PROFILE_ORDER = ['standard'];
 const CHECK_ONLY = process.argv.includes('--check');
 
 function sha256(buffer) {

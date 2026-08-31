@@ -1,0 +1,42 @@
+{
+  "schemaVersion": "dnd-world-ruleset-manifest/1",
+  "active": [
+    {"id": "dnd5e-2014-local", "version": "1"},
+    {"id": "bg3-5e-2014-adaptation", "version": "24532579-v10", "profile": "standard"}
+  ],
+  "rulesets": [
+    {
+      "id": "dnd5e-2014-local",
+      "version": "1",
+      "title": "D&D 5e 2014 — локальная реализация проекта",
+      "status": "active",
+      "capabilities": ["characters", "combat", "spells", "features", "items", "inventory", "economy"],
+      "evidence": [
+        {"path": "index.html", "symbol": "referenceMechanicsErrors", "assertion": "spellcasting.edition must equal 2014"},
+        {"path": "index.html", "symbol": "combatCanCastAnotherSpell", "assertion": "bonus-action spell restriction is labelled 5e 2014"},
+        {"path": "index.html", "symbol": "gameDataAudit", "assertion": "item rules require edition 5e-2014"}
+      ],
+      "contentSourceSet": "local-authored-core",
+      "completeness": {"status": "unknown", "reason": "No approved canonical spell/feature corpus or expected-ID census is pinned."}
+    },
+    {
+      "id": "bg3-5e-2014-adaptation",
+      "version": "24532579-v10",
+      "profile": "standard",
+      "title": "BG3 build 24532579, Standard profile, adapted to project 5e-2014 contracts",
+      "status": "active",
+      "extends": [{"id": "dnd5e-2014-local", "version": "1"}],
+      "capabilities": ["bg3-items", "bg3-rule-programs", "bg3-scenes", "bg3-treasure"],
+      "evidence": [
+        {"path": "data/bg3/current.json", "assertion": "pins immutable catalog manifest"},
+        {"path": "data/bg3/bg3-24532579-v10/manifest.json", "assertion": "catalog source and runtime capability census"}
+      ],
+      "contentSourceSet": "bg3-build-24532579",
+      "completeness": {"status": "scoped", "scope": "BG3 item catalog only", "reason": "Does not establish completeness of tabletop spells or class/race features."}
+    }
+  ],
+  "sourceSets": [
+    {"id": "local-authored-core", "provenanceStatus": "undocumented", "licenseStatus": "not-recorded", "allowedCompletenessClaim": "none"},
+    {"id": "bg3-build-24532579", "provenanceStatus": "locally-pinned-derived-data", "licenseStatus": "not-recorded", "allowedCompletenessClaim": "catalog-source-census-only"}
+  ]
+}

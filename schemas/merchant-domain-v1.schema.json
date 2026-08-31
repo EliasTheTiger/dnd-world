@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dnd-world.local/schemas/merchant-domain-v1.schema.json",
+  "title": "D&D World merchant domain v1",
+  "oneOf": [
+    { "$ref": "#/$defs/MerchantTemplate" },
+    { "$ref": "#/$defs/MerchantInstance" },
+    { "$ref": "#/$defs/MerchantState" },
+    { "$ref": "#/$defs/MerchantTransaction" }
+  ],
+  "$defs": {
+    "NonNegativeIntegerString": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "BasisPoints": {
+      "allOf": [
+        { "$ref": "#/$defs/NonNegativeIntegerString" },
+        { "type": "string", "pattern": "^(?:[0-9]{1,6}|1000000)$" }
+      ]
+    },
+    "StringList": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "Restrictions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedRegions", "excludedRegions", "requiredStoryFlags", "forbiddenStoryFlags"],
+      "properties": {
+        "allowedRegions": { "$ref": "#/$defs/StringList" },
+        "excludedRegions": { "$ref": "#/$defs/StringList" },
+        "requiredStoryFlags": { "$ref": "#/$defs/StringList" },
+        "forbiddenStoryFlags": { "$ref": "#/$defs/StringList" }
+      }
+    },
+    "StockRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["categories", "itemIds", "limit", "quantity", "availability"],
+      "properties": {
+        "categories": { "$ref": "#/$defs/StringList" },
+        "itemIds": { "$ref": "#/$defs/StringList" },
+        "limit": { "type": "integer", "minimum": 1 },
+        "quantity": { "type": "integer", "minimum": 1 },
+        "availability": { "type": "string", "minLength": 1 }
+      }
+    },
+    "MerchantTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "id", "profession", "merchantType", "label", "description", "buyCategories", "sellCategories", "initialStock", "startingFunds", "pricingRules", "rarity", "restockRules", "restrictions"],
+      "properties": {
+        "schemaVersion": { "const": "dnd-world-merchant-template/1" },
+        "id": { "type": "string", "minLength": 1 },
+        "profession": { "type": "string", "minLength": 1 },
+        "merchantType": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "buyCategories": { "$ref": "#/$defs/StringList" },
+        "sellCategories": { "$ref": "#/$defs/StringList" },
+        "initialStock": { "type": "array", "items": { "$ref": "#/$defs/StockRule" } },
+        "startingFunds": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/NonNegativeIntegerString" }
+        },
+        "pricingRules": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["purchaseBasisPoints", "saleBasisPoints", "rounding"],
+          "properties": {
+            "purchaseBasisPoints": { "$ref": "#/$defs/BasisPoints" },
+            "saleBasisPoints": { "$ref": "#/$defs/BasisPoints" },
+            "rounding": { "enum": ["half-up", "up", "down", "reject"] }
+          }
+        },
+        "rarity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maximum", "allowed"],
+          "properties": {
+            "maximum": { "type": "integer", "minimum": 0, "maximum": 5 },
+            "allowed": { "$ref": "#/$defs/StringList" }
+          }
+        },
+        "restockRules": {
+          "type": "object",
+          "required": ["mode", "cadenceDays", "requiresGM"],
+          "properties": {
+            "mode": { "type": "string", "minLength": 1 },
+            "cadenceDays": { "type": "integer", "minimum": 0 },
+            "requiresGM": { "type": "boolean" }
+          }
+        },
+        "restrictions": { "$ref": "#/$defs/Restrictions" }
+      }
+    },
+    "StockEntry": {
+      "description": "A merchant stores only a reference to the canonical item plus instance-level trade state; item definitions are forbidden here.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["itemId", "quantity", "available", "buyPriceOverrideMinor", "salePriceOverrideMinor"],
+      "properties": {
+        "itemId": { "type": "string", "minLength": 1 },
+        "quantity": { "type": "integer", "minimum": 0 },
+        "available": { "type": "boolean" },
+        "buyPriceOverrideMinor": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/NonNegativeIntegerString" }]
+        },
+        "salePriceOverrideMinor": {
+          "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/NonNegativeIntegerString" }]
+        }
+      }
+    },
+    "Wallet": {
+      "type": "object",
+      "required": ["schemaVersion", "id", "ruleset", "version", "balances"],
+      "properties": {
+        "schemaVersion": { "const": "dnd-world-wallet/1" },
+        "id": { "type": "string", "minLength": 1 },
+        "ruleset": { "type": "string", "minLength": 1 },
+        "version": { "type": "integer", "minimum": 0 },
+        "balances": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/NonNegativeIntegerString" }
+        }
+      }
+    },
+    "Relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reputation", "purchaseBasisPoints", "saleBasisPoints"],
+      "properties": {
+        "reputation": { "type": "string", "minLength": 1 },
+        "purchaseBasisPoints": { "$ref": "#/$defs/BasisPoints" },
+        "saleBasisPoints": { "$ref": "#/$defs/BasisPoints" }
+      }
+    },
+    "MerchantInstance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "id", "templateId", "name", "region", "storyFlags", "inventory", "wallet", "priceMultipliers", "itemAvailability", "relationships", "overdraftMinor", "revision", "createdAt", "updatedAt", "lastRestockedAt"],
+      "properties": {
+        "schemaVersion": { "const": "dnd-world-merchant-instance/1" },
+        "id": { "type": "string", "minLength": 1 },
+        "templateId": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "region": { "type": "string" },
+        "storyFlags": { "$ref": "#/$defs/StringList" },
+        "inventory": { "type": "array", "items": { "$ref": "#/$defs/StockEntry" } },
+        "wallet": { "$ref": "#/$defs/Wallet" },
+        "priceMultipliers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["purchaseBasisPoints", "saleBasisPoints"],
+          "properties": {
+            "purchaseBasisPoints": { "$ref": "#/$defs/BasisPoints" },
+            "saleBasisPoints": { "$ref": "#/$defs/BasisPoints" }
+          }
+        },
+        "itemAvailability": { "type": "object", "additionalProperties": { "type": "boolean" } },
+        "relationships": { "type": "object", "additionalProperties": { "$ref": "#/$defs/Relationship" } },
+        "overdraftMinor": { "$ref": "#/$defs/NonNegativeIntegerString" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "createdAt": { "type": "string", "minLength": 1 },
+        "updatedAt": { "type": "string", "minLength": 1 },
+        "lastRestockedAt": { "type": "string" }
+      }
+    },
+    "MasterOverride": {
+      "type": "object",
+      "required": ["confirmed", "authorizedBy", "reason", "shortfallMinor"],
+      "properties": {
+        "confirmed": { "const": true },
+        "authorizedBy": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "shortfallMinor": { "$ref": "#/$defs/NonNegativeIntegerString" }
+      }
+    },
+    "MerchantTransaction": {
+      "type": "object",
+      "required": ["schemaVersion", "id", "requestId", "kind", "at", "merchantId", "characterId", "itemId", "quantity", "unitMinor", "totalMinor", "status", "userId", "reason", "masterOverride", "economyOperationId"],
+      "properties": {
+        "schemaVersion": { "const": "dnd-world-merchant-transaction/1" },
+        "id": { "type": "string", "minLength": 1 },
+        "requestId": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["purchase", "sale"] },
+        "at": { "type": "string", "minLength": 1 },
+        "merchantId": { "type": "string", "minLength": 1 },
+        "characterId": { "type": "string", "minLength": 1 },
+        "itemId": { "type": "string", "minLength": 1 },
+        "quantity": { "type": "integer", "minimum": 1 },
+        "unitMinor": { "$ref": "#/$defs/NonNegativeIntegerString" },
+        "totalMinor": { "$ref": "#/$defs/NonNegativeIntegerString" },
+        "status": { "const": "committed" },
+        "userId": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string" },
+        "masterOverride": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/MasterOverride" }] },
+        "economyOperationId": { "oneOf": [{ "type": "null" }, { "type": "string", "minLength": 1 }] }
+      }
+    },
+    "MerchantState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "instances", "transactions"],
+      "properties": {
+        "schemaVersion": { "const": "dnd-world-merchants/1" },
+        "instances": { "type": "array", "items": { "$ref": "#/$defs/MerchantInstance" } },
+        "transactions": { "type": "array", "items": { "$ref": "#/$defs/MerchantTransaction" } }
+      }
+    }
+  }
+}

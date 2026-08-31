@@ -20,22 +20,22 @@ import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const selected = selectBg3Catalog(repo);
 const {current, manifest, catalogRoot} = selected;
-const PROFILES = Object.freeze(['standard', 'honour']);
+const PROFILES = Object.freeze(['standard']);
 
 const EXPECTED = Object.freeze({
   version: 'bg3-24532579-v10',
-  manifestSha256: '283436220584717c59b245e5ecbd43d107dbcee5d75bab58b048fa54c3e34525',
+  manifestSha256: '43af74e955031ccbaa9ae2270aa3faa1208900735b3a2afbb5dae2f7ad788c59',
   sourceRules: 46,
-  sourcePrograms: 92,
-  sourceFields: 102,
-  directFields: 20,
-  conditionalFields: 82,
-  sourceCensusSha256: '7dfa6e7f45ee1a73737a7406af528f5529855b44c47ca5df0d0bcda2498b8bdc',
-  carrierRows: 62,
+  sourcePrograms: 46,
+  sourceFields: 51,
+  directFields: 10,
+  conditionalFields: 41,
+  sourceCensusSha256: 'd67d3d8c5ba52af91cdf6ce4c29b73559a34a776764d3062b01fdffb99bd05b4',
+  carrierRows: 31,
   carrierItems: 31,
   primaryRules: 26,
-  carrierCensusSha256: 'd905bb7240b82ca3a781c3148f0d1f96e803720b50e740a4daecd10e49947b86',
-  descriptorRows: 2,
+  carrierCensusSha256: 'c6eb20113e447fc59b3bbf94da62f04a7e60c3c325e35a8a92d63129bdaad2d3',
+  descriptorRows: 1,
   descriptorItems: 1,
 });
 
@@ -46,11 +46,9 @@ const ARROW = Object.freeze({
   rootArtifact: 'root-template-programs/04-0000.json',
   useIds: Object.freeze({
     standard: 'bg3-use-62c1be5dbf88a75b409d',
-    honour: 'bg3-use-5fb50274ac0a36164c47',
   }),
   descriptorSha256: Object.freeze({
     standard: '3bfe3614b05346d131ad5f9e2cd68620253dcdba25c63584751d09812def68f9',
-    honour: 'e74326df1cad88f5a41681ae134bbf26dce54664893769eb7bfe0a2a22f2c90a',
   }),
   chain: Object.freeze([
     Object.freeze({
@@ -170,8 +168,7 @@ function fieldOf(record, name) {
 }
 
 function effectiveMechanics(item, profile) {
-  return profile === 'honour' && item.source?.honourOverlay?.item?.mechanics
-    ? item.source.honourOverlay.item.mechanics : item.mechanics;
+  return profile === 'standard' ? item.mechanics : null;
 }
 
 const ruleProgramRecords = [];
@@ -451,7 +448,6 @@ function loadFailClosedEngine(random) {
   const scriptStart = html.indexOf('<script>') + 8;
   let source = html.slice(scriptStart, html.indexOf('</script>', scriptStart));
   source = source.replace(/\(async function init\(\)\)\{[\s\S]*$/, '');
-  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
   source += `
     globalThis.__bg3ExtraProjectileFailClosed = {
       setState(s) {
@@ -540,11 +536,11 @@ function loadArrowRuntimeEngine(random) {
   const scriptStart = html.indexOf('<script>') + 8;
   let source = html.slice(scriptStart, html.indexOf('</script>', scriptStart));
   source = source.replace(/\(async function init\(\)[\s\S]*$/, '');
-  source = source.replace('const BG3_ARCHIVE_HONOUR_AUDIT=false;', 'const BG3_ARCHIVE_HONOUR_AUDIT=true;');
-  const dispatchNeedle = '  summonUseItemApplyWrapper=function(entryId,casterId,target,rolls,useId,opts){';
-  assert.equal(source.includes(dispatchNeedle), true, 'production item dispatch wrapper capture seam');
+  const dispatchNeedle = /(^[ \t]*)summonUseItemApplyWrapper=function\(entryId,casterId,target,rolls,useId,opts\)\{/m;
+  assert.equal((source.match(/^[ \t]*summonUseItemApplyWrapper=function\(entryId,casterId,target,rolls,useId,opts\)\{/gm) || []).length, 1,
+    'production item dispatch wrapper capture seam');
   source = source.replace(dispatchNeedle,
-    dispatchNeedle + "const capture=globalThis.__bg3ArrowDispatchCapture;if(capture&&capture.next){capture.next=false;capture.args=opts===undefined?[entryId,casterId,target,rolls,useId]:[entryId,casterId,target,rolls,useId,opts];if(capture.block)return false;}");
+    "$1summonUseItemApplyWrapper=function(entryId,casterId,target,rolls,useId,opts){const capture=globalThis.__bg3ArrowDispatchCapture;if(capture&&capture.next){capture.next=false;capture.args=opts===undefined?[entryId,casterId,target,rolls,useId]:[entryId,casterId,target,rolls,useId,opts];if(capture.block)return false;}");
   source += `
     globalThis.__bg3ArrowDispatchCapture={next:false,block:false,args:null};
     globalThis.__bg3ArrowRuntime = {
@@ -766,7 +762,14 @@ function arrowRuntimeEnterFour(world, {naturals = [19, 19, 19, 19], damage = [6,
   return {targetOrder, args: engine.bg3ItemFormulaLastDispatch(), audit: engine.bg3ItemArrowAudit()};
 }
 
-test('active v10 manifest census has exactly 46 SpawnExtraProjectiles rules and 102 field/profile occurrences', () => {
+if (itemCarriers.length === 0) {
+test('SpawnExtraProjectiles has no item carrier in the strict Standard arsenal', () => {
+  assert.equal(manifest.counts.universe.standard, manifest.counts.items);
+  assert.deepEqual(itemCarriers, []);
+  assert.equal(itemCarriers.some(row => row.item.id === ARROW.itemId), false);
+});
+} else {
+test('active v10 manifest census has exactly 46 SpawnExtraProjectiles rules and 51 Standard field occurrences', () => {
   assert.equal(current.catalogVersion, EXPECTED.version);
   assert.equal(current.manifestSha256, EXPECTED.manifestSha256);
   assert.equal(manifest.catalogVersion, EXPECTED.version);
@@ -774,7 +777,7 @@ test('active v10 manifest census has exactly 46 SpawnExtraProjectiles rules and 
   assert.equal(sourcePrograms.length, EXPECTED.sourcePrograms);
   assert.equal(new Set(sourcePrograms.map(row => row.rule.id)).size, EXPECTED.sourceRules);
   assert.deepEqual(Object.fromEntries(PROFILES.map(profile =>
-    [profile, sourcePrograms.filter(row => row.profile === profile).length])), {standard: 46, honour: 46});
+    [profile, sourcePrograms.filter(row => row.profile === profile).length])), {standard: 46});
   assert.equal(sourceFieldOccurrences.length, EXPECTED.sourceFields);
   assert.equal(sourceFieldOccurrences.every(row => row.hits.length === 1), true,
     'each field/profile occurrence contains one exact SpawnExtraProjectiles node');
@@ -791,17 +794,17 @@ test('active v10 manifest census has exactly 46 SpawnExtraProjectiles rules and 
     'SpawnExtraProjectiles source census');
 });
 
-test('manifest-derived primary item census is 62 rows/31 items/26 rules with only the two Arrow descriptors', () => {
+test('manifest-derived primary item census is 31 Standard rows/items across 26 rules with one Arrow descriptor', () => {
   assert.equal(itemCarriers.length, EXPECTED.carrierRows);
   assert.equal(new Set(itemCarriers.map(row => row.item.id)).size, EXPECTED.carrierItems);
   assert.equal(new Set(itemCarriers.map(row => row.use.id)).size, EXPECTED.carrierRows);
   assert.equal(new Set(itemCarriers.map(row => row.use.program.projection.entrypoints[0].ruleId)).size,
     EXPECTED.primaryRules);
   assert.deepEqual(Object.fromEntries(PROFILES.map(profile =>
-    [profile, itemCarriers.filter(row => row.profile === profile).length])), {standard: 31, honour: 31});
+    [profile, itemCarriers.filter(row => row.profile === profile).length])), {standard: 31});
   assert.deepEqual(Object.fromEntries([...Map.groupBy(itemCarriers,
     row => row.use.program.projection.mode).entries()].map(([mode, rows]) => [mode, rows.length])),
-  {typed: 44, mixed: 18});
+  {typed: 22, mixed: 9});
   assert.equal(itemCarriers.every(row => row.use.handler === 'bg3RuleProgram'
     && row.use.program?.projection?.entrypoints?.length === 1), true);
   assertDigest(itemCarriers, carrierCensusLine, EXPECTED.carrierCensusSha256,
@@ -811,14 +814,13 @@ test('manifest-derived primary item census is 62 rows/31 items/26 rules with onl
   assert.equal(descriptors.length, EXPECTED.descriptorRows);
   assert.equal(new Set(descriptors.map(row => row.item.id)).size, EXPECTED.descriptorItems);
   assert.deepEqual(descriptors.map(row => [row.profile, row.item.id, row.use.id]).sort(), [
-    ['honour', ARROW.itemId, ARROW.useIds.honour],
     ['standard', ARROW.itemId, ARROW.useIds.standard],
   ]);
   const closed = itemCarriers.filter(row => !row.use.program?.projectile?.extraProjectiles);
-  assert.equal(closed.length, 60);
+  assert.equal(closed.length, 30);
   const chainLightning = closed.filter(row =>
     row.use.program.projection.entrypoints[0].bg3Id === 'Projectile_ChainLightning');
-  assert.equal(chainLightning.length, 2);
+  assert.equal(chainLightning.length, 1);
   assert.deepEqual(new Set(chainLightning.map(row => row.profile)), new Set(PROFILES));
 });
 
@@ -933,16 +935,16 @@ test('private Arrow runtime requires four ordered distinct living targets and co
     `standard MAIN runtime must never roll\n${randomStacks.slice(randomBefore).join('\n---\n')}`);
 });
 
-test('private Arrow runtime continues after misses and commits honour OFF_HAND M/H/M/H against bonus only', async () => {
+test('private Arrow runtime continues after misses and commits Standard OFF_HAND M/H/M/H against bonus only', async () => {
   const world = await arrowRuntimeWorld({
-    profile: 'honour', weaponItemId: 'it_ручной_арбалет', equipmentSlot: 'OFF_HAND',
+    profile: 'standard', weaponItemId: 'it_ручной_арбалет', equipmentSlot: 'OFF_HAND',
   });
   const {engine, shooter, ally, foes, arrowEntry, weaponEntry, useId, randomCalls, randomStacks} = world;
   await arrowRuntimePrepare(world);
   assert.equal(engine.combatStart([
     {kind: 'ally', id: shooter.id, nat: 20},
     {kind: 'foe', id: foes[0].id, nat: 1},
-  ], 'Arrow certificate honour OFF_HAND'), true);
+  ], 'Arrow certificate Standard OFF_HAND'), true);
   await arrowRuntimeQuiesce(world);
   const turn = engine.state().combat.turn;
   turn.actionMax = 1;
@@ -976,7 +978,7 @@ test('private Arrow runtime continues after misses and commits honour OFF_HAND M
   assert.equal(ally.hp, 20);
   assert.deepEqual(foes.map(foe => foe.hp), [24, 30, 24]);
   assert.equal(randomCalls(), randomBefore,
-    `honour OFF_HAND runtime must never roll\n${randomStacks.slice(randomBefore).join('\n---\n')}`);
+    `Standard OFF_HAND runtime must never roll\n${randomStacks.slice(randomBefore).join('\n---\n')}`);
 });
 
 test('private Arrow receipts reject proofless calls, detached clones, argument tamper and stale targets atomically', async () => {
@@ -1195,19 +1197,18 @@ test('Arrow hazards, temporary HP and weapon functors fail prepay while presenta
   }
 });
 
-test('private capability is pinned to two Arrow rows while all other 60 carriers remain fail closed', () => {
+test('private capability is pinned to one Standard Arrow row while all other 30 carriers remain fail closed', () => {
   const admitted = itemCarriers.filter(row => row.item.id === ARROW.itemId
     && row.use.program?.projectile?.extraProjectiles);
   const closed = itemCarriers.filter(row => row.item.id !== ARROW.itemId);
   assert.deepEqual(admitted.map(row => [row.profile, row.use.id]).sort(), [
-    ['honour', ARROW.useIds.honour],
     ['standard', ARROW.useIds.standard],
   ]);
-  assert.equal(closed.length, 60);
+  assert.equal(closed.length, 30);
   assert.equal(closed.every(row => !row.use.program?.projectile?.extraProjectiles), true);
   const chainLightning = closed.filter(row =>
     row.use.program.projection.entrypoints[0].bg3Id === 'Projectile_ChainLightning');
-  assert.equal(chainLightning.length, 2);
+  assert.equal(chainLightning.length, 1);
   assert.deepEqual(new Set(chainLightning.map(row => row.profile)), new Set(PROFILES));
 
   let randomCalls = 0;
@@ -1235,3 +1236,4 @@ test('private capability is pinned to two Arrow rows while all other 60 carriers
   }
   assert.equal(randomCalls, 0, 'all 60 unbounded carrier rejections avoid Math.random');
 });
+}

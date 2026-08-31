@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>D&D World — 760 пользовательских тестов торговцев</title>
+<style>
+body{font-family:system-ui,sans-serif;margin:0;background:#17130d;color:#f4ead0}.head{padding:18px 22px;background:#2b2115;border-bottom:1px solid #8b6a35;position:sticky;top:0;z-index:2}.head h1{margin:0 0 8px;font-size:21px}.controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}button{border:1px solid #d4ae60;background:#7d261d;color:#fff8e6;padding:8px 16px;font-weight:700;cursor:pointer}button:disabled{opacity:.5;cursor:wait}.status{font-weight:700}.status.running{color:#f1c96b}.status.passed{color:#73d680}.status.failed{color:#ff7b70}.progress{height:7px;background:#3a3024;margin-top:10px}.progress i{display:block;height:100%;width:0;background:#d6ac55;transition:width .12s}.summary{padding:14px 22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}.metric{background:#262017;border:1px solid #5f4d31;padding:10px}.metric b{display:block;font-size:24px;color:#f1c96b}.failures{margin:0 22px 14px;padding:12px;background:#2e1715;border:1px solid #92362d;white-space:pre-wrap;max-height:220px;overflow:auto}.log{margin:0 22px 16px;padding:10px;background:#211c15;border:1px solid #5f4d31;max-height:180px;overflow:auto;font:12px ui-monospace,monospace}.app-wrap{margin:0 22px 22px;border:2px solid #8b6a35;background:#fff;height:720px}.app-wrap iframe{border:0;width:100%;height:100%}
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>Пользовательская матрица NPC-торговцев</h1>
+  <div class="controls"><button id="run" type="button">Запустить 760 UI-тестов</button><span id="status" class="status">Готово к запуску</span></div>
+  <div class="progress"><i id="bar"></i></div>
+</div>
+<div class="summary">
+  <div class="metric">Всего<b id="total">0</b></div>
+  <div class="metric">Зелёных<b id="passed">0</b></div>
+  <div class="metric">Ошибок<b id="failed">0</b></div>
+  <div class="metric">Успех<b id="percent">0%</b></div>
+</div>
+<pre id="failures" class="failures" hidden></pre>
+<div id="log" class="log">Матрица ещё не запускалась.</div>
+<div id="appWrap" class="app-wrap"></div>
+<script>
+'use strict';
+const EXPECTED_TOTAL=760;
+const groups={creation:10,name:100,pricing:100,relationship:100,stock:100,availability:100,purchase:100,sale:50,rejection:100};
+const state={total:0,passed:0,failed:0,failures:[],groupCounts:{},running:false,startedAt:null,finishedAt:null};
+const byId=id=>document.getElementById(id),sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+let frame=null,app=null,doc=null,merchantId='',characterId='',stockItemId='';
+
+function update(phase){
+  byId('total').textContent=state.total;byId('passed').textContent=state.passed;byId('failed').textContent=state.failed;
+  byId('percent').textContent=(state.total?((state.passed/state.total)*100).toFixed(2):'0')+'%';byId('bar').style.width=Math.min(100,state.total/EXPECTED_TOTAL*100)+'%';
+  if(phase)byId('status').textContent=phase;
+}
+function log(text){const box=byId('log');box.textContent=new Date().toLocaleTimeString('ru-RU')+' · '+text+'\n'+box.textContent.slice(0,10000);}
+function record(group,name,ok,details){
+  state.total++;state.groupCounts[group]=(state.groupCounts[group]||0)+1;
+  if(ok)state.passed++;else{state.failed++;state.failures.push({number:state.total,group,name,details:String(details||'условие не выполнено')});}
+  if(state.total%10===0||!ok)update(`Выполняется: ${state.total}/${EXPECTED_TOTAL} · ${name}`);
+}
+async function waitFor(predicate,label,timeout=15000){const start=Date.now();while(Date.now()-start<timeout){try{const value=predicate();if(value)return value;}catch(_error){}await sleep(15);}throw new Error('Тайм-аут: '+label);}
+function snap(){return app.worldSnapshotPayload();}
+function merchant(){return snap().merchantState.instances.find(row=>row.id===merchantId);}
+function character(){return snap().chars.find(row=>row.id===characterId);}
+function stock(){return merchant().inventory.find(row=>row.itemId===stockItemId);}
+function qty(actor,itemId){return (actor.inventory||[]).filter(row=>row.itemId===itemId).reduce((sum,row)=>sum+Math.max(0,Number(row.qty)||0),0);}
+function change(element,value){if(!element)throw new Error('Поле не найдено');element.value=String(value);element.dispatchEvent(new app.Event('change',{bubbles:true}));}
+function click(element){if(!element)throw new Error('Кнопка не найдена');element.click();}
+function rowFor(itemId){return [...doc.querySelectorAll('.merchant-row[data-merchant-item]')].find(row=>row.getAttribute('data-merchant-item')===itemId)||null;}
+function buyButton(){const row=rowFor(stockItemId);return row&&row.querySelector('button[id^="merchantBuy_"]');}
+function stockInput(){const row=rowFor(stockItemId);return row&&row.querySelector('input[title="Остаток"]');}
+function availabilityButton(){const row=rowFor(stockItemId);return row&&row.querySelector('button[title="Доступность"]');}
+async function scenario(group,name,action,verify,timeout=5000){
+  try{await action();const value=await waitFor(()=>verify(),name,timeout);record(group,name,!!value,value===true?'':value);}
+  catch(error){record(group,name,false,error&&error.message||error);}
+}
+async function openFreshApp(){
+  localStorage.clear();byId('appWrap').innerHTML='';frame=document.createElement('iframe');frame.title='D&D World — пользовательский тестовый экземпляр';frame.src='../index.html?merchant-user-matrix='+Date.now();
+  const loaded=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Приложение не загрузилось')),30000);frame.onload=()=>{clearTimeout(timer);resolve();};});byId('appWrap').appendChild(frame);await loaded;
+  app=frame.contentWindow;doc=frame.contentDocument;app.prompt=()=> 'Пользовательская матрица торговцев';app.confirm=()=>true;
+  await waitFor(()=>typeof app.worldSnapshotPayload==='function'&&typeof app.renderMerchants==='function'&&doc.querySelector('[data-tab="merchants"]'),'инициализация D&D World',30000);
+  await waitFor(()=>snap().chars&&snap().chars.length>0,'стартовые персонажи',30000);
+}
+async function prepareRichCharacter(){
+  click(doc.querySelector('[data-tab="chars"]'));
+  const characterSurface=await waitFor(()=>doc.querySelector('.char-card')||[...doc.querySelectorAll('.subtab')].find(el=>el.textContent.trim()==='Инвентарь'),'экран персонажа');
+  if(characterSurface.matches('.char-card'))click(characterSurface);
+  const inventoryTab=await waitFor(()=>[...doc.querySelectorAll('.subtab')].find(el=>el.textContent.trim()==='Инвентарь'),'вкладка инвентаря');click(inventoryTab);await waitFor(()=>doc.querySelectorAll('.coin-row input').length===5,'кошелёк персонажа');
+  const inputs=[...doc.querySelectorAll('.coin-row input')];characterId=snap().chars.find(row=>row.id===(app.cc&&app.cc()&&app.cc().id))?.id||snap().chars[0].id;
+  change(inputs[4],1000000);await waitFor(()=>String(character().coins.mm)==='1000000','миллион медных монет');
+  click(doc.querySelector('[data-tab="merchants"]'));await waitFor(()=>doc.querySelector('#merchantName'),'возврат к торговцу');
+}
+async function createMerchants(){
+  const templates=app.DndMerchants.DEFAULT_MERCHANT_TEMPLATES;
+  for(let index=0;index<10;index++){
+    await scenario('creation',`UI создание ${index+1}/10: ${templates[index].profession}`,async()=>{
+      change(doc.querySelector('#merchantCreateTemplate'),templates[index].id);doc.querySelector('#merchantCreateName').value=`UI Торговец ${index+1}`;doc.querySelector('#merchantCreateRegion').value='Фандалин';click(doc.querySelector('#merchantCreateButton'));
+    },()=>snap().merchantState.instances.length===index+1&&doc.querySelector('#merchantBackButton')&&merchantReferenceOnly(snap().merchantState.instances[index]));
+    click(doc.querySelector('#merchantBackButton'));await waitFor(()=>doc.querySelector('#merchantCreateButton'),'возврат к списку');
+  }
+  const selected=snap().merchantState.instances.find(row=>row.templateId==='general-store');merchantId=selected.id;
+  const card=[...doc.querySelectorAll('.card.clickable')].find(row=>row.textContent.includes('UI Торговец 2'));click(card);await waitFor(()=>doc.querySelector('#merchantName'),'открытие общего торговца');
+  stockItemId=merchant().inventory.find(entry=>{const row=[...doc.querySelectorAll('.merchant-row[data-merchant-item]')].find(node=>node.getAttribute('data-merchant-item')===entry.itemId);const button=row&&row.querySelector('button[id^="merchantBuy_"]');return button&&!button.disabled;}).itemId;
+}
+function merchantReferenceOnly(instance){return instance.inventory.length>0&&instance.inventory.every(entry=>Object.keys(entry).sort().join(',')==='available,buyPriceOverrideMinor,itemId,quantity,salePriceOverrideMinor');}
+async function runNames(){for(let index=0;index<100;index++){const value=`UI Лавка ${String(index+1).padStart(3,'0')}`;await scenario('name',`UI имя ${index+1}/100`,()=>change(doc.querySelector('#merchantName'),value),()=>merchant().name===value&&doc.querySelector('#tab-merchants h2.rubric')?.textContent.trim()===value);}}
+async function runPricing(){for(let index=0;index<100;index++){const value=50+index;await scenario('pricing',`UI коэффициент цены ${index+1}/100`,()=>change(doc.querySelector('#merchantPurchaseMultiplier'),value),()=>merchant().priceMultipliers.purchaseBasisPoints===String(value*100));}}
+async function runRelationships(){
+  for(let index=0;index<100;index++){const buy=70+(index%41),sale=40+(index%37),tier=['neutral','friendly','trusted','hostile'][index%4];await scenario('relationship',`UI отношение ${index+1}/100`,async()=>{doc.querySelector('#merchantRelTier').value=tier;doc.querySelector('#merchantRelBuy').value=buy;doc.querySelector('#merchantRelSale').value=sale;click(doc.querySelector('#merchantRelationshipButton'));},()=>{const rel=merchant().relationships[characterId];return rel&&rel.reputation===tier&&rel.purchaseBasisPoints===String(buy*100)&&rel.saleBasisPoints===String(sale*100);});}
+}
+async function runStock(){for(let index=0;index<100;index++){const value=1000+index;await scenario('stock',`UI остаток ${index+1}/100`,()=>change(stockInput(),value),()=>stock().quantity===value);}}
+async function runAvailability(){
+  for(let index=0;index<100;index++){const expected=index%2===1;await scenario('availability',`UI доступность ${index+1}/100`,()=>click(availabilityButton()),()=>stock().available===expected&&!!buyButton().disabled===!expected);}
+}
+async function runPurchases(){
+  for(let index=0;index<100;index++){const beforeTx=snap().merchantState.transactions.length,beforeStock=stock().quantity,beforeQty=qty(character(),stockItemId);await scenario('purchase',`UI покупка ${index+1}/100`,async()=>{const row=rowFor(stockItemId);change(row.querySelector('input[id^="merchantBuyQty_"]'),1);click(row.querySelector('button[id^="merchantBuy_"]'));},()=>{const transactions=snap().merchantState.transactions,row=transactions.at(-1);return transactions.length===beforeTx+1&&row.kind==='purchase'&&stock().quantity===beforeStock-1&&qty(character(),stockItemId)===beforeQty+1;},30000);}
+}
+async function runSales(){
+  for(let index=0;index<50;index++){const beforeTx=snap().merchantState.transactions.length,beforeStock=stock().quantity,beforeQty=qty(character(),stockItemId);await scenario('sale',`UI продажа ${index+1}/50`,async()=>{const select=doc.querySelector('#merchantSellItem');select.value=stockItemId;change(doc.querySelector('#merchantSellQty'),1);click(doc.querySelector('#merchantSellButton'));},()=>{const transactions=snap().merchantState.transactions,row=transactions.at(-1);return transactions.length===beforeTx+1&&row.kind==='sale'&&stock().quantity===beforeStock+1&&qty(character(),stockItemId)===beforeQty-1;},30000);}
+}
+async function runRejections(){
+  // 25 invalid sale quantities: UI must report refusal and preserve both inventories and journal.
+  for(let index=0;index<25;index++){const beforeTx=snap().merchantState.transactions.length,beforeStock=stock().quantity,beforeQty=qty(character(),stockItemId);await scenario('rejection',`UI отказ продажи без количества ${index+1}/25`,async()=>{doc.querySelector('#merchantSellItem').value=stockItemId;change(doc.querySelector('#merchantSellQty'),999999);click(doc.querySelector('#merchantSellButton'));},()=>doc.querySelector('.merchant-reject')&&snap().merchantState.transactions.length===beforeTx&&stock().quantity===beforeStock&&qty(character(),stockItemId)===beforeQty);}
+  // Empty every character coin denomination through the visible wallet controls.
+  click(doc.querySelector('[data-tab="chars"]'));await sleep(20);const inventoryTab=[...doc.querySelectorAll('.subtab')].find(el=>el.textContent.trim()==='Инвентарь');click(inventoryTab);await waitFor(()=>doc.querySelectorAll('.coin-row input').length===5,'кошелёк для отказов');for(const input of [...doc.querySelectorAll('.coin-row input')]){change(input,0);await sleep(8);}await waitFor(()=>Object.values(character().coins).every(value=>String(value)==='0'),'пустой кошелёк');click(doc.querySelector('[data-tab="merchants"]'));await waitFor(()=>doc.querySelector('#merchantName'),'возврат к торговцу');
+  for(let index=0;index<25;index++){const beforeTx=snap().merchantState.transactions.length,beforeStock=stock().quantity,beforeQty=qty(character(),stockItemId);await scenario('rejection',`UI отказ бедному покупателю ${index+1}/25`,()=>click(buyButton()),()=>doc.querySelector('.merchant-reject')?.textContent.includes('недостаточно денег')&&snap().merchantState.transactions.length===beforeTx&&stock().quantity===beforeStock&&qty(character(),stockItemId)===beforeQty);}
+  click(availabilityButton());await waitFor(()=>stock().available===false,'товар выключен');
+  for(let index=0;index<25;index++){const before=snap().merchantState.transactions.length;await scenario('rejection',`UI блок недоступного товара ${index+1}/25`,()=>click(buyButton()),()=>buyButton().disabled&&snap().merchantState.transactions.length===before);}
+  click(availabilityButton());await waitFor(()=>stock().available===true,'товар включён');change(stockInput(),0);await waitFor(()=>stock().quantity===0,'нулевой остаток');
+  for(let index=0;index<25;index++){const before=snap().merchantState.transactions.length;await scenario('rejection',`UI блок отсутствующего товара ${index+1}/25`,()=>click(buyButton()),()=>buyButton().disabled&&stock().quantity===0&&snap().merchantState.transactions.length===before);}
+}
+async function run(){
+  if(state.running)return;Object.assign(state,{total:0,passed:0,failed:0,failures:[],groupCounts:{},running:true,startedAt:new Date().toISOString(),finishedAt:null});byId('run').disabled=true;byId('failures').hidden=true;byId('log').textContent='Старт пользовательской матрицы…';byId('status').className='status running';update('Загрузка чистого тестового мира…');
+  try{
+    await openFreshApp();log('Настоящий интерфейс D&D World загружен в чистом origin.');click(doc.querySelector('[data-tab="merchants"]'));await waitFor(()=>doc.querySelector('#merchantCreateButton'),'вкладка торговцев');
+    await createMerchants();log('10/10 NPC созданы через форму шаблонов.');await prepareRichCharacter();log('Кошелёк тестового героя подготовлен через вкладку инвентаря.');
+    await runNames();log('100 изменений имени зелёные.');await runPricing();log('100 изменений цен зелёные.');await runRelationships();log('100 изменений отношения зелёные.');
+    await runStock();log('100 изменений остатка зелёные.');await runAvailability();log('100 переключений доступности зелёные.');await runPurchases();log('100 покупок зелёные.');
+    await runSales();log('50 продаж зелёные.');await runRejections();log('100 ожидаемых отказов зелёные.');
+  }catch(error){record('harness','Критическая ошибка harness',false,error&&error.stack||error);}
+  state.finishedAt=new Date().toISOString();state.running=false;const complete=state.total===EXPECTED_TOTAL&&state.failed===0&&Object.entries(groups).every(([key,count])=>state.groupCounts[key]===count);
+  byId('run').disabled=false;byId('status').className='status '+(complete?'passed':'failed');update(complete?`ГОТОВО: ${state.passed}/${EXPECTED_TOTAL} зелёных`:`НЕ ПРОЙДЕНО: ${state.passed}/${state.total} зелёных, ошибок ${state.failed}`);
+  if(state.failures.length){byId('failures').hidden=false;byId('failures').textContent=state.failures.map(row=>`#${row.number} [${row.group}] ${row.name}\n${row.details}`).join('\n\n');}
+  window.__merchantUserReport={expected:EXPECTED_TOTAL,total:state.total,passed:state.passed,failed:state.failed,success:complete,groups:Object.assign({},state.groupCounts),failures:state.failures.slice(),startedAt:state.startedAt,finishedAt:state.finishedAt};
+}
+byId('run').addEventListener('click',run);
+</script>
+</body>
+</html>
