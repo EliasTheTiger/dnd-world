@@ -1303,6 +1303,21 @@ test('старый флаг миграции не скрывает отсутс�
   assert.equal(abilitiesDB.filter(row=>row.catalogSource?.provider==='Open5e').length,dnd5eOpenCatalogManifest.counts.importedAbilities);
   assert.equal(e.dnd5eOpenCatalogInstalled(spellsDB,'spells'),true);
   assert.equal(e.dnd5eOpenCatalogInstalled(abilitiesDB,'abilities'),true);
+  assert.equal(e.worldSavePending(),false,'восстановление производного каталога не раздувает campaign envelope фоновой записью');
+});
+
+test('настоящая миграция Open5e-каталога по-прежнему планирует сохранение мира', async () => {
+  const spellEngine=loadEngine(undefined,null,null,null,{openDnd5eCatalog:true}),spellRows=spellEngine.seedSpellsDB().filter(row=>row.catalogSource?.provider!=='Open5e');
+  spellEngine.setState({spells:spellRows,abilities:[],races:[],chars:[]});
+  await spellEngine.storeSet('dndworld2:spellaudit','spells-v6-before-open5e');
+  await spellEngine.ensureSpellAudit();
+  assert.equal(spellEngine.worldSavePending(),true,'изменение схемы заклинаний должно сохраниться');
+
+  const abilityEngine=loadEngine(undefined,null,null,null,{openDnd5eCatalog:true}),abilityRows=abilityEngine.seedAbilitiesDB().filter(row=>row.catalogSource?.provider!=='Open5e');
+  abilityEngine.setState({spells:[],abilities:abilityRows,races:abilityEngine.seedRacesDB(),chars:[]});
+  await abilityEngine.storeSet('dndworld2:abaudit','6-before-open5e');
+  await abilityEngine.ensureAbilityAudit();
+  assert.equal(abilityEngine.worldSavePending(),true,'изменение схемы способностей должно сохраниться');
 });
 
 test('расширение 4.5 содержит 58 самостоятельных сущностей без предметов, названных по одному заклинанию', () => {

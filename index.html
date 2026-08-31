@@ -2955,7 +2955,9 @@ return before!==JSON.stringify([sp.saveTags,sp.mechanics&&sp.mechanics.resolutio
 }
 async function ensureSpellAudit(){
 const flag=await store.get('dndworld2:spellaudit');
-if(flag===SPELL_DATA_MIGRATION_ID&&dnd5eOpenCatalogInstalled(spellsDB,'spells')) return;
+const catalogInstalled=dnd5eOpenCatalogInstalled(spellsDB,'spells');
+if(flag===SPELL_DATA_MIGRATION_ID&&catalogInstalled) return;
+const recoveringPinnedCatalog=flag===SPELL_DATA_MIGRATION_ID&&!catalogInstalled;
 const installed=dnd5eOpenInstall(spellsDB,'spells');
 Object.keys(SPELL_HI_PATCHES).forEach(id=>{
 const sp=spellsDB.find(s=>s.id===id);
@@ -2985,7 +2987,7 @@ faerie.tags=uniqTags((faerie.tags||[]).concat(spellEnrichTags(faerie)));
 patchSpellSemanticSaveTags(spellsDB.find(x=>x.n==='Страх'));
 if(installed<500)return;
 await store.set('dndworld2:spellaudit',SPELL_DATA_MIGRATION_ID);
-scheduleSave();
+if(!recoveringPinnedCatalog) scheduleSave();
 }
 
 
@@ -3101,8 +3103,10 @@ return {changed:linked+added>0,linked,added};
 }
 async function ensureAbilityAudit(){
 const flag=await store.get('dndworld2:abaudit');
+const catalogInstalled=dnd5eOpenCatalogInstalled(abilitiesDB,'abilities');
+const recoveringPinnedCatalog=flag==='7-open5e-cc'&&!catalogInstalled;
 const raceRefs=reconcileRaceAbilityReferences(racesDB,abilitiesDB);
-if(flag==='7-open5e-cc'&&dnd5eOpenCatalogInstalled(abilitiesDB,'abilities')&&!raceRefs.changed) return;
+if(flag==='7-open5e-cc'&&catalogInstalled&&!raceRefs.changed) return;
 const installed=dnd5eOpenInstall(abilitiesDB,'abilities');
 const clericArmor=abilitiesDB.find(a=>a.n==='Владение доспехами: Жрец (Домен Жизни)');
 if(clericArmor && clericArmor.x && clericArmor.x.indexOf('легкими и средними')<0)
@@ -3126,7 +3130,7 @@ if(db&&db.uses!=null&&e.cur==null) e.cur=db.uses;
 }));
 if(installed<500){if(raceRefs.changed)scheduleSave();return;}
 await store.set('dndworld2:abaudit','7-open5e-cc');
-scheduleSave();
+if(!recoveringPinnedCatalog||raceRefs.changed) scheduleSave();
 }
 
 
