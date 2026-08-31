@@ -35,6 +35,11 @@ test('Pages build validates and publishes only the current immutable catalog', (
   assert.equal(builtIndex, versionedIndex);
   assert.doesNotMatch(builtIndex, /__DND_WORLD_RELEASE__/);
   assert.match(builtIndex, new RegExp(`<meta name="dnd-world-release" content="${release}">`));
+  assert.match(builtIndex, /<base href="\/dnd-world\/">/);
+  assert.match(builtIndex, new RegExp(`href="/dnd-world/styles\\.css\\?release=${release}"`));
+  for (const path of [...report.runtime, 'data/dnd5e/open5e-cc-v1/catalog.js']) {
+    assert.match(builtIndex, new RegExp(`src="/dnd-world/${path.replaceAll('.', '\\.')}\\?release=${release}"`), `${path} must be release-addressed`);
+  }
   assert.deepEqual(releaseManifest, {
     schemaVersion: 'dnd-world-release/1',
     commit: release,

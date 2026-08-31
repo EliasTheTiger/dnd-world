@@ -25877,10 +25877,13 @@ function itemWorkspaceTagMatches(values,key){key=String(key||'');return !key||bg
 function itemWorkspaceTagOptions(values){const options=new Map();for(const value of values){if(!value||ITEM_WORKSPACE_CLASSIFIER_TAGS.has(value))continue;const key=itemWorkspaceTagKey(value),label=itemWorkspaceTagLabel(value);if(key&&!options.has(key))options.set(key,label);}return [...options].map(([value,label])=>({value,label})).sort((a,b)=>a.label.localeCompare(b.label,'ru'));}
 function bg3Count(value){return Number.isFinite(+value)?(+value).toLocaleString('ru-RU'):'—';}
 function bg3RuNoun(value,one,few,many){const n=Math.abs(Math.trunc(+value||0)),last=n%10,lastTwo=n%100;return lastTwo>=11&&lastTwo<=14?many:last===1?one:last>=2&&last<=4?few:many;}
+function bg3ItemWorkspaceCatalogReady(){return !!(bg3Catalog.index&&bg3ItemPresentation.root);}
 function bg3ReleaseSummaryHTML(){
-const cache=bg3Catalog.index?bg3CatalogSearchCacheEnsure():null,available=cache&&cache.availableCount||0,campaign=itemsDB.filter(item=>itemArsenalReadiness(item).ok).length,total=available+campaign,
+const ready=bg3ItemWorkspaceCatalogReady();
+if(!ready)return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-catalog-state="loading" aria-busy="true" aria-label="Сводка полной игровой базы предметов"><div class="bg3-release-head"><span class="bg3-release-title">Полный арсенал предметов</span><span class="bg3-release-sub">единый поиск по встроенному каталогу и предметам кампании · обычные правила</span></div><div class="catalog-state" role="status" aria-live="polite">Загружается и проверяется полный Standard-каталог…</div></section>';
+const cache=bg3CatalogSearchCacheEnsure(),available=cache.availableCount||0,campaign=itemsDB.filter(item=>itemArsenalReadiness(item).ok).length,total=available+campaign,
 recipes=bg3Catalog.assets.recipes&&bg3Catalog.assets.recipes.recipes.length;
-return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-user-items="'+total+'" aria-label="Сводка полной игровой базы предметов"><div class="bg3-release-head"><span class="bg3-release-title">Полный арсенал предметов</span>'
+return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-catalog-state="ready" data-user-items="'+total+'" aria-label="Сводка полной игровой базы предметов"><div class="bg3-release-head"><span class="bg3-release-title">Полный арсенал предметов</span>'
 +'<span class="bg3-release-sub">единый поиск по встроенному каталогу и предметам кампании · обычные правила</span></div>'
 +'<div class="bg3-release-metrics"><div class="bg3-release-metric"><b>'+bg3Count(total)+'</b>доступных предметов</div>'
 +'<div class="bg3-release-metric"><b>'+bg3Count(available)+'</b>предметов каталога</div>'
@@ -25888,10 +25891,10 @@ return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-user-items
 +(recipes?'<div class="bg3-release-metric"><b>'+bg3Count(recipes)+'</b>рецептов</div>':'')+'</div></section>';
 }
 function refreshBg3ReleaseLabels(){
-const count=bg3Catalog.index?(bg3CatalogSearchCacheEnsure().availableCount||0)+itemsDB.filter(item=>itemArsenalReadiness(item).ok).length:0,badge=document.getElementById('releaseBadge'),tab=document.getElementById('itemsTabButton');
-if(badge)badge.textContent=ENGINE_LABEL+(count?' · '+bg3Count(count)+' предметов':'');
+const ready=bg3ItemWorkspaceCatalogReady(),count=ready?(bg3CatalogSearchCacheEnsure().availableCount||0)+itemsDB.filter(item=>itemArsenalReadiness(item).ok).length:0,badge=document.getElementById('releaseBadge'),tab=document.getElementById('itemsTabButton');
+if(badge)badge.textContent=ENGINE_LABEL+(ready?' · '+bg3Count(count)+' предметов':'');
 if(badge&&RELEASE_COMMIT)badge.title='Опубликованная сборка '+RELEASE_COMMIT+' · полный каталог и подробные игровые свойства предметов';
-if(tab)tab.textContent='Предметы'+(count?' · '+bg3Count(count):'');
+if(tab)tab.textContent='Предметы'+(ready?' · '+bg3Count(count):'');
 }
 function bg3CatalogRestoreFilterFocus(id,start,end){
 const input=document.getElementById(id);if(!input||typeof input.focus!=='function')return;
@@ -26544,6 +26547,12 @@ if(!bg3Catalog.index&&!bg3Catalog.error){
 h+='<div class="catalog-state">'+(activeWorldTab==='itemsdb'?'Загружается список предметов…':'Список загрузится при открытии этой вкладки.')+'</div>';
 if(activeWorldTab==='itemsdb'&&!bg3Catalog.loading) bg3CatalogEnsureIndex().then(()=>renderItemsDB(openBg3Id)).catch(()=>renderItemsDB());
 }
+if(bg3Catalog.index&&!bg3ItemPresentation.root){
+bg3ItemPresentationKick('');
+if(bg3ItemPresentation.error)h+='<div class="catalog-state" role="alert">✕ Проверенный Standard-каталог временно недоступен. Промежуточные данные не показываются. <button class="btn ghost sm" onclick="bg3ItemPresentationRetry(\'root\')">повторить</button></div>';
+else h+='<div class="catalog-state" role="status" aria-live="polite">Загружается и проверяется полный Standard-каталог…</div>';
+}
+if(!bg3ItemWorkspaceCatalogReady()){box.innerHTML=h+'</section>';refreshBg3ReleaseLabels();return;}
 if(bg3Catalog.index&&bg3RuntimeView==='recipes') h+=bg3RecipesPanelHTML();
 else if(bg3Catalog.index&&bg3RuntimeView==='treasure') h+=bg3TreasurePanelHTML();
 else if(bg3RuntimeView!=='items') h+='<div class="catalog-state">Этот подраздел станет доступен после проверки закреплённого каталога предметов.</div>';

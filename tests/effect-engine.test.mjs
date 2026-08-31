@@ -10289,8 +10289,8 @@ test('a shared presentation load refreshes the current inventory consumer after 
 });
 
 test('an inventory presentation completion never reopens its old item after navigation to Items',async()=>{
-  const observed=productionBg3ItemPresentationObservedFetch({gatePath:'/bg3-24532579-v10-item-presentation/manifest.json'}),{e,actor}=await productionBg3ItemPresentationWorld(observed);await e.bg3CatalogHydrate([INVENTORY_BG3_BOOK]);const book=plain(e.bg3LearnSpellTestCatalogItem(INVENTORY_BG3_BOOK));actor.coins={pm:0,zm:0,em:0,sm:0,mm:0};actor.inventory=[{id:'presentation-navigation-entry',itemId:book.id,qty:1}];e.setState({chars:[actor],items:[book],activeCharId:actor.id});e.switchTab('chars');e.renderSheetPanel('inventory');
-  try{await observed.entered;e.switchTab('itemsdb');for(let turn=0;turn<20&&!e.itemWorkspaceTestSurface().selectedId;turn++)await new Promise(resolve=>setImmediate(resolve));const selected=e.itemWorkspaceTestSurface().selectedId;assert.ok(selected);assert.notEqual(selected,book.id,'the Items surface starts on its own current result');observed.release();for(let turn=0;turn<200&&!e.bg3ItemPresentationTestSnapshot().details.includes(book.id);turn++)await new Promise(resolve=>setImmediate(resolve));await Promise.resolve();await Promise.resolve();assert.equal(e.itemWorkspaceTestSurface().selectedId,selected,'late inventory detail cannot replace the current Items selection');}finally{observed.release();}
+  const observed=productionBg3ItemPresentationObservedFetch({gatePath:'/bg3-24532579-v10-item-presentation/detail/0001.json'}),{e,actor}=await productionBg3ItemPresentationWorld(observed);await e.bg3CatalogHydrate([INVENTORY_BG3_BOOK]);const book=plain(e.bg3LearnSpellTestCatalogItem(INVENTORY_BG3_BOOK));actor.coins={pm:0,zm:0,em:0,sm:0,mm:0};actor.inventory=[{id:'presentation-navigation-entry',itemId:book.id,qty:1}];e.setState({chars:[actor],items:[book],activeCharId:actor.id});e.switchTab('chars');e.renderSheetPanel('inventory');
+  try{await observed.entered;e.switchTab('itemsdb');for(let turn=0;turn<200&&!e.itemWorkspaceTestSurface().selectedId;turn++)await new Promise(resolve=>setImmediate(resolve));const selected=e.itemWorkspaceTestSurface().selectedId;assert.ok(selected);assert.notEqual(selected,book.id,'the Items surface starts on its own current result');observed.release();for(let turn=0;turn<200&&!e.bg3ItemPresentationTestSnapshot().details.includes(book.id);turn++)await new Promise(resolve=>setImmediate(resolve));await Promise.resolve();await Promise.resolve();assert.equal(e.itemWorkspaceTestSurface().selectedId,selected,'late inventory detail cannot replace the current Items selection');}finally{observed.release();}
 });
 
 test('item storage exposes no BG3 story or scene navigation surfaces',async()=>{
@@ -10422,20 +10422,40 @@ test('расширенные настройки предмета не удаля
   const tool={what:'Старое применение',prof:'Старое владение',sk:'Интеллект',tasks:[{id:'primary-task',label:'Первая задача',ability:'int',dc:10},{id:'craft-task',label:'Создать по рецепту',ability:'int',dc:12},{id:'inspect-task',label:'Осмотреть материал',ability:'wis',dc:11}]};e.setElementValue('edItTool',JSON.stringify(tool));e.setPromptResults(['Новое применение','Новое владение','4','Обновлённая первая задача','15']);e.itemEditorToolConfigure();const saved=JSON.parse(e.testElement('edItTool').value);assert.equal(saved.tasks.length,3);assert.equal(saved.tasks[0].id,'primary-task','стабильный id основной задачи сохраняется');assert.equal(saved.tasks[0].label,'Обновлённая первая задача');assert.equal(saved.tasks[0].dc,15);assert.deepEqual(plain(saved.tasks.slice(1)),tool.tasks.slice(1),'дополнительные задачи инструмента не теряются');
 });
 
+test('арсенал не показывает кампанийный или сырой каталожный счётчик до готовности строгого Standard-набора', async () => {
+  const e=loadEngine(()=>0,selectedBg3FileFetch()),localItems=e.seedItemsDB(),recipient=hero('atomic-catalog-recipient',{inventory:[]}),presentation=productionBg3Json('data/bg3/ui/bg3-24532579-v10-item-presentation/manifest.json');
+  e.setState({chars:[recipient],items:localItems,activeCharId:recipient.id});
+  assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile:'standard',manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);
+
+  const beforeIndex=e.renderWorld().itemsdb;
+  assert.match(beforeIndex,/data-catalog-state="loading"/);assert.match(beforeIndex,/Загружается и проверяется полный Standard-каталог/);
+  assert.doesNotMatch(beforeIndex,/data-user-items=/);assert.doesNotMatch(beforeIndex,/catalog-result-list|Поиск и фильтры предметов/);
+
+  await e.bg3CatalogEnsureIndex();
+  const beforePresentation=e.renderWorld().itemsdb;
+  assert.match(beforePresentation,/data-catalog-state="loading"/);assert.doesNotMatch(beforePresentation,/data-user-items=/);
+  assert.doesNotMatch(beforePresentation,/catalog-result-list|Поиск и фильтры предметов/);
+  assert.equal(e.elementText('itemsTabButton'),'Предметы');assert.equal(e.elementText('releaseBadge'),e.engineLabel());
+
+  await e.bg3ItemPresentationEnsure();
+  const finalTotal=e.itemWorkspaceTestFilters().length,ready=e.renderWorld().itemsdb;
+  assert.match(ready,/data-catalog-state="ready"/);assert.match(ready,new RegExp(`data-user-items="${finalTotal}"`));
+  assert.match(ready,/catalog-result-list|Поиск и фильтры предметов/);assert.equal(e.elementText('itemsTabButton'),`Предметы · ${finalTotal.toLocaleString('ru-RU')}`);
+  assert.ok(finalTotal>=presentation.counts.items,'готовое состояние не теряет ни одного предмета строгого Standard-каталога');
+});
+
 test('единый каталог одновременно ищет строгий Standard BG3 v10 и предметы кампании', async () => {
-  const e=loadEngine(()=>0,selectedBg3FileFetch()),localItems=e.seedItemsDB(),recipient=hero('unified-catalog-recipient',{inventory:[]}),counts=selectedBg3Catalog.manifest.counts,
-    profile=selectedBg3Catalog.current.defaultRulesProfile||'standard',available=counts.universe[profile],fmt=value=>(+value).toLocaleString('ru-RU');
+  const e=loadEngine(()=>0,selectedBg3FileFetch()),localItems=e.seedItemsDB(),recipient=hero('unified-catalog-recipient',{inventory:[]}),presentation=productionBg3Json('data/bg3/ui/bg3-24532579-v10-item-presentation/manifest.json'),
+    profile=selectedBg3Catalog.current.defaultRulesProfile||'standard',presentationIds=new Set(presentation.items.map(row=>row[0])),available=presentation.counts.items,fmt=value=>(+value).toLocaleString('ru-RU');
   assert.ok(localItems.length>0,'локальная база кампании не пуста');e.setState({chars:[recipient],items:localItems,activeCharId:recipient.id});
   assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);
-  await e.bg3CatalogEnsureIndex();
-  const playable=e.bg3CatalogSearch('',{classification:'playable'}),combined=e.itemWorkspaceTestFilters(),campaignOnly=combined.filter(row=>row.source==='campaign'),swords=e.itemWorkspaceTestFilters({q:'меч'}),bg3Rows=combined.filter(row=>row.source==='bg3'),classificationCounts=counts.classifications||{},byClass=Object.fromEntries(Object.keys(classificationCounts).map(key=>[key,bg3Rows.filter(row=>row.classification===key).length]));
-  assert.equal(available,counts.items);
-  assert.equal(playable.length,classificationCounts.playable,'production v10 сохраняет явную игровую классификацию');
+  await e.bg3CatalogEnsureIndex();await e.bg3ItemPresentationEnsure();
+  const playable=e.bg3CatalogSearch('',{classification:'playable'}),combined=e.itemWorkspaceTestFilters(),campaignOnly=combined.filter(row=>row.source==='campaign'),swords=e.itemWorkspaceTestFilters({q:'меч'}),bg3Rows=combined.filter(row=>row.source==='bg3');
+  assert.equal(playable.length,bg3Rows.filter(row=>row.classification==='playable').length,'production v10 сохраняет явную игровую классификацию');
   assert.equal(combined.length,available+campaignOnly.length,'единый каталог возвращает Standard BG3 и только полные предметы кампании');
-  assert.equal(bg3Rows.length,available,'ни одна BG3-запись выбранного профиля не скрывается фильтром или дедупликацией');
+  assert.equal(bg3Rows.length,available,'ни одна запись строгой presentation-проекции не скрывается фильтром или дедупликацией');
   assert.equal(new Set(bg3Rows.map(row=>row.id)).size,bg3Rows.length,'каждая запись полного каталога сохраняет собственный точный идентификатор');
-  assert.deepEqual([...new Set(bg3Rows.map(row=>row.row.classification))].sort(),Object.keys(classificationCounts).sort(),'в полном каталоге остались только классы строгого арсенала');
-  assert.deepEqual(byClass,classificationCounts);
+  assert.deepEqual([...new Set(bg3Rows.map(row=>row.id))].sort(),[...presentationIds].sort(),'пользовательский список совпадает с закреплённым строгим Standard-набором');
   assert.ok(campaignOnly.every(row=>row.source==='campaign'));
   if(campaignOnly.some(row=>/меч/i.test(row.name)))assert.ok(swords.some(row=>row.source==='campaign'),'одно поле поиска находит полный кампанийный меч');
   assert.ok(swords.some(row=>row.source==='bg3'),'то же поле поиска находит мечи BG3');

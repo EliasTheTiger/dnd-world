@@ -10,6 +10,8 @@ const outputRoot = join(repositoryRoot, '_site');
 const checkOnly = process.argv.slice(2).includes('--check');
 const runtimeFiles = ['economy-core.js', 'merchant-core.js', 'item-domain-model.js', 'definition-repository.js', 'ruleset-registry.js', 'persistence-core.js', 'action-kernel.js', 'chest-core.js', 'catalog-governance.js', 'world-state-core.js', 'ui-action-contract.js', 'projection-cache.js', 'public-item-surface.js'];
 const RELEASE_PLACEHOLDER = '__DND_WORLD_RELEASE__';
+const PAGES_BASE = '/dnd-world/';
+const OPEN_CATALOG_PATH = 'data/dnd5e/open5e-cc-v1/catalog.js';
 
 function invariant(value, message) {
   if (!value) throw new Error(message);
@@ -32,6 +34,24 @@ function releaseId() {
   })).trim().toLowerCase();
   invariant(/^[0-9a-f]{40}$/.test(commit), 'unable to resolve the release commit');
   return commit;
+}
+
+function renderPublishedIndex(source, release) {
+  let rendered = source.replaceAll(RELEASE_PLACEHOLDER, release);
+  const assets = [
+    { attribute: 'href', path: 'styles.css' },
+    ...runtimeFiles.map(name => ({ attribute: 'src', path: `scripts/${name}` })),
+    { attribute: 'src', path: OPEN_CATALOG_PATH },
+  ];
+
+  for (const asset of assets) {
+    const original = `${asset.attribute}="${asset.path}"`;
+    invariant(rendered.includes(original), `index.html is missing published asset: ${asset.path}`);
+    rendered = rendered.replaceAll(original, `${asset.attribute}="${PAGES_BASE}${asset.path}?release=${release}"`);
+  }
+
+  invariant(rendered.includes('<head>'), 'index.html is missing <head>');
+  return rendered.replace('<head>', `<head>\n<base href="${PAGES_BASE}">`);
 }
 
 async function inspectTree(root) {
@@ -114,7 +134,7 @@ async function buildSite(inputs) {
   await mkdir(join(outputRoot, 'data', 'bg3', 'ui'), { recursive: true });
   await mkdir(join(outputRoot, 'releases', inputs.release), { recursive: true });
   await mkdir(join(outputRoot, 'scripts'), { recursive: true });
-  const renderedIndex = inputs.indexSource.replaceAll(RELEASE_PLACEHOLDER, inputs.release);
+  const renderedIndex = renderPublishedIndex(inputs.indexSource, inputs.release);
   await writeFile(join(outputRoot, 'index.html'), renderedIndex);
   await writeFile(join(outputRoot, 'releases', inputs.release, 'index.html'), renderedIndex);
   await writeFile(join(outputRoot, 'release.json'), `${JSON.stringify({
