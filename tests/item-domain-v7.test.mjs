@@ -16,6 +16,15 @@ const itemRoot = path.join(catalogRoot, 'items');
 const itemFiles = fs.readdirSync(itemRoot).filter(file => file.endsWith('.json')).sort();
 const arsenalQuality = JSON.parse(fs.readFileSync(path.join(catalogRoot, manifest.entrypoints.itemArsenalQualityReport), 'utf8'));
 const arsenalExcludedIds = new Set(arsenalQuality.removed.map(row => row.itemId));
+const COMPLETED_BUILTIN_ITEM_IDS = [
+  'it_праща', 'it_свеча', 'it_веревочная_лестница_3_м', 'it_колокольчик', 'it_мыло',
+  'it_противоядие', 'it_чернила_флакон', 'it_перо_писчее', 'it_бумага_лист', 'it_пергамент_лист',
+  'it_священный_символ_эмблема', 'it_магическая_фокусировка_жезл', 'it_ink', 'it_trick_die',
+  'it_goblin_scrap', 'it_castle_map', 'it_spider_letter', 'it_zhent_amulet', 'it_gem_pouch', 'it_silver_comb',
+  'it_scroll_mage_armor', 'it_scroll_cure_wounds', 'it_scroll_detect_magic', 'it_scroll_longstrider',
+  'it_scroll_guiding_bolt', 'it_scroll_shield_of_faith', 'it_scroll_invisibility', 'it_scroll_misty_step',
+  'it_scroll_lesser_restoration', 'it_scroll_fly',
+];
 
 function hashFile(file) {
   return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -225,10 +234,37 @@ test('all built-in campaign items use the same strict model', () => {
   const items = loadLocalItemsFromEngine();
   const context = model.createMigrationContext(items);
   const domains = items.map(item => model.migrateItemToDomainV7(item, {context}));
-  assert.ok(domains.length > 100, 'expected the built-in catalog');
+  assert.equal(domains.length, 193, 'startup must not silently prune any built-in item');
+  const installedIds = new Set(domains.map(item => item.id));
+  for (const itemId of COMPLETED_BUILTIN_ITEM_IDS) assert.equal(installedIds.has(itemId), true, `${itemId}: missing after strict startup gate`);
   assert.deepEqual(model.validateDomainCatalog(domains), []);
-  for (const domain of domains) {
+  for (let index = 0; index < domains.length; index += 1) {
+    const domain = domains[index];
+    assert.deepEqual(model.arsenalReadiness(items[index], {context}).issues, [], `${domain.id}: not ready`);
     assert.equal(domain.canonicalId, domain.id, domain.id);
     for (const action of domain.gameplay.actions) assert.ok(model.HANDLERS[action.handler.id], `${domain.id}: ${action.handler.id}`);
   }
+  const byId = new Map(domains.map(item => [item.id, item]));
+  assert.deepEqual(byId.get('it_священный_символ_эмблема').equipment.slots, ['neck', 'main-hand', 'off-hand'],
+    'священный символ явно моделирует видимое ношение и обе руки');
+  const combAction = byId.get('it_silver_comb').gameplay.actions.find(action => action.id === 'use:offer_banshee');
+  assert.deepEqual(combAction.resourceCost, {kind: 'item', amount: 1}, 'подарок банши должен атомарно расходовать расческу');
+  const soapAction = byId.get('it_мыло').gameplay.actions.find(action => action.handler.id === 'interaction.tool-check');
+  assert.ok(soapAction, 'мыло имеет исполняемый runtime-handler');
+  assert.ok(soapAction.result.checks.some(check => check.taskId === 'use:soap'), 'домен сохраняет ситуационную задачу мыла');
+});
+
+test('strict local weight gate rejects malformed declarations without weakening documented formats', () => {
+  const items = loadLocalItemsFromEngine(), context = model.createMigrationContext(items);
+  const base = items.find(item => item.id === 'it_праща');
+  for (const weight of ['тяжелый', '-1 кг', '2 кг примерно', 'NaN кг']) {
+    const invalid = JSON.parse(JSON.stringify(base)); invalid.weight = weight;
+    assert.ok(model.arsenalReadiness(invalid, {context}).issues.includes('weight-invalid'), `${weight}: must fail closed`);
+  }
+  const missing = JSON.parse(JSON.stringify(base)); missing.weight = '—';
+  assert.ok(model.arsenalReadiness(missing, {context}).issues.includes('weight-missing'));
+  const waterskin = items.find(item => item.id === 'it_бурдюк');
+  assert.equal(waterskin.weight, '2,5 кг (полный)');
+  assert.equal(model.arsenalReadiness(waterskin, {context}).issues.includes('weight-invalid'), false,
+    'закрытый квалификатор полного бурдюка остается допустимым');
 });

@@ -21,7 +21,7 @@ test('chest workspace exposes templates, review, placement and every requested p
 
 test('chest state survives snapshots, export/import and cloud campaign sync',()=>{
   assert.match(html,/worldSnapshotPayload\(\)[\s\S]{0,600}chestState/);
-  assert.match(html,/persist\('dndworld2:chest-state',chestState\)/);
+  assert.match(html,/persist\('dndworld2:chest-state',chestState,statusVersion\)/);
   assert.match(html,/savedWorld\?savedWorld\.chestState:await readJSON\('dndworld2:chest-state'\)/);
   assert.match(html,/chars, journal, combat, harvestedSources, economyState, merchantState, worldState, chestState, items:/);
   assert.match(html,/CHEST_CORE\.normalizeState\(data\.chestState\)/);

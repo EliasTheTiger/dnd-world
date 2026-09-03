@@ -16,7 +16,7 @@ test('merchant runtime and UI are wired into navigation and Pages state',()=>{
 
 test('merchant state participates in snapshot, export, import and BG3 hydration',()=>{
   assert.match(html,/harvestedSources,\s*economyState,\s*merchantState,\s*worldState,[^}]*catalogRefs/);
-  assert.match(html,/persist\('dndworld2:merchant-state',merchantState\)/);
+  assert.match(html,/persist\('dndworld2:merchant-state',merchantState,statusVersion\)/);
   assert.match(html,/merchantState=normalizeMerchantState\(data\.merchantState\)/);
   assert.match(html,/chars,\s*journal,\s*combat,\s*harvestedSources,\s*economyState,\s*merchantState,[^}]*items:/);
   assert.match(html,/merchantState&&merchantState\.instances\|\|\[\]\)\.forEach\(instance=>walk\(instance\.inventory\)\)/);

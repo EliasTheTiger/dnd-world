@@ -29,8 +29,47 @@ jobs:
       - name: Run every runtime and catalog test
         run: node --test tests/*.test.*
 
-  build:
+  integration:
     needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+      - name: Use the supported Node.js runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install QA dependencies
+        run: npm install
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build the exact Pages candidate under test
+        run: |
+          node scripts/build-dnd5e-open-catalog.mjs --check
+          node scripts/build-bg3-item-economy.mjs --check
+          node scripts/audit-bg3-v10-economy.mjs --check
+          node scripts/build-bg3-item-mechanics.mjs --check
+          node scripts/build-bg3-item-presentation.mjs --check
+          node scripts/build-bg3-placement-browser.mjs --check
+          node scripts/build-pages-site.mjs
+          node -e "const release=require('./_site/release.json');if(release.commit!==process.env.GITHUB_SHA)throw new Error('Pages release commit mismatch')"
+      - name: Run strict integration browser acceptance
+        env:
+          DND_WORLD_SKIP_FULL_SUITE: '1'
+          QA_SITE_ROOT: _site
+        run: npm run qa:integration
+      - name: Upload final integration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dnd-world-final-integration-${{ github.sha }}
+          path: qa/evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+  build:
+    needs: [test, integration]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

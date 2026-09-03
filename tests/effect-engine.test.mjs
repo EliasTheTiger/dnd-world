@@ -76,7 +76,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
   assert.match(source, formulaDispatchCapturePattern, 'BG3 formula dispatch capture seam must exist');
   source = source.replace(
     formulaDispatchCapturePattern,
-    "$1summonUseItemApplyWrapper=function(entryId,casterId,target,rolls,useId,opts){const capture=globalThis.__bg3ItemFormulaDispatchCapture;if(capture&&capture.next){capture.next=false;capture.args=opts===undefined?[entryId,casterId,target,rolls,useId]:[entryId,casterId,target,rolls,useId,opts];if(capture.block)return false;}"
+    "$1globalThis.__bg3CastGuardTestRootBusy=()=>{const previous=state.rootOpenBusy;state.rootOpenBusy=privateIntrinsics.freeze({kind:'vm-test-root-busy'});return ()=>{state.rootOpenBusy=previous;};};\n$1summonUseItemApplyWrapper=function(entryId,casterId,target,rolls,useId,opts){const capture=globalThis.__bg3ItemFormulaDispatchCapture;if(capture&&capture.next){capture.next=false;capture.args=opts===undefined?[entryId,casterId,target,rolls,useId]:[entryId,casterId,target,rolls,useId,opts];if(capture.block)return false;}"
   );
   const artifactAttestationPattern = /(^[ \t]*)globalThis\.bg3ItemFormulaOutcomeAudit=\(\)=>\{/m;
   assert.match(source, artifactAttestationPattern, 'BG3 synthetic artifact attestation seam must exist');
@@ -111,14 +111,14 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       charFxAll, fxSum, spellDC, spellAtk, eHpMax, acTotal, speedTotal, carryWeight, concEntriesOf,bg3DetectDisturbancesCheck,
       breakConcentration, concRollMode, longRest, shortRest, refreshShortRestResources, activeStackWinners, durationSpecOf, spellNeedsConcentration, spellTargetLimit,
       endTriggeredSpellEffects,
-      applyDamageTo, applyRollsToTarget, resolveUndeadFortitude, cancelLastBarrier, resolveLastBarrier, useAbilityApply, outcomeAllowsEffect, effectiveConditions,
+      applyDamageTo, applyRollsToTarget, resolveUndeadFortitude, cancelLastBarrier, resolveLastBarrier, useAbilityApply, abilityCastFx, hpDelta, outcomeAllowsEffect, effectiveConditions,
       outcomeReactionPlan,outcomeReactionPlanMany,commitOutcomeReactions,commitOutcomeReactionsMany,
       rollSpecOf, resolveOutcome, castFormulaRollsBuild, targetInfoOf, targetCriticalHitImmune, weaponSpecOf, weaponAttackFx,weaponAttackApply, weaponCanUseTwoHands, weaponAttackResourcePlan, useItemApply,consumeOutcomeRollFx,
       upgradeSpell, upgradeAbility, upgradeItem, upgradeRace, upgradeClass, currentMechanics,
       compileSpellMechanics, compileAbilityMechanics, compileItemMechanics, compileRaceMechanics, compileClassMechanics,
       mechanicsErrors, referenceMechanicsErrors, formulaContractErrors, finalizeRollSpec, normalizeResolutionContract,
       itemUsesOf, itemUseOf, itemUseSpecOf, itemPassiveFx, itemUseSchemaErrors, itemResourceSchemaErrors, itemToolSchemaErrors, itemMaterialSchemaErrors,itemEditorAddUse,itemEditorToolConfigure,
-      itemInteractionsOf, itemInteractionSchemaErrors, itemToolTasks, toolTaskCheckSpec,
+      itemInteractionsOf, itemInteractionSchemaErrors, itemToolTasks, toolTaskCheckSpec, toolCheck,
       itemMassKg, itemGoldValue, itemEntryGoldValue, legacyItemGoldValue, exactCopperFromGp, containerCapacityKg, containerPutPlan, innerWeightOf, innerWeightState, containerContentsMassText, carryWeightState, coinCreditPlan, oilUse, lightToggle, focusItemAllowed,
       valuableSell,foodEat,trapScatter,poisonApply,ritualBurn,writingUse,commitWeaponAttackResource,
       craftingRecipeSchemaErrors, itemCampaignRuleSchemaErrors, itemSpec, itemActions, combatItemActionCost, rollCheck, rollFxEntries, consumeRollFx, itemContextToken,
@@ -272,6 +272,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
        bg3GithbornMindcrusherTestTokenState(token){return {used:bg3LifecycleRuntime.githbornTokens.has(token),locked:bg3LifecycleRuntime.githbornLocks.has(token)};},
        bg3GithbornMindcrusherTestInterruptAudit(rolls){const envelope=rolls&&bg3LifecycleRuntime.githbornGenericInterruptProofs.get(rolls),attestation=envelope&&envelope.attestation;return attestation?itemClone({entered:attestation.entered,finalPayload:attestation.finalPayload,decisionSha256:attestation.decisionSha256}):null;},
        bg3GithbornMindcrusherTestGenericTargetAudit(rolls){const envelope=rolls&&bg3LifecycleRuntime.githbornGenericRollProofs.get(rolls),proof=envelope&&envelope.proof,ti=proof&&targetInfoOf(proof.target),actual=ti&&bg3GithbornMindcrusherGenericTargetEvidence(ti,envelope.spec);return {expected:itemClone(proof&&proof.targetEvidence||null),actual:itemClone(actual||null)};},
+       bg3GithbornMindcrusherTestRefGuard(rolls){return bg3GithbornMindcrusherPrivateRefGuard(rolls&&bg3LifecycleRuntime.githbornGenericRollProofs.get(rolls));},
        bg3GithbornMindcrusherTestArtifact(artifact){return bg3Catalog.artifacts.get((bg3Catalog.current&&bg3Catalog.current.catalogVersion||'')+':'+artifact);},
        bg3GithbornMindcrusherTestProofAudit(rolls){const proof=rolls&&bg3LifecycleRuntime.githbornRollProofs.get(rolls),expected=proof&&bg3GithbornMindcrusherProofHandle(proof,rolls),actual=rolls&&rolls.bg3GithbornMindcrusherProof;
          return {hasProof:!!proof,selfCheck:bg3GithbornMindcrusherProofSelfCheck(proof),actual:itemClone(actual||null),expected:itemClone(expected||null),actualCanonical:bg3CanonicalJSON(actual||null),expectedCanonical:bg3CanonicalJSON(expected||null)};},
@@ -328,7 +329,8 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       worldSavePending(){return savePendWorld===true;},
       storedValue(k){return globalThis.localStorage.getItem(k);},
       combatCastSpell, combatUseAbility, combatWeapon, combatFoeAction, combatSnapshotOf,combatActorCardHTML,combatActionsHTML,combatInspectItem,combatSyncChanges, combatVictoryText,
-      combatUseItem,bg3CombatUseItem, combatResolveItemZone,
+      combatToggleEquipForActor,combatToggleEquip,sheetEquipToggle,sheetEquipToSlot,sheetUnequipSlot,combatEquipToSlotForActor,combatUnequipSlotForActor,
+      combatUseItem,bg3CombatUseItem,combatRunItemActionForActor,combatRunSheetItemAction,combatDirectItemActionPreflight,combatDirectItemActionCommit, combatResolveItemZone,
       combatDeathSave, combatContestAction, combatTriggerReady, combatOpportunityBlocked, combatSetGroup, combatSpellTurnAllowed,
       combatAbilityCost, combatAbilityUsable, combatSpellCost, combatCunningAction,
       combatFoeRecharge, combatFoeAttackAllowed, combatRecordFoeAttack, combatAttackCount,
@@ -340,6 +342,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       bg3ItemDethroneTestLifecycleStateSet(holder,state){const byChar=bg3LifecycleRuntime.byChar,had=byChar.has(holder),previous=byChar.get(holder);if(state==null)byChar.delete(holder);else byChar.set(holder,state);return ()=>{if(had)byChar.set(holder,previous);else byChar.delete(holder);};},
       bg3ItemDethroneTestInterruptStateSet(kind='prepared'){if(kind==='prepared'){const prepared=bg3InterruptRuntime.prepared,key='dethrone-test-prepared',had=prepared.has(key),previous=prepared.get(key);prepared.set(key,{id:key});return ()=>{if(had)prepared.set(key,previous);else prepared.delete(key);};}const tokens=bg3InterruptRuntime.sourceTokens,key='dethrone-test-composite',had=tokens.has(key);tokens.add(key);return ()=>{if(!had)tokens.delete(key);};},
       bg3ItemFormulaCaptureNextDispatch(block=false){const capture=globalThis.__bg3ItemFormulaDispatchCapture;capture.next=true;capture.block=block===true;capture.args=null;return true;},
+      bg3CastGuardTestRootBusy(){return globalThis.__bg3CastGuardTestRootBusy();},
       bg3ItemFormulaLastDispatch(){const args=globalThis.__bg3ItemFormulaDispatchCapture.args;return args&&args.slice();},
       bg3ItemFormulaReplayLast(){const args=globalThis.__bg3ItemFormulaDispatchCapture.args;return !!(args&&useItemApply(...args));},
       bg3ItemFormulaApplyArgs(args){return useItemApply(...args);},
@@ -357,7 +360,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       downtimeActorCheck, worldDurationRounds, harvestYieldSpec, harvestDurationSpec, harvestCheckSpec, harvestRollContract,
       harvestPlanFor, reserveHarvestAttempt, commitHarvestPlan, pendingHarvestRecord, resumeHarvestHazard,
       itemIdentityKey, canonicalizeItemDatabase, itemEntryGoldValue, itemUsesInventoryValue,
-      mergeSystemItemDefinition, patchSpellSemanticSaveTags, attackRangeBandAt, invEquipToggle,toggleAttune,invValueEdit, clearEquipmentEntry, equipmentHabitReset,
+      mergeSystemItemDefinition, patchSpellSemanticSaveTags, attackRangeBandAt, invEquipToggle,toggleAttune,invValueEdit, clearEquipmentEntry, equipmentHabitReset,pickSlot,
       abilityEditorHTML,saveAbilityEd,abilityCardHTML,
       engineVersion() { return ENGINE_VERSION; }, engineLabel() { return ENGINE_LABEL; },
       localItemCatalogOpenSet(value){localItemCatalogOpen=value===true;return localItemCatalogOpen;},localItemFilterInput,
@@ -366,7 +369,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       itemRecipes() { return ITEM_RECIPES_V45; },
       itemTagNames() { return Object.keys(ITEM_TAGS); },
       castState() { return {ctx:castCtx, spec:castCtx&&castCtx.spec}; },
-      pendingRollSpec() { return rollSpec; },
+      pendingRollSpec() { return rollSpec; },rollDone,
       setCastContext(v) { castCtx=v; },patchCastContext(v){castCtx=Object.assign({},castCtx||{},v||{});return castCtx;},
       makeBlank() { return buildBlank(); },
       conditions() { return CONDITIONS; },
@@ -2215,6 +2218,413 @@ test('структурированное зелье в бою тратит од�
   assert.equal(caster.inventory.length, 0);
   assert.equal(e.state().combat.turn.actionsUsed, 1);
   assert.equal(caster.activeFx.length, 0);
+});
+
+test('лист Торгара не позволяет выпить зелье великого лечения в ход Септиха', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const septih = e.buildSeptih(), torgar = e.buildTorgar(), enemy = foes.find(x => x.id === 'foe_goblin_scout');
+  const potionEntry = torgar.inventory.find(x => x.itemId === 'it_potion_great_heal');
+  torgar.hp = Math.max(1, torgar.hpMax - 10);
+  e.setState({chars: [septih, torgar], items, foes, activeCharId: torgar.id});
+  assert.equal(e.combatStart([
+    {kind: 'ally', id: septih.id, nat: 20}, {kind: 'ally', id: torgar.id, nat: 10}, {kind: 'foe', id: enemy.id, nat: 1}
+  ], 'Очередность зелья'), true);
+  const before = plain({hp: torgar.hp, inventory: torgar.inventory, combat: e.state().combat});
+
+  assert.equal(e.itemCastFx(potionEntry.id, torgar.id, 'drink'), false);
+  assert.equal(e.castState().ctx, null, 'запрещённое действие не открывает контекст применения');
+  assert.match(e.elementText('saveStatus'), /Сейчас ход другого участника/);
+  assert.deepEqual(plain({hp: torgar.hp, inventory: torgar.inventory, combat: e.state().combat}), before,
+    'отказ до коммита сохраняет хиты, предмет, очередь и бюджет действий');
+
+  assert.equal(e.combatNextTurn(), true);
+  e.itemCastFx(potionEntry.id, torgar.id, 'drink');
+  assert.deepEqual(plain({
+    actorKey: e.castState().ctx.combatActorKey,
+    cost: e.castState().ctx.combatCost,
+    committed: e.castState().ctx.combatCommitted
+  }), {actorKey: `ally:${torgar.id}`, cost: 'action', committed: false},
+  'разрешённое применение из листа связано с участником и бюджетом текущего хода');
+  assert.equal(e.useItemApply(potionEntry.id, torgar.id, `ally:${torgar.id}`, {
+    healTotal: 6, dmgRaw: null, dmgTotal: null, hit: null, saveOk: null, effectAllowed: true, verdict: [], notes: []
+  }, 'drink'), true);
+  assert.equal(torgar.hp, before.hp + 6);
+  assert.equal(torgar.inventory.some(x => x.id === potionEntry.id), false);
+  assert.equal(e.state().combat.turn.actionsUsed, 1);
+});
+
+test('фоновое сохранение не стирает причину отказа зелья в чужой ход', async () => {
+  let enterSave, releaseSave;
+  const saveEntered = new Promise(resolve => { enterSave = resolve; });
+  const saveGate = new Promise(resolve => { releaseSave = resolve; });
+  let writes = 0;
+  const delayedStorage = {
+    async get() { return null; },
+    async set() {
+      writes++;
+      if (writes === 1) { enterSave(); await saveGate; }
+      return true;
+    }
+  };
+  const e = loadEngine(() => 0, null, null, delayedStorage);
+  const items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const roku = e.buildRoku(), torgar = e.buildTorgar(), enemy = foes.find(x => x.id === 'foe_goblin_scout');
+  const potionEntry = torgar.inventory.find(x => x.itemId === 'it_potion_great_heal');
+  assert.ok(potionEntry, 'реальное зелье великого лечения есть у Торгара');
+  e.setState({chars: [roku, torgar], items, foes, activeCharId: torgar.id});
+  assert.equal(e.combatStart([
+    {kind: 'ally', id: roku.id, nat: 20}, {kind: 'ally', id: torgar.id, nat: 10}, {kind: 'foe', id: enemy.id, nat: 1}
+  ], 'Гонка статуса сохранения'), true);
+  e.openChar(torgar.id);
+
+  const hpBeforeDamage = torgar.hp;
+  for (let i = 0; i < 4; i++) e.hpDelta(-5);
+  assert.equal(torgar.hp, hpBeforeDamage - 20, 'четыре видимых клика −5 применили ровно 20 урона');
+  assert.equal(e.worldSavePending(), true, 'изменение HP поставило мир в очередь фонового сохранения');
+  const saving = e.runScheduledSave();
+  await saveEntered;
+  const beforeRefusal = plain({
+    hp: torgar.hp,
+    potionQty: potionEntry.qty || 1,
+    turn: e.state().combat.turn,
+    order: e.state().combat.order
+  });
+
+  assert.equal(e.itemCastFx(potionEntry.id, torgar.id, 'drink'), false);
+  const refusal = e.elementText('saveStatus');
+  assert.match(refusal, /Сейчас ход другого участника/);
+  assert.equal(e.castState().ctx, null, 'отказ не открыл контекст применения');
+
+  releaseSave();
+  assert.equal(await saving, true);
+  assert.equal(e.elementText('saveStatus'), refusal, 'успешный save-batch не заменил более новую причину отказа');
+  assert.deepEqual(plain({
+    hp: torgar.hp,
+    potionQty: potionEntry.qty || 1,
+    turn: e.state().combat.turn,
+    order: e.state().combat.order
+  }), beforeRefusal, 'отказ и завершение save-batch не меняют HP, число зелий, очередь и бюджет хода');
+});
+
+test('ошибка фонового сохранения по-прежнему выводится безусловно', async () => {
+  const unavailableStorage = {async get() { return null; }, async set() { return false; }};
+  const unavailableLocalStorage = {
+    getItem() { return null; },
+    setItem() { throw new Error('local storage unavailable'); }
+  };
+  const e = loadEngine(() => 0, null, unavailableLocalStorage, unavailableStorage);
+  const actor = hero('save-error-actor', {hp: 10, hpMax: 10});
+  e.setState({chars: [actor], activeCharId: actor.id});
+  e.hpDelta(-1);
+
+  assert.equal(await e.runScheduledSave(), false);
+  assert.match(e.elementText('saveStatus'), /Хранилище недоступно/);
+  assert.equal(actor.hp, 9, 'ошибка хранилища не меняет уже применённое игровое состояние');
+});
+
+test('лист и вкладка «Экипировка» связывают оружие/щит с точным актером и бюджетом', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const roku = e.buildRoku(), torgar = e.buildTorgar(), enemy = foes.find(x => x.id === 'foe_goblin_scout');
+  const armor = torgar.inventory.find(x => x.itemId === 'it_chainmail_torgar');
+  const weapon = torgar.inventory.find(x => x.itemId === 'it_warhammer_gorn');
+  const shield = torgar.inventory.find(x => x.itemId === 'it_holy_shield_life');
+  const spareShield = {id: 'qa-spare-shield', itemId: shield.itemId, qty: 1};
+  torgar.inventory.push(spareShield);
+  assert.ok(armor && weapon && shield, 'реальные броня, оружие и щит Торгара доступны сценарию');
+  e.setState({chars: [roku, torgar], items, foes, activeCharId: torgar.id});
+  assert.equal(e.combatStart([
+    {kind: 'ally', id: roku.id, nat: 20}, {kind: 'ally', id: torgar.id, nat: 10}, {kind: 'foe', id: enemy.id, nat: 1}
+  ], 'Очередность экипировки'), true);
+  const before = plain({equipment: torgar.equipment, combat: e.state().combat});
+
+  assert.equal(e.sheetEquipToggle(torgar.id, armor.id), false);
+  assert.match(e.elementText('saveStatus'), /Сейчас ход другого участника|больше одного хода.*недоступно в бою/);
+  assert.equal(e.sheetEquipToggle(torgar.id, weapon.id), false, 'оружие с ценой object не обходит проверку хода');
+  assert.equal(e.sheetUnequipSlot(torgar.id, 'OFF_HAND'), false, 'щит с ценой action не снимается в чужой ход');
+  assert.equal(e.sheetEquipToSlot(torgar.id, 'OFF_HAND', spareShield.id), false, 'другой щит не надевается из манекена в чужой ход');
+  assert.deepEqual(plain({equipment: torgar.equipment, combat: e.state().combat}), before,
+    'все три отказа до коммита сохраняют экипировку, КД-источник, очередь и все ресурсы хода');
+
+  e.openChar(torgar.id);
+  e.renderSheetPanel('equipment');
+  e.pickSlot('OFF_HAND');
+  const equipmentHTML = e.elementHTML('tab-chars');
+  assert.match(equipmentHTML, /sheetUnequipSlot\('char_torgar','OFF_HAND'\)/, 'кнопка «Снять» манекена несёт actorId');
+  assert.match(equipmentHTML, /sheetEquipToSlot\('char_torgar','OFF_HAND','qa-spare-shield'\)/, 'кнопка «надеть» манекена несёт actorId');
+
+  assert.equal(e.combatNextTurn(), true);
+  assert.equal(e.sheetEquipToggle(torgar.id, weapon.id), true, 'в свой ход экипированное оружие можно убрать');
+  assert.equal(Object.values(torgar.equipment).includes(weapon.id), false);
+  assert.equal(e.state().combat.turn.objectUsed, true, 'смена оружия списывает одно взаимодействие с объектом');
+  const afterOneCommit = plain({equipment: torgar.equipment, combat: e.state().combat});
+  assert.equal(e.sheetEquipToggle(torgar.id, weapon.id), false, 'второй коммит тем же ресурсом запрещен');
+  assert.match(e.elementText('saveStatus'), /Взаимодействие с объектом уже израсходовано/);
+  assert.deepEqual(plain({equipment: torgar.equipment, combat: e.state().combat}), afterOneCommit,
+    'повторный отказ не меняет экипировку и не расходует ресурс повторно');
+});
+
+test('прямые item-actions листа: чужой ход не ест еду и не разводит огонь, свой ход коммитит один раз', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), foes = e.seedFoesDB();
+  const roku = e.buildRoku(), torgar = e.buildTorgar(), enemy = foes.find(x => x.id === 'foe_goblin_scout');
+  const food = items.find(it => e.itemProfile(it).kind === 'food');
+  const lamp = items.find(it => e.itemProfile(it).kind === 'light' && e.itemProfile(it).light?.fuel);
+  const tinderEntry = torgar.inventory.find(row => e.itemProfile(items.find(it => it.id === row.itemId)).kind === 'firestarter');
+  assert.ok(food && lamp && tinderEntry, 'штатные еда, масляный фонарь и трутница найдены');
+  const foodEntry = {id: 'qa-food', itemId: food.id, qty: 2};
+  const lampEntry = {id: 'qa-empty-lamp', itemId: lamp.id, qty: 1, fuelRounds: 0};
+  torgar.inventory.push(foodEntry, lampEntry);
+  e.setState({chars: [roku, torgar], items, foes, activeCharId: torgar.id});
+  assert.equal(e.combatStart([
+    {kind: 'ally', id: roku.id, nat: 20}, {kind: 'ally', id: torgar.id, nat: 10}, {kind: 'foe', id: enemy.id, nat: 1}
+  ], 'Прямые действия предметов'), true);
+  const actionIndex = (entry, prefix) => e.itemActions(torgar, entry, items.find(it => it.id === entry.itemId)).findIndex(action => action.fn.startsWith(prefix));
+  const foodIndex = actionIndex(foodEntry, 'foodEat'), fireIndex = actionIndex(tinderEntry, 'fireStart');
+  assert.ok(foodIndex >= 0 && fireIndex >= 0, 'оба прямых обработчика выведены в листе');
+  const beforeForeign = plain({fedDays: torgar.fedDays, inventory: torgar.inventory, activeFx: torgar.activeFx, combat: e.state().combat});
+
+  assert.equal(e.combatRunSheetItemAction(torgar.id, foodEntry.id, foodIndex), false);
+  assert.match(e.elementText('saveStatus'), /Сейчас ход другого участника/);
+  assert.equal(e.combatRunSheetItemAction(torgar.id, tinderEntry.id, fireIndex), false);
+  assert.deepEqual(plain({fedDays: torgar.fedDays, inventory: torgar.inventory, activeFx: torgar.activeFx, combat: e.state().combat}), beforeForeign,
+    'отказ до коммита не тратит еду, не создаёт костёр и не меняет бюджет');
+  e.openChar(torgar.id);
+  const inventoryHTML = e.renderSheetPanel('inventory');
+  assert.match(inventoryHTML, /combatRunSheetItemAction\('char_torgar','qa-food',\d+\)/, 'кнопка карточки несёт точный actorId в боевой маршрут');
+
+  assert.equal(e.combatNextTurn(), true);
+  const beforeFailedFire = plain({inventory: torgar.inventory, activeFx: torgar.activeFx, combat: e.state().combat});
+  assert.equal(e.combatRunSheetItemAction(torgar.id, tinderEntry.id, actionIndex(tinderEntry, 'fireStart')), false,
+    'трутница не тратит действие, если ближайший фонарь не заправлен');
+  assert.match(e.elementText('saveStatus'), /не заправлен/i);
+  assert.deepEqual(plain({inventory: torgar.inventory, activeFx: torgar.activeFx, combat: e.state().combat}), beforeFailedFire,
+    'доменный отказ fireStart происходит до коммита и последствий');
+  const action = e.itemActions(torgar, foodEntry, food).find(row => row.fn.startsWith('foodEat'));
+  assert.equal(e.combatRunSheetItemAction(torgar.id, foodEntry.id, actionIndex(foodEntry, 'foodEat')), true);
+  assert.equal(foodEntry.qty, 1, 'после единственного коммита съеден один экземпляр');
+  assert.equal(torgar.fedDays, 1, 'последствие применено один раз');
+  const committed = plain(e.state().combat.turn);
+  assert.equal(e.combatRunSheetItemAction(torgar.id, foodEntry.id, actionIndex(foodEntry, 'foodEat')), false, 'вторая еда тем же действием запрещена');
+  assert.equal(foodEntry.qty, 1);
+  assert.equal(torgar.fedDays, 1);
+  assert.deepEqual(plain(e.state().combat.turn), committed, 'повторный отказ не делает второй коммит');
+  assert.ok(action && ['action', 'object', 'bonus', 'free', 'turnfree'].includes(e.combatItemActionCost(action)));
+});
+
+test('транзакция прямого item-action откатывает мир и бюджет при false/исключении после коммита', () => {
+  const e = loadEngine(), foes = e.seedFoesDB(), actor = hero('atomic-direct', {hp: 10, hpMax: 10}), enemy = foes.find(x => x.id === 'foe_goblin_scout');
+  e.setState({chars: [actor], foes, activeCharId: actor.id});
+  assert.equal(e.combatStart([{kind: 'ally', id: actor.id, nat: 20}, {kind: 'foe', id: enemy.id, nat: 1}], 'Откат direct action'), true);
+  const before = plain({actor, combat: e.state().combat});
+  assert.equal(e.combatDirectItemActionCommit(`ally:${actor.id}`, 'action', 'Инъекция false', () => { actor.hp = 1; return false; }), false);
+  assert.deepEqual(plain({actor, combat: e.state().combat}), before, 'false откатил последствие, лог и ресурс действия');
+  assert.equal(e.combatDirectItemActionCommit(`ally:${actor.id}`, 'action', 'Инъекция throw', () => { actor.hp = 2; throw new Error('qa injected'); }), false);
+  assert.deepEqual(plain({actor, combat: e.state().combat}), before, 'исключение откатило последствие, лог и ресурс действия');
+});
+
+test('набор целителя не тратит заряд и действие, если стабилизировать некого', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), foes = e.seedFoesDB(), torgar = e.buildTorgar(), enemy = foes.find(x => x.id === 'foe_goblin_scout');
+  const kit = torgar.inventory.find(row => row.itemId === 'it_healer_kit_t'), item = items.find(it => it.id === kit.itemId);
+  e.setState({chars: [torgar], items, foes, activeCharId: torgar.id});
+  assert.equal(e.combatStart([{kind: 'ally', id: torgar.id, nat: 20}, {kind: 'foe', id: enemy.id, nat: 1}], 'Префлайт набора'), true);
+  const before = plain({kit, combat: e.state().combat});
+  const preflight = e.combatDirectItemActionPreflight(torgar, kit, item, 'healerKitStabilize', []);
+  assert.equal(preflight.ok, false);
+  assert.match(preflight.reason, /Нет живого умирающего героя/);
+  assert.deepEqual(plain({kit, combat: e.state().combat}), before);
+});
+
+test('black-box weapon journey: Року применяет ручной удар коротким мечом по охристому желе', () => {
+  const journeyWorld = () => {
+    const e = loadEngine(), items = e.seedItemsDB(), foes = e.seedFoesDB();
+    const roku = e.buildRoku(), torgar = e.buildTorgar(), septih = e.buildSeptih(), legerem = e.buildLegerem();
+    const custom = hero('qa-custom', {name: 'Элария QA'});
+    const goblin = foes.find(x => x.id === 'foe_goblin_scout');
+    const skeleton = foes.find(x => x.id === 'foe_skeleton_guard');
+    const jelly = foes.find(x => x.id === 'foe_ochre_jelly');
+    const sword = roku.inventory.find(x => x.itemId === 'it_shortsword_s');
+    assert.ok(sword && jelly, 'штатные короткий меч Року и охристое желе доступны сценарию');
+    roku.equipment.MAIN_HAND = sword.id;
+    torgar.hp = 41;
+    const potion = torgar.inventory.find(x => x.itemId === 'it_potion_great_heal');
+    if (potion) torgar.inventory.splice(torgar.inventory.indexOf(potion), 1);
+    e.setState({chars: [roku, torgar, septih, legerem, custom], items, foes, activeCharId: roku.id});
+    assert.equal(e.combatStart([
+      {kind: 'ally', id: roku.id, nat: 18}, {kind: 'ally', id: torgar.id, nat: 17},
+      {kind: 'ally', id: septih.id, nat: 13}, {kind: 'foe', id: goblin.id, nat: 14},
+      {kind: 'ally', id: legerem.id, nat: 12}, {kind: 'foe', id: skeleton.id, nat: 9},
+      {kind: 'ally', id: custom.id, nat: 10}, {kind: 'foe', id: jelly.id, nat: 6}
+    ], 'Року против охристого желе'), true);
+    while (e.state().combat.round < 4 || e.state().combat.turn.actorKey !== `ally:${roku.id}`) {
+      assert.equal(e.combatNextTurn(), true);
+    }
+    return {e, roku, jelly, sword};
+  };
+
+  const direct = journeyWorld(), targetKey = `foe:${direct.jelly.id}`;
+  const confirmed = productionWeaponConfirmation(direct.e, direct.roku, direct.sword.id, targetKey, {atk: 18, dmg: 4}, {
+    combatCost: 'attack', combatActorKey: `ally:${direct.roku.id}`, distanceExplicit: false,
+    threatenedWithin5: false, cover: 'none', rangeBand: ''
+  });
+  let continuationCalls = 0;
+  const directContext = direct.e.castState().ctx;
+  assert.equal(Object.prototype.hasOwnProperty.call(directContext, 'bg3InterruptSourceId'), false);
+  assert.equal(direct.e.bg3InterruptMaybePrepareCast(confirmed.rolls, () => { continuationCalls += 1; }), false,
+    'обычная атака без подходящей реакции продолжает commit синхронно');
+  assert.equal(continuationCalls, 0);
+  assert.equal(Object.prototype.hasOwnProperty.call(directContext, 'bg3InterruptSourceId'), false,
+    'подготовка реакции хранит source id в transport-слоте rolls и не меняет опечатанный castCtx');
+  assert.equal(direct.e.bg3GithbornMindcrusherTestRefGuard(confirmed.rolls).ok, true,
+    'private authority остается точной после штатной подготовки реакции');
+  assert.equal(direct.e.weaponAttackApply(direct.sword.id, direct.roku.id, targetKey, confirmed.rolls), true,
+    direct.e.elementText('saveStatus') + ' ' + direct.e.elementText('castErr'));
+  assert.equal(direct.jelly.hp, 39, 'd6=4 и Ловкость Року +2 дают ровно 6 колющего урона одной цели');
+  assert.equal(direct.e.state().combat.turn.attacksUsed, 1, 'атака коммитит ровно один ресурс действия Атака');
+
+  const ui = journeyWorld(), uiTargetKey = `foe:${ui.jelly.id}`;
+  assert.equal(ui.e.combatWeapon(ui.sword.id, 'melee', 'attack'), true, 'реальная кнопка боя открывает оружие Року');
+  ui.e.setElementValue('castTarget', uiTargetKey);
+  ui.e.castConfirm();
+  const uiContext = ui.e.castState().ctx;
+  assert.ok(uiContext && uiContext.spec, 'реальный castConfirm строит ручную формулу атаки');
+  ui.e.setElementValue('cf_atk', '18');
+  ui.e.setElementValue('cf_dmg', '4');
+  ui.e.castFormulaConfirm();
+  assert.equal(Object.prototype.hasOwnProperty.call(uiContext, 'bg3InterruptSourceId'), false,
+    'полный UI-путь также не меняет опечатанный контекст после attestation');
+  assert.equal(ui.jelly.hp, 39, 'UI-коммит применяет те же шесть единиц урона к выбранному желе');
+  assert.equal(ui.e.state().combat.turn.attacksUsed, 1, 'UI-коммит списывает ровно одну атаку');
+});
+
+test('ordinary weapon and Fire Bolt ignore private BG3 prototype and root-open guards', () => {
+  const run = guardKind => {
+    const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), foes = e.seedFoesDB();
+    const roku = e.buildRoku(), sword = roku.inventory.find(row => row.itemId === 'it_shortsword_s');
+    const jelly = foes.find(row => row.id === 'foe_ochre_jelly'), goblin = foes.find(row => row.id === 'foe_goblin_scout');
+    const fireBolt = spells.find(row => row.id === 'sp_fire_bolt');
+    assert.ok(sword && jelly && goblin && fireBolt);
+    roku.equipment.MAIN_HAND = sword.id;
+    e.setState({chars: [roku], items, spells, foes, activeCharId: roku.id});
+    const guarded = action => {
+      const guard = guardKind === 'prototype'
+        ? e.bg3RootTestPrototypeFunction('String', 'padStart', roku)
+        : guardKind === 'busy' ? {restore: e.bg3CastGuardTestRootBusy()} : {restore() {}};
+      try { return action(); } finally { guard.restore(); }
+    };
+
+    const jellyBefore = jelly.hp;
+    e.weaponAttackFx(sword.id, roku.id, 'melee');
+    e.setElementValue('castTarget', `foe:${jelly.id}`);
+    guarded(() => {
+      e.castConfirm();
+      const spec = e.castState().spec;
+      assert.ok(spec, `${guardKind}: ordinary weapon reaches its manual formula`);
+      for (const row of spec.rows) e.setElementValue(`cf_${row.key}`, row.type === 'atk' ? 18 : 4);
+      e.castFormulaConfirm();
+    });
+    assert.equal(jelly.hp, jellyBefore - 6, `${guardKind}: d6=4 plus Roku Dexterity applies exactly six damage`);
+
+    const goblinBefore = goblin.hp;
+    e.castSpellFx(fireBolt.id, roku.id);
+    e.setElementValue('castTarget', `foe:${goblin.id}`);
+    guarded(() => {
+      e.castConfirm();
+      e.castDistanceSet('far');
+      const spec = e.castState().spec;
+      assert.ok(spec, `${guardKind}: ordinary Fire Bolt reaches its manual formula`);
+      for (const row of spec.rows) e.setElementValue(`cf_${row.key}`, row.type === 'atk' ? 18 : 4);
+      e.castFormulaConfirm();
+    });
+    assert.equal(goblin.hp, goblinBefore - 4, `${guardKind}: Fire Bolt applies the entered d10 total once`);
+    return plain({jellyHp: jelly.hp, goblinHp: goblin.hp, swordQty: sword.qty, castOpen: e.castState().ctx !== null});
+  };
+
+  const normal = run('normal');
+  assert.deepEqual(run('prototype'), normal, 'harmless prototype drift preserves the exact ordinary outcome');
+  assert.deepEqual(run('busy'), normal, 'a private root preparation lock does not own ordinary cast UI');
+});
+
+test('новая способность полностью сбрасывает общую модаль после успешного Огненного сгустка', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB();
+  const abilities = e.seedAbilitiesDB(), foes = e.seedFoesDB();
+  const roku = e.buildRoku(), septih = e.buildSeptih();
+  const fireBolt = spells.find(row => row.id === 'sp_fire_bolt');
+  const shapechange = abilities.find(row => row.id === 'ab_sx_shapechange');
+  const goblin = foes.find(row => row.id === 'foe_goblin_scout');
+  assert.ok(fireBolt && shapechange && goblin, 'штатные Fire Bolt, Перевертыш и гоблин доступны сценарию');
+  e.setState({chars: [roku, septih], items, spells, abilities, foes, activeCharId: roku.id});
+
+  e.castSpellFx(fireBolt.id, roku.id);
+  e.setElementValue('castTarget', `foe:${goblin.id}`);
+  e.castConfirm();
+  e.castDistanceSet('far');
+  const formula = e.castState().spec;
+  assert.ok(formula, 'Fire Bolt открыл ручную формулу');
+  for (const row of formula.rows) {
+    if (row.type === 'atk') e.setElementValue(`cf_${row.key}`, 18);
+    else if (row.type === 'dmg') e.setElementValue(`cf_${row.key}`, 4);
+  }
+  const hpBefore = goblin.hp;
+  e.castFormulaConfirm();
+  assert.equal(goblin.hp, hpBefore - 4, 'успешный Fire Bolt применён до открытия следующего действия');
+  assert.equal(e.testElement('castBack').style.display, 'none', 'завершённая формула закрыла модаль');
+  assert.equal(e.testElement('castStep3').style.display, 'block', 'закрытие само по себе сохраняет прежний этап до нового открытия');
+  assert.notEqual(e.elementHTML('castFormula'), '', 'в DOM ещё находится формула завершённого Fire Bolt');
+
+  e.abilityCastFx(shapechange.id, septih.id);
+  assert.match(e.elementText('castTitle'), /Перевертыш/);
+  assert.equal(e.testElement('castBack').style.display, 'flex');
+  assert.equal(e.testElement('castStep1').style.display, 'block', 'новая способность показывает только первый этап');
+  assert.equal(e.testElement('castStep2').style.display, 'none');
+  assert.equal(e.testElement('castStep3').style.display, 'none', 'кнопка старого «Применить итог» больше не видна');
+  assert.equal(e.elementHTML('castFormula'), '', 'старая формула удалена из общей модали');
+  assert.equal(e.castState().ctx.kind, 'ability');
+  assert.equal(e.castState().ctx.abilityId, shapechange.id);
+});
+
+test('многоцелевая разметка заклинания не протекает в способность, предмет или оружие', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB();
+  const abilities = e.seedAbilitiesDB(), foes = e.seedFoesDB();
+  const torgar = e.buildTorgar(), septih = e.buildSeptih(), roku = e.buildRoku(), legerem = e.buildLegerem();
+  const blessing = spells.find(row => row.id === 'sp_благословение');
+  const shapechange = abilities.find(row => row.id === 'ab_sx_shapechange');
+  const potion = torgar.inventory.find(row => row.itemId === 'it_potion_great_heal');
+  const hammer = torgar.inventory.find(row => row.itemId === 'it_warhammer_gorn');
+  assert.ok(blessing && shapechange && potion && hammer, 'штатные multi-target spell и три следующих действия доступны сценарию');
+  e.setState({chars: [torgar, septih, roku, legerem], items, spells, abilities, foes, activeCharId: torgar.id});
+
+  const staleTarget = `ally:${septih.id}`;
+  const leaveMultiTargetSpell = () => {
+    e.setElementValue('castTarget', `ally:${torgar.id}`);
+    e.castSpellFx(blessing.id, torgar.id);
+    assert.equal(e.testElement('castMultiWrap').style.display, 'block', 'Благословение сохраняет собственный multi-target UI после общего reset');
+    assert.match(e.elementHTML('castMultiTargets'), /class="cast-multi"/, 'предыдущее действие действительно содержит выбор дополнительных целей');
+    e.castState().ctx.extraTargets = [staleTarget];
+    e.testElement('castMultiTargets').innerHTML = e.elementHTML('castMultiTargets').replace('type="checkbox"', 'type="checkbox" checked');
+    e.closeCastModal();
+    assert.equal(e.testElement('castMultiWrap').style.display, 'block', 'закрытие оставляет прежнюю разметку до открытия нового действия');
+  };
+  const assertMultiTargetStateCleared = kind => {
+    const ctx = e.castState().ctx;
+    assert.equal(ctx.kind, kind);
+    assert.equal(e.testElement('castMultiWrap').style.display, 'none', `${kind}: чужой multi-target блок скрыт`);
+    assert.equal(e.elementHTML('castMultiTargets'), '', `${kind}: старые checkbox-цели удалены из DOM`);
+    assert.equal(e.elementText('castMultiLabel'), 'Дополнительные союзные цели', `${kind}: подпись многоцелевого действия сброшена`);
+    assert.equal((ctx.extraTargets || []).includes(staleTarget), false, `${kind}: новая операция не наследует выбранную цель`);
+  };
+
+  leaveMultiTargetSpell();
+  e.abilityCastFx(shapechange.id, septih.id);
+  assertMultiTargetStateCleared('ability');
+
+  leaveMultiTargetSpell();
+  e.itemCastFx(potion.id, torgar.id, 'drink');
+  assertMultiTargetStateCleared('item');
+
+  leaveMultiTargetSpell();
+  e.weaponAttackFx(hammer.id, torgar.id, 'melee');
+  assertMultiTargetStateCleared('weapon');
 });
 
 test('набор целителя проверяет точную цель до расхода и стабилизирует только выбранного умирающего', () => {
@@ -5487,6 +5897,91 @@ test('регрессия уникальных предметов: проверк
   formula.apply({a: 7, b: 12});
   assert.equal(legerem.activeFx.some(x => x.id === 'it_korlinn_seal'), false,
     'подтвержденный бросок расходует оба участвовавших одноразовых эффекта');
+});
+
+test('серебряная расческа требует контекст банши и дает ровно один автоматический успех Харизмы', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), torgar = e.buildTorgar();
+  const entry = torgar.inventory.find(row => row.itemId === 'it_silver_comb');
+  const comb = items.find(row => row.id === 'it_silver_comb');
+  e.setState({chars: [torgar], items, activeCharId: torgar.id});
+
+  assert.ok(entry && comb);
+  assert.equal(e.useItemApply(entry.id, torgar.id, `ally:${torgar.id}`, null, 'offer_banshee',
+    {contextConfirmed: true, contextTags: ['merchant']}), false, 'обычный NPC не подменяет банши');
+  assert.equal(torgar.activeFx.length, 0, 'отказ до коммита не меняет мир');
+  assert.equal(torgar.inventory.includes(entry), true, 'отказ до коммита не расходует подарок');
+  assert.equal(e.useItemApply(entry.id, torgar.id, `ally:${torgar.id}`, null, 'offer_banshee',
+    {contextConfirmed: true, contextTags: ['banshee']}), true);
+  assert.equal(torgar.inventory.includes(entry), false, 'подаренная банши расческа расходуется ровно один раз');
+  assert.equal(e.rollFxEntries(torgar, 'skill.Убеждение', ['merchant']).some(row => row.value === 'automatic-success'), false);
+  for (const stat of ['check.cha', 'skill.Убеждение', 'skill.Обман', 'skill.Запугивание', 'skill.Выступление']) {
+    assert.equal(e.rollFxEntries(torgar, stat, ['banshee']).some(row => row.mode === 'grant' && row.value === 'automatic-success'), true,
+      `${stat}: эффект Харизмы должен быть доступен в контексте банши`);
+  }
+  const activeBeforeReplay = torgar.activeFx.length;
+  assert.equal(e.useItemApply(entry.id, torgar.id, `ally:${torgar.id}`, null, 'offer_banshee',
+    {contextConfirmed: true, contextTags: ['banshee']}), false, 'израсходованную расческу нельзя преподнести повторно');
+  assert.equal(torgar.activeFx.length, activeBeforeReplay, 'повторная попытка не дублирует эффект');
+
+  e.resetDialogCalls();
+  e.setConfirmResults([true]);
+  assert.equal(e.rollCheck('Проверка Харизмы с банши', 0, 'check.cha'), true);
+  assert.equal(e.pendingRollSpec(), null, 'автоматический успех не запрашивает фиктивный d20');
+  assert.match(e.elementText('diceOut'), /автоматический успех/);
+  assert.match(e.dialogCalls().confirm.flat().join(' '), /банши/);
+  assert.doesNotMatch(e.dialogCalls().confirm.flat().join(' '), /\bbanshee\b/);
+  for (const stat of ['check.cha', 'skill.Убеждение', 'skill.Обман', 'skill.Запугивание', 'skill.Выступление']) {
+    assert.equal(e.rollFxEntries(torgar, stat, ['banshee']).some(row => row.value === 'automatic-success'), false,
+      `${stat}: один подтвержденный бросок расходует весь единый эффект`);
+  }
+});
+
+test('священный символ можно носить на виду или держать в любой руке с разной семантикой компонентов', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), symbol = items.find(row => row.id === 'it_священный_символ_эмблема');
+  const weapon = items.find(row => row.type === 'weapon' && row.slot === 'MAIN_HAND');
+  const caster = hero('holy-symbol-caster', {cls: 'Жрец', inventory: [
+    {id: 'holy-symbol-entry', itemId: symbol.id, qty: 1},
+    {id: 'holy-symbol-main-occupied', itemId: weapon.id, qty: 1},
+    {id: 'holy-symbol-off-occupied', itemId: weapon.id, qty: 1},
+  ], equipment: {MAIN_HAND: 'holy-symbol-main-occupied', OFF_HAND: 'holy-symbol-off-occupied'}});
+  const materialOnly = {n: 'Обряд с материальным компонентом', cm: 'М'};
+  const somaticMaterial = {n: 'Обряд с жестом и материальным компонентом', cm: 'С, М'};
+  e.setState({chars: [caster], items, activeCharId: caster.id});
+
+  assert.ok(symbol && weapon);
+  assert.equal(symbol.slot, 'NECK', 'базовое ношение символа не занимает вторую руку');
+  assert.equal(e.canCastCheck(caster, materialOnly).ok, false, 'символ в рюкзаке не заменяет компонент при занятых руках');
+  assert.equal(e.sheetEquipToSlot(caster.id, 'NECK', 'holy-symbol-entry'), true);
+  assert.equal(e.canCastCheck(caster, materialOnly).ok, true, 'видимый носимый символ заменяет обычный материальный компонент');
+  assert.equal(e.canCastCheck(caster, somaticMaterial).ok, false, 'носимый символ не изображает соматический жест занятой рукой');
+  assert.equal(e.sheetEquipToSlot(caster.id, 'MAIN_HAND', 'holy-symbol-entry'), true);
+  assert.equal(e.canCastCheck(caster, somaticMaterial).ok, true, 'символ в руке обслуживает общий соматический/материальный компонент');
+  assert.equal(e.sheetEquipToSlot(caster.id, 'OFF_HAND', 'holy-symbol-entry'), true, 'символ разрешен и во второй руке');
+  assert.equal(e.sheetEquipToSlot(caster.id, 'CHEST', 'holy-symbol-entry'), false, 'посторонний слот остается запрещен');
+  caster.equipment = {MAIN_HAND: 'holy-symbol-main-occupied', OFF_HAND: 'holy-symbol-off-occupied', CHEST: 'holy-symbol-entry'};
+  assert.equal(e.canCastCheck(caster, materialOnly).ok, false, 'поврежденное состояние с символом в чужом слоте не дает фокус');
+});
+
+test('мыло открывает честную ситуационную проверку без выдуманного навыка и фиксированной СЛ', () => {
+  const e = loadEngine(), items = e.seedItemsDB(), soap = items.find(row => row.id === 'it_мыло');
+  const actor = hero('soap-user', {ab: {str: 10, dex: 14, con: 10, int: 10, wis: 10, cha: 10},
+    inventory: [{id: 'soap-entry', itemId: soap.id, qty: 1}]});
+  e.setState({chars: [actor], items, activeCharId: actor.id});
+
+  const contract = e.toolTaskCheckSpec(actor, soap, 'use:soap');
+  assert.equal(contract.task.label, 'Применить мыло по обстоятельствам');
+  assert.equal(contract.task.skill, '');
+  assert.equal(contract.tool.prof, 'не требуется');
+  assert.equal(contract.dc, null);
+  assert.equal(contract.mod, 2, 'исполняемый контракт использует только явную Ловкость, без фиктивного владения');
+  e.toolCheck('soap-entry', 'use:soap');
+  const roll = e.pendingRollSpec();
+  assert.ok(roll, 'кнопка применения открывает реальный путь ввода броска');
+  assert.match(roll.title, /Применить мыло по обстоятельствам/);
+  assert.match(roll.note, /СЛ определяет мастер по обстоятельствам/);
+  assert.match(roll.note, /владение не требуется/);
+  assert.doesNotMatch(roll.note, /Ловкость рук|СЛ 5/);
+  e.rollCancel();
 });
 
 test('регрессия уникальных предметов: неизвестное campaignRule не проходит схему', () => {
@@ -11263,6 +11758,29 @@ test('BG3 item formula boundary commits a real v10 healing potion only through S
   assert.equal(e.bg3ItemFormulaOutcomeAudit().phase,'used');assert.equal(randomCalls(),0,'the formula boundary never rolls for the player\n'+randomStacks.join('\n---\n'));
 });
 
+test('private cast and formula guards fail closed with a visible reason and no mutation', async()=>{
+  const world=await realBg3HealingPotionWorld(),{e,actor,entryId,useId}=world;
+  assert.equal(await e.bg3ItemProgramOpen(entryId,actor.id,useId),true,e.elementText('castErr'));
+  e.setElementValue('castTarget','ally:'+actor.id);
+  const snapshot=()=>plain({actor,combat:e.state().combat,ctx:e.castState().ctx});
+  const visible=(pattern,label)=>{assert.match(e.elementText('castErr'),pattern,label+' cast reason');assert.match(e.elementText('saveStatus'),pattern,label+' status reason');};
+  const rejectPrototype=(invoke,label)=>{const before=snapshot(),poison=e.bg3RootTestPrototypeFunction('String','padStart',actor);let result;try{result=invoke();}finally{poison.restore();}assert.equal(result,false,label);assert.equal(poison.hits(),0,label+' rejects from descriptor authority before the replacement runs');assert.deepEqual(snapshot(),before,label+' is mutation-free');visible(/Проверка целостности/,label);};
+  const rejectBusy=(invoke,label)=>{const before=snapshot(),restore=e.bg3CastGuardTestRootBusy();let result;try{result=invoke();}finally{restore();}assert.equal(result,false,label);assert.deepEqual(snapshot(),before,label+' is mutation-free');visible(/Подготовка другого защищённого действия/,label);};
+
+  rejectPrototype(()=>e.castConfirm(),'private castConfirm prototype guard');
+  rejectBusy(()=>e.castConfirm(),'private castConfirm root-busy guard');
+  rejectPrototype(()=>e.castFormulaShow(),'private castFormulaShow prototype guard');
+  rejectBusy(()=>e.castFormulaShow(),'private castFormulaShow root-busy guard');
+  assert.equal(e.castFormulaShow(),true,'restored private formula opens normally');
+  const spec=e.castState().spec,values={};assert.ok(spec&&spec.rows.length);
+  for(const row of spec.rows)if(row.required)values[row.key]=row.natural?10:Math.max(1,+row.cnt||1);
+  e.bg3ItemFormulaSetValues(values);
+  rejectPrototype(()=>e.castFormulaConfirm(),'private castFormulaConfirm prototype guard');
+  rejectBusy(()=>e.castFormulaConfirm(),'private castFormulaConfirm root-busy guard');
+  assert.equal(e.castFormulaConfirm(),true,'restored private formula commits normally');
+  assert.equal(actor.hp,5);assert.equal(actor.inventory.length,0);assert.equal(e.bg3ItemFormulaOutcomeAudit().phase,'used');
+});
+
 test('BG3 item formula boundary manifest matrix commits all 6 exact v10 Standard healing-potion rows', async()=>{
   assert.equal(selectedBg3Catalog.current.catalogVersion,'bg3-24532579-v10');const rows=realBg3HealingPotionManifestRows(),rowKeys=rows.map(row=>`${row.profile}:${row.itemId}:${row.useId}`),itemIds=new Set(rows.map(row=>row.itemId));
   assert.equal(rows.length,6,'the exact source contract has 6 Standard action rows');assert.equal(new Set(rowKeys).size,6,'every action/profile row is unique');assert.equal(itemIds.size,6,'the rows cover six concrete item variants');
@@ -12096,6 +12614,78 @@ test('campaign storage falls back to localStorage when window.storage rejects ac
   assert.equal(await e.storeSet('committed', 'durable-local-value'), true, 'the local fallback acknowledges a durable write');
   assert.equal(local.get('committed'), 'durable-local-value');
   assert.equal(await e.storeGet('committed'), 'durable-local-value');
+});
+
+test('campaign save survives a primary tier that acknowledges writes but keeps returning stale data', async () => {
+  const key = 'dndworld2:campaign-envelope';
+  const originalState = {
+    schemaVersion: 'dnd-world-world-snapshot/1', snapshotRevision: 1,
+    chars: [hero('before-save', {name: 'До сохранения'})],
+    items: [], spells: [], abilities: [], races: [], classes: [], rules: [], foes: [], catalogRefs: [],
+  };
+  const originalEnvelope = await persistenceCore.createEnvelope({
+    campaignId:'default', revision:0, parentRevision:-1, transactionId:'initial', state:originalState,
+    writtenAt:'2026-09-01T10:00:00.000Z',
+  });
+  const staleRaw = JSON.stringify(originalEnvelope), local = new Map([[key, staleRaw]]), acceptedWrites = [];
+  const stalePrimary = {
+    async get(storageKey) { return storageKey === key ? {value:staleRaw} : null; },
+    async set(storageKey, value) { acceptedWrites.push([storageKey, String(value)]); return true; },
+  };
+  const first = loadEngine(() => 0, selectedBg3FileFetch(), local, stalePrimary, {persistenceCore});
+  await first.loadAll();
+  first.setState({chars:[hero('after-save', {name:'После сохранения'})]});
+  assert.equal(await first.saveWorldNow(), true, 'a fresh verified local mirror satisfies repository read-back');
+
+  const mirroredRaw = local.get(key), mirrored = await persistenceCore.verifyEnvelope(JSON.parse(mirroredRaw));
+  assert.equal(mirrored.ok, true);
+  assert.equal(mirrored.envelope.revision, 1);
+  assert.ok(mirrored.envelope.state.chars.some(character => character.id === 'after-save'));
+  assert.ok(acceptedWrites.some(([storageKey]) => storageKey === key), 'the primary tier is still attempted');
+
+  const reloaded = loadEngine(() => 0, selectedBg3FileFetch(), local, stalePrimary, {persistenceCore});
+  await reloaded.loadAll();
+  assert.ok(reloaded.state().chars.some(character => character.id === 'after-save'), 'reload chooses the freshest verified durable tier');
+  assert.equal(reloaded.state().chars.some(character => character.id === 'before-save'), false);
+});
+
+test('campaign read-back failure is shown with one terminal punctuation mark', async () => {
+  const key = 'dndworld2:campaign-envelope', initialState = {
+    schemaVersion:'dnd-world-world-snapshot/1',snapshotRevision:1,
+    chars:[hero('read-back-before')],items:[],spells:[],abilities:[],races:[],classes:[],rules:[],foes:[],catalogRefs:[],
+  };
+  const initialEnvelope = await persistenceCore.createEnvelope({
+    campaignId:'default',revision:0,parentRevision:-1,transactionId:'read-back-initial',state:initialState,
+  });
+  const staleRaw = JSON.stringify(initialEnvelope), rejectingLocal = {
+    getItem() { return null; },
+    setItem() { throw new Error('local tier unavailable'); },
+  }, stalePrimary = {
+    async get(storageKey) { return storageKey === key ? {value:staleRaw} : null; },
+    async set() { return true; },
+  };
+  const e = loadEngine(() => 0, selectedBg3FileFetch(), rejectingLocal, stalePrimary, {persistenceCore});
+  await e.loadAll();
+  e.setState({chars:[hero('read-back-after')]});
+  assert.equal(await e.saveWorldNow(), false);
+  assert.equal(e.elementText('saveStatus'), 'Летопись не сохранена: Campaign envelope could not be verified after write.');
+});
+
+test('campaign storage refuses same-revision split-brain envelopes', async () => {
+  const key = 'dndworld2:campaign-envelope';
+  const left = await persistenceCore.createEnvelope({campaignId:'default',revision:2,parentRevision:1,transactionId:'left',state:{
+    schemaVersion:'dnd-world-world-snapshot/1',snapshotRevision:2,chars:[],items:[],spells:[],abilities:[],races:[],classes:[],rules:[],foes:[],catalogRefs:[],marker:'left',
+  }});
+  const right = await persistenceCore.createEnvelope({campaignId:'default',revision:2,parentRevision:1,transactionId:'right',state:{
+    schemaVersion:'dnd-world-world-snapshot/1',snapshotRevision:2,chars:[],items:[],spells:[],abilities:[],races:[],classes:[],rules:[],foes:[],catalogRefs:[],marker:'right',
+  }});
+  const local = new Map([[key, JSON.stringify(right)]]), primary = {
+    async get(storageKey) { return storageKey === key ? {value:JSON.stringify(left)} : null; },
+    async set() { return true; },
+  };
+  const e = loadEngine(() => 0, null, local, primary, {persistenceCore});
+  await assert.rejects(() => e.storeGet(key), error => error && error.code === 'ENVELOPE_TIER_CONFLICT');
+  await assert.rejects(() => e.loadAll(), /conflicting campaign envelopes/);
 });
 
 test('validated legacy campaign opens read-only when every durable migration write is rejected', async () => {

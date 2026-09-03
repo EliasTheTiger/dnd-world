@@ -91,6 +91,30 @@
     catch (error) { return {ok:false, code:'CORRUPT_JSON', reason:String(error && error.message || error), raw:String(raw)}; }
   }
 
+  async function selectFreshestEnvelope(candidates) {
+    const verified = [], failures = [], present = [];
+    for (const candidate of Array.isArray(candidates) ? candidates : []) {
+      const tier = String(candidate && candidate.tier || 'unknown'), parsed = parseStored(candidate && candidate.raw);
+      if (parsed.missing) continue;
+      present.push(tier);
+      if (!parsed.ok) { failures.push({tier, code:parsed.code, reason:parsed.reason}); continue; }
+      const checked = await verifyEnvelope(parsed.value);
+      if (!checked.ok) { failures.push({tier, code:checked.code, reason:checked.reason}); continue; }
+      verified.push({tier, raw:parsed.raw, envelope:checked.envelope, revision:checked.envelope.revision, checksum:checked.envelope.checksum});
+    }
+    if (!present.length) return {ok:true, missing:true, raw:null, envelope:null, revision:-1, tier:null};
+    if (!verified.length) return {ok:false, code:'NO_VERIFIED_ENVELOPE', reason:'No durable storage tier contains a verified campaign envelope.', tiers:present, failures};
+    const revision = Math.max(...verified.map(row => row.revision)), freshest = verified.filter(row => row.revision === revision);
+    const checksums = [...new Set(freshest.map(row => row.checksum))];
+    if (checksums.length !== 1) return {
+      ok:false, conflict:true, code:'ENVELOPE_TIER_CONFLICT',
+      reason:'Durable storage tiers contain conflicting campaign envelopes at revision '+revision+'.',
+      revision, tiers:freshest.map(row => row.tier), checksums
+    };
+    const selected = freshest[0];
+    return {ok:true, missing:false, raw:selected.raw, envelope:selected.envelope, revision, checksum:selected.checksum, tier:selected.tier};
+  }
+
   class MemoryAdapter {
     constructor(initial) { this.values = new Map(Object.entries(initial || {})); this.failNextSet = false; this.compareQueue = Promise.resolve(); }
     async get(key) { return this.values.has(key) ? this.values.get(key) : null; }
@@ -114,7 +138,10 @@
       this.clock = options.clock || (() => new Date().toISOString()); this.idFactory = options.idFactory || (() => 'tx-'+Date.now().toString(36));
     }
     async read() {
-      const parsed = parseStored(await this.adapter.get(this.key));
+      let raw;
+      try { raw = await this.adapter.get(this.key); }
+      catch (error) { return {ok:false, code:error && error.code || 'READ_FAILED', reason:String(error && error.message || error)}; }
+      const parsed = parseStored(raw);
       if (!parsed.ok) return parsed; if (parsed.missing) return {ok:true, missing:true, revision:-1, envelope:null};
       const verified = await verifyEnvelope(parsed.value); return verified.ok ? {ok:true, missing:false, revision:verified.envelope.revision, envelope:verified.envelope, raw:parsed.raw} : verified;
     }
@@ -166,6 +193,6 @@
 
   return Object.freeze({
     ENVELOPE_SCHEMA,RECEIPT_SCHEMA,CLOUD_SCHEMA,WORLD_SNAPSHOT_SCHEMA,canonicalJson,sha256,createEnvelope,verifyEnvelope,migrateWorldSnapshot,
-    parseStored,MemoryAdapter,EnvelopeRepository,cloudRevision,cloudCasPlan,createCloudMessage
+    parseStored,selectFreshestEnvelope,MemoryAdapter,EnvelopeRepository,cloudRevision,cloudCasPlan,createCloudMessage
   });
 });

@@ -159,17 +159,28 @@
     return {cost: {amount, currency, copper, tradeable, source: value.mode === 'inventory' ? 'inventory-instance' : valueState === 'value' ? 'source' : copper ? 'legacy-conversion' : 'not-applicable'}};
   }
 
+  function legacyWeightDeclaration(value) {
+    const raw = text(value).toLowerCase().replace(/\u00a0/g, ' ');
+    if (raw === 'переменный') return {ok: true, kg: 0, variable: true};
+    const match = /^(\d+(?:[.,]\d+)?)\s*(кг|kg|килограмм(?:а|ов)?|г|g|грамм(?:а|ов)?|фунт(?:а|ов)?|lb|lbs)?(?:\s*\((?:полный|пустой)\))?$/iu.exec(raw);
+    if (!match) return {ok: false, kg: 0, variable: false};
+    const amount = Number(match[1].replace(',', '.'));
+    if (!Number.isFinite(amount) || amount < 0) return {ok: false, kg: 0, variable: false};
+    const unit = (match[2] || 'кг').toLowerCase();
+    const multiplier = /^(?:фунт|lb)/u.test(unit) ? 0.45359237 : /^(?:г|g)/u.test(unit) && !/^(?:кг|kg)/u.test(unit) ? 0.001 : 1;
+    return {ok: true, kg: amount * multiplier, variable: false};
+  }
+
   function weightOf(item, profile) {
     const mass = profile && profile.mass || {};
     let kg = finite(mass.kg) ? Number(mass.kg) : null;
+    const declared = legacyWeightDeclaration(item.weight);
     if (kg == null) {
-      const raw = text(item.weight).toLowerCase().replace(',', '.');
-      const amount = Number((raw.match(/-?\d+(?:\.\d+)?/) || [0])[0]);
-      kg = Number.isFinite(amount) ? amount * (/фунт|lb/.test(raw) ? 0.45359237 : 1) : 0;
+      kg = declared.ok ? declared.kg : 0;
     }
     kg = Math.max(0, Math.round(kg * 1000000) / 1000000);
     const portable = profile && profile.flags && typeof profile.flags.portable === 'boolean' ? profile.flags.portable : true;
-    return {value: kg, unit: 'kg', portable, source: text(mass.state) === 'value' || finite(mass.kg) ? 'source' : kg ? 'legacy-conversion' : 'not-applicable'};
+    return {value: kg, unit: 'kg', portable, source: text(mass.state) === 'value' || finite(mass.kg) ? 'source' : declared.ok && !declared.variable ? 'legacy-conversion' : 'not-applicable'};
   }
 
   function taxonomyOf(item, profile) {
@@ -443,7 +454,8 @@
     for (const interaction of interactionRows) { const row = interactionActionOf(item, interaction, isBg3); if (row && !actions.some(action => action.id === row.id)) actions.push(row); }
     const economy = economyOf(item, profile), weight = weightOf(item, profile), charges = chargesOf(item);
     const consumable = Boolean(profile && profile.flags && profile.flags.consumable) || actions.some(action => action.resourceCost.kind === 'item' && action.resourceCost.amount > 0);
-    const slots = uniq((SLOT_MAP[text(item.slot)] || []).concat(SLOT_MAP[text(mechanics.equipment && mechanics.equipment.slot)] || []));
+    const focusSlots = profile && profile.focus && profile.focus.holdable === true ? ['main-hand', 'off-hand'] : [];
+    const slots = uniq((SLOT_MAP[text(item.slot)] || []).concat(SLOT_MAP[text(mechanics.equipment && mechanics.equipment.slot)] || [], focusSlots));
     const equipmentAction = equipmentActionOf(item, slots); if (equipmentAction) actions.push(equipmentAction);
     const passive = passiveOf(item), passiveProgramEffects = passive.effects.filter(effect => effect.kind === 'delegated-lifecycle-program'),
       directPassive = passive.effects.some(effect => effect.kind !== 'delegated-lifecycle-program') || passive.modifiers.length || passive.conditions.length,
@@ -543,7 +555,11 @@
         || Number(coverage.counts && coverage.counts.blockedRootPrograms || 0)) add('runtime-blocked-or-incomplete');
       const mass = raw.mechanics && raw.mechanics.profile && raw.mechanics.profile.mass;
       if (!mass || mass.state !== 'value' || !Number.isFinite(Number(mass.kg)) || Number(mass.kg) < 0) add('weight-not-source-backed');
-    } else if (!text(raw && raw.weight) || /^(?:—|-|не\s+применяется)$/iu.test(text(raw && raw.weight))) add('weight-missing');
+    } else {
+      const declaredWeight = legacyWeightDeclaration(raw && raw.weight);
+      if (!text(raw && raw.weight) || /^(?:—|-|не\s+применяется)$/iu.test(text(raw && raw.weight))) add('weight-missing');
+      else if (!declaredWeight.ok) add('weight-invalid');
+    }
     return {ok: issues.length === 0, issues, item: domain};
   }
 

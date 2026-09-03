@@ -22,6 +22,35 @@ test('world snapshot migration preserves the original state and revision', async
   assert.equal((await persistence.verifyEnvelope(envelope)).ok, true);
 });
 
+test('durable tiers select the freshest verified campaign envelope and ignore an unverified forgery', async () => {
+  const older = await persistence.createEnvelope({campaignId:'fixture',revision:3,parentRevision:2,transactionId:'older',state:state('older'),writtenAt:'2026-08-30T10:00:00.000Z'});
+  const freshest = await persistence.createEnvelope({campaignId:'fixture',revision:4,parentRevision:3,transactionId:'freshest',state:state('freshest'),writtenAt:'2026-08-30T10:01:00.000Z'});
+  const forged = JSON.parse(JSON.stringify(freshest)); forged.revision = 99;
+  const selected = await persistence.selectFreshestEnvelope([
+    {tier:'window.storage',raw:JSON.stringify(older)},
+    {tier:'localStorage',raw:JSON.stringify(freshest)},
+    {tier:'IndexedDB',raw:JSON.stringify(forged)},
+  ]);
+  assert.equal(selected.ok, true);
+  assert.equal(selected.revision, 4);
+  assert.equal(selected.tier, 'localStorage');
+  assert.equal(selected.envelope.state.marker, 'freshest');
+});
+
+test('durable tiers fail closed when verified envelopes disagree at one revision', async () => {
+  const left = await persistence.createEnvelope({campaignId:'fixture',revision:7,parentRevision:6,transactionId:'left',state:state('left'),writtenAt:'2026-08-30T10:00:00.000Z'});
+  const right = await persistence.createEnvelope({campaignId:'fixture',revision:7,parentRevision:6,transactionId:'right',state:state('right'),writtenAt:'2026-08-30T10:00:01.000Z'});
+  const selected = await persistence.selectFreshestEnvelope([
+    {tier:'window.storage',raw:JSON.stringify(left)},
+    {tier:'localStorage',raw:JSON.stringify(right)},
+  ]);
+  assert.equal(selected.ok, false);
+  assert.equal(selected.conflict, true);
+  assert.equal(selected.code, 'ENVELOPE_TIER_CONFLICT');
+  assert.equal(selected.revision, 7);
+  assert.deepEqual(selected.tiers, ['window.storage','localStorage']);
+});
+
 test('repository commits exactly one revision and returns a durable receipt', async () => {
   let seq = 0; const adapter = new persistence.MemoryAdapter(), repository = new persistence.EnvelopeRepository({adapter,clock:()=>'2026-08-30T10:00:00.000Z',idFactory:()=>`tx-${++seq}`});
   const first = await repository.commit({campaignId:'fixture',expectedRevision:-1,state:state('one')});

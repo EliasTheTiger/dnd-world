@@ -1,0 +1,13 @@
+{
+  "name": "dnd-world",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.*",
+    "qa:integration": "node qa/run-final-integration.cjs",
+    "qa:player": "node qa/player-agent.e2e.cjs",
+    "qa:player:headed": "node qa/player-agent.e2e.cjs --headed"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}
