@@ -72,7 +72,7 @@ test('cached canonical page replaces itself with the newly deployed versioned re
     },
     fetch: async url => {
       requests.push(String(url));
-      if (String(url).startsWith('https://api.github.com/')) return {ok: true, json: async () => ({sha: newRelease})};
+      if (String(url).endsWith('/dnd-world/release.json')) return {ok: true, json: async () => ({schemaVersion: 'dnd-world-release/1', commit: newRelease})};
       return {ok: true, text: async () => `<meta name="dnd-world-release" content="${newRelease}"><main>new release</main>`};
     },
   };
@@ -81,9 +81,10 @@ test('cached canonical page replaces itself with the newly deployed versioned re
   await new Promise(resolve => setTimeout(resolve, 0));
 
   assert.deepEqual(requests, [
-    'https://api.github.com/repos/EliasTheTiger/dnd-world/commits/main',
+    'https://eliasthetiger.github.io/dnd-world/release.json',
     `https://eliasthetiger.github.io/dnd-world/releases/${newRelease}/index.html`,
   ]);
+  assert.ok(requests.every(url => new URL(url).origin === context.location.origin), 'release bootstrap must not depend on a rate-limited cross-origin API');
   assert.equal(written[0], 'open');
   assert.match(written[1], /new release/);
   assert.equal(written[2], 'close');
