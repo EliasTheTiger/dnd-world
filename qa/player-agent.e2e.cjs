@@ -66,6 +66,11 @@ function safeName(value) {
   return String(value).replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100);
 }
 
+function exactItemLabelPattern(name) {
+  const escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${escaped}(?:,|$)`, 'i');
+}
+
 function mimeType(file) {
   return ({
     '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
@@ -146,37 +151,37 @@ async function visibleSheetArmorClass() {
 
 async function visibleInventoryLedger() {
   const ledger = {};
-  const cards = page.locator('main .entry-card').filter({ visible: true });
-  for (let index = 0; index < await cards.count(); index += 1) {
-    const card = cards.nth(index);
-    const heading = card.getByRole('heading').first();
-    if (!await heading.count()) continue;
-    const name = (await heading.innerText()).trim();
-    const quantity = card.locator('.qty-box b').first();
-    const count = await quantity.count() ? Number((await quantity.innerText()).trim()) : 1;
+  const triggers = page.locator('main .inventory-bag .bag-slot-trigger').filter({ visible: true });
+  for (let index = 0; index < await triggers.count(); index += 1) {
+    const label = (await triggers.nth(index).getAttribute('aria-label') || '').trim();
+    const match = label.match(/^(.*), количество (\d+), (?:надето|в сумке)$/i);
+    if (!match) continue;
+    const name = match[1].trim();
+    const count = Number(match[2]);
     ledger[name] = (ledger[name] || 0) + count;
   }
   return Object.fromEntries(Object.entries(ledger).sort(([left], [right]) => left.localeCompare(right, 'ru')));
 }
 
 async function visibleItemQuantityOrZero(name) {
-  const heading = page.getByRole('heading', { name, exact: true }).filter({ visible: true });
-  if (!await heading.count()) return 0;
-  const card = heading.first().locator('xpath=..');
-  const quantity = card.locator('.qty-box b').first();
-  return await quantity.count() ? Number((await quantity.innerText()).trim()) : 1;
+  const trigger = page.getByRole('button', { name: exactItemLabelPattern(name) }).filter({ visible: true }).first();
+  if (!await trigger.count()) return 0;
+  const label = await trigger.getAttribute('aria-label') || '';
+  const match = label.match(/, количество (\d+),/i);
+  return match ? Number(match[1]) : 1;
 }
 
 async function visibleItemEquipLabel(name) {
   const card = await itemCard(name);
-  const button = card.getByRole('button', { name: /Надеть|Надето/i }).first();
+  const button = card.getByRole('button', { name: /Снять в сумку|Надеть|Взять/i }).filter({ visible: true }).first();
   if (!await button.count()) throw new QaFailure(`У предмета «${name}» нет видимой подписи экипировки.`);
-  return (await button.innerText()).trim();
+  return /Снять в сумку/i.test(await button.innerText()) ? 'Надето' : 'Надеть';
 }
 
 async function visibleEquipmentItems() {
   await clickButton('Экипировка');
-  return (await page.locator('main .mannequin .sitem').filter({ visible: true }).allTextContents()).map(value => value.trim()).filter(Boolean);
+  const labels = await page.locator('main .equipment-loadout .bag-slot-trigger').filter({ visible: true }).evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label') || ''));
+  return labels.map(label => label.split(', количество ')[0].trim()).filter(Boolean);
 }
 
 async function visibleCombatHitPoints(name) {
@@ -204,8 +209,11 @@ async function visibleCombatResource(pattern) {
 async function durableVisibleCampaignMarkers() {
   await clickButton('Персонажи');
   const back = page.getByRole('button', { name: '← К списку героев', exact: true }).filter({ visible: true });
-  if (await back.count()) await back.first().click();
-  const heroListText = await page.locator('main').innerText();
+  if (await back.count()) {
+    await back.first().click();
+    await page.waitForTimeout(150);
+  }
+  const heroPresent = await page.getByText(HERO_NAME, { exact: true }).filter({ visible: true }).count() > 0;
 
   await openCharacter('Року');
   await clickButton('Инвентарь');
@@ -233,7 +241,7 @@ async function durableVisibleCampaignMarkers() {
   const combatTitle = (await page.locator('main .combat-title').first().innerText()).trim();
   const mimicCards = page.locator('main .combatant').filter({ visible: true, hasText: /Сундук-мимик/i });
   return {
-    heroPresent: heroListText.includes(HERO_NAME),
+    heroPresent,
     roku,
     torgar,
     merchantPresent: merchants.includes('Мара Медная'),
@@ -296,11 +304,17 @@ async function dismissVisibleModal() {
     await page.waitForTimeout(100);
   }
   const modal = page.locator('[role="dialog"], .modal, .cast-modal').filter({ visible: true }).last();
-  if (!await modal.count()) return;
-  const close = modal.getByRole('button', { name: /Отмена|Закрыть|Назад/i }).last();
-  if (await close.count() && !await close.isDisabled()) await close.click().catch(() => {});
-  else await page.keyboard.press('Escape').catch(() => {});
-  await page.waitForTimeout(100);
+  if (await modal.count()) {
+    const close = modal.getByRole('button', { name: /Отмена|Закрыть|Назад/i }).last();
+    if (await close.count() && !await close.isDisabled()) await close.click().catch(() => {});
+    else await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(100);
+  }
+  const pinnedItemTooltip = page.locator('main .bag-slot-shell.tooltip-pinned .item-tooltip-close').filter({ visible: true }).last();
+  if (await pinnedItemTooltip.count()) {
+    await pinnedItemTooltip.click();
+    await page.waitForTimeout(100);
+  }
 }
 
 async function captureFailure(definition, status, actual, indexes) {
@@ -404,13 +418,20 @@ async function openCharacter(name) {
 }
 
 async function itemCard(name) {
-  const heading = page.getByRole('heading', { name, exact: true }).filter({ visible: true });
-  if (!await heading.count()) throw new QaFailure(`Предмет «${name}» не найден в инвентаре.`);
-  return heading.first().locator('xpath=..');
+  const trigger = page.getByRole('button', { name: exactItemLabelPattern(name) }).filter({ visible: true }).first();
+  if (!await trigger.count()) throw new QaFailure(`Предмет «${name}» не найден в инвентаре.`);
+  const card = trigger.locator('xpath=..');
+  const tooltip = card.locator('.item-tooltip');
+  if (!await tooltip.isVisible()) {
+    await trigger.click();
+    await page.waitForTimeout(150);
+  }
+  if (!await tooltip.isVisible()) throw new QaFailure(`Сведения о предмете «${name}» не открылись по нажатию на иконку.`);
+  return card;
 }
 
 async function clickCardButton(card, pattern) {
-  const button = card.getByRole('button', { name: pattern }).first();
+  const button = card.getByRole('button', { name: pattern }).filter({ visible: true }).first();
   if (!await button.count()) throw new QaFailure(`У предмета нет действия ${String(pattern)}.`);
   if (await button.isDisabled()) throw new QaFailure(`Действие ${String(pattern)} отключено без доступного пути продолжения.`);
   await button.click();
@@ -620,25 +641,25 @@ async function runJourney() {
     await openCharacter('Року');
     await clickButton('Инвентарь');
     if (!/Надето/i.test(await visibleItemEquipLabel('Короткий меч'))) {
-      await clickCardButton(await itemCard('Короткий меч'), /Надеть/);
+      await clickCardButton(await itemCard('Короткий меч'), /Надеть|Взять/);
     }
     if (!/Надето/i.test(await visibleItemEquipLabel('Короткий меч'))) throw new QaFailure('После надевания подпись короткого меча не изменилась на «Надето».');
     let equipment = await visibleEquipmentItems();
     if (!equipment.includes('Короткий меч')) throw new QaFailure('Короткий меч помечен как надетый, но не виден в слотах экипировки.');
     await clickButton('Инвентарь');
-    await clickCardButton(await itemCard('Короткий меч'), /Надето/);
+    await clickCardButton(await itemCard('Короткий меч'), /Снять в сумку/);
     if (!/^Надеть$/i.test(await visibleItemEquipLabel('Короткий меч'))) throw new QaFailure('После снятия подпись короткого меча не вернулась к «Надеть».');
     equipment = await visibleEquipmentItems();
     if (equipment.includes('Короткий меч')) throw new QaFailure('Снятый короткий меч остался в видимом слоте экипировки.');
     await clickButton('Инвентарь');
-    await clickCardButton(await itemCard('Короткий меч'), /Надеть/);
+    await clickCardButton(await itemCard('Короткий меч'), /Надеть|Взять/);
 
     await openCharacter('Торгар Железная Вера');
     await clickButton('Инвентарь');
     const armorName = 'Кольчуга Железного Щита';
     if (!/Надето/i.test(await visibleItemEquipLabel(armorName))) await clickCardButton(await itemCard(armorName), /Надеть/);
     const equippedAc = await visibleSheetArmorClass();
-    await clickCardButton(await itemCard(armorName), /Надето/);
+    await clickCardButton(await itemCard(armorName), /Снять в сумку/);
     const unequippedAc = await visibleSheetArmorClass();
     if (unequippedAc >= equippedAc) throw new QaFailure(`Снятие кольчуги не уменьшило видимый КД: ${equippedAc} → ${unequippedAc}.`);
     equipment = await visibleEquipmentItems();
@@ -1220,10 +1241,8 @@ async function runJourney() {
     const acBefore = await visibleSheetArmorClass();
     const equipmentBefore = await visibleEquipmentItems();
     if (!equipmentBefore.includes('Святой Щит Жизни')) throw new QaBlocked('Щит Торгара недоступен во вкладке экипировки для actor-key проверки.');
-    const shieldSlot = page.locator('main .slot-cell').filter({ visible: true, hasText: 'Святой Щит Жизни' }).first();
-    if (!await shieldSlot.count()) throw new QaFailure('Надетый щит не связан с видимым слотом экипировки.');
-    await shieldSlot.click();
-    const remove = page.getByRole('button', { name: 'Снять', exact: true }).filter({ visible: true }).first();
+    const shieldSlot = await itemCard('Святой Щит Жизни');
+    const remove = shieldSlot.getByRole('button', { name: 'Снять в сумку', exact: true }).filter({ visible: true }).first();
     if (!await remove.count()) throw new QaFailure('У занятого слота щита нет действия «Снять».');
     await remove.click();
     await page.waitForTimeout(300);
