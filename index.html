@@ -721,8 +721,14 @@ const EQUIP_SLOTS = [
 ];
 const ITEM_SLOT_RU = {MAIN_HAND:'основная рука', OFF_HAND:'вторая рука', TWO_HAND:'двуручный', HEAD:'голова', NECK:'шея',
 CLOAK:'плащ', CHEST:'тело', HANDS:'руки', WAIST:'пояс', LEGS:'ноги', FEET:'ступни', RING:'кольцо'};
+function equipmentUsesBothHands(it){
+if(!it)return false;
+const profile=typeof itemProfile==='function'?itemProfile(it):null;
+return it.slot==='TWO_HAND'||!!(profile&&profile.weapon&&profile.weapon.two);
+}
 function slotAccepts(cellId, itemSlot, it){
 const focus=it&&typeof itemProfile==='function'&&itemProfile(it).focus;
+if(cellId==='OFF_HAND'&&equipmentUsesBothHands(it)) return false;
 if((cellId==='MAIN_HAND'||cellId==='OFF_HAND')&&focus&&focus.holdable===true) return true;
 if(!itemSlot) return false;
 if(cellId==='MAIN_HAND') return itemSlot==='MAIN_HAND'||itemSlot==='TWO_HAND';
@@ -13784,8 +13790,8 @@ function itemNeedsAttune(it){ return itemSpec(it).attune; }
 function attunedEntries(c){
 return (c.inventory||[]).filter(e=>{ const it=itemOf(e.itemId); return it&&itemNeedsAttune(it)&&e.att; });
 }
-function toggleAttune(entryId){
-const c=cc(); if(!c) return;
+function toggleAttuneForActor(actorId,entryId){
+const c=getCh(String(actorId||'')); if(!c) return false;
 const e=(c.inventory||[]).find(x=>x.id===entryId); if(!e) return;
 const it=itemOf(e.itemId); if(!it) return;
 const itemName=userFacingItemName(it,'Предмет');
@@ -13797,7 +13803,9 @@ setStatus('✕ Больше '+ATTUNE_LIMIT+' настроенных предме
 e.att=true; setStatus('✵ «'+itemName+'» настроен — свойства предмета вступили в силу.');
 }
 fxInvalidate(); scheduleSave(); renderChars();
+return true;
 }
+function toggleAttune(entryId){const c=cc();return c?toggleAttuneForActor(c.id,entryId):false;}
 
 function rechargeItems(c, when){
 const list=[];
@@ -27275,7 +27283,7 @@ function updPersona(k,v){ const c=cc(); if(!c) return; if(!c.persona) c.persona=
 const getCh=id=>{const refs=bg3GithbornMindcrusherBoundWorldRefs;if(refs)return bg3GithbornMindcrusherBoundMember(refs.charsMembers,'id',id);return Array.prototype.find.call(chars,c=>c.id===id);};
 const cc=()=>getCh(activeCharId);
 function newChar(){ const c=buildBlank(); chars.push(c);bg3GithbornMindcrusherTrustCharacter(c); activeCharId=c.id; sheetTab='stats'; scheduleSave(); renderChars(); }
-function openChar(id){ activeCharId=id; sheetTab='stats'; renderChars(); }
+function openChar(id){ activeCharId=id; sheetTab='stats'; selSlot=null; equipmentSearch=''; bagTooltipOpen=''; inventoryBagUI.q=''; renderChars(); }
 function backToList(){ activeCharId=null; renderChars(); }
 function delChar(id){
 const c=getCh(id); if(!c) return;
@@ -27440,7 +27448,7 @@ if(!c.abilities.some(a=>a.abilityId===db.id)) c.abilities.push({abilityId:db.id,
 });
 scheduleSave(); sheetTab='abilities'; renderChars();
 }
-function setSheetTab(t){ sheetTab=t; renderChars(); }
+function setSheetTab(t){ sheetTab=t; bagTooltipOpen=''; renderChars(); }
 
 function bg3GithyankiEvidenceMode(c){const evidence=bg3GithbornMindcrusherTagEvidence(c);return !evidence.known?'unknown':(evidence.value?'yes':'no');}
 function bg3GithyankiEvidenceSet(mode,c){
@@ -27652,6 +27660,8 @@ return h+'</div>';
 
 const sheetSearch={inv:'',sp:'',ab:''};
 const quickForm={inv:false,sp:false,ab:false};
+const inventoryBagUI={q:'',filter:'all',sort:'name'};
+let bagTooltipOpen='';
 function isEquipped(c,entryId){ return Object.values(c.equipment||{}).includes(entryId); }
 function invChargeDelta(entryId,d){
 const c=cc(); if(!c) return;
@@ -27727,9 +27737,9 @@ const e=c&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId);if(!it||!it.slot)return 
 if(isEquipped(c,entryId))clearEquipmentEntry(c,entryId);
 else{
 const clear=id=>clearEquipmentEntry(c,id);
-if(it.slot==='TWO_HAND'){clear(c.equipment.MAIN_HAND);clear(c.equipment.OFF_HAND);c.equipment.MAIN_HAND=entryId;c.equipment.OFF_HAND=entryId;}
+if(equipmentUsesBothHands(it)){clear(c.equipment.MAIN_HAND);clear(c.equipment.OFF_HAND);clear(c.equipment.TWO_HAND);c.equipment.TWO_HAND=entryId;}
 else if(it.slot==='RING'){if(!c.equipment.RING_L)c.equipment.RING_L=entryId;else if(!c.equipment.RING_R)c.equipment.RING_R=entryId;else{clear(c.equipment.RING_L);c.equipment.RING_L=entryId;}}
-else if(it.slot==='MAIN_HAND'){const other=c.equipment.MAIN_HAND;if(other&&other!==entryId)clear(other);c.equipment.MAIN_HAND=entryId;}
+else if(it.slot==='MAIN_HAND'||it.slot==='OFF_HAND'){clear(c.equipment.TWO_HAND);const other=c.equipment[it.slot];if(other&&other!==entryId)clear(other);c.equipment[it.slot]=entryId;}
 else{const other=c.equipment[it.slot];if(other&&other!==entryId)clear(other);c.equipment[it.slot]=entryId;}
 equipmentHabitStart(c,entryId);
 }
@@ -27929,6 +27939,111 @@ Promise.resolve(load).then(()=>{if(activeWorldTab==='chars')renderChars();}).cat
 function forgetKnownRecipe(actorId,recipeId){const actor=getCh(String(actorId||''));if(!actor)return;const known=bg3Array(actor.knownRecipes),index=known.indexOf(recipeId),name=knownRecipeName(recipeId,Math.max(0,index));if(index<0||!window.confirm('Убрать «'+name+'» из изученных формул героя?'))return;actor.knownRecipes=known.filter(id=>id!==recipeId);scheduleSave();renderChars();}
 function openRecipeCatalogForHero(actorId){if(getCh(String(actorId||'')))itemWorkspace.heroId=String(actorId);bg3RuntimeView='recipes';bg3RuntimeQuery='';bg3RuntimePage=0;switchTab('itemsdb');}
 
+const INVENTORY_BAG_FILTERS=[['all','Всё'],['wearable','Экипировка'],['consumable','Расходники'],['crafting','Ремесло'],['equipped','Надето']];
+function bagTooltipId(key){return 'itemtip-'+String(key||'item').replace(/[^a-zA-Z0-9_-]+/g,'-');}
+function bagTooltipToggle(key){bagTooltipOpen=bagTooltipOpen===key?'':key;renderChars();}
+function bagTooltipClose(event){if(event&&event.stopPropagation)event.stopPropagation();bagTooltipOpen='';renderChars();}
+function bagTooltipKey(event,key){
+if(!event)return;if(event.key==='Enter'||event.key===' '){event.preventDefault();bagTooltipToggle(key);}else if(event.key==='Escape'){event.preventDefault();bagTooltipClose(event);}
+}
+function bagTooltipPosition(shell){
+if(!shell||!window.requestAnimationFrame)return;
+window.requestAnimationFrame(()=>{const tip=shell.querySelector&&shell.querySelector('.item-tooltip');if(!tip)return;tip.classList.remove('align-left','align-right','above');const sr=shell.getBoundingClientRect(),tr=tip.getBoundingClientRect(),pad=12;if(tr.width>=window.innerWidth-pad*2)tip.classList.add('align-left');else if(sr.left-tr.width/2<pad)tip.classList.add('align-left');else if(sr.right+tr.width/2>window.innerWidth-pad)tip.classList.add('align-right');if(sr.bottom+tr.height+10>window.innerHeight&&sr.top>tr.height+10)tip.classList.add('above');});
+}
+function bagItemGlyph(it){
+const domain=typeof itemDomainOf==='function'&&itemDomainOf(it),domainIcon=domain&&domain.ok&&domain.item&&domain.item.icon;if(domainIcon&&domainIcon.kind==='glyph'&&domainIcon.value)return domainIcon.value;
+const p=itemProfile(it),glyphs={weapon:'⚔',armor:'🛡',shield:'🛡',ammo:'➶',potion:'⚗',scroll:'▤',light:'✦',firestarter:'♨',poison:'☠',tool:'⚒',instrument:'♫',lore:'▤',valuable:'◆',food:'♨',water:'◒',camp:'⌂',rope:'⌁',container:'▣',focus:'✧',magic:'✦',oil:'◐',trap:'⁙',gamble:'⚄',ritual:'☼',writing:'✎',material:'⬡',component:'◇',misc:'◇'};
+return glyphs[p.kind]||({ring:'◌',wondrous:'✦',equipment:'◇'}[it.type]||'◇');
+}
+function bagItemVisualHTML(it){
+if(it&&it.icon&&it.icon.src)return '<img class="bag-item-image" src="'+esc(it.icon.src)+'" width="58" height="58" loading="lazy" decoding="async" alt="">';
+return '<span class="bag-item-glyph" aria-hidden="true">'+esc(bagItemGlyph(it))+'</span>';
+}
+function bagItemRarityClass(it){
+return {'необычный':'rarity-uncommon','редкий':'rarity-rare','очень редкий':'rarity-very-rare','легендарный':'rarity-legendary','артефакт':'rarity-artifact'}[String(it&&it.rarity||'').toLowerCase()]||'rarity-common';
+}
+function bagItemEffectLines(it){
+return itemPassiveFx(it).map(effect=>{
+const text=typeof bg3ItemRuleEffectText==='function'?bg3ItemRuleEffectText(effect):fxToLines([effect]);return publicItemText(String(text||''));
+}).filter(Boolean);
+}
+function bagItemTooltipHTML(c,e,it,options){
+options=options||{};const p=itemProfile(it),facts=equipmentItemFacts(it),hint=itemHintHTML(c,e,it),effects=bagItemEffectLines(it),charges=invCharges(e,it),requirements=options.requirements||[],desc=publicItemText(String(it.desc||'').trim()),props=publicItemText(String(it.props||'').trim()),tipId=bagTooltipId(options.key);
+let h='<aside class="item-tooltip" id="'+tipId+'" role="tooltip" aria-label="Сведения о предмете"><div class="item-tooltip-top">'+bagItemVisualHTML(it)+'<div><span class="item-tooltip-context">'+esc(options.context||'В сумке')+'</span><h4>'+esc(publicItemText(userFacingItemName(it,'Предмет')))+'</h4><p>'+esc(equipmentEntryMeta(it))+'</p></div><button type="button" class="item-tooltip-close" aria-label="Закрыть сведения" onclick="bagTooltipClose(event)">×</button></div>';
+h+='<div class="item-tooltip-status"><span>Количество <b>'+Math.max(0,+e.qty||0)+'</b></span>'+(isEquipped(c,e.id)?'<span class="active">Надето</span>':'<span>В сумке</span>')+(itemNeedsAttune(it)?'<span class="'+(e.att?'active':'warning')+'">'+(e.att?'Настроено':'Не настроено')+'</span>':'')+(charges?'<span>Заряды <b>'+charges.cur+' / '+charges.max+'</b></span>':'')+'</div>';
+if(facts.length)h+='<div class="equipment-facts item-tooltip-facts">'+facts.map(fact=>'<span>'+esc(fact)+'</span>').join('')+'</div>';
+if(options.preview)h+=options.preview;
+if(requirements.length)h+=equipmentRequirementHTML(requirements);
+if(hint)h+='<div class="item-tooltip-hint">◆ '+esc(hint)+'</div>';
+if(desc)h+='<section><b>Описание</b><p>'+esc(desc).replace(/\n/g,'<br>')+'</p></section>';
+if(props)h+='<section><b>Свойства</b><p>'+esc(props).replace(/\n/g,'<br>')+'</p></section>';
+if(effects.length)h+='<section><b>Постоянные эффекты</b><ul>'+effects.map(line=>'<li>'+esc(line)+'</li>').join('')+'</ul></section>';
+h+=itemProfileSummaryHTML(it);
+if(bg3CatalogIsId(it.id)){
+bg3ItemPresentationEnsureForCard(it.id,c.id);
+h+=bg3ItemPresentationDetailHTML(it,c.id,e.id,false);
+}
+if(e.notes)h+='<section><b>Пометка</b><p>✎ '+esc(e.notes)+'</p></section>';
+h+='<div class="item-tooltip-actions">'+(options.actions||'')+'</div></aside>';
+return h;
+}
+function bagItemSlotHTML(c,e,it,options){
+options=options||{};const key=String(options.key||('inventory:'+c.id+':'+e.id)),open=bagTooltipOpen===key,charges=invCharges(e,it),label=publicItemText(userFacingItemName(it,'Предмет'))+', количество '+Math.max(0,+e.qty||0)+(isEquipped(c,e.id)?', надето':', в сумке');
+return '<div class="bag-slot-shell '+bagItemRarityClass(it)+(open?' tooltip-pinned':'')+(options.selected?' selected':'')+'" onmouseenter="bagTooltipPosition(this)" onfocusin="bagTooltipPosition(this)">'
++'<button type="button" class="bag-slot-trigger" aria-label="'+esc(label)+'" aria-describedby="'+bagTooltipId(key)+'" aria-expanded="'+(open?'true':'false')+'" onclick="bagTooltipToggle(\''+key+'\')" onkeydown="bagTooltipKey(event,\''+key+'\')">'
++'<span class="bag-slot-visual">'+bagItemVisualHTML(it)+'</span>'
++((+e.qty||0)>1?'<span class="bag-qty" title="Количество">'+(+e.qty||0)+'</span>':'')
++(charges?'<span class="bag-charges" title="Заряды">'+charges.cur+'/'+charges.max+'</span>':'')
++(isEquipped(c,e.id)?'<span class="bag-equipped" title="Надето">◆</span>':'')
++(e.att?'<span class="bag-attuned" title="Настроено">✵</span>':'')
++'<span class="bag-slot-caption">'+esc(options.caption||publicItemText(userFacingItemName(it,'Предмет')))+'</span></button>'
++bagItemTooltipHTML(c,e,it,Object.assign({},options,{key}))+'</div>';
+}
+function inventoryBagFilterKind(c,e,it){
+const p=itemProfile(it),consumable=new Set(['ammo','potion','food','water','oil','trap','poison','ritual','scroll']),crafting=new Set(['tool','material','component']);
+if(inventoryBagUI.filter==='equipped')return isEquipped(c,e.id);
+if(inventoryBagUI.filter==='wearable')return equipmentSlotsForItem(it).length>0;
+if(inventoryBagUI.filter==='consumable')return consumable.has(p.kind)||!!(p.flags&&p.flags.consumable);
+if(inventoryBagUI.filter==='crafting')return crafting.has(p.kind);
+return true;
+}
+function inventoryBagRows(c){
+const q=inventoryBagUI.q.trim().toLowerCase(),rows=(c.inventory||[]).map((e,index)=>({e,it:itemOf(e.itemId),index})).filter(row=>row.it&&(+row.e.qty>0)&&inventoryBagFilterKind(c,row.e,row.it)
+&&(!q||[userFacingItemName(row.it,'Предмет'),equipmentEntryMeta(row.it),row.it.props||'',row.it.desc||'',equipmentItemFacts(row.it).join(' ')].join(' ').toLowerCase().includes(q)));
+if(inventoryBagUI.sort==='type')rows.sort((a,b)=>(ITEM_KIND_RU[itemProfile(a.it).kind]||'').localeCompare(ITEM_KIND_RU[itemProfile(b.it).kind]||'','ru')||userFacingItemName(a.it,'').localeCompare(userFacingItemName(b.it,''),'ru'));
+else if(inventoryBagUI.sort==='qty')rows.sort((a,b)=>(+b.e.qty||0)-(+a.e.qty||0)||userFacingItemName(a.it,'').localeCompare(userFacingItemName(b.it,''),'ru'));
+else if(inventoryBagUI.sort==='inventory')rows.sort((a,b)=>a.index-b.index);
+else rows.sort((a,b)=>userFacingItemName(a.it,'').localeCompare(userFacingItemName(b.it,''),'ru'));
+return rows;
+}
+function inventoryBagSearchSet(value){inventoryBagUI.q=String(value||'');renderChars();const field=document.getElementById('inventoryBagSearch');if(field&&field.focus){field.focus();const end=field.value.length;if(field.setSelectionRange)field.setSelectionRange(end,end);}}
+function inventoryBagFilterSet(value){if(INVENTORY_BAG_FILTERS.some(row=>row[0]===value)){inventoryBagUI.filter=value;bagTooltipOpen='';renderChars();}}
+function inventoryBagSortSet(value){if(['name','type','qty','inventory'].includes(value)){inventoryBagUI.sort=value;bagTooltipOpen='';renderChars();}}
+function inventoryBagActionsHTML(c,e,it){
+const acts=itemActions(c,e,it),charges=invCharges(e,it),eq=isEquipped(c,e.id),slots=equipmentSlotsForItem(it),stop='event.stopPropagation();',buttons=[];
+acts.forEach((action,index)=>buttons.push('<button class="btn ghost sm '+(action.infoOnly?'item-action-info':'fx-cast')+'" type="button"'+(action.infoOnly?' data-action-state="blocked"':'')+' title="'+esc(action.title)+'" onclick="'+stop+'if(combat&amp;&amp;combat.active){combatRunSheetItemAction(\''+c.id+'\',\''+e.id+'\','+index+')}else{'+action.fn+'}">'+action.icon+' '+esc(action.label)+'</button>'));
+if(charges)buttons.push('<span class="uses-box"><button class="mini-btn" type="button" onclick="'+stop+'invChargeDelta(\''+e.id+'\',-1)">−</button>заряды '+charges.cur+' / '+charges.max+'<button class="mini-btn" type="button" onclick="'+stop+'invChargeDelta(\''+e.id+'\',1)">+</button></span>');
+if(itemUsesInventoryValue(it))buttons.push('<button class="btn ghost sm" type="button" onclick="'+stop+'invValueEdit(\''+e.id+'\')">💰 '+(itemEntryGoldValue(e,it)==null?'Указать оценку':itemEntryGoldValue(e,it)+' зм')+'</button>');
+if(itemNeedsAttune(it))buttons.push('<button class="btn '+(e.att?'':'ghost ')+'sm" type="button" onclick="'+stop+'toggleAttuneForActor(\''+c.id+'\',\''+e.id+'\')">'+(e.att?'✵ Настроено — разорвать':'✵ Настроить')+'</button>');
+buttons.push('<span class="qty-box"><button class="mini-btn" type="button" aria-label="Уменьшить количество" onclick="'+stop+'invQty(\''+e.id+'\',-1)">−</button><b>'+(e.qty||1)+'</b><button class="mini-btn" type="button" aria-label="Увеличить количество" onclick="'+stop+'invQty(\''+e.id+'\',1)">+</button></span>');
+if(eq)buttons.push('<button class="btn rub sm" type="button" onclick="'+stop+'sheetEquipToggle(\''+c.id+'\',\''+e.id+'\')">Снять в сумку</button>');
+else slots.forEach(slotId=>{const slot=EQUIP_SLOTS.find(row=>row.id===slotId);buttons.push('<button class="btn rub sm" type="button" onclick="'+stop+'sheetEquipToSlot(\''+c.id+'\',\''+slotId+'\',\''+e.id+'\')">'+(profileItemKind(it)==='weapon'?'Взять':'Надеть')+' · '+esc(slot&&slot.n||slotId)+'</button>');});
+if(bg3CatalogIsId(it.id))buttons.push('<button class="btn ghost sm" type="button" onclick="'+stop+'switchTab(\'itemsdb\');bg3CatalogOpen(\''+it.id+'\')">Полная карточка ↗</button>');
+else buttons.push('<button class="btn ghost sm" type="button" onclick="'+stop+'jumpToItemEd(\''+it.id+'\')">Править ✎</button>');
+buttons.push('<button class="btn ghost sm danger" type="button" onclick="'+stop+'invDel(\''+e.id+'\')">Убрать из инвентаря</button>');
+return buttons.join('');
+}
+function inventoryBagHTML(c){
+const rows=inventoryBagRows(c),units=(c.inventory||[]).reduce((sum,e)=>sum+Math.max(0,+e.qty||0),0),equipped=equipmentEquippedEntries(c).length;
+let h='<section class="inventory-bag"><div class="inventory-bag-heading"><div><h3 class="rubric" style="font-size:22px">Сумка</h3><p>'+c.inventory.length+' ячеек · '+units+' предметов · '+equipped+' надето</p></div><span>Наведите на иконку или нажмите её, чтобы открыть сведения</span></div>';
+h+='<div class="inventory-bag-toolbar"><div class="bag-search"><span aria-hidden="true">⌕</span><input id="inventoryBagSearch" type="search" value="'+esc(inventoryBagUI.q)+'" placeholder="Найти в сумке…" aria-label="Поиск в сумке" oninput="inventoryBagSearchSet(this.value)">'+(inventoryBagUI.q?'<button type="button" aria-label="Очистить поиск" onclick="inventoryBagSearchSet(\'\')">×</button>':'')+'</div>'
++'<div class="bag-filters" aria-label="Фильтр сумки">'+INVENTORY_BAG_FILTERS.map(filter=>'<button type="button" class="'+(inventoryBagUI.filter===filter[0]?'active':'')+'" aria-pressed="'+(inventoryBagUI.filter===filter[0]?'true':'false')+'" onclick="inventoryBagFilterSet(\''+filter[0]+'\')">'+filter[1]+'</button>').join('')+'</div>'
++'<label class="bag-sort">Сортировка<select onchange="inventoryBagSortSet(this.value)"><option value="name"'+(inventoryBagUI.sort==='name'?' selected':'')+'>по названию</option><option value="type"'+(inventoryBagUI.sort==='type'?' selected':'')+'>по типу</option><option value="qty"'+(inventoryBagUI.sort==='qty'?' selected':'')+'>по количеству</option><option value="inventory"'+(inventoryBagUI.sort==='inventory'?' selected':'')+'>как добавлено</option></select></label></div>';
+if(rows.length)h+='<div class="bag-grid">'+rows.map(row=>bagItemSlotHTML(c,row.e,row.it,{key:'inventory:'+c.id+':'+row.e.id,context:isEquipped(c,row.e.id)?'Надето · также хранится в инвентаре':'В сумке',actions:inventoryBagActionsHTML(c,row.e,row.it)})).join('')+'</div>';
+else h+='<div class="equipment-empty-list"><span>▣</span><b>'+(inventoryBagUI.q?'В сумке ничего не найдено':(c.inventory.length?'В этой категории предметов нет':'Инвентарь пуст'))+'</b><small>'+(inventoryBagUI.q?'Измените запрос или фильтр.':'Новые предметы займут свободные ячейки автоматически.')+'</small></div>';
+return h+'</section>';
+}
+
 function stInventory(c){
 knownRecipeLabelsEnsure(c);
 let h='<div class="panel">';
@@ -27979,71 +28094,51 @@ h+='<div class="editor"><h3>Быстрое создание предмета</h3
 +'<p class="note-ital" style="font-size:13px;margin-top:6px">Ярлыки, свойства и прочие тонкости — в полной форме на вкладке «Предметы».</p></div>';
 }
 
-const groups=[['weapon','Оружие'],['armor','Доспехи'],['*','Обычные предметы']];
-groups.forEach(gr=>{
-const list=c.inventory.filter(e=>{
-const it=itemOf(e.itemId); if(!it) return false;
-if(gr[0]==='*') return it.type!=='weapon'&&it.type!=='armor';
-return it.type===gr[0];
-});
-if(!list.length) return;
-h+='<h3 class="rubric" style="font-size:22px;margin-top:14px">'+gr[1]+'</h3>';
-list.forEach(e=>{
-const it=itemOf(e.itemId);
-const eq=isEquipped(c,e.id);
-const canEq=!!it.slot;
-const isp=itemSpec(it), ich=invCharges(e,it);
-const acts=itemActions(c,e,it);
-const hint=itemHintHTML(c,e,it);
-const attBox=isp.attune
-? '<button class="btn '+(e.att?'':'ghost ')+'sm" title="'+(e.att?'Разорвать настройку':'Настроиться (не больше '+ATTUNE_LIMIT+' предметов)')+'" onclick="toggleAttune(\''+e.id+'\')">'+(e.att?'✵ Настроен':'✵ Настроить')+'</button>'
-: '';
-const chBox=ich
-? '<span class="uses-box" title="Заряды предмета'+(isp.when?' · восстановление '+esc(isp.when):'')+'"><button class="mini-btn" onclick="invChargeDelta(\''+e.id+'\',-1)">−</button>заряды '+ich.cur+' / '+ich.max+'<button class="mini-btn" onclick="invChargeDelta(\''+e.id+'\',1)">+</button></span>'
-: '';
-const valueBox=itemUsesInventoryValue(it)
-? '<button class="btn ghost sm" title="Оценка относится к этому экземпляру, а не к виду предмета" onclick="invValueEdit(\''+e.id+'\')">💰 '+(itemEntryGoldValue(e,it)==null?'указать оценку':itemEntryGoldValue(e,it)+' зм')+'</button>'
-: '';
-const extra=acts.map((x,index)=>'<button class="btn ghost sm '+(x.infoOnly?'item-action-info':'fx-cast')+'"'+(x.infoOnly?' data-action-state="blocked" aria-label="Автоматическое действие недоступно; открыть справку '+esc(x.label)+'"':'')+' title="'+esc(x.title)+'" onclick="if(combat&amp;&amp;combat.active){combatRunSheetItemAction(\''+c.id+'\',\''+e.id+'\','+index+')}else{'+x.fn+'}">'+x.icon+' '+esc(x.label)+'</button>').join('')
-+chBox+valueBox+attBox
-+'<span class="qty-box"><button class="mini-btn" onclick="invQty(\''+e.id+'\',-1)">−</button><b>'+(e.qty||1)+'</b><button class="mini-btn" onclick="invQty(\''+e.id+'\',1)">+</button></span>'
-+(canEq?'<button class="btn '+(eq?'':'ghost ')+'sm" onclick="sheetEquipToggle(\''+c.id+'\',\''+e.id+'\')">'+(eq?'Надето ✓':'Надеть')+'</button>':'')
-+(bg3CatalogIsId(it.id)?'<button class="btn ghost sm" title="Открыть полную карточку предмета" onclick="switchTab(\'itemsdb\');bg3CatalogOpen(\''+it.id+'\')">↗</button>'
-:'<button class="btn ghost sm" title="Править в базе предметов" onclick="jumpToItemEd(\''+it.id+'\')">✎</button>')
-+'<button class="del-x" onclick="invDel(\''+e.id+'\')">✕</button>';
-h+=itemCardHTML(it,extra,{actorId:c.id,entryId:e.id,interactive:true,presentationDetail:true});
-if(hint) h+='<div class="inv-note" style="font-style:normal;color:var(--ink-soft)">◆ '+esc(hint)+'</div>';
-if(e.notes) h+='<div class="inv-note">✎ '+esc(e.notes)+' <button class="del-x" title="Стереть пометку" onclick="invNoteClear(\''+e.id+'\')">✕</button></div>';
-});
-});
-if(!c.inventory.length) h+='<div class="empty-scroll"><span class="big">❦</span>Инвентарь пуст — карманы героя ждут добычи.</div>';
+h+=inventoryBagHTML(c);
 return h+'</div>';
 }
 
 
-let selSlot=null;
-function pickSlot(s){ selSlot=(selSlot===s)?null:s; renderChars(); }
+let selSlot=null,equipmentSearch='';
+function pickSlot(s){ selSlot=(selSlot===s)?null:s; equipmentSearch=''; renderChars(); }
+function equipmentSlotsForItem(it){
+if(!it)return [];
+return EQUIP_SLOTS.filter(slot=>slotAccepts(slot.id,it.slot,it)).map(slot=>slot.id);
+}
+function equipmentSlotPlan(c,cellId,entryId){
+const slot=EQUIP_SLOTS.find(row=>row.id===cellId),e=c&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId),equipment=c&&c.equipment||{};
+if(!c||!slot)return {ok:false,reason:'Неизвестный слот экипировки.'};
+if(!e||!(+e.qty>0))return {ok:false,reason:'Экземпляр больше не находится в сумке персонажа.'};
+if(!it)return {ok:false,reason:'Описание предмета недоступно.'};
+if(!slotAccepts(cellId,it.slot,it))return {ok:false,reason:'Предмет нельзя поместить в этот слот.'};
+if(equipment[cellId]===entryId)return {ok:false,reason:'Предмет уже находится в этом слоте.'};
+const displaced=[],movedFrom=[];
+Object.keys(equipment).forEach(key=>{if(equipment[key]===entryId)movedFrom.push(key);});
+const addDisplaced=id=>{if(id&&id!==entryId&&displaced.indexOf(id)<0)displaced.push(id);};
+if(equipmentUsesBothHands(it)){addDisplaced(equipment.MAIN_HAND);addDisplaced(equipment.OFF_HAND);addDisplaced(equipment.TWO_HAND);}
+else{addDisplaced(equipment[cellId]);if(cellId==='MAIN_HAND'||cellId==='OFF_HAND')addDisplaced(equipment.TWO_HAND);}
+return {ok:true,c,slot,e,it,cellId,entryId,usesBothHands:equipmentUsesBothHands(it),displaced,movedFrom};
+}
 function equipmentToSlotApply(c,cellId,entryId){
-const e=c&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId);if(!it||!slotAccepts(cellId,it.slot,it)||c.equipment[cellId]===entryId)return false;
+const plan=equipmentSlotPlan(c,cellId,entryId);if(!plan.ok)return false;
+c.equipment=c.equipment||{};
 const clear=id=>clearEquipmentEntry(c,id);
 clear(entryId);
-if(it.slot==='TWO_HAND'){ clear(c.equipment.MAIN_HAND); clear(c.equipment.OFF_HAND);
-c.equipment.MAIN_HAND=entryId; c.equipment.OFF_HAND=entryId; }
-else { const occ=c.equipment[cellId];
-if(occ&&occ!==entryId) clear(occ);
-c.equipment[cellId]=entryId; }
+plan.displaced.forEach(clear);
+if(plan.usesBothHands)c.equipment.TWO_HAND=entryId;
+else c.equipment[cellId]=entryId;
 equipmentHabitStart(c,entryId);
 return true;
 }
 function equipmentSlotMutationFinish(c,it){selSlot=null;equipmentMutationFinish(c,it);}
 function equipToSlotForActor(c,cellId,entryId){
-const e=c&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId);if(!it||!slotAccepts(cellId,it.slot,it)||c.equipment[cellId]===entryId)return false;
+const plan=equipmentSlotPlan(c,cellId,entryId),e=plan.e,it=plan.it;if(!plan.ok)return false;
 if(!isEquipped(c,entryId)&&!equipmentWearConfirm(c,it))return false;
 if(!equipmentToSlotApply(c,cellId,entryId))return false;equipmentSlotMutationFinish(c,it);return true;
 }
 function combatEquipToSlotForActor(key,cellId,entryId){
-const row=combatEntryByKey(key),c=combatActorByKey(key),e=c&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId);
-if(!row||row.kind!=='ally'||!it||!slotAccepts(cellId,it.slot,it)||c.equipment[cellId]===entryId)return false;
+const row=combatEntryByKey(key),c=combatActorByKey(key),plan=equipmentSlotPlan(c,cellId,entryId),e=plan.e,it=plan.it;
+if(!row||row.kind!=='ally'||!plan.ok)return false;
 const cost=combatEquipCost(it);if(!combatCanSpend(cost,key))return false;
 if(!isEquipped(c,entryId)&&!equipmentWearConfirm(c,it))return false;
 return combatDirectItemActionCommit(key,cost,'Надеть / взять: '+userFacingItemName(it,'Предмет'),()=>{if(!equipmentToSlotApply(c,cellId,entryId))return false;equipmentSlotMutationFinish(c,it);return true;});
@@ -28067,38 +28162,176 @@ const c=getCh(String(actorId||''));if(!c)return false;
 return combat&&combat.active?combatUnequipSlotForActor('ally:'+c.id,cellId):unequipSlotForActor(c,cellId);
 }
 function unequipSlot(cellId){return unequipSlotForActor(cc(),cellId);}
+function equipmentEquippedEntries(c){
+const seen=new Set(),out=[];
+Object.values(c&&c.equipment||{}).forEach(entryId=>{if(!entryId||seen.has(entryId))return;seen.add(entryId);const e=invEntryOf(c,entryId),it=e&&itemOf(e.itemId);if(e&&it)out.push({e,it});});
+return out;
+}
+function equipmentBagEntries(c,cellId){
+return (c&&c.inventory||[]).map(e=>({e,it:itemOf(e.itemId)})).filter(row=>row.it&&(+row.e.qty>0)&&!isEquipped(c,row.e.id)
+&&(cellId?slotAccepts(cellId,row.it.slot,row.it):equipmentSlotsForItem(row.it).length>0))
+.sort((a,b)=>userFacingItemName(a.it,'Предмет').localeCompare(userFacingItemName(b.it,'Предмет'),'ru'));
+}
+function equipmentEntryMeta(it){
+const profile=itemProfile(it),parts=[ITEM_KIND_RU[profile.kind]||ITEM_TYPES[it.type]||'предмет'];
+if(it.rarity&&it.rarity!=='обычный')parts.push(it.rarity);
+if(profile.mass&&profile.mass.display)parts.push(profile.mass.display);else if(it.weight)parts.push(it.weight);
+if(it.cost)parts.push(it.cost);
+return parts.filter(Boolean).join(' · ');
+}
+function equipmentItemFacts(it){
+const p=itemProfile(it),facts=[];
+if(p.weapon){
+const w=p.weapon,damage=w.damage&&!w.damage.manual&&w.damage.sides?((w.damage.cnt||1)+'d'+w.damage.sides+(w.damage.mod?fmtMod(+w.damage.mod):'')):String(it.dmg||'');
+if(damage)facts.push('Урон '+damage+(w.damage&&w.damage.type?' · '+w.damage.type:(it.dmgType?' · '+it.dmgType:'')));
+if(w.ranged)facts.push('Дальнобойное'+(w.range?' · '+w.range:''));
+if(w.finesse)facts.push('Фехтовальное');if(w.light)facts.push('Лёгкое');if(w.reach)facts.push('Досягаемость 3 м');
+if(w.two||equipmentUsesBothHands(it))facts.push('Занимает обе руки');
+else if(w.versatile)facts.push('Универсальное · двумя руками '+w.versatile.cnt+'d'+w.versatile.sides);
+if(w.loading)facts.push('Перезарядка');if(w.ammo)facts.push('Требует боеприпасы');
+}
+if(p.armor){
+const a=p.armor,rule=a.acRule||{};
+if(rule.shield)facts.push('Щит · КД +'+(+rule.base||2));
+else if(a.ac)facts.push('КД '+a.ac);
+else if(rule.base)facts.push('База КД '+rule.base+(rule.dex?(rule.dexCap==null?' + Ловкость':' + Ловкость (макс. +'+rule.dexCap+')'):''));
+if(a.weight)facts.push(a.weight+' доспех');if(a.strReq)facts.push('Сила '+a.strReq);if(a.stealthDis)facts.push('Помеха на Скрытность');if(a.don)facts.push('Надевание '+a.don);
+}
+const effects=itemPassiveFx(it);
+if(effects.length)facts.push('Постоянных эффектов: '+effects.length);
+if(itemNeedsAttune(it))facts.push('Требует настройки');
+return facts.filter(Boolean);
+}
+function equipmentRequirementRows(c,e,it,plan){
+const rows=[],profile=itemProfile(it),armorKind=itemArmorKind(it),profs=armorProfsOf(c);
+if(armorKind&&!profExempt(it)){
+if(profs===null)rows.push({tone:'muted',text:'Владение '+ARMOR_KIND_RU[armorKind]+': не указано на листе'});
+else if(profs[armorKind])rows.push({tone:'ok',text:'Владение: '+ARMOR_KIND_RU[armorKind]});
+else rows.push({tone:'warn',text:'Нет владения: '+ARMOR_KIND_RU[armorKind]+' — помеха на Силу/Ловкость и запрет заклинаний'});
+if(armorMaterialBanOf(c)&&itemIsMetal(it))rows.push({tone:'warn',text:'Металлический доспех противоречит обету персонажа'});
+}
+if(profile.weapon){
+const weaponProfs=weaponProfsOf(c);
+if(weaponProfs===null)rows.push({tone:'muted',text:'Владение оружием не указано на листе'});
+else if(weaponProfHas(c,it))rows.push({tone:'ok',text:'Персонаж владеет этим оружием'});
+else rows.push({tone:'warn',text:'Без владения: атаки не получат бонус мастерства'});
+}
+if(profile.armor&&profile.armor.strReq){
+const lacks=(+c.ab.str||10)<profile.armor.strReq&&!/дварф/i.test(String(c.race||''));
+rows.push({tone:lacks?'warn':'ok',text:'Сила '+(+c.ab.str||10)+' / требуется '+profile.armor.strReq+(lacks?' — скорость снизится':'')});
+}
+if(itemNeedsAttune(it)){
+if(e.att)rows.push({tone:'ok',text:'Настройка выполнена — свойства активны'});
+else if(attunedEntries(c).length>=ATTUNE_LIMIT)rows.push({tone:'warn',text:'Не настроен: заняты все '+ATTUNE_LIMIT+' места настройки'});
+else rows.push({tone:'warn',text:'Не настроен: постоянные магические свойства будут подавлены'});
+}
+if(plan&&plan.usesBothHands)rows.push({tone:'muted',text:'Предмет займёт основную и вторую руку'});
+if(plan&&plan.displaced.length){
+const names=plan.displaced.map(id=>{const old=invEntryOf(c,id),oldItem=old&&itemOf(old.itemId);return userFacingItemName(oldItem,'предмет');});
+rows.push({tone:'warn',text:'В сумку вернётся: '+names.join(', ')});
+}
+return rows;
+}
+function equipmentRequirementHTML(rows){
+return rows.length?'<div class="equipment-requirements">'+rows.map(row=>'<div class="equipment-requirement '+row.tone+'">'+(row.tone==='ok'?'✓':(row.tone==='warn'?'!':'•'))+' '+esc(row.text)+'</div>').join('')+'</div>':'';
+}
+function equipmentPreview(c,cellId,entryId){
+const baseline=itemClone(c),draft=itemClone(c),plan=equipmentSlotPlan(draft,cellId,entryId);if(!plan.ok)return null;
+const before={ac:acTotal(baseline),speed:speedTotal(baseline)};if(!equipmentToSlotApply(draft,cellId,entryId))return null;
+const after={ac:acTotal(draft),speed:speedTotal(draft)};
+return {before,after};
+}
+function equipmentPreviewHTML(c,cellId,entryId){
+const preview=equipmentPreview(c,cellId,entryId);if(!preview)return '';
+const parts=[];
+if(preview.before.ac!==preview.after.ac)parts.push('КД <b>'+preview.before.ac+' → '+preview.after.ac+'</b>');
+if(preview.before.speed!==preview.after.speed)parts.push('Скорость <b>'+esc(preview.before.speed)+' → '+esc(preview.after.speed)+'</b>');
+return parts.length?'<div class="equipment-preview"><span>После смены</span>'+parts.join('<span class="equipment-preview-sep">·</span>')+'</div>':'<div class="equipment-preview steady">КД и скорость по расчету листа не изменятся</div>';
+}
+function equipmentItemDetailsHTML(it){
+const desc=publicItemText(String(it&&it.desc||'').trim()),props=publicItemText(String(it&&it.props||'').trim());
+if(!desc&&!props&&!equipmentItemFacts(it).length)return '';
+return '<details class="equipment-details"><summary>Описание и свойства</summary>'
++(desc?'<div class="equipment-description">'+esc(desc).replace(/\n/g,'<br>')+'</div>':'')
++(props?'<div class="equipment-description"><b>Свойства:</b> '+esc(props).replace(/\n/g,'<br>')+'</div>':'')
++itemProfileSummaryHTML(it)+'</details>';
+}
+function equipmentItemIconHTML(it,slotId){
+if(it&&it.icon&&it.icon.src)return '<img class="equipment-item-icon" src="'+esc(it.icon.src)+'" width="48" height="48" loading="lazy" decoding="async" alt="">';
+const slot=EQUIP_SLOTS.find(row=>row.id===slotId)||EQUIP_SLOTS.find(row=>slotAccepts(row.id,it&&it.slot,it));
+return '<span class="equipment-item-glyph" aria-hidden="true">'+(slot?slot.ic:'◇')+'</span>';
+}
+function equipmentCombatLabel(it,verb){
+const profile=itemProfile(it),parts=[];
+if(profile.armor&&profile.armor.don&&verb==='equip')parts.push('надевание '+profile.armor.don);
+parts.push('в бою: '+combatCostLabel(combatEquipCost(it)));
+return parts.join(' · ');
+}
+function equipmentCandidateCardHTML(c,e,it,cellId){
+const slots=cellId?[cellId]:equipmentSlotsForItem(it),plans=slots.map(slot=>equipmentSlotPlan(c,slot,e.id)).filter(plan=>plan.ok);
+if(!plans.length)return '';
+const primary=plans[0],requirements=equipmentRequirementRows(c,e,it,cellId?primary:null),stop='event.stopPropagation();';
+let actions=plans.map(plan=>'<button class="btn rub sm" type="button" onclick="'+stop+'sheetEquipToSlot(\''+c.id+'\',\''+plan.cellId+'\',\''+e.id+'\')">'
++(profileItemKind(it)==='weapon'?'Взять':'Надеть')+(cellId?'':' · '+esc(plan.slot.n))+'</button>').join('');
+if(itemNeedsAttune(it))actions+='<button class="btn ghost sm" type="button" onclick="'+stop+'toggleAttuneForActor(\''+c.id+'\',\''+e.id+'\')">'+(e.att?'Разорвать настройку':'Настроить')+'</button>';
+if(bg3CatalogIsId(it.id))actions+='<button class="btn ghost sm" type="button" onclick="'+stop+'switchTab(\'itemsdb\');bg3CatalogOpen(\''+it.id+'\')">Полная карточка ↗</button>';
+return bagItemSlotHTML(c,e,it,{key:'equipment-option:'+c.id+':' +(cellId||'all')+':'+e.id,context:cellId?'Подходит: '+primary.slot.n:'Можно надеть из сумки',requirements,preview:cellId?equipmentPreviewHTML(c,cellId,e.id):'',actions});
+}
+function profileItemKind(it){return itemProfile(it).kind;}
+function equipmentCurrentCardHTML(c,slot,e,it,actualSlotId){
+if(!e||!it)return '<div class="equipment-empty-current"><span>'+slot.ic+'</span><b>'+esc(slot.n)+' свободен</b><small>Выберите ниже подходящий предмет из сумки.</small></div>';
+const plan={usesBothHands:equipmentUsesBothHands(it),displaced:[]},requirements=equipmentRequirementRows(c,e,it,plan),occupied=EQUIP_SLOTS.filter(row=>c.equipment[row.id]===e.id).map(row=>row.n),stop='event.stopPropagation();';
+const wornIn=actualSlotId||slot.id,occupiedLabel=plan.usesBothHands?'Обе руки':(occupied.join(' + ')||slot.n);
+let actions='<button class="btn rub sm" type="button" onclick="'+stop+'sheetUnequipSlot(\''+c.id+'\',\''+wornIn+'\')">Снять в сумку</button>';
+if(itemNeedsAttune(it))actions+='<button class="btn '+(e.att?'':'ghost ')+'sm" type="button" onclick="'+stop+'toggleAttuneForActor(\''+c.id+'\',\''+e.id+'\')">'+(e.att?'✵ Настроено — разорвать':'✵ Настроить')+'</button>';
+if(bg3CatalogIsId(it.id))actions+='<button class="btn ghost sm" type="button" onclick="'+stop+'switchTab(\'itemsdb\');bg3CatalogOpen(\''+it.id+'\')">Полная карточка ↗</button>';
+return bagItemSlotHTML(c,e,it,{key:'equipment-current:'+c.id+':'+slot.id+':'+e.id,context:'Надето: '+occupiedLabel,caption:userFacingItemName(it,'Предмет'),requirements,actions,selected:selSlot===slot.id});
+}
+function equipmentSlotCompactText(it){
+if(!it)return 'Пусто';const p=itemProfile(it);
+if(p.weapon)return String(it.dmg||p.weapon.damage&&p.weapon.damage.sides&&((p.weapon.damage.cnt||1)+'d'+p.weapon.damage.sides)||'оружие');
+if(p.armor){const rule=p.armor.acRule||{};return rule.shield?'КД +'+(+rule.base||2):(p.armor.ac?'КД '+p.armor.ac:(rule.base?'база КД '+rule.base:''));}
+return itemNeedsAttune(it)?'требует настройки':(ITEM_KIND_RU[p.kind]||'экипировано');
+}
+function equipmentSearchSet(value){
+equipmentSearch=String(value||'');renderChars();const field=document.getElementById('equipmentSearch');if(field&&field.focus){field.focus();const end=field.value.length;if(field.setSelectionRange)field.setSelectionRange(end,end);}
+}
 function stEquipment(c){
-let h='<div class="panel"><h3 class="rubric" style="font-size:22px;color:var(--gold)">○ Экипировка персонажа</h3>'
-+'<div class="mannequin">';
-EQUIP_SLOTS.forEach(s=>{
-const entryId=c.equipment[s.id];
-const e=entryId?c.inventory.find(x=>x.id===entryId):null;
-const it=e?itemOf(e.itemId):null;
-h+='<div class="slot-cell'+(it?' filled':'')+(selSlot===s.id?' sel':'')+'" style="'+s.pos+'" onclick="pickSlot(\''+s.id+'\')">'
-+'<div class="sic">'+s.ic+'</div><div class="sname">'+s.n+'</div>'
-+(it?'<div class="sitem">'+esc(userFacingItemName(it,'Предмет'))+'</div>':'')+'</div>';
+if(selSlot&&!EQUIP_SLOTS.some(row=>row.id===selSlot))selSlot=null;
+const equipped=equipmentEquippedEntries(c),bagAll=equipmentBagEntries(c),attuned=attunedEntries(c),load=carryWeightState(c),violations=armorViolations(c),inactive=equipped.filter(row=>itemNeedsAttune(row.it)&&!row.e.att),twoHandId=c.equipment&&c.equipment.TWO_HAND,handCount=twoHandId?2:(c.equipment.MAIN_HAND?1:0)+(c.equipment.OFF_HAND?1:0),occupiedSlotCount=Object.keys(c.equipment||{}).filter(key=>c.equipment[key]).length+(twoHandId?1:0);
+let h='<div class="panel equipment-panel"><div class="equipment-heading"><div><h3 class="rubric" style="font-size:22px;color:var(--gold)">○ Экипировка персонажа</h3>'
++'<p>Управляйте комплектом '+esc(c.name)+': слоты показывают надетое, а справа остаются только совместимые предметы из сумки.</p></div>'
++'<span class="equipment-rule-note">Смена проходит проверку до изменения экипировки</span></div>';
+h+='<div class="equipment-overview">'
++'<div><span>Класс доспеха</span><b>'+acTotal(c)+'</b><small>авто '+acAuto(c)+(c.acOverride!=null?' · задано вручную':'')+'</small></div>'
++'<div><span>Скорость</span><b>'+esc(speedTotal(c))+'</b><small>'+(violations.length?'есть ограничение доспеха':'без штрафа доспеха')+'</small></div>'
++'<div><span>Руки</span><b>'+handCount+' / 2</b><small>'+(handCount===2?'обе заняты':(handCount===1?'одна свободна':'обе свободны'))+'</small></div>'
++'<div><span>Настройка</span><b>'+attuned.length+' / '+ATTUNE_LIMIT+'</b><small>'+(inactive.length?inactive.length+' надет. без настройки':'активные предметы учтены')+'</small></div>'
++'<div><span>Нагрузка</span><b>'+(load.known?load.kg+' кг':'≥ '+load.kg+' кг')+'</b><small>предел '+Math.round(eAb(c,'str')*7.5)+' кг</small></div>'
++'<div><span>Можно надеть</span><b>'+bagAll.length+'</b><small>подходящих в сумке</small></div></div>';
+h+='<div class="equipment-workspace"><section class="equipment-loadout" aria-label="Слоты экипировки"><div class="equipment-section-head"><div><b>Надето</b><span>'+equipped.length+' предметов в '+occupiedSlotCount+' слотах</span></div><small>Иконка — сведения · кнопка — подобрать замену</small></div><div class="equipment-slot-grid">';
+EQUIP_SLOTS.forEach(slot=>{
+const actualSlotId=slot.id==='MAIN_HAND'&&twoHandId?'TWO_HAND':slot.id,entryId=c.equipment[actualSlotId],e=entryId&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId),reservedByTwoHand=slot.id==='OFF_HAND'&&twoHandId,available=equipmentBagEntries(c,slot.id).length,requirements=e&&it?equipmentRequirementRows(c,e,it,null):[],warn=requirements.some(row=>row.tone==='warn');
+h+='<div class="equipment-slot-tile'+(selSlot===slot.id?' selected':'')+(warn?' warning':'')+'"><div class="equipment-slot-name">'+slot.ic+' '+slot.n+(warn?'<span title="Есть важное ограничение">!</span>':'')+'</div>';
+if(it)h+=equipmentCurrentCardHTML(c,slot,e,it,actualSlotId);
+else if(reservedByTwoHand){const twoEntry=invEntryOf(c,twoHandId),twoItem=twoEntry&&itemOf(twoEntry.itemId);h+='<button type="button" class="equipment-empty-slot occupied" aria-label="Вторая рука занята двуручным предметом; подобрать замену" onclick="pickSlot(\''+slot.id+'\')"><span aria-hidden="true">↔</span><b>Занято обеими руками</b><small>'+esc(twoItem?userFacingItemName(twoItem,'Предмет'):'двуручный предмет')+'</small></button>';}
+else h+='<button type="button" class="equipment-empty-slot" aria-label="'+esc(slot.n+': пусто; подобрать предмет')+'" onclick="pickSlot(\''+slot.id+'\')"><span aria-hidden="true">'+slot.ic+'</span><b>Пусто</b><small>'+(available?available+' подх. в сумке':'нет вариантов')+'</small></button>';
+h+='<button type="button" class="equipment-slot-filter'+(selSlot===slot.id?' active':'')+'" aria-pressed="'+(selSlot===slot.id?'true':'false')+'" onclick="pickSlot(\''+slot.id+'\')">'+(selSlot===slot.id?'Закрыть выбор':(it?'Заменить':(available?'Подобрать':'Проверить сумку')))+'</button></div>';
 });
-h+='</div>';
-if(selSlot){
-const s=EQUIP_SLOTS.find(x=>x.id===selSlot);
-const entryId=c.equipment[selSlot];
-h+='<div class="slot-pick panel"><h3 class="rubric" style="font-size:19px">'+s.n+'</h3>';
-if(entryId){
-const it=itemOf((c.inventory.find(x=>x.id===entryId)||{}).itemId);
-h+='<div class="row-line"><span>Надето: <b>'+esc(userFacingItemName(it,'?'))+'</b></span><span class="grow"></span>'
-+'<button class="btn ghost sm" onclick="sheetUnequipSlot(\''+c.id+'\',\''+selSlot+'\')">Снять</button></div>';
-}
-const fits=c.inventory.filter(e=>{ const it=itemOf(e.itemId); return it&&slotAccepts(selSlot,it.slot,it)&&c.equipment[selSlot]!==e.id; });
-if(fits.length){
-h+='<div style="margin-top:6px">'+fits.map(e=>{ const it=itemOf(e.itemId);
-return '<div class="spell-hit" onclick="sheetEquipToSlot(\''+c.id+'\',\''+selSlot+'\',\''+e.id+'\')"><span><b>'+esc(userFacingItemName(it,'Предмет'))+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+esc(ITEM_SLOT_RU[it.slot]||'')+'</span></span><span style="color:var(--gold)">надеть →</span></div>'; }).join('')+'</div>';
-} else if(!entryId){
-h+='<p class="note-ital" style="font-size:14px">В инвентаре нет предметов, подходящих к этому слоту.</p>';
-}
-h+='</div>';
-} else {
-h+='<p class="note-ital" style="text-align:center;margin-top:10px;font-size:14px">Кликните на слот, чтобы надеть или снять предмет.</p>';
-}
+h+='</div><div class="equipment-legend"><span><i class="filled"></i> надетый предмет</span><span><i class="selected"></i> выбранный слот</span><span><i class="warning"></i> требует внимания</span></div></section>';
+const selected=selSlot&&EQUIP_SLOTS.find(row=>row.id===selSlot),selectedEntryId=selected&&((selected.id==='MAIN_HAND'||selected.id==='OFF_HAND')&&twoHandId?twoHandId:c.equipment[selected.id]),selectedEntry=selectedEntryId&&invEntryOf(c,selectedEntryId),selectedItem=selectedEntry&&itemOf(selectedEntry.itemId);
+let candidates=equipmentBagEntries(c,selected&&selected.id),q=equipmentSearch.trim().toLowerCase();
+if(q)candidates=candidates.filter(row=>[userFacingItemName(row.it,'Предмет'),equipmentEntryMeta(row.it),row.it.props||'',row.it.desc||'',equipmentItemFacts(row.it).join(' ')].join(' ').toLowerCase().includes(q));
+h+='<section class="equipment-bag" aria-label="Подходящие предметы из сумки"><div class="equipment-section-head"><div><b>'+(selected?'Слот: '+esc(selected.n):'Доступно из сумки')+'</b><span>'+(selected?'Только совместимые варианты':'Только предметы, которые можно надеть')+'</span></div>'
++(selected?'<button class="btn ghost sm" type="button" onclick="pickSlot(\''+selected.id+'\')">Показать все</button>':'')+'</div>';
+if(selected)h+='<div class="equipment-bag-hint"><b>'+(selectedItem?'Сейчас: '+esc(userFacingItemName(selectedItem,'Предмет')):selected.n+' свободен')+'</b><span>Ниже показаны только ненадетые предметы из сумки, совместимые с этим слотом.</span></div>';
+else h+='<div class="equipment-bag-hint"><b>Быстрое надевание</b><span>Откройте иконку предмета и выберите допустимый слот. Уже надетые вещи здесь не повторяются.</span></div>';
+h+='<div class="equipment-search"><span aria-hidden="true">⌕</span><input id="equipmentSearch" type="search" value="'+esc(equipmentSearch)+'" placeholder="Поиск по названию, типу или свойству…" aria-label="Поиск по подходящим предметам" oninput="equipmentSearchSet(this.value)">'
++(equipmentSearch?'<button type="button" aria-label="Очистить поиск" onclick="equipmentSearchSet(\'\')">×</button>':'')+'</div>';
+h+='<div class="equipment-candidate-head"><b>'+(selected?'Подходит к слоту':'Можно надеть')+'</b><span>'+candidates.length+(q?' найдено':' вариантов')+'</span></div>';
+if(candidates.length)h+='<div class="bag-grid equipment-bag-grid">'+candidates.map(row=>equipmentCandidateCardHTML(c,row.e,row.it,selected&&selected.id)).join('')+'</div>';
+else h+='<div class="equipment-empty-list"><span>◇</span><b>'+(q?'Ничего не найдено':(selected?'В сумке нет других предметов для этого слота':'В сумке нет предметов экипировки'))+'</b><small>'+(q?'Очистите поиск или выберите другой слот.':'Подходящие вещи появятся здесь автоматически.')+'</small></div>';
+h+='</section></div>';
 return h+'</div>';
 }
 

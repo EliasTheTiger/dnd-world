@@ -2353,6 +2353,10 @@ test('лист и вкладка «Экипировка» связывают о�
   const equipmentHTML = e.elementHTML('tab-chars');
   assert.match(equipmentHTML, /sheetUnequipSlot\('char_torgar','OFF_HAND'\)/, 'кнопка «Снять» манекена несёт actorId');
   assert.match(equipmentHTML, /sheetEquipToSlot\('char_torgar','OFF_HAND','qa-spare-shield'\)/, 'кнопка «надеть» манекена несёт actorId');
+  assert.match(equipmentHTML, /class="bag-grid equipment-bag-grid"/, 'варианты из сумки показаны сеткой иконок');
+  assert.match(equipmentHTML, /role="tooltip"/, 'надетые вещи и кандидаты раскрывают единый тултип');
+  assert.doesNotMatch(equipmentHTML, new RegExp("sheetEquipToSlot\\('char_torgar','OFF_HAND','" + weapon.id + "'\\)"),
+    'уже надетое оружие основной руки не повторяется среди вещей из сумки для второй руки');
 
   assert.equal(e.combatNextTurn(), true);
   assert.equal(e.sheetEquipToggle(torgar.id, weapon.id), true, 'в свой ход экипированное оружие можно убрать');
@@ -2363,6 +2367,44 @@ test('лист и вкладка «Экипировка» связывают о�
   assert.match(e.elementText('saveStatus'), /Взаимодействие с объектом уже израсходовано/);
   assert.deepEqual(plain({equipment: torgar.equipment, combat: e.state().combat}), afterOneCommit,
     'повторный отказ не меняет экипировку и не расходует ресурс повторно');
+});
+
+test('двуручное оружие с метаданными основной руки занимает обе руки и заменяется атомарно', () => {
+  const e = loadEngine(), items = e.seedItemsDB();
+  const shield = items.find(it => it.slot === 'OFF_HAND');
+  const twoHanded = {
+    id: 'qa-main-hand-twohanded', n: 'Испытательный двуручный клинок', type: 'weapon', slot: 'MAIN_HAND',
+    rarity: 'обычный', tags: ['melee', 'heavy', 'twohanded'], dmg: '2d6', dmgType: 'рубящий',
+    weight: '3 кг', cost: '50 зм', props: 'Тяжелое, двуручное', desc: 'Требует обеих рук.'
+  };
+  assert.ok(shield, 'для проверки найден штатный щит');
+  items.push(twoHanded);
+  const actor = hero('qa-two-hand-actor', {
+    inventory: [
+      {id: 'qa-two-hand-entry', itemId: twoHanded.id, qty: 1},
+      {id: 'qa-two-hand-shield', itemId: shield.id, qty: 1}
+    ],
+    equipment: {OFF_HAND: 'qa-two-hand-shield'}
+  });
+  e.setState({chars: [actor], items, activeCharId: actor.id});
+
+  const beforeInvalid = plain(actor.equipment);
+  assert.equal(e.sheetEquipToSlot(actor.id, 'OFF_HAND', 'qa-two-hand-entry'), false,
+    'структурный признак «двуручное» запрещает вторую руку даже при slot=MAIN_HAND');
+  assert.deepEqual(plain(actor.equipment), beforeInvalid, 'отказ до коммита сохраняет прежний щит');
+
+  assert.equal(e.sheetEquipToSlot(actor.id, 'MAIN_HAND', 'qa-two-hand-entry'), true);
+  assert.deepEqual(plain(actor.equipment), {TWO_HAND: 'qa-two-hand-entry'},
+    'успешный коммит освобождает щит и канонически резервирует обе руки');
+  const equipmentHTML = e.renderSheetPanel('equipment');
+  assert.match(equipmentHTML, /Испытательный двуручный клинок/);
+  assert.match(equipmentHTML, /Занято обеими руками/);
+  assert.match(equipmentHTML, /sheetUnequipSlot\('qa-two-hand-actor','TWO_HAND'\)/,
+    'снятие из визуального слота обращается к точному техническому слоту');
+
+  assert.equal(e.sheetEquipToSlot(actor.id, 'OFF_HAND', 'qa-two-hand-shield'), true);
+  assert.deepEqual(plain(actor.equipment), {OFF_HAND: 'qa-two-hand-shield'},
+    'щит одним коммитом снимает двуручное оружие и занимает вторую руку');
 });
 
 test('прямые item-actions листа: чужой ход не ест еду и не разводит огонь, свой ход коммитит один раз', () => {
@@ -4598,6 +4640,15 @@ test('все девять вкладок и шесть панелей листа
     const html = e.renderSheetPanel(panel);
     labels.forEach(label => assert.ok(html.includes(label), `${panel}: нет индикатора «${label}»`));
   });
+  const inventoryHTML = e.renderSheetPanel('inventory');
+  assert.match(inventoryHTML, /class="inventory-bag"/, 'инвентарь оформлен как сумка');
+  assert.match(inventoryHTML, /class="bag-grid"/, 'предметы уложены в сетку иконок');
+  assert.match(inventoryHTML, /role="tooltip"/, 'полная информация предмета доступна во всплывающем окне');
+  assert.equal((inventoryHTML.match(/class="entry-card/g) || []).length, 0,
+    'старые списочные карточки предметов больше не рендерятся');
+  const equipmentHTML = e.renderSheetPanel('equipment');
+  assert.match(equipmentHTML, /class="bag-slot-shell/, 'надетые предметы используют тот же иконочный компонент');
+  assert.match(equipmentHTML, /role="tooltip"/, 'надетые предметы раскрывают полные сведения');
 });
 
 test('единый сброс удаляет текущий бой и точно восстанавливает исходную группу', () => {
