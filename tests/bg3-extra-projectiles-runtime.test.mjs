@@ -512,6 +512,10 @@ function loadFailClosedEngine(random) {
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/character-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/magic-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/grimoire-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source, context);
   return context.__bg3ExtraProjectileFailClosed;
 }
@@ -633,6 +637,10 @@ function loadArrowRuntimeEngine(random) {
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/character-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/magic-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/grimoire-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source, context);
   return context.__bg3ArrowRuntime;
 }

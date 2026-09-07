@@ -170,7 +170,10 @@ function auditedDefinitionRecord(definition, kind) {
 
 function buildCatalogAudit(engine, gameAudit, itemAudit, rareAudit, spellPreparationAudit) {
   assert.deepEqual(clone(gameAudit.counts),{spells:958,abilities:693,items:193,foes:30,total:1874});
-  assert.equal(gameAudit.variants,6408,'all production world formula variants are audited');
+  assert.equal(gameAudit.variants,6410,'all production world formula variants are audited after correcting SRD spell circles');
+  const activeSpells=engine.catalogs.spells.filter(row=>row.grimoire?.status==='active');
+  assert.equal(activeSpells.length,321,'each campaign admits the same canonical 2014 catalog');
+  assert.equal(new Set(activeSpells.map(row=>row.grimoire.key)).size,321,'aliases do not add spell identities');
   assert.equal(gameAudit.errors.length,0,gameAudit.errors[0] || 'production world audit');
   assert.equal(itemAudit.total,1067);assert.equal(itemAudit.passed,1067);assert.equal(itemAudit.failed,0);
   assert.equal(rareAudit.total,250);assert.equal(rareAudit.passed,250);assert.equal(rareAudit.failed,0);

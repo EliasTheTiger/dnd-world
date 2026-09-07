@@ -554,15 +554,25 @@ async function runJourney() {
       await clickButton('← К списку героев');
     }
     await clickButton('✠ Новый герой');
-    await selectOptionAnywhere('Полуэльф');
-    await selectOptionAnywhere('Паладин');
-    const archetype = page.getByPlaceholder('Универсалист…').filter({ visible: true });
-    if (await archetype.count()) await archetype.fill('Клятва Преданности');
-    const nameInput = page.locator('#tab-chars .sheet-head input').filter({ visible: true }).first();
+    const nameInput = page.locator('#creator-name');
     await nameInput.fill(HERO_NAME);
-    await nameInput.press('Tab');
-    await page.waitForTimeout(250);
     if (await nameInput.inputValue() !== HERO_NAME) throw new QaFailure('Имя нового героя не удержалось в форме создания.');
+    await page.locator('#creator-race').selectOption('Полуэльф');
+    await page.locator('#creator-cls').selectOption('Паладин');
+    await page.locator('#creator-level').fill('3');
+    await page.locator('#creator-level').press('Tab');
+    await page.locator('#creator-subcls').selectOption('Клятва Преданности');
+    await clickButton('Далее →');
+    await page.locator('#creator-ability-0').selectOption('str');
+    await page.locator('#creator-ability-1').selectOption('con');
+    await clickButton('Далее →');
+    for (const skill of ['Проницательность', 'Убеждение']) await page.locator('fieldset').filter({has: page.locator('legend', {hasText: 'Навыки класса'})}).getByLabel(skill, {exact:true}).check();
+    for (const skill of ['Выживание', 'Религия']) await page.locator('fieldset').filter({has: page.locator('legend', {hasText: 'Навыки народа'})}).getByLabel(skill, {exact:true}).check();
+    await page.locator('#creator-tool-0').selectOption('Игральные кости');
+    await page.locator('#creator-language-0').selectOption('Дварфийский');
+    await clickButton('Далее →');
+    await clickButton('Создать героя');
+    await page.locator('#sheet-subclass').waitFor();
     await clickButton('← К списку героев');
     const visible = await bodyText();
     for (const name of [...existing, HERO_NAME]) if (!visible.includes(name)) throw new QaFailure(`После создания в списке отсутствует «${name}».`);
@@ -626,7 +636,7 @@ async function runJourney() {
 
   await step({
     phase: 'P05', id: 'equip-unequip-weapon-and-armor',
-    action: 'Завершить бой для привала, надеть и снять короткий меч Року, снять и вернуть броню Торгара, затем заново начать бой с ручными инициативами.',
+    action: 'Завершить бой для привала, подтвердить использование короткого меча Року без владения, надеть и снять меч, снять и вернуть броню Торгара, затем заново начать бой с ручными инициативами.',
     expected: 'Слот, подпись кнопки и КД синхронно меняются при каждом допустимом переключении.',
     reproduction: ['Року → Инвентарь → Короткий меч → Надеть/снять.', 'Торгар → Инвентарь → броня → снять/надеть.', 'Сравнить КД до и после.']
   }, async () => {
@@ -641,7 +651,12 @@ async function runJourney() {
     await openCharacter('Року');
     await clickButton('Инвентарь');
     if (!/Надето/i.test(await visibleItemEquipLabel('Короткий меч'))) {
-      await clickCardButton(await itemCard('Короткий меч'), /Надеть|Взять/);
+      dialogDecisions.push(true);
+      try {
+        await clickCardButton(await itemCard('Короткий меч'), /Надеть|Взять/);
+      } finally {
+        dialogDecisions.length = 0;
+      }
     }
     if (!/Надето/i.test(await visibleItemEquipLabel('Короткий меч'))) throw new QaFailure('После надевания подпись короткого меча не изменилась на «Надето».');
     let equipment = await visibleEquipmentItems();
@@ -652,7 +667,12 @@ async function runJourney() {
     equipment = await visibleEquipmentItems();
     if (equipment.includes('Короткий меч')) throw new QaFailure('Снятый короткий меч остался в видимом слоте экипировки.');
     await clickButton('Инвентарь');
-    await clickCardButton(await itemCard('Короткий меч'), /Надеть|Взять/);
+    dialogDecisions.push(true);
+    try {
+      await clickCardButton(await itemCard('Короткий меч'), /Надеть|Взять/);
+    } finally {
+      dialogDecisions.length = 0;
+    }
 
     await openCharacter('Торгар Железная Вера');
     await clickButton('Инвентарь');

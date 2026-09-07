@@ -9,9 +9,11 @@ const dataRoot = join(repositoryRoot, 'data', 'bg3');
 const outputRoot = join(repositoryRoot, '_site');
 const checkOnly = process.argv.slice(2).includes('--check');
 const runtimeFiles = ['economy-core.js', 'merchant-core.js', 'item-domain-model.js', 'definition-repository.js', 'ruleset-registry.js', 'persistence-core.js', 'action-kernel.js', 'chest-core.js', 'catalog-governance.js', 'world-state-core.js', 'ui-action-contract.js', 'projection-cache.js', 'public-item-surface.js'];
+runtimeFiles.push('character-rules.js','magic-rules.js','grimoire-rules.js');
 const RELEASE_PLACEHOLDER = '__DND_WORLD_RELEASE__';
 const PAGES_BASE = '/dnd-world/';
 const OPEN_CATALOG_PATH = 'data/dnd5e/open5e-cc-v1/catalog.js';
+const SPELL_FACTS_PATH = 'data/dnd5e/srd51-spell-facts.js';
 
 function invariant(value, message) {
   if (!value) throw new Error(message);
@@ -42,6 +44,7 @@ function renderPublishedIndex(source, release) {
     { attribute: 'href', path: 'styles.css' },
     ...runtimeFiles.map(name => ({ attribute: 'src', path: `scripts/${name}` })),
     { attribute: 'src', path: OPEN_CATALOG_PATH },
+    { attribute: 'src', path: SPELL_FACTS_PATH },
   ];
 
   for (const asset of assets) {

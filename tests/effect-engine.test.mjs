@@ -87,6 +87,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
   source += `
     globalThis.__bg3ItemFormulaDispatchCapture={next:false,block:false,args:null};
     globalThis.__engine = {
+      magicMpFixture(){campaignMagic={version:1,mode:'mp',preparation:'class',revision:1};chars.forEach(magicEnsure);},magicPool,
       setState(s, options={}) {
         chars=s.chars||[]; journal=s.journal||[]; itemsDB=s.items||[]; spellsDB=s.spells||[];
         if(options.preserveBg3CatalogItems!==true)bg3Catalog.items=new Map(itemsDB.filter(item=>bg3CatalogIsId(item&&item.id)).map(item=>[item.id,item]));
@@ -456,6 +457,10 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/character-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/magic-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/grimoire-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source, context);
   return context.__engine;
 }
@@ -1264,7 +1269,7 @@ test('контракт проверяет всю мировую базу, пре
 test('открытый каталог D&D 5e исполняет только проверенные правила, а остальные закрывает до коммита', () => {
   const e = loadEngine(undefined, null, null, null, {openDnd5eCatalog: true});
   const spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
-  const importedSpells = spells.filter(row => row.catalogSource?.provider === 'Open5e');
+  const importedSpells = spells.filter(row => row.id.startsWith('sp_open5e_'));
   const importedAbilities = abilities.filter(row => row.catalogSource?.provider === 'Open5e');
   assert.equal(importedSpells.length, dnd5eOpenCatalogManifest.counts.importedSpells);
   assert.equal(importedAbilities.length, dnd5eOpenCatalogManifest.counts.importedAbilities);
@@ -1281,7 +1286,7 @@ test('открытый каталог D&D 5e исполняет только п�
   assert.equal(e.useAbilityApply(manualAbility.id, caster.id, `ally:${caster.id}`, null), false);
   assert.equal(caster.abilities[0].cur, 1);
 
-  const structured = importedSpells.find(row => row.enginePolicy?.mode === 'structured');
+  const structured = spells.find(row => row.grimoire?.status === 'active' && row.grimoire.english === 'Inflict Wounds');
   assert.equal(structured?.open5e?.key, 'srd_inflict-wounds');
   const foe = matrixFoe('open-target');
   e.setState({chars: [caster], foes: [foe], spells, abilities, activeCharId: caster.id});
@@ -1308,10 +1313,10 @@ test('старый флаг миграции не скрывает отсутс�
   assert.equal(e.dnd5eOpenCatalogInstalled(abilitiesDB,'abilities'),true);
   assert.ok(spellsDB.filter(row=>row.catalogSource?.provider==='Open5e').every(row=>row.catalogSource.language==='ru'&&/[А-ЯЁа-яё]/.test(row.n)));
   assert.ok(abilitiesDB.filter(row=>row.catalogSource?.provider==='Open5e').every(row=>row.catalogSource.language==='ru'&&/[А-ЯЁа-яё]/.test(row.n)));
-  assert.equal(e.worldSavePending(),false,'восстановление производного каталога не раздувает campaign envelope фоновой записью');
+  assert.equal(e.worldSavePending(),true,'переход со старой схемы на канонические идентификаторы должен сохраниться');
 });
 
-test('английская версия Open5e в старом мире заменяется русским производным слоем без записи раздутого снимка', async () => {
+test('английская версия Open5e в старом мире заменяется русским слоем с сохранением новой схемы гримуара', async () => {
   const e=loadEngine(undefined,null,null,null,{openDnd5eCatalog:true}),spells=e.seedSpellsDB(),abilities=e.seedAbilitiesDB();
   const spell=spells.find(row=>row.catalogSource?.provider==='Open5e'),ability=abilities.find(row=>row.catalogSource?.provider==='Open5e');
   const spellId=spell.id,abilityId=ability.id;
@@ -1330,7 +1335,7 @@ test('английская версия Open5e в старом мире заме
   assert.match(localizedAbility.n,/[А-ЯЁа-яё]/);
   assert.equal(e.dnd5eOpenCatalogInstalled(state.spellsDB,'spells'),true);
   assert.equal(e.dnd5eOpenCatalogInstalled(state.abilitiesDB,'abilities'),true);
-  assert.equal(e.worldSavePending(),false,'производная локализация не должна раздувать campaign envelope фоновой записью');
+  assert.equal(e.worldSavePending(),true,'новая схема гримуара и ссылки книг должны сохраниться');
 });
 
 test('настоящая миграция Open5e-каталога по-прежнему планирует сохранение мира', async () => {
@@ -4735,8 +4740,12 @@ test('выпуск 4.1 объединяет локальную и облачну
 
 test('формулы v2 не содержат броска мастера, ручного попадания или изменяемого преимущества', () => {
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  ['Прочий бросок (по решению мастера)', 'castHitSet', 'hitOverride', 'castAdvSet', 'id="cfHit"', 'value="free"']
+  ['Прочий бросок (по решению мастера)', 'castHitSet', 'hitOverride', 'castAdvSet', 'id="cfHit"']
     .forEach(token => assert.equal(html.includes(token), false, `удален запрещенный путь: ${token}`));
+  // The campaign's free-access variant still pays MP; only a cast payment bypass is forbidden.
+  const settingsStart=html.indexOf('function magicSettingsHTML()'),settingsEnd=html.indexOf('\nfunction magicPoolHTML(',settingsStart);
+  assert.ok(settingsStart>=0&&settingsEnd>settingsStart,'campaign settings boundaries must be present');
+  assert.equal((html.slice(0,settingsStart)+html.slice(settingsEnd)).includes('value="free"'),false,'нет обхода оплаты в интерфейсе наложения');
 
   const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
   const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
@@ -8760,18 +8769,21 @@ test('BG3 A33 Promise.all learning race commits one causal plan exactly once', a
   const replay=await e.bg3LearnSpellCommit(plan);assert.equal(replay.ok,false);assert.equal(replay.replay,true);
 });
 
-test('BG3 learned-spell Promise.all cast race cannot double-apply or overdraw one slot', async () => {
+for(const resourceMode of ['slots','mp'])test('BG3 learned-spell Promise.all cast race cannot double-apply or overdraw resources: '+resourceMode, async () => {
   let fixture;const e=loadEngine(()=>0,url=>fixture.fetcher(url));fixture=bg3LearnFixture(e);await bg3InstallLearnFixture(e,fixture);
   const wizard=hero('a33-cast-race',{cls:'Волшебник',subcls:'Школа Воплощения',level:5,bg3LearnedSpells:[],coins:{zm:100},slots:{3:{cur:1,max:1}},
     inventory:[{id:'a33-cast-source',itemId:fixture.item.id,qty:1}]}),classes=e.seedClassesDB(),foe=plain(e.seedFoesDB()[0]);foe.hp=foe.hpMax=20;
   e.setState({chars:[wizard],items:[fixture.item],classes,foes:[foe]});const learnPlan=await e.bg3LearnSpellPlanFor(wizard,'a33-cast-source','learn_spell');
-  assert.equal((await e.bg3LearnSpellCommit(learnPlan)).ok,true);const prepared=await e.bg3LearnedSpellPrepare(wizard,wizard.bg3LearnedSpells[0].id);assert.equal(prepared.ok,true,prepared.reason);
+  assert.equal((await e.bg3LearnSpellCommit(learnPlan)).ok,true);
+  if(resourceMode==='mp'){e.magicMpFixture();assert.equal(e.magicPool(wizard).cur,5);assert.deepEqual(plain(wizard.slots),{});}
+  const prepared=await e.bg3LearnedSpellPrepare(wizard,wizard.bg3LearnedSpells[0].id);assert.equal(prepared.ok,true,prepared.reason);
   const target=`foe:${foe.id}`,ti=e.targetInfoOf(target),use=e.bg3RuleProgramEffectiveUse(prepared.action,wizard,ti,{}),
     spec=e.itemUseSpecOf(wizard,{id:'learned-race',n:'Exact A33'},use,ti,{}),damage=spec.rows.find(row=>row.type==='dmg'),outcome=e.resolveOutcome(spec,{[damage.key]:6},{}),
     plan=await e.bg3LearnedSpellUsePlan(wizard,prepared.entry.id,target,outcome);assert.equal(plan.ok,true,plan.reason);
   const results=await Promise.all([e.bg3LearnedSpellCommit(plan),e.bg3LearnedSpellCommit(plan)]);
   assert.equal(results.filter(row=>row.ok).length,1);assert.equal(results.filter(row=>!row.ok&&(row.replay||row.stale)).length,1);
-  assert.equal(wizard.slots[3].cur,0);assert.equal(foe.hp,14);const replay=await e.bg3LearnedSpellCommit(plan);assert.equal(replay.replay,true);
+  if(resourceMode==='mp'){assert.equal(e.magicPool(wizard).cur,0);assert.deepEqual(plain(wizard.slots),{});}else assert.equal(wizard.slots[3].cur,0);
+  assert.equal(foe.hp,14);const replay=await e.bg3LearnedSpellCommit(plan);assert.equal(replay.replay,true);
 });
 
 test('BG3 A33 eligibility is exact, direct-special evidence is allowed, and stale plans spend nothing', async () => {
@@ -10378,7 +10390,7 @@ test('BG3 granted weapon actions: one accepted Character action atomically spend
   assert.deepEqual(plain(world.actor.bg3GrantedActionTokens),[prepared.proof.eventId]);assert.equal(world.actor.inventory[0].bg3WeaponFunctorEvents.length,1);assert.deepEqual(plain(world.actor.inventory[0].bg3WeaponFunctorEvents[0].scopePath),['GROUND']);assert.equal(world.actor.inventory[0].bg3WeaponFunctorEvents[0].executed,true);assert.equal(e.state().combat.turn.actionUsed,true);
   const persisted=plain(e.dndWorldExportPayload()),saved=persisted.chars.find(row=>row.id===world.actor.id);assert.deepEqual(plain(saved.inventory[0].bg3GrantedActionCooldowns),plain(cooldowns),'cooldown is part of the authoritative world payload');
   const hpAfter=world.target.hp;grantedWeaponCast(e,world);assert.equal(e.bg3GrantedWeaponApply(world.actor,world.virtual,world.targetKey,prepared.rolls),false);assert.equal(world.target.hp,hpAfter);assert.equal(world.actor.inventory[0].bg3WeaponFunctorEvents.length,1);assert.equal(Object.keys(cooldowns).length,1);
-  e.combatEnd(true);e.shortRest();assert.equal(Object.keys(world.actor.inventory[0].bg3GrantedActionCooldowns).length,0,'real short-rest caller resets OncePerShortRest');e.bg3GrantedWeaponTestContext({bg3GrantedSourceSpellDcSelection:{sourceSpellDcMode:'unavailable-fallback-negative',evidence:'explicit-confirmed-no-valid-source-spell-dc'}});const refreshed=e.bg3GrantedWeaponProofFor(world.actor,world.virtual,world.targetKey);assert.equal(refreshed.ok,true,refreshed.reason);
+  e.combatEnd(true);assert.equal(e.shortRest(),false,'the still-open replay form must be dismissed before resting');e.closeCastModal();e.shortRest();assert.equal(Object.keys(world.actor.inventory[0].bg3GrantedActionCooldowns).length,0,'real short-rest caller resets OncePerShortRest');e.bg3GrantedWeaponTestContext({bg3GrantedSourceSpellDcSelection:{sourceSpellDcMode:'unavailable-fallback-negative',evidence:'explicit-confirmed-no-valid-source-spell-dc'}});const refreshed=e.bg3GrantedWeaponProofFor(world.actor,world.virtual,world.targetKey);assert.equal(refreshed.ok,true,refreshed.reason);
   const imported=loadEngine();imported.setState({chars:persisted.chars,items:persisted.items,foes:persisted.foes,activeCharId:world.actor.id});const importedActor=imported.state().chars.find(row=>row.id===world.actor.id);assert.equal(Object.keys(importedActor.inventory[0].bg3GrantedActionCooldowns).length,1,'cooldown survives import');assert.equal(imported.longRest(),true);assert.equal(Object.keys(importedActor.inventory[0].bg3GrantedActionCooldowns).length,0,'real long-rest caller resets OncePerShortRest');
 });
 

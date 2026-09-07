@@ -1,0 +1,31 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
+let chromium;try{({chromium}=require('playwright'));}catch{({chromium}=require(path.resolve(path.dirname(process.execPath),'../node_modules/playwright')));}
+const root=path.resolve(__dirname,'..'),output=path.join(__dirname,'evidence','grimoire');fs.mkdirSync(output,{recursive:true});
+const server=http.createServer((req,res)=>{const file=path.resolve(root,decodeURIComponent(new URL(req.url,'http://localhost').pathname).replace(/^\//,'')||'index.html');if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}fs.stat(file,(error,stat)=>{if(error||!stat.isFile()){res.writeHead(404).end();return;}res.setHeader('content-type',({'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json'})[path.extname(file)]||'application/octet-stream');fs.createReadStream(file).pipe(res);});});
+(async()=>{
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const browser=await chromium.launch({headless:true});
+ try{
+ const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',error=>errors.push(error.message));page.on('dialog',dialog=>dialog.accept(dialog.type()==='prompt'?'1':undefined));page.setDefaultTimeout(30000);
+ await page.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'domcontentloaded'});
+ await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
+ await page.locator('.tab[data-tab="spellsdb"]').click();assert.match(await page.locator('.grimoire-intro').innerText(),/321 уникаль/);assert.equal(await page.locator('.grimoire-entry').count(),24);
+ await page.locator('.grimoire-pages').first().getByRole('button',{name:'Далее →',exact:true}).click();assert.match(await page.locator('.grimoire-pages').first().innerText(),/25–48/);
+ const search=page.getByRole('searchbox',{name:'Поиск в гримуаре'});await search.pressSequentially('Plane Shift');assert.equal(await search.inputValue(),'Plane Shift');assert.equal(await search.evaluate(el=>el===document.activeElement),true);assert.equal(await page.locator('.grimoire-entry').count(),1);assert.match(await page.locator('.grimoire-entry summary').innerText(),/Переход между планами/);
+ await page.getByRole('button',{name:'Сбросить фильтры',exact:true}).click();await page.getByRole('combobox',{name:'Класс',exact:true}).selectOption('Пал');await search.fill('Revivify');assert.equal(await page.locator('.grimoire-entry').count(),1);await page.locator('.grimoire-entry summary').click();assert.match(await page.locator('.grimoire-entry .entry-card').innerText(),/Касание/);
+ await page.screenshot({path:path.join(output,'01-grimoire-desktop.png'),fullPage:false});
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'02-grimoire-mobile.png'),fullPage:true});assert.equal(await page.locator('.grimoire-filters').evaluate(el=>el.scrollWidth<=el.clientWidth),true);assert.equal(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth),true);
+ await page.setViewportSize({width:1440,height:1000});
+ // Fixture only: all interactions below exercise the real campaign controls and cast modal.
+ await page.evaluate(()=>{const c=Object.assign(buildBlank(),{id:'g-caster',name:'Проверка стрел',cls:'Волшебник',level:3}),t1=Object.assign(buildBlank(),{id:'g-first',name:'Первая цель',hp:30,hpMax:30}),t2=Object.assign(buildBlank(),{id:'g-second',name:'Вторая цель',hp:30,hpMax:30});characterAdopt(c);applyClassSlots(c);c.spellbook=[{spellId:'sp_magic_missile',access:'spellbook',prep:true}];chars=[c,t1,t2];activeCharId=c.id;sheetTab='spells';switchTab('chars');renderChars();});
+ await page.locator('#campaign-magic-mode').selectOption('mp');await page.waitForFunction(()=>!magicSwitchBusy&&campaignMagic.mode==='mp');
+ await page.locator('button[onclick="castSpellFx(\'sp_magic_missile\',\'g-caster\')"]').click();await page.locator('#castSlot').selectOption('2');await page.locator('#castTarget').selectOption('ally:g-first');
+ await page.locator('#castMultiTargets label').filter({has:page.locator('.cast-multi[value="ally:g-second"]')}).click();await page.locator('#castConfirmBtn').click();
+ await page.locator('#cf_dmg0').fill('2');await page.getByRole('button',{name:'Применить итог',exact:true}).click();await page.locator('#cf_dmg0').waitFor();assert.equal(await page.locator('#cf_dmg0').inputValue(),'2');await page.getByRole('button',{name:'Применить итог',exact:true}).click();await page.locator('#castBack').waitFor({state:'hidden'});
+ assert.deepEqual(await page.evaluate(()=>[getCh('g-first').hp,getCh('g-second').hp,magicPool(getCh('g-caster')).cur]),[27,21,11]);
+ await page.screenshot({path:path.join(output,'03-magic-missile.png'),fullPage:false});
+ await page.locator('button[onclick="castSpellFx(\'sp_magic_missile\',\'g-caster\')"]').click();await page.locator('#castTarget').selectOption('ally:g-first');await page.locator('#castConfirmBtn').click();await page.locator('#castStep3').getByRole('button',{name:'Отмена',exact:true}).click();assert.equal(await page.evaluate(()=>magicPool(getCh('g-caster')).cur),11);
+ await page.reload({waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'✠ Новый герой',exact:true}).waitFor({timeout:120000});await page.locator('.tab[data-tab="spellsdb"]').click();assert.match(await page.locator('.grimoire-intro').innerText(),/321 уникаль/);assert.deepEqual(errors,[]);
+ fs.writeFileSync(path.join(output,'browser-result.json'),JSON.stringify({ok:true,checks:['321 unique 2014 cards','pagination','search without lost focus','English aliases','paladin Revivify','mobile 390px','multi-target Magic Missile with shared d4','one MP payment','cancel preserves MP','reload preserves canonical catalog','no page exceptions']},null,2));console.log('Grimoire browser journey passed.');
+ }finally{await browser.close();server.close();}
+})().catch(error=>{console.error(error);server.close();process.exitCode=1;});

@@ -44,6 +44,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         races: seedRacesDB(), classes: seedClassesDB(), foes: seedFoesDB()
       },
       setState(s) {
+        campaignMagic=MAGIC_RULES.settings(s.campaignMagic);
         chars=s.chars||[]; journal=s.journal||[]; itemsDB=s.items||s.itemsDB||[];
         spellsDB=s.spells||s.spellsDB||[]; abilitiesDB=s.abilities||s.abilitiesDB||[];
         racesDB=s.races||s.racesDB||[]; classesDB=s.classes||s.classesDB||[];
@@ -53,11 +54,12 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         rollSpec=null; rollQueue=[]; rollCompleting=false; fxInvalidate();
       },
       state() { return {
-        chars,journal,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,
+        campaignMagic,chars,journal,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,
         classes:classesDB,rules:rulesDB,foes:foesDB,itemsDB,spellsDB,abilitiesDB,
         racesDB,classesDB,rulesDB,foesDB,activeCharId,fxRound,combat,lastCastEvent
       }; },
       runItemIntegrationAudit, runRareBattleAudit, runSpellPreparationAudit,
+      grimoireApi:{rules:GRIMOIRE_RULES,reconcile:grimoireReconcile,spellOf,grimoireActive,grimoireDuplicateName,spellCardHTML,renderSpellsDB,delSpellDB,grimoireRestore,spellClassTokens,spellRuleOf,inferComponents,spellExecutionPreflight,upgradeSpell,upgradeAbility,upgradeRace,upgradeClass},
       gameDataAudit, itemActions, itemProfile, itemUsesOf, itemAuditRollValues,
       itemUseOf, itemUseSpecOf, targetInfoOf, resolveOutcome, validateFormulaValues,
       useItemApply, castSpellApply, useAbilityApply, weaponSpecOf, weaponAttackApply,
@@ -67,8 +69,20 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
       closeCastModal, fxSum, invQty,
       elementText(id) { return String((document.getElementById(id)||{}).textContent||''); },
       setElementValue(id, value) { document.getElementById(id).value=String(value); },
+      craftPlanFor,commitCraftPlan,inventoryItemQty,combatSnapshotOf,combatSyncChanges,
       castState() { return {ctx:castCtx,spec:(castCtx&&castCtx.spec)||rollSpec}; }, castConfirm, castFormulaConfirm, castDistanceSet,
       buildRoku, buildTorgar, buildSeptih, buildLegerem, buildBlank,
+      charactersApi: {characterAdopt,characterSync,characterTraining,characterSnapshot,characterCreationPreview,characterCreatorErrors,characterSelectValue,characterOriginFx,characterCreatorCommit,
+        magicSwitch,magicPool,magicPlan,magicEnsure,magicUsesMp,magicFreeAccess,magicClassSpellAvailable,characterSpellEntries,spellEntryReady,spellRitualAllowed,combatActionsHTML,togglePrep,addSpellFromDB,delBookSpell,magicRules:MAGIC_RULES,slotPlanFor,commitSlotPlan,applyClassSlots,shortRest,stSpells,spellDashHTML,magicSettingsHTML,
+        setClass,setRace,setLevel,setHp,characterSetHpMax,abDelta,levelUp,levelDown,applyHp,longRest,refreshShortRestResources,sheetHTML,subraceOpts,subclassOpts,raceOpts,bgOpts,
+        casterMeta,slotsRowFor,maxCircleFor,knownSpellMax,cantripKnownMax,spellAddCheck,spellAccessCheck,skillBonus,armorProfsOf,speedTotal,dmgAfterTraits,finalizeRollSpec,saveConditionMode,holderEffectImmune,rollFxEntries,toolProficiencyHas,
+        rules:CHARACTER_RULES,backgrounds:BACKGROUNDS,
+        characterEnsureBackground,characterBackgroundProfile,characterBiographySet,characterBackgroundAction,backgroundContext,stBackground,stNotes,characterArmInspiration,characterInspirationEffect,consumeRollFx,rollCheck,rollCancel,rollDone,castFormulaRollsBuild,toolTaskCheckSpec,toolCheck,weaponAttackFx,castSpellFx,castFormulaShow,castFormulaBack,characterPendingInspiration,spellRollPreflight,
+        economyState(){return economyState;},
+        failBackgroundPersistence(){runScheduledSave=async()=>false;},
+        setDraft(c) {characterDraft=c;},draft(){return characterDraft;},
+        withoutPresentation(){renderChars=()=>{};renderCombat=()=>{};renderCharacterCreator=()=>{};characterCreatorClose=()=>{characterDraft=null;};}
+      },
       blankCombat, combatStart, combatNextTurn, combatSpend, combatCanSpend,
       coinCopperTotal, acTotal, eHpMax, effectiveConditions,
       dndWorldExportPayload, dndWorldImportPayload, loadAll, runScheduledSave,

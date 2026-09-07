@@ -18,7 +18,7 @@ test('Pages build validates and publishes only the current immutable catalog', (
   assert.match(report.catalogVersion, /^bg3-\d+-v\d+$/);
   assert.equal(report.status, 'verified');
   assert.equal(report.release, release);
-  assert.deepEqual(report.runtime, ['scripts/economy-core.js', 'scripts/merchant-core.js', 'scripts/item-domain-model.js', 'scripts/definition-repository.js', 'scripts/ruleset-registry.js', 'scripts/persistence-core.js', 'scripts/action-kernel.js', 'scripts/chest-core.js', 'scripts/catalog-governance.js', 'scripts/world-state-core.js', 'scripts/ui-action-contract.js', 'scripts/projection-cache.js', 'scripts/public-item-surface.js']);
+  assert.deepEqual(report.runtime, ['scripts/economy-core.js', 'scripts/merchant-core.js', 'scripts/item-domain-model.js', 'scripts/definition-repository.js', 'scripts/ruleset-registry.js', 'scripts/persistence-core.js', 'scripts/action-kernel.js', 'scripts/chest-core.js', 'scripts/catalog-governance.js', 'scripts/world-state-core.js', 'scripts/ui-action-contract.js', 'scripts/projection-cache.js', 'scripts/public-item-surface.js', 'scripts/character-rules.js', 'scripts/magic-rules.js', 'scripts/grimoire-rules.js']);
   assert.ok(report.ui.includes(`${report.catalogVersion}-item-presentation`));
   assert.ok(report.ui.includes(`${report.catalogVersion}-placement-browser`));
   assert.match(readFileSync(new URL('../index.html', import.meta.url), 'utf8'), /href="styles\.css"/);
@@ -37,7 +37,7 @@ test('Pages build validates and publishes only the current immutable catalog', (
   assert.match(builtIndex, new RegExp(`<meta name="dnd-world-release" content="${release}">`));
   assert.match(builtIndex, /<base href="\/dnd-world\/">/);
   assert.match(builtIndex, new RegExp(`href="/dnd-world/styles\\.css\\?release=${release}"`));
-  for (const path of [...report.runtime, 'data/dnd5e/open5e-cc-v1/catalog.js']) {
+  for (const path of [...report.runtime, 'data/dnd5e/open5e-cc-v1/catalog.js', 'data/dnd5e/srd51-spell-facts.js']) {
     assert.match(builtIndex, new RegExp(`src="/dnd-world/${path.replaceAll('.', '\\.')}\\?release=${release}"`), `${path} must be release-addressed`);
   }
   assert.deepEqual(releaseManifest, {

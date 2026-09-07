@@ -872,6 +872,9 @@ function loadEngine(random = () => 0, fetchImpl = null) {
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/magic-rules.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/grimoire-rules.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'data/dnd5e/srd51-spell-facts.js'), 'utf8'), context);
   vm.runInContext(source, context);
   return context.__bg3SummonRuntimeAudit;
 }
