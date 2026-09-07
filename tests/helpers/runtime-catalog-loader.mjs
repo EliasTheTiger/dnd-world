@@ -59,7 +59,8 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         racesDB,classesDB,rulesDB,foesDB,activeCharId,fxRound,combat,lastCastEvent
       }; },
       runItemIntegrationAudit, runRareBattleAudit, runSpellPreparationAudit,
-      grimoireApi:{rules:GRIMOIRE_RULES,reconcile:grimoireReconcile,spellOf,grimoireActive,grimoireDuplicateName,spellCardHTML,renderSpellsDB,delSpellDB,grimoireRestore,spellClassTokens,spellRuleOf,inferComponents,spellExecutionPreflight,upgradeSpell,upgradeAbility,upgradeRace,upgradeClass},
+      grimoireApi:{rules:GRIMOIRE_RULES,reconcile:grimoireReconcile,spellOf,grimoireActive,grimoireDuplicateName,spellCardHTML,renderSpellsDB,delSpellDB,grimoireRestore,spellClassTokens,spellRuleOf,inferComponents,spellExecutionPreflight,upgradeSpell,upgradeAbility,upgradeRace,upgradeClass,
+        grimoireSpellStatus,grimoireFavorite,grimoireNote,grimoireCompare,grimoireOpenCast,grimoireComparisonHTML,casterGuideHTML,circleLandSet,desk:grimoireDesk},
       gameDataAudit, itemActions, itemProfile, itemUsesOf, itemAuditRollValues,
       itemUseOf, itemUseSpecOf, targetInfoOf, resolveOutcome, validateFormulaValues,
       useItemApply, castSpellApply, useAbilityApply, weaponSpecOf, weaponAttackApply,
@@ -76,6 +77,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         magicSwitch,magicPool,magicPlan,magicEnsure,magicUsesMp,magicFreeAccess,magicClassSpellAvailable,characterSpellEntries,spellEntryReady,spellRitualAllowed,combatActionsHTML,togglePrep,addSpellFromDB,delBookSpell,magicRules:MAGIC_RULES,slotPlanFor,commitSlotPlan,applyClassSlots,shortRest,stSpells,spellDashHTML,magicSettingsHTML,
         setClass,setRace,setLevel,setHp,characterSetHpMax,abDelta,levelUp,levelDown,applyHp,longRest,refreshShortRestResources,sheetHTML,subraceOpts,subclassOpts,raceOpts,bgOpts,
         casterMeta,slotsRowFor,maxCircleFor,knownSpellMax,cantripKnownMax,spellAddCheck,spellAccessCheck,skillBonus,armorProfsOf,speedTotal,dmgAfterTraits,finalizeRollSpec,saveConditionMode,holderEffectImmune,rollFxEntries,toolProficiencyHas,
+        upgradeSpellcastingState,syncSubclassSpellGrants,prepCount,prepMax,loreSecretRemaining,knownSpellCount,cantripKnownCount,commitSpellLearningSelection,beginKnownSpellReplacement,
         rules:CHARACTER_RULES,backgrounds:BACKGROUNDS,
         characterEnsureBackground,characterBackgroundProfile,characterBiographySet,characterBackgroundAction,backgroundContext,stBackground,stNotes,characterArmInspiration,characterInspirationEffect,consumeRollFx,rollCheck,rollCancel,rollDone,castFormulaRollsBuild,toolTaskCheckSpec,toolCheck,weaponAttackFx,castSpellFx,castFormulaShow,castFormulaBack,characterPendingInspiration,spellRollPreflight,
         economyState(){return economyState;},

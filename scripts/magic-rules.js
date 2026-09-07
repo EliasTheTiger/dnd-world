@@ -71,5 +71,48 @@ function recover(c,amount){
   const restored=Math.min(state.spent,amount);state.spent-=restored;state.revision++;return restored;
 }
 function rest(c){const state=validateState(c.magicResource);state.spent=0;Object.values(state.archive).forEach(row=>row.cur=row.max);state.baselineSpent=0;state.revision++;}
-root.DND_MAGIC_RULES=Object.freeze({costs,settings,slots,value,full,shape,pool,validateState,sync,switchCharacter,fit,plan,commit,recover,rest});
+// SRD 5.1 pp. 17, 21–22, 33, 50. English identities survive catalog renames.
+const landSpells=Object.freeze({
+  'Арктика':[['Hold Person','Spike Growth'],['Sleet Storm','Slow'],['Freedom of Movement','Ice Storm'],['Commune with Nature','Cone of Cold']],
+  'Побережье':[['Mirror Image','Misty Step'],['Water Breathing','Water Walk'],['Control Water','Freedom of Movement'],['Conjure Elemental','Scrying']],
+  'Пустыня':[['Blur','Silence'],['Create Food and Water','Protection from Energy'],['Blight','Hallucinatory Terrain'],['Insect Plague','Wall of Stone']],
+  'Лес':[['Barkskin','Spider Climb'],['Call Lightning','Plant Growth'],['Divination','Freedom of Movement'],['Commune with Nature','Tree Stride']],
+  'Луга':[['Invisibility','Pass without Trace'],['Daylight','Haste'],['Divination','Freedom of Movement'],['Dream','Insect Plague']],
+  'Горы':[['Spider Climb','Spike Growth'],['Lightning Bolt','Meld into Stone'],['Stone Shape','Stoneskin'],['Passwall','Wall of Stone']],
+  'Болото':[['Acid Arrow','Darkness'],['Water Walk','Stinking Cloud'],['Freedom of Movement','Locate Creature'],['Insect Plague','Scrying']]
+});
+const subclassLists=Object.freeze([
+  {cls:'Жрец',subcls:'Домен Жизни',kind:'prepared',levels:[1,3,5,7,9],spells:[['Bless','Cure Wounds'],['Lesser Restoration','Spiritual Weapon'],['Beacon of Hope','Revivify'],['Death Ward','Guardian of Faith'],['Mass Cure Wounds','Raise Dead']]},
+  {cls:'Паладин',subcls:'Клятва Преданности',kind:'prepared',levels:[3,5,9,13,17],spells:[['Protection from Evil and Good','Sanctuary'],['Lesser Restoration','Zone of Truth'],['Beacon of Hope','Dispel Magic'],['Freedom of Movement','Guardian of Faith'],['Commune','Flame Strike']]},
+  {cls:'Колдун',subcls:'Исчадие',kind:'expanded',levels:[1,3,5,7,9],spells:[['Burning Hands','Command'],['Blindness/Deafness','Scorching Ray'],['Fireball','Stinking Cloud'],['Fire Shield','Wall of Fire'],['Flame Strike','Hallow']]}
+]);
+function subclassSpells(c){
+  const rule=c.cls==='Друид'&&c.subcls==='Круг Земли'&&Object.hasOwn(landSpells,c.circleLand)
+    ?{kind:'prepared',levels:[3,5,7,9],spells:landSpells[c.circleLand]}:subclassLists.find(r=>r.cls===c.cls&&r.subcls===c.subcls);
+  return rule?rule.spells.flatMap((names,i)=>names.map(english=>({english,level:rule.levels[i],kind:rule.kind,source:c.subcls+(c.cls==='Друид'?' · '+c.circleLand:'')}))):[];
+}
+function recoveryFeature(c){
+  if(c.cls==='Волшебник')return {key:'arcUsed',name:'Арканное восстановление',budget:Math.ceil(c.level/2)};
+  if(c.cls==='Друид'&&c.subcls==='Круг Земли'&&c.level>=2)return {key:'naturalRecoveryUsed',name:'Естественное восстановление',budget:Math.ceil(c.level/2)};
+  return null;
+}
+function recoveryPlan(c,mode,choice){
+  const feature=recoveryFeature(c),fail=reason=>({ok:false,reason});
+  if(!feature||c[feature.key])return fail('Восстановление недоступно до долгого отдыха.');
+  if(mode==='mp'){
+    const amount=choice;
+    if(!Number.isSafeInteger(amount)||amount<1||amount>2*feature.budget||amount>pool(c).spent)return fail('Выберите целое число MP в пределах потраченного запаса и бюджета восстановления.');
+    return {ok:true,feature,mode,amount};
+  }
+  if(mode!=='slots'||!Array.isArray(choice)||!choice.length)return fail('Выберите хотя бы одну потраченную ячейку.');
+  const counts={};let total=0;
+  for(const level of choice){
+    if(!Number.isInteger(level)||level<1||level>5)return fail('Восстанавливаются только ячейки 1–5 кругов.');
+    const row=c.slots?.[level];counts[level]=(counts[level]||0)+1;total+=level;
+    if(!row||counts[level]>row.max-row.cur)return fail('Выбрано больше ячеек, чем потрачено.');
+  }
+  if(total>feature.budget)return fail('Сумма кругов превышает бюджет '+feature.budget+'.');
+  return {ok:true,feature,mode,counts,total};
+}
+root.DND_MAGIC_RULES=Object.freeze({costs,settings,slots,value,full,shape,pool,validateState,sync,switchCharacter,fit,plan,commit,recover,rest,landSpells,subclassLists,subclassSpells,recoveryFeature,recoveryPlan});
 })(typeof window!=='undefined'?window:globalThis);
