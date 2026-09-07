@@ -354,14 +354,17 @@ async function step(definition, action) {
   const full = { ...definition, number: stepNumber };
   const indexes = { console: consoleEvents.length, network: networkEvents.length, dialog: dialogEvents.length };
   const startedAt = new Date().toISOString();
+  process.stdout.write(`${full.phase}: ${full.id} started\n`);
   try {
     const actual = await action();
     results.push({ ...full, status: 'PASS', startedAt, actual: actual || 'Ожидаемое состояние наблюдается.', url: page.url() });
+    process.stdout.write(`${full.phase}: PASS\n`);
   } catch (error) {
     const status = error instanceof QaBlocked ? 'BLOCKED' : 'FAIL';
     const actual = error && error.message ? error.message : String(error);
     const evidence = await captureFailure(full, status, actual, indexes);
     results.push({ ...full, status, startedAt, ...evidence });
+    process.stdout.write(`${full.phase}: ${status}: ${actual}\n`);
     await dismissVisibleModal().catch(() => {});
   }
 }
