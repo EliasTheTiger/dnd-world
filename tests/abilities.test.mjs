@@ -90,3 +90,62 @@ test('temporary ability buffs on heroes carry the declared duration and cast ide
  assert.equal(e.useAbilityApply(ab.id,c.id,'ally:'+c.id,null),true);const fx=c.activeFx.find(f=>f.id===ab.id);assert.equal(fx.casterId,c.id);assert.ok(fx.castId);assert.equal(fx.expiresAtRound,e.state().fxRound+2);assert.equal(e.acTotal(c),ac+2);
  a.advanceFxRound(2);assert.equal(e.acTotal(c),ac);assert.equal(c.activeFx.some(f=>f.id===ab.id),false);
 });
+
+test('each logical ability appears once across every catalog page, with separate rule profiles',()=>{
+ const {e,a}=world(),index=a.abilityCatalogIndex(true),names=[];
+ assert.equal(index.groups.length,383);
+ assert.equal(new Set(index.groups.map(g=>g.name)).size,index.groups.length);
+ a.filters.edition='';a.renderAbilitiesDB();
+ for(let page=0;page<Math.ceil(index.groups.length/40);page++){a.filters.page=page;a.renderAbilitiesDB();names.push(...[...a.html('tab-abilitiesdb').matchAll(/<h4>(.*?)<\/h4>/g)].map(m=>m[1]));}
+ assert.equal(names.length,index.groups.length);assert.equal(new Set(names).size,names.length);
+ const wind=source(e,'Second Wind'),group=index.byId.get(wind.id);
+ assert.equal(group.variants.length,3);a.filters.q='Second Wind';a.renderAbilitiesDB();assert.equal((a.html('tab-abilitiesdb').match(/class="entry-card"/g)||[]).length,1);
+ const newer=source(e,'Second Wind','srd-2024');a.abilitySelectVariant(newer.id);assert.match(a.html('tab-abilitiesdb'),/D&D 2024 · справочная карточка/);
+ const manual={id:'master-defense',n:'Защита хранителя',x:'Первый вариант мастера',type:'class',custom:true,open5e:{originalName:'Guardian Defense'}};
+ e.state().abilities.push(manual,{...manual,id:'second-defense',x:'Особый вариант мастера'});
+ a.filters.q='Особый вариант мастера';a.filters.edition='custom';a.renderAbilitiesDB();assert.match(a.html('tab-abilitiesdb'),/Особый вариант мастера/);assert.doesNotMatch(a.html('tab-abilitiesdb'),/Первый вариант мастера/);
+ assert.notEqual(index.byId.get(source(e,'Unarmored Defense').id).variants[0].id,index.byId.get(source(e,'Unarmored Defense').id).variants[1].id);
+ const improved=e.state().abilities.find(ab=>ab.id==='ab_sx_sneak');assert.notEqual(index.byId.get(improved.id).key,index.byId.get(source(e,'Sneak Attack').id).key,'custom improved Sneak Attack keeps its own rules');
+});
+
+test('legacy and imported assignments merge without refilling charges or losing notes and effect identities',()=>{
+ const {e,a,c}=world(),wind=source(e,'Second Wind'),legacy=a.abilityOf('ab_lg_secondwind');
+ c.abilities=[{abilityId:wind.id,cur:1,notes:'Основная запись'},{abilityId:legacy.id,cur:0,notes:'Заряд потрачен'}];
+ c.activeFx=[{k:'ability',id:legacy.id,castId:'old-cast',casterId:c.id,expiresAtRound:5,fx:[]}];const fx=JSON.stringify(c.activeFx);
+ c.characterBuild={archivedAbilities:[{abilityId:wind.id,cur:1,notes:'Архив'},{abilityId:legacy.id,cur:0,notes:'Расход'}]};
+ assert.equal(a.reconcileAssignments(),true);assert.equal(c.abilities.length,1);assert.equal(c.abilities[0].abilityId,wind.id);assert.equal(c.abilities[0].cur,0);assert.match(c.abilities[0].notes,/Основная запись\nЗаряд потрачен/);assert.equal(JSON.stringify(c.activeFx),fx);
+ assert.equal(c.characterBuild.archivedAbilities.length,1);assert.equal(c.characterBuild.archivedAbilities[0].cur,0);
+ const before=JSON.stringify(e.state());assert.equal(a.reconcileAssignments(),false);assert.equal(JSON.stringify(e.state()),before);
+ assert.equal(e.useAbilityApply(wind.id,c.id,'ally:'+c.id,{healTotal:20}),false);assert.equal(c.hp,3);
+ assert.equal(a.addAbilityFromDB(legacy.id),false);assert.equal(c.abilities.length,1);assert.equal(c.abilities[0].cur,0);
+});
+
+test('duplicate passive grants count once and disabled aliases stay disabled after migration',()=>{
+ const {e,a,c}=world(),one={id:'shield-a',n:'Защита хранителя',type:'other',mode:'passive',uses:null,x:'',fx:[{stat:'ac',mode:'add',value:2}]},two={...one,id:'shield-b'};
+ for(const ab of [one,two]){e.grimoireApi.upgradeAbility(ab);e.state().abilities.push(ab);}
+ const base=e.acTotal(c);c.abilities=[{abilityId:one.id,cur:null},{abilityId:two.id,cur:null}];e.setState({...e.state()});
+ assert.equal(e.acTotal(c),base+2,'duplicates cannot double a passive bonus even before migration');
+ c.fxOff=['ability:'+two.id];assert.equal(a.reconcileAssignments(),true);assert.equal(c.abilities.length,1);assert.ok(c.fxOff.includes('ability:'+one.id));assert.equal(e.acTotal(c),base);
+});
+
+test('race and class auto-grants reuse owned counterparts at repeated sync without charge reset',()=>{
+ const {e,a,c}=world(),wind=source(e,'Second Wind'),legacy=a.abilityOf('ab_lg_secondwind');
+ c.race='Эльф';c.abilities=[{abilityId:legacy.id,cur:0,notes:'Сохранённый расход'},{abilityId:'ab_darkvision',cur:null,notes:'Ночное зрение'}];c.characterBuild={};
+ a.characterSyncFeatures(c);a.addRaceTraitsToChar();a.characterSyncFeatures(c);a.addRaceTraitsToChar();
+ const index=a.abilityCatalogIndex();assert.equal(c.abilities.length,a.abilityUniqueEntries(c).length);
+ assert.equal(c.abilities.filter(entry=>index.byId.get(entry.abilityId)?.key===index.byId.get(wind.id).key).length,1);assert.equal(c.abilities.find(entry=>entry.abilityId===legacy.id).cur,0);
+ assert.equal(c.abilities.filter(entry=>index.byId.get(entry.abilityId)?.key==='en:darkvision').length,1);
+});
+
+test('changing an Action Surge source cannot bypass its once-per-turn restriction',()=>{
+ const {e,a,c}=world(),ab=source(e,'Action Surge'),legacy=a.abilityOf('ab_lg_surge'),combat=e.blankCombat();
+ Object.assign(combat,{active:true,id:'same-turn',round:1,turnIndex:0,order:[{kind:'ally',id:c.id,key:'ally:'+c.id,initiative:10}],turn:{actorKey:'ally:'+c.id,actionsUsed:0,actionMax:2,bonusUsed:false,abilityUsed:{[legacy.id]:true}}});
+ c.abilities=[{abilityId:ab.id,cur:1,notes:''}];e.setState({...e.state(),combat});
+ assert.equal(a.combatAbilityUsedThisTurn(ab,'ally:'+c.id),true);const before=JSON.stringify(e.state());assert.equal(e.useAbilityApply(ab.id,c.id,'ally:'+c.id,{notes:[],verdict:[]}),false);assert.equal(JSON.stringify(e.state()),before);
+});
+
+test('both creation forms reject a duplicate name before mutating the world',()=>{
+ const {e,a}=world();e.setElementValue('qaN','Ночное зрение');e.setElementValue('edAbN','Второе дыхание');
+ const before=JSON.stringify(e.state());assert.equal(a.quickAddAbility(),false);assert.equal(a.saveAbilityEd(),false);assert.equal(JSON.stringify(e.state()),before);
+ const rows=e.state().abilities;assert.ok(a.rules.duplicateName(rows,'ACTION SURGE'));assert.ok(a.rules.duplicateName(rows,'всплеск действий'));assert.equal(a.rules.duplicateName(rows,'Новая способность мастера'),undefined);
+});

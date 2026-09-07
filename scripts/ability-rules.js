@@ -181,14 +181,88 @@ function matches(ab,query){
  if(!cached||fields.some((v,i)=>v!==cached.fields[i])){cached={fields,text:normalize([ab.n,ab.x,ab.source,identity(ab),...(aliases||[])].join(' '))};searchCache.set(ab,cached);}
  return cached.text.includes(q);
 }
-function canAssign(c,ab){
+// One ability can have several source-specific rule profiles. Never combine
+// their mechanics: Unarmored Defense, for example, differs by class.
+function baseName(ab){
+ const name=String(ab?.n||'').trim(),suffix=' ('+ab?.source+')';
+ return ab?.type==='racial'&&name.endsWith(suffix)?name.slice(0,-suffix.length):name;
+}
+function identityKey(ab){
+ let en=normalize(identity(ab));
+ en=({'unarmoed movement':'unarmored movement','life domain spells (table)':'life domain spells','luck':'lucky','fiendish legacy':'infernal legacy'})[en]||en;
+ // Lucky the feat and Lucky the halfling trait are different rules.
+ return en?en+(en==='lucky'?':'+ab.type:''):'';
+}
+function groups(rows){
+ const byKey=new Map(),byName=new Map(),unknown=[];
+ const add=(key,ab)=>{if(!byKey.has(key))byKey.set(key,{key,name:baseName(ab),variants:[]});byKey.get(key).variants.push(ab);};
+ for(const ab of rows||[]){
+  const key=identityKey(ab);if(!key){unknown.push(ab);continue;}
+  add('en:'+key,ab);const name=normalize(baseName(ab));
+  if(!byName.has(name))byName.set(name,new Set());byName.get(name).add('en:'+key);
+ }
+ for(const ab of unknown){
+  const name=normalize(baseName(ab)),candidates=byName.get(name);
+  // A name alone must not join distinct English identities (Skilled/Skillful).
+  add(candidates?.size===1?[...candidates][0]:'ru:'+name,ab);
+ }
+ const result=[...byKey.values()],names=new Map();
+ for(const group of result){
+  const preferred=choose(group.variants);group.name=({'en:augment':'Улучшение предметов','en:improvement':'Улучшение характеристик'})[group.key]||baseName(preferred);
+  const name=normalize(group.name);if(!names.has(name))names.set(name,[]);names.get(name).push(group);
+ }
+ for(const collisions of names.values())if(collisions.length>1)for(const group of collisions){
+  const ab=choose(group.variants),kind={feat:'черта',racial:'особенность народа',class:'классовая способность'}[ab.type]||ab.type;
+  group.name+=' — '+kind;
+ }
+ return result;
+}
+function choose(variants,c){
+ const score=ab=>(edition(ab)==='2014'?100:edition(ab)==='custom'?50:0)
+  +(c&&(ab.open5e?.ownerNameRu===c.cls||ab.source===c.cls||ab.open5e?.ownerNameRu===c.race||ab.source===c.race)?40:0)
+  +(ab.catalogSource?.documentKey==='srd-2014'?10:0);
+ return variants.reduce((best,ab)=>!best||score(ab)>score(best)?ab:best,null);
+}
+function catalogIndex(rows){
+ const list=groups(rows),byId=new Map();for(const group of list)for(const ab of group.variants)byId.set(ab.id,group);
+ return {groups:list,byId};
+}
+function owned(c,ab,index){
+ const key=index?.byId.get(ab?.id)?.key;
+ return (c?.abilities||[]).some(e=>e.abilityId===ab?.id||key&&index.byId.get(e.abilityId)?.key===key);
+}
+function uniqueEntries(entries,index){
+ const seen=new Set();return (entries||[]).filter(e=>{const key=index.byId.get(e.abilityId)?.key||'id:'+e.abilityId;if(seen.has(key))return false;seen.add(key);return true;});
+}
+function mergeEntries(entries,index,maxUses){
+ const result=[],seen=new Map();let changed=false;
+ for(const entry of entries||[]){
+  const group=index.byId.get(entry.abilityId),key=group?.key||'id:'+entry.abilityId,first=seen.get(key);
+  if(!first){seen.set(key,entry);result.push(entry);continue;}
+  changed=true;
+  // Keep the assigned rule profile and its ID. A duplicate must never refill it.
+  const max=maxUses?.(first.abilityId),counts=[first.cur,entry.cur,max].filter(n=>typeof n==='number'&&Number.isFinite(n));
+  if(counts.length)first.cur=Math.max(0,Math.min(...counts));
+  const notes=[first.notes,entry.notes].filter(Boolean);first.notes=[...new Set(notes)].join('\n');
+  // Preserve extra assignment data, without replacing the selected profile.
+  for(const [field,value] of Object.entries(entry))if(!(field in first)&&!['characterGranted','originGranted','buildSource'].includes(field))first[field]=value;
+  if(!entry.characterGranted)delete first.characterGranted;
+  if(!entry.originGranted)delete first.originGranted;
+ }
+ return {entries:changed?result:entries,changed};
+}
+function duplicateName(rows,name,exceptId){
+ const q=normalize(name),candidates=(rows||[]).filter(ab=>ab.id!==exceptId);
+ return candidates.find(ab=>[ab.n,baseName(ab),identity(ab),...(ab.abilityReview?.aliases||[])].some(n=>normalize(n)===q))||groups(candidates).find(group=>normalize(group.name)===q)?.variants[0];
+}
+function canAssign(c,ab,index){
  if(!c||!ab)return {ok:false,reason:'Способность не найдена.'};
  if(edition(ab)==='2024')return {ok:false,reason:'Эта карточка относится к D&D 2024. В кампании D&D 2014 она доступна для справки.'};
  if(ab.type==='feat'&&identity(ab)==='Grappler'&&!(Number(c.ab?.str)>=13))return {ok:false,reason:'Для черты «Рукопашный борец» нужна Сила 13 или выше.'};
- const duplicate=(c.abilities||[]).some(e=>e.abilityId===ab.id);
+ const duplicate=owned(c,ab,index);
  return duplicate?{ok:false,reason:'Эта способность уже есть у героя.'}:{ok:true};
 }
-const api={revision,normalize,identity,edition,reconcile,matches,canAssign,termFor,parserText};
+const api={revision,normalize,identity,edition,reconcile,matches,canAssign,termFor,parserText,baseName,groups,choose,catalogIndex,owned,uniqueEntries,mergeEntries,duplicateName};
 root.DND_ABILITY_RULES=api;
 if(typeof module==='object'&&module.exports)module.exports=api;
 })(globalThis);

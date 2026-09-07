@@ -63,7 +63,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
       runItemIntegrationAudit, runRareBattleAudit, runSpellPreparationAudit,
       grimoireApi:{rules:GRIMOIRE_RULES,reconcile:grimoireReconcile,spellOf,grimoireActive,grimoireDuplicateName,spellCardHTML,renderSpellsDB,delSpellDB,grimoireRestore,spellClassTokens,spellRuleOf,inferComponents,spellExecutionPreflight,upgradeSpell,upgradeAbility,upgradeRace,upgradeClass,
         grimoireSpellStatus,grimoireFavorite,grimoireNote,grimoireCompare,grimoireOpenCast,grimoireComparisonHTML,casterGuideHTML,circleLandSet,desk:grimoireDesk},
-      abilitiesApi:{rules:ABILITY_RULES,reconcile:reconcileAbilityRules,abilityMaxUses,abilityOutcomePreflight,canUseAbilityCheck,abilityCardHTML,addAbilityFromDB,delCharAbility,stAbilities,renderAbilitiesDB,abilityCastFx,abilityOf,combatAbilityUsedThisTurn,combatAttackCount,filters:dbFlt.ab,
+      abilitiesApi:{rules:ABILITY_RULES,reconcile:reconcileAbilityRules,reconcileAssignments:reconcileAbilityAssignments,abilityCatalogIndex,abilityUniqueEntries,characterSyncFeatures,addRaceTraitsToChar,quickAddAbility,saveAbilityEd,abilitySelectVariant,abilityMaxUses,abilityOutcomePreflight,canUseAbilityCheck,abilityCardHTML,addAbilityFromDB,delCharAbility,stAbilities,renderAbilitiesDB,abilityCastFx,abilityOf,combatAbilityUsedThisTurn,combatAttackCount,filters:dbFlt.ab,
         html(id){return document.getElementById(id).innerHTML;},
         quiet(){renderChars=()=>{};renderCombat=()=>{};renderFoes=()=>{};renderChests=()=>{};renderMerchants=()=>{};},
         setCast(ctx){castCtx=ctx;},roll(){return rollSpec;},advanceFxRound

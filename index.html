@@ -3918,7 +3918,7 @@ classesDB.forEach(upgradeClass);
 foesDB.forEach(upgradeFoe);
 let spellStateTouched=false;
 chars.forEach(c=>{ if(typeof upgradeSpellcastingState==='function'&&upgradeSpellcastingState(c)) spellStateTouched=true; });
-if(spellStateTouched||bg3LearnedStateTouched) scheduleSave();
+if(reconcileAbilityAssignments()||spellStateTouched||bg3LearnedStateTouched) scheduleSave();
 journal=(await readJSON('dndworld2:journal')) || (await readJSON('dndworld:journal')) || [];
 combat=normalizeCombatState(savedWorld?savedWorld.combat:await readJSON('dndworld2:combat'));
 harvestedSources=(savedWorld?savedWorld.harvestedSources:await readJSON('dndworld2:harvested-sources'))||{};
@@ -4248,6 +4248,7 @@ catch(error){catalogWarning=' Каталог предметов пока нед�
 journal=data.journal||journal;
 (data.chars||[]).forEach(o=>chars.push(upgradeOldChar(o)));
 } else return {ok:false,reason:'not-dnd-world'};
+reconcileAbilityAssignments();
 scheduleSave(); scheduleJournalSave();
 renderChars(); renderCombat(); renderJournal(); renderSpellsDB(); renderItemsDB(); if(typeof renderChests==='function')renderChests(); renderMerchants(); renderAbilitiesDB(); renderRaces(); renderClasses(); renderRules(); renderFoes();
 return {ok:true,catalogWarning};
@@ -4780,7 +4781,7 @@ out.push(s);
 
 
 if(typeof bg3LifecycleFxSources==='function') out.push(...bg3LifecycleFxSources(c));
-(c.abilities||[]).forEach(e=>{
+abilityUniqueEntries(c).forEach(e=>{
 const ab=abilityOf(e.abilityId); if(!ab) return;
 if(isPassiveAbility(ab)){
 let fx=recFx(ab,'ability');
@@ -5203,13 +5204,13 @@ return true;
 
 
 function profTextsOf(c){
-return (c.abilities||[]).map(e=>abilityOf(e.abilityId)).filter(ab=>ab&&isPassiveAbility(ab))
+return abilityUniqueEntries(c).map(e=>abilityOf(e.abilityId)).filter(ab=>ab&&isPassiveAbility(ab))
 .map(ab=>String((ab.n||'')+' '+(ab.x||'')).toLowerCase().replace(/\u0451/g,'е'));
 }
 function structuredProficienciesOf(c){
 const out={armor:{},weapons:{simple:false,martial:false,names:[]},materialBan:'',found:false};
 if(CHARACTER_RULES&&c.characterBuild){const p=characterTraining(c);Object.assign(out,{armor:p.armor,weapons:p.weapons,found:true});if(c.cls==='Друид')out.materialBan='metalArmor';}
-(c.abilities||[]).map(e=>abilityOf(e.abilityId)).filter(ab=>ab&&isPassiveAbility(ab)).forEach(ab=>{
+abilityUniqueEntries(c).map(e=>abilityOf(e.abilityId)).filter(ab=>ab&&isPassiveAbility(ab)).forEach(ab=>{
 const m=currentMechanics(ab,'ability');
 if(!m||m.schemaVersion!==GAME_MECHANICS_SCHEMA_VERSION||m.mode==='legacy') return;
 out.found=true;
@@ -5320,6 +5321,23 @@ return armorViolations(c).filter(v=>off.indexOf(v.key)<0);
 
 
 const ABILITY_RULES=globalThis.DND_ABILITY_RULES;
+let abilityIndexCache=null;
+function abilityCatalogIndex(refresh=false){
+if(refresh||!abilityIndexCache||abilityIndexCache.rows!==abilitiesDB||abilityIndexCache.length!==abilitiesDB.length)abilityIndexCache={rows:abilitiesDB,length:abilitiesDB.length,index:ABILITY_RULES.catalogIndex(abilitiesDB)};
+return abilityIndexCache.index;
+}
+function abilityUniqueEntries(c){return ABILITY_RULES.uniqueEntries(c.abilities,abilityCatalogIndex());}
+function reconcileAbilityAssignments(holders=chars){
+const index=abilityCatalogIndex(true);let changed=false;
+for(const c of holders){
+const merge=entries=>ABILITY_RULES.mergeEntries(entries,index,id=>abilityMaxUses(c,abilityOf(id)));
+const result=merge(c.abilities);if(result.changed){c.abilities=result.entries;changed=true;}
+if(c.characterBuild?.archivedAbilities){const archived=merge(c.characterBuild.archivedAbilities);if(archived.changed){c.characterBuild.archivedAbilities=archived.entries;changed=true;}}
+// A disabled passive remains disabled when its duplicate assignment is removed.
+for(const entry of c.abilities||[]){const group=index.byId.get(entry.abilityId);if(group&&(c.fxOff||[]).some(key=>group.variants.some(ab=>key==='ability:'+ab.id))&&!c.fxOff.includes('ability:'+entry.abilityId)){c.fxOff.push('ability:'+entry.abilityId);changed=true;}}
+}
+if(changed)fxInvalidate();return changed;
+}
 function reconcileAbilityRules(rows){
 ABILITY_RULES.reconcile(rows);
 rows.forEach(ab=>{
@@ -5350,6 +5368,7 @@ return Math.max(ab.uses,...rules.filter(r=>r.cls===c?.cls&&c.level>=r.level).map
 function canUseAbilityCheck(caster, ab){
 if(!caster||!ab)return {ok:false,reason:'Герой или способность не найдены.'};
 if(!(caster.abilities||[]).some(e=>e.abilityId===ab.id))return {ok:false,reason:'Эта способность отсутствует у героя.'};
+if(abilityUniqueEntries(caster).length!==(caster.abilities||[]).length)return {ok:false,reason:'У героя повторяются способности. Перезагрузите сохранение, чтобы объединить записи перед применением.'};
 if(ab.mechanics?.mode==='manual'||!abilityIsActive(ab))return {ok:false,reason:'Эта способность применяется по условию или служит справкой; самостоятельное действие недоступно.'};
 if(combatAbilityUsedThisTurn(ab,'ally:'+caster.id))return {ok:false,reason:'Эта способность уже использована в текущем ходу.'};
 if(['second-wind-2014','action-surge-2014'].includes(ab.enginePolicy?.handler)&&
@@ -18144,8 +18163,9 @@ function combatAbilityUsable(ab){
 return !!(ab&&abilityIsActive(ab)&&abilityCombatRules(ab).usable!==false);
 }
 function combatAbilityUsedThisTurn(ab,actorKey){
-return !!(ab&&abilityCombatRules(ab).oncePerTurn&&combat.active&&actorKey===combatCurrentKey()&&combat.turn
-&&combat.turn.abilityUsed&&combat.turn.abilityUsed[ab.id]);
+if(!ab||!combat.active||actorKey!==combatCurrentKey()||!combat.turn?.abilityUsed)return false;
+const variants=abilityCatalogIndex().byId.get(ab.id)?.variants||[ab];
+return variants.some(variant=>abilityCombatRules(variant).oncePerTurn)&&variants.some(variant=>combat.turn.abilityUsed[variant.id]);
 }
 function combatCastSpell(id){ const key=combatFocusedKey(),e=combatEntryByKey(key),sp=spellOf(id); if(!e||e.kind!=='ally'||!sp) return false; const cost=combatSpellCost(sp); if(!combatSpellTurnAllowed(sp,cost,key)) return false; return combatPrimeCast(key,cost,'Заклинание «'+sp.n+'»',()=>castSpellFx(id,e.id)); }
 function combatUseAbility(id){
@@ -20233,14 +20253,14 @@ else if(sp.l>0) h+='<div class="props-block note-ital" style="font-size:13px"><s
 return h+'</div>';
 }
 const ABILITY_TYPES={class:'Классовая',racial:'Расовая',feat:'Черта',background:'Предыстория',other:'Прочее'};
-function abilityCardHTML(ab, extra){
+function abilityCardHTML(ab, extra, view){
 extra=extra||'';
-let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(ab.n)+'</h4>'
+let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(view?.name||ab.n)+'</h4>'
 +'<span class="type-tag">'+esc(ABILITY_TYPES[ab.type]||ab.type)+'</span>'
 +(ab.source?'<span class="type-tag">'+esc(ab.source)+'</span>':'')
 +tagChips(ab.tags,ABILITY_TAGS)
 +'<span class="spacer"></span>'+extra+'</div>';
-h+=descBlock(ab.x);
+h+=(view?.selector||'')+descBlock(ab.x);
 h+='<div class="stat-line"><b>Применение:</b> '+abilityModeLabel(ab)+'</div>';
 if(ab.catalogSource)h+='<div class="stat-line"><b>Источник:</b> '+esc(ab.catalogSource.documentName)+' · '+esc(ab.catalogSource.gamesystem)+' · CC-BY-4.0 · язык: русский</div>';
 const review=ab.abilityReview;
@@ -27411,6 +27431,13 @@ itemAuditView=null; scheduleSave(); renderItemsDB(); if(activeCharId) renderChar
 }
 
 
+const abilityVariantSelection=new Map();
+function abilityVariantLabel(ab){return (ab.open5e?.ownerNameRu||ab.source||'Авторские правила')+' · '+({'2014':'D&D 2014','2024':'D&D 2024','custom':'авторский вариант','third-party':'сторонние правила'}[ABILITY_RULES.edition(ab)])+(ab.custom?' · '+ab.n:'');}
+function abilityVariantSelectHTML(variants,selected,hero=false){
+if(variants.length<2)return '';
+return '<label class="stat-line">Вариант правил <select aria-label="Вариант правил" style="max-width:100%" onclick="event.stopPropagation()" onchange="'+(hero?'this.closest(\'.spell-hit\').dataset.abilityId=this.value':'abilitySelectVariant(this.value)')+'">'+variants.map(ab=>'<option value="'+esc(ab.id)+'"'+(ab.id===selected.id?' selected':'')+'>'+esc(abilityVariantLabel(ab))+'</option>').join('')+'</select></label>';
+}
+function abilitySelectVariant(id){const group=abilityCatalogIndex().byId.get(id);if(group)abilityVariantSelection.set(group.key,id);renderAbilitiesDB();}
 function renderAbilitiesDB(){
 const box=document.getElementById('tab-abilitiesdb'); const f=dbFlt.ab;
 const search=document.activeElement,caret=search?.id==='abilityDbSearch'?[search.selectionStart,search.selectionEnd]:null;
@@ -27424,20 +27451,23 @@ let h='<h2 class="rubric">Свод способностей мира</h2>'
 +'<select aria-label="Применение способностей" onchange="dbFlt.ab.mode=this.value;renderAbilitiesDB()">'+[['','Любое применение'],['active','Активные'],['passive','Пассивные'],['resource','Ресурсы'],['triggered','По условию'],['manual','Справочные']].map(([key,label])=>'<option value="'+key+'"'+(f.mode===key?' selected':'')+'>'+label+'</option>').join('')+'</select>'
 +'<button class="btn rub" onclick="openAbilityEd(\'\')">✚ Новая способность</button></div>';
 if(editing.ab!==null) h+=abilityEditorHTML();
-const arr=abilitiesDB.filter(ab=>
-ABILITY_RULES.matches(ab,f.q)
-&& (!f.type || ab.type===f.type)
+const catalog=abilityCatalogIndex(true);
+const arr=catalog.groups.map(group=>({...group,variants:group.variants.filter(ab=>
+(!f.type || ab.type===f.type)
 && (!f.edition || (f.edition==='campaign'?['2014','custom'].includes(ABILITY_RULES.edition(ab)):ABILITY_RULES.edition(ab)===f.edition))
 && (!f.mode || (ab.mechanics?.mode==='manual'?'manual':ab.mechanics?.role||ab.mode)===f.mode)
-).sort((a,b)=>a.n.localeCompare(b.n,'ru'));
+)})).filter(group=>group.variants.length&&(ABILITY_RULES.normalize(group.name).includes(ABILITY_RULES.normalize(f.q))||group.variants.some(ab=>ABILITY_RULES.matches(ab,f.q))))
+.sort((a,b)=>a.name.localeCompare(b.name,'ru'));
 const pages=Math.max(1,Math.ceil(arr.length/40));f.page=Math.min(Math.max(0,f.page||0),pages-1);const shown=arr.slice(f.page*40,(f.page+1)*40);
-h+='<p class="note-ital" style="font-size:14px">Записей: '+arr.length+' из '+abilitiesDB.length+' · страница '+(f.page+1)+' из '+pages+'</p>';
+h+='<p class="note-ital" style="font-size:14px">Способностей и черт: '+arr.length+' из '+catalog.groups.length+' · страница '+(f.page+1)+' из '+pages+'. Одна карточка на способность; различия по классу, народу и редакции — в выборе варианта правил.</p>';
 const pager=pages>1?'<div class="db-bar"><button class="btn ghost sm" '+(f.page===0?'disabled':'')+' onclick="dbFlt.ab.page--;renderAbilitiesDB()">← Назад</button><button class="btn ghost sm" '+(f.page===pages-1?'disabled':'')+' onclick="dbFlt.ab.page++;renderAbilitiesDB()">Далее →</button></div>':'';
 h+=pager;
-shown.forEach(ab=>{
+shown.forEach(group=>{
+const matching=group.variants.filter(ab=>ABILITY_RULES.matches(ab,f.q));
+const ab=group.variants.find(ab=>ab.id===abilityVariantSelection.get(group.key))||ABILITY_RULES.choose(matching.length?matching:group.variants);
 h+=abilityCardHTML(ab,
 '<button class="btn ghost sm" onclick="openAbilityEd(\''+ab.id+'\')">✎</button>'
-+'<button class="del-x" onclick="delAbilityDB(\''+ab.id+'\')">✕</button>');
++'<button class="del-x" title="Удалить этот вариант правил" onclick="delAbilityDB(\''+ab.id+'\')">✕</button>',{name:group.name,selector:abilityVariantSelectHTML(group.variants,ab)});
 });
 box.innerHTML=h+pager;
 if(caret){const next=document.getElementById('abilityDbSearch');next?.focus();next?.setSelectionRange(caret[0],caret[1]);}
@@ -27472,6 +27502,8 @@ return '<div class="editor"><h3>'+(editing.ab?'Правка способност
 function saveAbilityEd(){
 const g=id=>document.getElementById(id);
 const n=g('edAbN').value.trim(); if(!n){ alert('Способности нужно имя.'); return; }
+const previous=abilitiesDB.find(ab=>ab.id===editing.ab);
+if((!previous||ABILITY_RULES.normalize(previous.n)!==ABILITY_RULES.normalize(n))&&ABILITY_RULES.duplicateName(abilitiesDB,n,editing.ab)){alert('Такая способность уже есть в своде. Найдите её и отредактируйте существующий вариант правил.');return false;}
 const uv=g('edAbUses').value,bg3Id=g('edAbBg3Id')?g('edAbBg3Id').value.trim():'';
 if(bg3Id&&bg3Id!==BG3_MEDIUM_ARMOR_MASTER.bg3Id){alert('Для точной пассивной черты сейчас разрешен только идентификатор MediumArmorMaster.');return;}
 const data={n, type:g('edAbT').value, source:g('edAbSrc').value.trim(),
@@ -27492,6 +27524,8 @@ if(bg3Id&&!bg3MediumArmorMasterPassiveMechanicsCheck(target)){
 alert('MediumArmorMaster можно подтвердить только для способности без использований, с режимом «пассивная» и явным структурированным mechanics.role="passive".');return;
 }
 if(current){Object.assign(current,target);if(!bg3Id)delete current.bg3Id;}else abilitiesDB.push(target);
+reconcileAbilityAssignments();
+const group=abilityCatalogIndex().byId.get(target.id);if(group)abilityVariantSelection.set(group.key,target.id);
 Object.assign(dbFlt.ab,{q:target.n,type:'',edition:ABILITY_RULES.edition(target),mode:'',page:0});
 editing.ab=null; scheduleSave(); renderAbilitiesDB(); if(activeCharId) renderChars();
 }
@@ -27919,16 +27953,17 @@ if(typeof bg3LifecycleSchedule==='function')bg3LifecycleSchedule(c);
 }
 function characterSyncFeatures(c){
 if(!c.characterBuild)return;
+reconcileAbilityAssignments([c]);
 characterSyncOriginFeat(c);
 const desired=abilitiesDB.filter(ab=>ab.catalogSource?.documentKey==='srd-2014'&&ab.type==='class'&&ab.open5e?.ownerNameRu===c.cls&&(ab.open5e.gainedAt||[]).some(g=>g.level<=c.level));
 const life=c.cls==='Жрец'&&c.subcls==='Домен Жизни'&&c.level>=1?abilityOf('ab_life_disciple'):null;if(life)desired.push(life);
 const race=characterRace(c);
 (race?.mechanics?.features||[]).forEach(f=>{const ab=abilityOf(f.abilityId);if(ab)desired.push(ab);});
 // Reference-only SRD records remain reference-only; no prose is turned into an automatic action here.
-const keep=new Set(desired.map(ab=>ab.id));
-const retired=(c.abilities||[]).filter(e=>e.characterGranted&&!keep.has(e.abilityId));
+const index=abilityCatalogIndex(),key=id=>index.byId.get(id)?.key||id,keep=new Set(desired.map(ab=>key(ab.id)));
+const retired=(c.abilities||[]).filter(e=>e.characterGranted&&!keep.has(key(e.abilityId)));
 if(retired.length){c.characterBuild.archivedAbilities=(c.characterBuild.archivedAbilities||[]).concat(retired);c.abilities=c.abilities.filter(e=>!retired.includes(e));}
-desired.forEach(ab=>{if(!c.abilities.some(e=>e.abilityId===ab.id)){const old=(c.characterBuild.archivedAbilities||[]).find(e=>e.abilityId===ab.id);c.abilities.push(old?{...old}:{abilityId:ab.id,cur:abilityMaxUses(c,ab),notes:'',characterGranted:true,buildSource:ab.type==='racial'?c.race:c.cls});}});
+desired.forEach(ab=>{if(!ABILITY_RULES.owned(c,ab,index)){const old=(c.characterBuild.archivedAbilities||[]).find(e=>e.abilityId===ab.id);c.abilities.push(old?{...old}:{abilityId:ab.id,cur:abilityMaxUses(c,ab),notes:'',characterGranted:true,buildSource:ab.type==='racial'?c.race:c.cls});}});
 }
 function characterSyncOriginFeat(c){
 const name=c.race==='Человек'&&c.subrace==='Вариант человека'?c.buildChoices?.feat||'':'',previous=c.characterBuild.originFeat;
@@ -27936,7 +27971,7 @@ if(previous&&previous.name!==name){if(previous.addedFeat)c.feats=(c.feats||[]).f
 if(!name)return;
 if(!c.characterBuild.originFeat){const addedFeat=!(c.feats||[]).includes(name);if(addedFeat)(c.feats||=[]).push(name);c.characterBuild.originFeat={name,addedFeat};}
 const feat=abilitiesDB.find(a=>a.type==='feat'&&(a.n===name||a.abilityReview?.aliases?.includes(name))&&a.catalogSource?.documentKey==='srd-2014');
-if(feat&&!c.abilities.some(e=>e.abilityId===feat.id))c.abilities.push({abilityId:feat.id,cur:feat.uses??null,notes:'',originGranted:true,buildSource:'Вариант человека'});
+if(feat&&!ABILITY_RULES.owned(c,feat,abilityCatalogIndex()))c.abilities.push({abilityId:feat.id,cur:feat.uses??null,notes:'',originGranted:true,buildSource:'Вариант человека'});
 }
 function characterSelectValue(key,value){
 const c=cc();if(!c)return false;
@@ -28220,13 +28255,14 @@ scheduleSave();renderChars();return true;
 }
 function addRaceTraitsToChar(){
 const c=cc(); if(!c) return;
+reconcileAbilityAssignments([c]);
 const r=racesDB.find(x=>x.n===c.race); if(!r) return;
 const features=r.mechanics&&r.mechanics.features||r.tr.map((tr,i)=>({name:tr.split(':')[0].trim(),textIndex:i}));
 features.forEach(feature=>{
 const tr=r.tr[feature.textIndex]||feature.name,name=feature.name+' ('+r.n+')';
 let db=abilitiesDB.find(a=>(feature.abilityId&&a.id===feature.abilityId)||a.n===name);
 if(!db){ db={id:feature.abilityId||('ab_'+uid()), n:name, type:'racial', source:r.n, custom:false, tags:['racial','passive'], uses:null, rest:'',mode:'passive', x:tr}; upgradeAbility(db); abilitiesDB.push(db); }
-if(!c.abilities.some(a=>a.abilityId===db.id)) c.abilities.push({abilityId:db.id, cur:null, notes:''});
+if(!ABILITY_RULES.owned(c,db,abilityCatalogIndex())) c.abilities.push({abilityId:db.id, cur:abilityMaxUses(c,db), notes:''});
 });
 scheduleSave(); sheetTab='abilities'; renderChars();
 }
@@ -29558,7 +29594,7 @@ return h+pager+'</div>';
 const abFlt={cat:'all',q:''};
 function addAbilityFromDB(abilityId){
 const c=cc(); if(!c) return;
-const db=abilityOf(abilityId),check=ABILITY_RULES.canAssign(c,db);
+const db=abilityOf(abilityId),check=ABILITY_RULES.canAssign(c,db,abilityCatalogIndex());
 if(!check.ok){setStatus('✕ '+check.reason,true);return false;}
 if(!c.abilities.some(x=>x.abilityId===abilityId)){
 c.abilities.push({abilityId, cur:abilityMaxUses(c,db), notes:''});
@@ -29577,15 +29613,16 @@ e.cur=Math.max(0,Math.min(max,e.cur+d)); scheduleSave(); renderChars();
 function quickAddAbility(){
 const g=id=>document.getElementById(id);
 const n=g('qaN').value.trim(); if(!n){ alert('Способности нужно имя.'); return; }
+if(ABILITY_RULES.duplicateName(abilitiesDB,n)){alert('Такая способность уже есть в своде. Найдите её в поиске и впишите герою существующую запись.');return false;}
 const uv=g('qaUses').value;
 const ab={id:'ab_'+uid(), n, type:g('qaT').value, source:g('qaSrc').value.trim(), custom:true, tags:[],
 uses:uv===''?null:Math.max(0,+uv||0), rest:g('qaRest').value, x:g('qaX').value};
-abilitiesDB.push(ab);
+upgradeAbility(ab);abilitiesDB.push(ab);
 cc().abilities.push({abilityId:ab.id, cur:ab.uses, notes:''});
 quickForm.ab=false; scheduleSave(); renderChars();
 }
 function abilityDashHTML(c){
-const list=(c.abilities||[]).map(e=>({e, db:abilityOf(e.abilityId)})).filter(x=>x.db);
+const list=abilityUniqueEntries(c).map(e=>({e, db:abilityOf(e.abilityId)})).filter(x=>x.db);
 const act=list.filter(x=>x.db.uses!=null);
 if(!act.length) return '';
 let ready=0, backShort=0, backLong=0, backBattle=0;
@@ -29615,10 +29652,9 @@ h+='<div class="db-bar"><input type="text" placeholder="Найти способ�
 +'<button class="btn ghost sm" onclick="addRaceTraitsToChar()">Вписать черты народа</button></div>';
 if(sheetSearch.ab.trim().length>1){
 const q=sheetSearch.ab.toLowerCase();
-const has=new Set(c.abilities.map(x=>x.abilityId));
-const hits=abilitiesDB.filter(ab=>ABILITY_RULES.matches(ab,q)&&ABILITY_RULES.edition(ab)!=='2024'&&!has.has(ab.id)).slice(0,10);
-h+=hits.length?hits.map(ab=>'<div class="spell-hit" onclick="addAbilityFromDB(\''+ab.id+'\')"><span><b>'+esc(ab.n)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+esc(ABILITY_TYPES[ab.type]||'')+(ab.source?', '+esc(ab.source):'')+'</span></span><span style="color:var(--gold)">+ вписать</span></div>').join('')
-:'<p class="note-ital" style="font-size:14px">В своде мира такого нет — создайте свое.</p>';
+const index=abilityCatalogIndex(),hits=index.groups.filter(group=>!ABILITY_RULES.owned(c,group.variants[0],index)).map(group=>({...group,variants:group.variants.filter(ab=>ABILITY_RULES.edition(ab)!=='2024')})).filter(group=>group.variants.some(ab=>ABILITY_RULES.matches(ab,q))).slice(0,10);
+h+=hits.length?hits.map(group=>{const ab=ABILITY_RULES.choose(group.variants,c);return '<div class="spell-hit" data-ability-id="'+esc(ab.id)+'" onclick="addAbilityFromDB(this.dataset.abilityId)"><span><b>'+esc(group.name)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+esc(ABILITY_TYPES[ab.type]||'')+(ab.source?', '+esc(ab.source):'')+'</span>'+abilityVariantSelectHTML(group.variants,ab,true)+'</span><span style="color:var(--gold)">+ вписать</span></div>';}).join('')
+:'<p class="note-ital" style="font-size:14px">Нет новых совпадений: способность уже есть у героя или отсутствует в доступных правилах.</p>';
 }
 if(quickForm.ab){
 h+='<div class="editor"><h3>Быстрое создание способности</h3><div class="f-grid">'
@@ -29635,7 +29671,7 @@ const groups=[['racial','Расовые черты'],['class','Классовы�
 let shown=0;
 groups.forEach(gr=>{
 if(abFlt.cat!=='all'&&abFlt.cat!==gr[0]) return;
-const list=c.abilities.map(e=>({e, ab:abilityOf(e.abilityId)})).filter(x=>x.ab&&x.ab.type===gr[0])
+const list=abilityUniqueEntries(c).map(e=>({e, ab:abilityOf(e.abilityId)})).filter(x=>x.ab&&x.ab.type===gr[0])
 .sort((a,b)=>a.ab.n.localeCompare(b.ab.n,'ru'));
 if(!list.length) return;
 h+='<h3 class="rubric" style="font-size:22px;margin-top:12px">'+gr[1]+'</h3>';
@@ -29658,7 +29694,7 @@ const fxBtn=isActive
 const extra=fxBtn+poolBox+uses
 +'<button class="btn ghost sm" title="Править в своде мира" onclick="switchTab(\'abilitiesdb\');openAbilityEd(\''+x.ab.id+'\')">✎</button>'
 +'<button class="del-x" onclick="delCharAbility(\''+x.ab.id+'\')">✕</button>';
-h+=abilityCardHTML(x.ab, extra);
+h+=abilityCardHTML(x.ab, extra,{name:abilityCatalogIndex().byId.get(x.ab.id)?.name});
 shown++;
 });
 });

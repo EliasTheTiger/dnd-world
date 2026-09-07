@@ -24,12 +24,21 @@ const server=http.createServer((req,res)=>{
   await page.locator('.tab[data-tab="abilitiesdb"]').click();
   const catalog=page.locator('#tab-abilitiesdb'),search=page.getByRole('searchbox',{name:'Поиск способностей'});
   assert.equal(await catalog.locator('.entry-card').count(),40);
+  const uniqueness=await page.evaluate(()=>{const groups=abilityCatalogIndex().groups;return {profiles:abilitiesDB.length,abilities:groups.length,names:groups.map(group=>group.name)};});
+  assert.equal(new Set(uniqueness.names).size,uniqueness.abilities);assert.ok(uniqueness.abilities<uniqueness.profiles);
   await catalog.getByRole('button',{name:'Далее →',exact:true}).first().click();assert.match(await catalog.innerText(),/страница 2 из/);
   await search.pressSequentially('Grappler');assert.equal(await search.inputValue(),'Grappler');assert.equal(await search.evaluate(el=>el===document.activeElement),true);
   assert.equal(await catalog.locator('.entry-card').count(),1);assert.match(await catalog.innerText(),/Рукопашный борец/);assert.match(await catalog.innerText(),/оба участника становятся обездвиженными/);
   await page.getByRole('combobox',{name:'Редакция способностей'}).selectOption('2024');assert.match(await catalog.innerText(),/D&D 2024 · справочная карточка/);
   await page.getByRole('combobox',{name:'Редакция способностей'}).selectOption('2014');await search.fill('Action Surge');assert.match(await catalog.innerText(),/Порыв к действию/);
   await search.fill('всплеск действий');assert.equal(await catalog.locator('.entry-card').count(),1);
+  await page.getByRole('combobox',{name:'Редакция способностей'}).selectOption('');await search.fill('Ночное зрение');
+  // Search also finds descriptions mentioning darkvision; the ability's title occurs once.
+  assert.equal(await catalog.getByRole('heading',{name:'Ночное зрение',exact:true}).count(),1);
+  await search.fill('Second Wind');assert.equal(await catalog.locator('.entry-card').count(),1);
+  const newerWind=await page.evaluate(()=>abilitiesDB.find(ab=>ab.open5e?.originalName==='Second Wind'&&ab.catalogSource?.documentKey==='srd-2024').id);
+  await catalog.getByRole('combobox',{name:'Вариант правил',exact:true}).selectOption(newerWind);assert.match(await catalog.innerText(),/D&D 2024 · справочная карточка/);
+  await page.getByRole('combobox',{name:'Редакция способностей'}).selectOption('campaign');assert.doesNotMatch(await catalog.innerText(),/D&D 2024 · справочная карточка/);
   await page.screenshot({path:path.join(output,'01-catalog-desktop.png'),fullPage:false});
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'02-catalog-mobile.png'),fullPage:true});
   assert.equal(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth),true,'ability catalog fits a 390px viewport');
@@ -43,6 +52,14 @@ const server=http.createServer((req,res)=>{
   });
   assert.match(await page.locator('#tab-chars').innerText(),/2 \/ 2/);
   const heroSearch=page.getByPlaceholder('Найти способность в своде мира и вписать герою…');
+  await heroSearch.fill('Second Wind');assert.equal(await page.locator('#tab-chars .spell-hit').count(),0,'owned source variants are absent from assignment search');
+  await heroSearch.fill('Darkvision');assert.equal(await page.locator('#tab-chars .spell-hit').count(),1);
+  await page.setViewportSize({width:390,height:844});
+  await page.locator('#tab-chars').getByRole('combobox',{name:'Вариант правил',exact:true}).selectOption('ab_darkvision');
+  assert.equal(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth),true,'hero source selector fits a 390px viewport');
+  await page.locator('#tab-chars .spell-hit').click();assert.equal(await page.evaluate(()=>getCh('abilities-qa-fighter').abilities.length),3);
+  await page.locator('#tab-chars button[onclick="delCharAbility(\'ab_darkvision\')"]').click();
+  await page.setViewportSize({width:1440,height:1000});
   await heroSearch.fill('Grappler');await page.locator('#tab-chars .spell-hit').click();
   assert.equal(await page.evaluate(()=>getCh('abilities-qa-fighter').abilities.length),2,'Strength prerequisite blocks assignment');await heroSearch.fill('');
   const wind=page.locator('button[onclick="abilityCastFx(\''+ids.wind+'\',\'abilities-qa-fighter\')"]');
@@ -53,11 +70,16 @@ const server=http.createServer((req,res)=>{
   await page.getByRole('button',{name:'Применить итог',exact:true}).click();await page.locator('#castBack').waitFor({state:'hidden'});
   assert.deepEqual(await page.evaluate(()=>{const c=getCh('abilities-qa-fighter');return [c.hp,c.abilities[0].cur,c.hpMax];}),[27,0,100]);
   await page.screenshot({path:path.join(output,'03-second-wind.png'),fullPage:false});
-  await page.evaluate(()=>runScheduledSave());await page.reload({waitUntil:'domcontentloaded'});
+  // Simulate a legacy save with a full duplicate next to the spent canonical copy.
+  await page.evaluate(()=>{getCh('abilities-qa-fighter').abilities.push({abilityId:'ab_lg_secondwind',cur:1,notes:'Заметка из старой копии'});return runScheduledSave();});await page.reload({waitUntil:'domcontentloaded'});
   await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
   assert.deepEqual(await page.evaluate(()=>{const c=getCh('abilities-qa-fighter');return [c.hp,c.abilities[0].cur,c.hpMax];}),[27,0,100]);
+  assert.deepEqual(await page.evaluate(()=>{const c=getCh('abilities-qa-fighter');return [c.abilities.length,c.abilities[0].notes];}),[2,'Заметка из старой копии']);
+  await page.evaluate(()=>runScheduledSave());await page.reload({waitUntil:'domcontentloaded'});
+  await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
+  assert.deepEqual(await page.evaluate(()=>{const c=getCh('abilities-qa-fighter');return [c.abilities.length,c.abilities[0].cur];}),[2,0],'merged assignments stay unique after another save/reload');
   assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'browser-result.json'),JSON.stringify({ok:true,url,release,checks:['catalog pagination','Hobby World names and Grappler contest','2014/2024 filters','English and legacy search without lost focus','390px layout','fighter level-17 charge limit','Strength prerequisite','healing cancellation','player-entered d10 and one charge','no maximum-HP increase','reload preserves spent use','no page errors'],errors},null,2));
+  fs.writeFileSync(path.join(output,'browser-result.json'),JSON.stringify({ok:true,url,release,uniqueness,checks:['catalog pagination','one card per ability across sources','source profile selector keeps editions separate','no alternative assignments for an owned ability','Hobby World names and Grappler contest','2014/2024 filters','English and legacy search without lost focus','390px layout','fighter level-17 charge limit','Strength prerequisite','healing cancellation','player-entered d10 and one charge','no maximum-HP increase','legacy duplicates merge on reload without lost notes or charge refill','migration survives a second reload','no page errors'],errors},null,2));
   console.log('Abilities browser journey passed.');
  }catch(error){if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true});throw error;}
  finally{await browser.close();server.close();}

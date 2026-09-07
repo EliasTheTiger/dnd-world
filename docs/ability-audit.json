@@ -1,6 +1,3005 @@
 {
   "revision": "abilities-ru-2026-09-07.1",
   "total": 693,
+  "deduplication": {
+    "revision": "2026-09-08.1",
+    "abilities": 383,
+    "sourceProfiles": 693,
+    "combinedGroups": 137,
+    "groups": [
+      {
+        "key": "en:darkvision",
+        "name": "Ночное зрение",
+        "variantIds": [
+          "ab_эльф_темное_зрение_18_м",
+          "ab_дварф_темное_зрение_18_м",
+          "ab_гном_темное_зрение_18_м",
+          "ab_полуэльф_темное_зрение_18_м",
+          "ab_полуорк_темное_зрение_18_м",
+          "ab_тифлинг_темное_зрение_18_м",
+          "ab_darkvision",
+          "ab_open5e_srd_2014_racial_srd_dwarf_darkvision_32f9709650",
+          "ab_open5e_srd_2014_racial_srd_elf_darkvision_57f1f7f066",
+          "ab_open5e_srd_2014_racial_srd_gnome_darkvision_32f9709650",
+          "ab_open5e_srd_2014_racial_srd_half_elf_darkvision_8d3c14ecbf",
+          "ab_open5e_srd_2014_racial_srd_half_orc_darkvision_ed32208c34",
+          "ab_open5e_srd_2014_racial_srd_tiefling_darkvision_8dd18e4af8",
+          "ab_open5e_srd_2024_racial_srd_2024_dragonborn_darkvision_e2aa348bbc",
+          "ab_open5e_srd_2024_racial_srd_2024_dwarf_darkvision_e04d71c007",
+          "ab_open5e_srd_2024_racial_srd_2024_elf_darkvision_64d34790cf",
+          "ab_open5e_srd_2024_racial_srd_2024_gnome_darkvision_64d34790cf",
+          "ab_open5e_srd_2024_racial_srd_2024_orc_darkvision_e04d71c007",
+          "ab_open5e_srd_2024_racial_srd_2024_tiefling_darkvision_64d34790cf"
+        ]
+      },
+      {
+        "key": "en:keen senses",
+        "name": "Острое восприятие",
+        "variantIds": [
+          "ab_эльф_обостренные_чувства",
+          "ab_open5e_srd_2014_racial_srd_elf_keen_senses_12982e37c5",
+          "ab_open5e_srd_2024_racial_srd_2024_elf_keen_senses_4ef01f0ac3"
+        ]
+      },
+      {
+        "key": "en:fey ancestry",
+        "name": "Наследие фей",
+        "variantIds": [
+          "ab_эльф_наследие_фей",
+          "ab_полуэльф_наследие_фей",
+          "ab_fey_ancestry",
+          "ab_open5e_srd_2014_racial_srd_elf_fey_ancestry_c74d415d82",
+          "ab_open5e_srd_2014_racial_srd_half_elf_fey_ancestry_c74d415d82",
+          "ab_open5e_srd_2024_racial_srd_2024_elf_fey_ancestry_313d2c3e9c"
+        ]
+      },
+      {
+        "key": "en:trance",
+        "name": "Транс",
+        "variantIds": [
+          "ab_эльф_транс",
+          "ab_trance",
+          "ab_open5e_srd_2014_racial_srd_elf_trance_1b02e2d4b4",
+          "ab_open5e_srd_2024_racial_srd_2024_elf_trance_2230f88910"
+        ]
+      },
+      {
+        "key": "en:dwarven resilience",
+        "name": "Стойкость дварфа",
+        "variantIds": [
+          "ab_дварф_дварфийская_устойчивость",
+          "ab_dwarf_resilience",
+          "ab_open5e_srd_2014_racial_srd_dwarf_dwarven_resilience_33fef986be",
+          "ab_open5e_srd_2024_racial_srd_2024_dwarf_dwarven_resilience_f7a5ca0b3d"
+        ]
+      },
+      {
+        "key": "en:stonecunning",
+        "name": "Знание камня",
+        "variantIds": [
+          "ab_дварф_знание_камня",
+          "ab_open5e_srd_2014_racial_srd_dwarf_stonecunning_f4363ec532",
+          "ab_open5e_srd_2024_racial_srd_2024_dwarf_stonecunning_2050f2d8df"
+        ]
+      },
+      {
+        "key": "en:lucky:racial",
+        "name": "Удача",
+        "variantIds": [
+          "ab_полурослик_везучий",
+          "ab_open5e_srd_2014_racial_srd_halfling_lucky_6b70cd0c84",
+          "ab_open5e_srd_2024_racial_srd_2024_halfling_luck_f2e5787e0c"
+        ]
+      },
+      {
+        "key": "en:brave",
+        "name": "Храбрость",
+        "variantIds": [
+          "ab_полурослик_храбрый",
+          "ab_open5e_srd_2014_racial_srd_halfling_brave_d4ade00944",
+          "ab_open5e_srd_2024_racial_srd_2024_halfling_brave_fb9ed47a70"
+        ]
+      },
+      {
+        "key": "en:halfling nimbleness",
+        "name": "Проворство полурослика",
+        "variantIds": [
+          "ab_полурослик_проворство",
+          "ab_open5e_srd_2014_racial_srd_halfling_halfling_nimbleness_9c2b1281b4",
+          "ab_open5e_srd_2024_racial_srd_2024_halfling_halfling_nimbleness_8a636e3ce4"
+        ]
+      },
+      {
+        "key": "en:gnome cunning",
+        "name": "Гномья хитрость",
+        "variantIds": [
+          "ab_гном_гномья_хитрость",
+          "ab_open5e_srd_2014_racial_srd_gnome_gnome_cunning_3e68568028"
+        ]
+      },
+      {
+        "key": "en:menacing",
+        "name": "Пугающий",
+        "variantIds": [
+          "ab_полуорк_угрожающий_вид",
+          "ab_open5e_srd_2014_racial_srd_half_orc_menacing_596d8fa4f9"
+        ]
+      },
+      {
+        "key": "en:relentless endurance",
+        "name": "Несгибаемая стойкость",
+        "variantIds": [
+          "ab_полуорк_непоколебимая_стойкость",
+          "ab_open5e_srd_2014_racial_srd_half_orc_relentless_endurance_102fd0626b",
+          "ab_open5e_srd_2024_racial_srd_2024_orc_relentless_endurance_d7bb5374c3"
+        ]
+      },
+      {
+        "key": "en:savage attacks",
+        "name": "Яростные атаки",
+        "variantIds": [
+          "ab_полуорк_дикие_атаки",
+          "ab_open5e_srd_2014_racial_srd_half_orc_savage_attacks_2afcc69d15"
+        ]
+      },
+      {
+        "key": "en:hellish resistance",
+        "name": "Адская устойчивость",
+        "variantIds": [
+          "ab_тифлинг_адское_сопротивление",
+          "ab_open5e_srd_2014_racial_srd_tiefling_hellish_resistance_01b3b376a3"
+        ]
+      },
+      {
+        "key": "en:infernal legacy",
+        "name": "Дьявольское наследие",
+        "variantIds": [
+          "ab_тифлинг_дьявольское_наследие",
+          "ab_open5e_srd_2014_racial_srd_tiefling_infernal_legacy_b00dd90df4",
+          "ab_open5e_srd_2024_racial_srd_2024_tiefling_fiendish_legacy_b9c6c69878"
+        ]
+      },
+      {
+        "key": "en:draconic ancestry",
+        "name": "Драконье наследие",
+        "variantIds": [
+          "ab_драконорожденный_драконье_наследие",
+          "ab_open5e_srd_2014_racial_srd_dragonborn_draconic_ancestry_85943a2a42",
+          "ab_open5e_srd_2024_racial_srd_2024_dragonborn_draconic_ancestry_afce4d6f70"
+        ]
+      },
+      {
+        "key": "en:breath weapon",
+        "name": "Губительное дыхание",
+        "variantIds": [
+          "ab_драконорожденный_оружие_дыхания",
+          "ab_open5e_srd_2014_racial_srd_dragonborn_breath_weapon_a9405fd658",
+          "ab_open5e_srd_2024_racial_srd_2024_dragonborn_breath_weapon_c792760eab"
+        ]
+      },
+      {
+        "key": "en:dwarven toughness",
+        "name": "Живучесть дварфа",
+        "variantIds": [
+          "ab_dwarf_toughness",
+          "ab_open5e_srd_2014_racial_srd_hill_dwarf_dwarven_toughness_0d68805d35",
+          "ab_open5e_srd_2024_racial_srd_2024_dwarf_dwarven_toughness_1e4f37bdaa"
+        ]
+      },
+      {
+        "key": "en:disciple of life",
+        "name": "Защитник жизни",
+        "variantIds": [
+          "ab_life_disciple",
+          "ab_open5e_srd_2014_class_srd_life_domain_disciple_of_life",
+          "ab_open5e_srd_2024_class_srd_2024_cleric_life_domain_disciple_of_life"
+        ]
+      },
+      {
+        "key": "en:action surge",
+        "name": "Порыв к действию",
+        "variantIds": [
+          "ab_lg_surge",
+          "ab_open5e_srd_2014_class_srd_fighter_action_surge",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_action_surge"
+        ]
+      },
+      {
+        "key": "en:second wind",
+        "name": "Второе дыхание",
+        "variantIds": [
+          "ab_lg_secondwind",
+          "ab_open5e_srd_2014_class_srd_fighter_second_wind",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_second_wind"
+        ]
+      },
+      {
+        "key": "en:parry",
+        "name": "Парирование",
+        "variantIds": [
+          "ab_lg_parry"
+        ]
+      },
+      {
+        "key": "en:precision attack",
+        "name": "Точная атака",
+        "variantIds": [
+          "ab_lg_precise"
+        ]
+      },
+      {
+        "key": "en:goading attack",
+        "name": "Провоцирующая атака",
+        "variantIds": [
+          "ab_lg_goading"
+        ]
+      },
+      {
+        "key": "en:disarming attack",
+        "name": "Обезоруживающая атака",
+        "variantIds": [
+          "ab_lg_disarm"
+        ]
+      },
+      {
+        "key": "en:always prepared",
+        "name": "Всегда готов",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_always_prepared"
+        ]
+      },
+      {
+        "key": "en:augment",
+        "name": "Улучшение предметов",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_augment"
+        ]
+      },
+      {
+        "key": "en:augmentation effects",
+        "name": "Эффекты улучшения",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_augmentation_effects"
+        ]
+      },
+      {
+        "key": "en:efficient action",
+        "name": "Эффективное действие",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_efficient_action"
+        ]
+      },
+      {
+        "key": "en:engineer's insight",
+        "name": "Проницательность инженера",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_engineers_insight"
+        ]
+      },
+      {
+        "key": "en:epic boon",
+        "name": "Эпический дар",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_bard_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_cleric_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_druid_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_monk_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_warlock_epic_boon",
+          "ab_open5e_srd_2024_class_srd_2024_wizard_epic_boon"
+        ]
+      },
+      {
+        "key": "en:eyes of the maker",
+        "name": "Глаза Создателя",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_eyes_of_the_maker"
+        ]
+      },
+      {
+        "key": "en:greater creation",
+        "name": "Великое творение",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_greater_creation"
+        ]
+      },
+      {
+        "key": "en:heroic boon",
+        "name": "Героический дар",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_heroic_boon"
+        ]
+      },
+      {
+        "key": "en:improvement",
+        "name": "Улучшение характеристик",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_improvement"
+        ]
+      },
+      {
+        "key": "en:mechanist subclass",
+        "name": "Подкласс механика",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_mechanist_subclass"
+        ]
+      },
+      {
+        "key": "en:multiattack",
+        "name": "Мультиатака",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_multiattack",
+          "ab_open5e_srd_2014_class_srd_hunter_multiattack"
+        ]
+      },
+      {
+        "key": "en:perfect creation",
+        "name": "Идеальное творение",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_perfect_creation"
+        ]
+      },
+      {
+        "key": "en:ranged augment",
+        "name": "Дистанционное улучшение",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_ranged_augment"
+        ]
+      },
+      {
+        "key": "en:rapid augment",
+        "name": "Быстрое улучшение",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_rapid_augment"
+        ]
+      },
+      {
+        "key": "en:shard of creation",
+        "name": "Осколок творения",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_mechanist_shard_of_creation"
+        ]
+      },
+      {
+        "key": "en:augment: absorbing",
+        "name": "Улучшение: поглощение",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_metallurgist_augment_absorbing"
+        ]
+      },
+      {
+        "key": "en:full metal",
+        "name": "Металлическая защита",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_metallurgist_full_metal"
+        ]
+      },
+      {
+        "key": "en:heavy hitter",
+        "name": "Сокрушительные удары",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_metallurgist_heavy_hitter"
+        ]
+      },
+      {
+        "key": "en:juggernaut",
+        "name": "Джаггернаут",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_metallurgist_juggernaut"
+        ]
+      },
+      {
+        "key": "en:mystic metal",
+        "name": "Мистический металл",
+        "variantIds": [
+          "ab_open5e_bfrd_class_bfrd_metallurgist_mystic_metal"
+        ]
+      },
+      {
+        "key": "en:ability score improvement",
+        "name": "Увеличение характеристик",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_ability_score_improvement",
+          "ab_open5e_srd_2014_class_srd_bard_ability_score_improvement",
+          "ab_open5e_srd_2014_class_srd_cleric_ability_score_improvement",
+          "ab_open5e_srd_2014_class_srd_druid_ability_score_improvement",
+          "ab_open5e_srd_2014_class_srd_fighter_ability_score_improvement",
+          "ab_open5e_srd_2014_class_srd_monk_ability_score_improvement",
+          "ab_open5e_srd_2014_class_srd_paladin_ability_score_improvement",
+          "ab_open5e_srd_2014_class_srd_ranger_ability_score_improvement",
+          "ab_open5e_srd_2014_class_srd_rogue_ability_score_improvement",
+          "ab_open5e_srd_2014_class_srd_sorcerer_ability_score_improvement",
+          "ab_open5e_srd_2014_class_srd_warlock_ability_score_improvement",
+          "ab_open5e_srd_2014_class_srd_wizard_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_bard_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_cleric_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_druid_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_monk_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_warlock_ability_score_improvement",
+          "ab_open5e_srd_2024_class_srd_2024_wizard_ability_score_improvement",
+          "ab_open5e_srd_2024_feat_srd_2024_ability_score_improvement"
+        ]
+      },
+      {
+        "key": "en:brutal critical",
+        "name": "Жестокий критический удар",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_brutal_critical"
+        ]
+      },
+      {
+        "key": "en:danger sense",
+        "name": "Чутьё на опасность",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_danger_sense",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_danger_sense"
+        ]
+      },
+      {
+        "key": "en:extra attack",
+        "name": "Дополнительная атака",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_extra_attack",
+          "ab_open5e_srd_2014_class_srd_fighter_extra_attack",
+          "ab_open5e_srd_2014_class_srd_monk_extra_attack",
+          "ab_open5e_srd_2014_class_srd_paladin_extra_attack",
+          "ab_open5e_srd_2014_class_srd_ranger_extra_attack",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_extra_attack",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_extra_attack",
+          "ab_open5e_srd_2024_class_srd_2024_monk_extra_attack",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_extra_attack",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_extra_attack"
+        ]
+      },
+      {
+        "key": "en:fast movement",
+        "name": "Быстрое перемещение",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_fast_movement",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_fast_movement"
+        ]
+      },
+      {
+        "key": "en:feral instinct",
+        "name": "Звериный инстинкт",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_feral_instinct",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_feral_instinct"
+        ]
+      },
+      {
+        "key": "en:indomitable might",
+        "name": "Неукротимая мощь",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_indomitable_might",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_indomitable_might"
+        ]
+      },
+      {
+        "key": "en:persistent rage",
+        "name": "Бесконечная ярость",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_persistent_rage",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_persistent_rage"
+        ]
+      },
+      {
+        "key": "en:primal champion",
+        "name": "Первобытный воитель",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_primal_champion",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_primal_champion"
+        ]
+      },
+      {
+        "key": "en:primal path",
+        "name": "Первобытный путь",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_primal_path"
+        ]
+      },
+      {
+        "key": "en:rage",
+        "name": "Ярость",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_rage",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_rage"
+        ]
+      },
+      {
+        "key": "en:rage damage",
+        "name": "Урон от ярости",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_rage_damage"
+        ]
+      },
+      {
+        "key": "en:rages",
+        "name": "Использования ярости",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_rages"
+        ]
+      },
+      {
+        "key": "en:reckless attack",
+        "name": "Безрассудная атака",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_reckless_attack",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_reckless_attack"
+        ]
+      },
+      {
+        "key": "en:relentless rage",
+        "name": "Несгибаемая ярость",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_relentless_rage",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_relentless_rage"
+        ]
+      },
+      {
+        "key": "en:unarmored defense",
+        "name": "Защита без брони",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_barbarian_unarmored_defense",
+          "ab_open5e_srd_2014_class_srd_monk_unarmored_defense",
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_unarmored_defense",
+          "ab_open5e_srd_2024_class_srd_2024_monk_unarmored_defense"
+        ]
+      },
+      {
+        "key": "en:bard college",
+        "name": "Коллегия бардов",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_bard_bard_college"
+        ]
+      },
+      {
+        "key": "en:bardic inspiration",
+        "name": "Бардовское вдохновение",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_bard_bardic_inspiration",
+          "ab_open5e_srd_2024_class_srd_2024_bard_bardic_inspiration"
+        ]
+      },
+      {
+        "key": "en:countercharm",
+        "name": "Контрчары",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_bard_countercharm",
+          "ab_open5e_srd_2024_class_srd_2024_bard_countercharm"
+        ]
+      },
+      {
+        "key": "en:expertise",
+        "name": "Мастерство",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_bard_expertise",
+          "ab_open5e_srd_2014_class_srd_rogue_expertise",
+          "ab_open5e_srd_2024_class_srd_2024_bard_expertise",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_expertise",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_expertise"
+        ]
+      },
+      {
+        "key": "en:font of inspiration",
+        "name": "Источник вдохновения",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_bard_font_of_inspiration",
+          "ab_open5e_srd_2024_class_srd_2024_bard_font_of_inspiration"
+        ]
+      },
+      {
+        "key": "en:jack of all trades",
+        "name": "Мастер на все руки",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_bard_jack_of_all_trades",
+          "ab_open5e_srd_2024_class_srd_2024_bard_jack_of_all_trades"
+        ]
+      },
+      {
+        "key": "en:magical secrets",
+        "name": "Магические секреты",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_bard_magical_secrets",
+          "ab_open5e_srd_2024_class_srd_2024_bard_magical_secrets"
+        ]
+      },
+      {
+        "key": "en:song of rest",
+        "name": "Песнь отдыха",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_bard_song_of_rest"
+        ]
+      },
+      {
+        "key": "en:spellcasting",
+        "name": "Сотворение заклинаний",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_bard_spellcasting",
+          "ab_open5e_srd_2014_class_srd_cleric_spellcasting",
+          "ab_open5e_srd_2014_class_srd_druid_spellcasting",
+          "ab_open5e_srd_2014_class_srd_paladin_spellcasting",
+          "ab_open5e_srd_2014_class_srd_ranger_spellcasting",
+          "ab_open5e_srd_2014_class_srd_sorcerer_spellcasting",
+          "ab_open5e_srd_2014_class_srd_wizard_spellcasting",
+          "ab_open5e_srd_2024_class_srd_2024_bard_spellcasting",
+          "ab_open5e_srd_2024_class_srd_2024_cleric_spellcasting",
+          "ab_open5e_srd_2024_class_srd_2024_druid_spellcasting",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_spellcasting",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_spellcasting",
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_spellcasting",
+          "ab_open5e_srd_2024_class_srd_2024_wizard_spellcasting"
+        ]
+      },
+      {
+        "key": "en:spells known",
+        "name": "Известные заклинания",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_bard_spells_known",
+          "ab_open5e_srd_2014_class_srd_ranger_spells_known",
+          "ab_open5e_srd_2014_class_srd_sorcerer_spells_known"
+        ]
+      },
+      {
+        "key": "en:superior inspiration",
+        "name": "Высшее вдохновение",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_bard_superior_inspiration",
+          "ab_open5e_srd_2024_class_srd_2024_bard_superior_inspiration"
+        ]
+      },
+      {
+        "key": "en:additional fighting style",
+        "name": "Дополнительный стиль боя",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_champion_additional_fighting_style",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_champion_additional_fighting_style"
+        ]
+      },
+      {
+        "key": "en:improved critical",
+        "name": "Улучшенный критический удар",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_champion_improved_critical",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_champion_improved_critical"
+        ]
+      },
+      {
+        "key": "en:remarkable athlete",
+        "name": "Выдающийся атлет",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_champion_remarkable_athlete",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_champion_remarkable_athlete"
+        ]
+      },
+      {
+        "key": "en:superior critical",
+        "name": "Высший критический удар",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_champion_superior_critical",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_champion_superior_critical"
+        ]
+      },
+      {
+        "key": "en:survivor",
+        "name": "Выживший",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_champion_survivor",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_champion_survivor"
+        ]
+      },
+      {
+        "key": "en:bonus cantrip",
+        "name": "Дополнительный фокус",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_circle_of_the_land_bonus_cantrip"
+        ]
+      },
+      {
+        "key": "en:circle spells",
+        "name": "Заклинания круга",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_circle_of_the_land_circle_spells"
+        ]
+      },
+      {
+        "key": "en:land's stride",
+        "name": "На природе как дома",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_circle_of_the_land_lands_stride",
+          "ab_open5e_srd_2014_class_srd_ranger_lands_stride"
+        ]
+      },
+      {
+        "key": "en:natural recovery",
+        "name": "Природное восстановление",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_circle_of_the_land_natural_recovery",
+          "ab_open5e_srd_2024_class_srd_2024_druid_circle_of_the_land_natural_recovery"
+        ]
+      },
+      {
+        "key": "en:nature's sanctuary",
+        "name": "Природное убежище",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_circle_of_the_land_natures_sanctuary",
+          "ab_open5e_srd_2024_class_srd_2024_druid_circle_of_the_land_natures_sanctuary"
+        ]
+      },
+      {
+        "key": "en:nature's ward",
+        "name": "Природный оберег",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_circle_of_the_land_natures_ward",
+          "ab_open5e_srd_2024_class_srd_2024_druid_circle_of_the_land_natures_ward"
+        ]
+      },
+      {
+        "key": "en:channel divinity",
+        "name": "Проведение энергии",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_cleric_channel_divinity",
+          "ab_open5e_srd_2014_class_srd_oath_of_devotion_channel_divinity",
+          "ab_open5e_srd_2024_class_srd_2024_cleric_channel_divinity",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_channel_divinity"
+        ]
+      },
+      {
+        "key": "en:destroy undead",
+        "name": "Уничтожение нежити",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_cleric_destroy_undead"
+        ]
+      },
+      {
+        "key": "en:divine domain",
+        "name": "Божественный домен",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_cleric_divine_domain"
+        ]
+      },
+      {
+        "key": "en:divine intervention",
+        "name": "Божественное вмешательство",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_cleric_divine_intervention",
+          "ab_open5e_srd_2024_class_srd_2024_cleric_divine_intervention"
+        ]
+      },
+      {
+        "key": "en:additional magical secrets",
+        "name": "Дополнительные магические секреты",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_college_of_lore_additional_magical_secrets"
+        ]
+      },
+      {
+        "key": "en:bonus proficiencies",
+        "name": "Дополнительные владения",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_college_of_lore_bonus_proficiencies",
+          "ab_open5e_srd_2024_class_srd_2024_college_of_lore_bonus_proficiencies"
+        ]
+      },
+      {
+        "key": "en:cutting words",
+        "name": "Острые слова",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_college_of_lore_cutting_words",
+          "ab_open5e_srd_2024_class_srd_2024_college_of_lore_cutting_words"
+        ]
+      },
+      {
+        "key": "en:peerless skill",
+        "name": "Несравненные навыки",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_college_of_lore_peerless_skill",
+          "ab_open5e_srd_2024_class_srd_2024_college_of_lore_peerless_skill"
+        ]
+      },
+      {
+        "key": "en:draconic presence",
+        "name": "Драконья аура",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_draconic_bloodline_draconic_presence"
+        ]
+      },
+      {
+        "key": "en:draconic resilience",
+        "name": "Драконья стойкость",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_draconic_bloodline_draconic_resilience",
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_draconic_sorcery_draconic_resilience"
+        ]
+      },
+      {
+        "key": "en:dragon ancestor",
+        "name": "Дракон-предок",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_draconic_bloodline_dragon_ancestor"
+        ]
+      },
+      {
+        "key": "en:dragon wings",
+        "name": "Драконьи крылья",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_draconic_bloodline_dragon_wings",
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_draconic_sorcery_dragon_wings"
+        ]
+      },
+      {
+        "key": "en:elemental affinity",
+        "name": "Связь со стихиями",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_draconic_bloodline_elemental_affinity",
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_draconic_sorcery_elemental_affinity"
+        ]
+      },
+      {
+        "key": "en:archdruid",
+        "name": "Архидруид",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_druid_archdruid",
+          "ab_open5e_srd_2024_class_srd_2024_druid_archdruid"
+        ]
+      },
+      {
+        "key": "en:beast spells",
+        "name": "Заклинания зверя",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_druid_beast_spells",
+          "ab_open5e_srd_2024_class_srd_2024_druid_beast_spells"
+        ]
+      },
+      {
+        "key": "en:druid circle",
+        "name": "Круг друидов",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_druid_druid_circle"
+        ]
+      },
+      {
+        "key": "en:druidic",
+        "name": "Язык друидов",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_druid_druidic",
+          "ab_open5e_srd_2024_class_srd_2024_druid_druidic"
+        ]
+      },
+      {
+        "key": "en:timeless body",
+        "name": "Неувядающее тело",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_druid_timeless_body",
+          "ab_open5e_srd_2014_class_srd_monk_timeless_body"
+        ]
+      },
+      {
+        "key": "en:wild shape",
+        "name": "Дикий облик",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_druid_wild_shape",
+          "ab_open5e_srd_2024_class_srd_2024_druid_wild_shape"
+        ]
+      },
+      {
+        "key": "en:fighting style",
+        "name": "Боевой стиль",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_fighter_fighting_style",
+          "ab_open5e_srd_2014_class_srd_paladin_fighting_style",
+          "ab_open5e_srd_2014_class_srd_ranger_fighting_style",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_fighting_style",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_fighting_style",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_fighting_style"
+        ]
+      },
+      {
+        "key": "en:indomitable",
+        "name": "Неукротимость",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_fighter_indomitable",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_indomitable"
+        ]
+      },
+      {
+        "key": "en:martial archetype",
+        "name": "Воинский архетип",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_fighter_martial_archetype"
+        ]
+      },
+      {
+        "key": "en:defensive tactics",
+        "name": "Оборонительная тактика",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_hunter_defensive_tactics",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_hunter_defensive_tactics"
+        ]
+      },
+      {
+        "key": "en:hunter's prey",
+        "name": "Добыча охотника",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_hunter_hunters_prey",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_hunter_hunters_prey"
+        ]
+      },
+      {
+        "key": "en:superior hunter's defense",
+        "name": "Улучшенная защита охотника",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_hunter_superior_hunters_defense",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_hunter_superior_hunters_defense"
+        ]
+      },
+      {
+        "key": "en:blessed healer",
+        "name": "Благословенный целитель",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_life_domain_blessed_healer",
+          "ab_open5e_srd_2024_class_srd_2024_cleric_life_domain_blessed_healer"
+        ]
+      },
+      {
+        "key": "en:bonus proficiency",
+        "name": "Дополнительное владение",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_life_domain_bonus_proficiency"
+        ]
+      },
+      {
+        "key": "en:channel divinity: preserve life",
+        "name": "Проведение энергии: сохранение жизни",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_life_domain_channel_divinity_preserve_life"
+        ]
+      },
+      {
+        "key": "en:divine strike",
+        "name": "Божественный удар",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_life_domain_divine_strike"
+        ]
+      },
+      {
+        "key": "en:life domain spells",
+        "name": "Заклинания домена Жизни (таблица)",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_life_domain_life_domain_spells_table",
+          "ab_open5e_srd_2024_class_srd_2024_cleric_life_domain_life_domain_spells"
+        ]
+      },
+      {
+        "key": "en:supreme healing",
+        "name": "Высшее исцеление",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_life_domain_supreme_healing",
+          "ab_open5e_srd_2024_class_srd_2024_cleric_life_domain_supreme_healing"
+        ]
+      },
+      {
+        "key": "en:deflect missiles",
+        "name": "Отбивание снарядов",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_deflect_missiles"
+        ]
+      },
+      {
+        "key": "en:diamond soul",
+        "name": "Алмазная душа",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_diamond_soul"
+        ]
+      },
+      {
+        "key": "en:empty body",
+        "name": "Пустое тело",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_empty_body"
+        ]
+      },
+      {
+        "key": "en:evasion",
+        "name": "Изворотливость",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_evasion",
+          "ab_open5e_srd_2014_class_srd_rogue_evasion",
+          "ab_open5e_srd_2024_class_srd_2024_monk_evasion",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_evasion"
+        ]
+      },
+      {
+        "key": "en:ki",
+        "name": "Ци",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_ki"
+        ]
+      },
+      {
+        "key": "en:ki-empowered strikes",
+        "name": "Удары силой ци",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_ki_empowered_strikes"
+        ]
+      },
+      {
+        "key": "en:ki points",
+        "name": "Очки ци",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_ki_points"
+        ]
+      },
+      {
+        "key": "en:martial arts",
+        "name": "Боевые искусства",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_martial_arts",
+          "ab_open5e_srd_2024_class_srd_2024_monk_martial_arts"
+        ]
+      },
+      {
+        "key": "en:monastic tradition",
+        "name": "Монашеская традиция",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_monastic_tradition"
+        ]
+      },
+      {
+        "key": "en:perfect self",
+        "name": "Высшее совершенство",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_perfect_self"
+        ]
+      },
+      {
+        "key": "en:purity of body",
+        "name": "Очищение тела",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_purity_of_body"
+        ]
+      },
+      {
+        "key": "en:slow fall",
+        "name": "Замедленное падение",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_slow_fall",
+          "ab_open5e_srd_2024_class_srd_2024_monk_slow_fall"
+        ]
+      },
+      {
+        "key": "en:stillness of mind",
+        "name": "Покой разума",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_stillness_of_mind"
+        ]
+      },
+      {
+        "key": "en:stunning strike",
+        "name": "Шокирующий удар",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_stunning_strike",
+          "ab_open5e_srd_2024_class_srd_2024_monk_stunning_strike"
+        ]
+      },
+      {
+        "key": "en:tongue of the sun and moon",
+        "name": "Язык солнца и луны",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_tongue_of_the_sun_and_moon"
+        ]
+      },
+      {
+        "key": "en:unarmored movement",
+        "name": "Перемещение без брони",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_monk_unarmored_movement",
+          "ab_open5e_srd_2024_class_srd_2024_monk_unarmored_movement"
+        ]
+      },
+      {
+        "key": "en:aura of devotion",
+        "name": "Аура верности",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_oath_of_devotion_aura_of_devotion",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_oath_of_devotion_aura_of_devotion"
+        ]
+      },
+      {
+        "key": "en:holy nimbus",
+        "name": "Священный нимб",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_oath_of_devotion_holy_nimbus",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_oath_of_devotion_holy_nimbus"
+        ]
+      },
+      {
+        "key": "en:oath spells",
+        "name": "Заклинания клятвы",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_oath_of_devotion_oath_spells"
+        ]
+      },
+      {
+        "key": "en:purity of spirit",
+        "name": "Очищение духа",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_oath_of_devotion_purity_of_spirit"
+        ]
+      },
+      {
+        "key": "en:tenets of devotion",
+        "name": "Догмы верности",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_oath_of_devotion_tenets_of_devotion"
+        ]
+      },
+      {
+        "key": "en:aura of courage",
+        "name": "Аура отваги",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_paladin_aura_of_courage",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_aura_of_courage"
+        ]
+      },
+      {
+        "key": "en:aura of protection",
+        "name": "Аура защиты",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_paladin_aura_of_protection",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_aura_of_protection"
+        ]
+      },
+      {
+        "key": "en:cleansing touch",
+        "name": "Очищающее касание",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_paladin_cleansing_touch"
+        ]
+      },
+      {
+        "key": "en:divine health",
+        "name": "Божественное здоровье",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_paladin_divine_health"
+        ]
+      },
+      {
+        "key": "en:divine sense",
+        "name": "Божественное чутьё",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_paladin_divine_sense"
+        ]
+      },
+      {
+        "key": "en:divine smite",
+        "name": "Божественная кара",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_paladin_divine_smite"
+        ]
+      },
+      {
+        "key": "en:improved divine smite",
+        "name": "Улучшенная божественная кара",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_paladin_improved_divine_smite"
+        ]
+      },
+      {
+        "key": "en:lay on hands",
+        "name": "Возложение рук",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_paladin_lay_on_hands",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_lay_on_hands"
+        ]
+      },
+      {
+        "key": "en:sacred oath",
+        "name": "Священная клятва",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_paladin_sacred_oath"
+        ]
+      },
+      {
+        "key": "en:frenzy",
+        "name": "Бешенство",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_path_of_the_berserker_frenzy",
+          "ab_open5e_srd_2024_class_srd_2024_path_of_the_berserker_frenzy"
+        ]
+      },
+      {
+        "key": "en:intimidating presence",
+        "name": "Пугающий облик",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_path_of_the_berserker_intimidating_presence",
+          "ab_open5e_srd_2024_class_srd_2024_path_of_the_berserker_intimidating_presence"
+        ]
+      },
+      {
+        "key": "en:mindless rage",
+        "name": "Слепая ярость",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_path_of_the_berserker_mindless_rage",
+          "ab_open5e_srd_2024_class_srd_2024_path_of_the_berserker_mindless_rage"
+        ]
+      },
+      {
+        "key": "en:retaliation",
+        "name": "Возмездие",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_path_of_the_berserker_retaliation",
+          "ab_open5e_srd_2024_class_srd_2024_path_of_the_berserker_retaliation"
+        ]
+      },
+      {
+        "key": "en:favored enemy",
+        "name": "Заклятый враг",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_ranger_favored_enemy",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_favored_enemy"
+        ]
+      },
+      {
+        "key": "en:feral senses",
+        "name": "Дикое чутьё",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_ranger_feral_senses",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_feral_senses"
+        ]
+      },
+      {
+        "key": "en:foe slayer",
+        "name": "Убийца врагов",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_ranger_foe_slayer",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_foe_slayer"
+        ]
+      },
+      {
+        "key": "en:hide in plain sight",
+        "name": "Засада на виду",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_ranger_hide_in_plain_sight"
+        ]
+      },
+      {
+        "key": "en:natural explorer",
+        "name": "Исследователь природы",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_ranger_natural_explorer"
+        ]
+      },
+      {
+        "key": "en:primeval awareness",
+        "name": "Первобытное чутьё",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_ranger_primeval_awareness"
+        ]
+      },
+      {
+        "key": "en:ranger archetype",
+        "name": "Архетип следопыта",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_ranger_ranger_archetype"
+        ]
+      },
+      {
+        "key": "en:vanish",
+        "name": "Исчезновение",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_ranger_vanish"
+        ]
+      },
+      {
+        "key": "en:blindsense",
+        "name": "Слепое чутьё",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_rogue_blindsense"
+        ]
+      },
+      {
+        "key": "en:cunning action",
+        "name": "Хитроумное действие",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_rogue_cunning_action",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_cunning_action"
+        ]
+      },
+      {
+        "key": "en:elusive",
+        "name": "Неуловимый",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_rogue_elusive",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_elusive"
+        ]
+      },
+      {
+        "key": "en:reliable talent",
+        "name": "Надёжный талант",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_rogue_reliable_talent",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_reliable_talent"
+        ]
+      },
+      {
+        "key": "en:roguish archetype",
+        "name": "Архетип плута",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_rogue_roguish_archetype"
+        ]
+      },
+      {
+        "key": "en:slippery mind",
+        "name": "Изворотливый ум",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_rogue_slippery_mind",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_slippery_mind"
+        ]
+      },
+      {
+        "key": "en:sneak attack",
+        "name": "Атака исподтишка",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_rogue_sneak_attack",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_sneak_attack"
+        ]
+      },
+      {
+        "key": "en:stroke of luck",
+        "name": "Капля удачи",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_rogue_stroke_of_luck",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_stroke_of_luck"
+        ]
+      },
+      {
+        "key": "en:thieves' cant",
+        "name": "Воровской жаргон",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_rogue_thieves_cant",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_thieves_cant"
+        ]
+      },
+      {
+        "key": "en:uncanny dodge",
+        "name": "Невероятное уклонение",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_rogue_uncanny_dodge",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_uncanny_dodge"
+        ]
+      },
+      {
+        "key": "en:empowered evocation",
+        "name": "Усиленная эвокация",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_school_of_evocation_empowered_evocation",
+          "ab_open5e_srd_2024_class_srd_2024_wizard_evoker_empowered_evocation"
+        ]
+      },
+      {
+        "key": "en:evocation savant",
+        "name": "Знаток эвокации",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_school_of_evocation_evocation_savant",
+          "ab_open5e_srd_2024_class_srd_2024_wizard_evoker_evocation_savant"
+        ]
+      },
+      {
+        "key": "en:overchannel",
+        "name": "Переполнение энергией",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_school_of_evocation_overchannel",
+          "ab_open5e_srd_2024_class_srd_2024_wizard_evoker_overchannel"
+        ]
+      },
+      {
+        "key": "en:potent cantrip",
+        "name": "Сильный фокус",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_school_of_evocation_potent_cantrip",
+          "ab_open5e_srd_2024_class_srd_2024_wizard_evoker_potent_cantrip"
+        ]
+      },
+      {
+        "key": "en:sculpt spells",
+        "name": "Лепка заклинаний",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_school_of_evocation_sculpt_spells",
+          "ab_open5e_srd_2024_class_srd_2024_wizard_evoker_sculpt_spells"
+        ]
+      },
+      {
+        "key": "en:font of magic",
+        "name": "Источник магии",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_sorcerer_font_of_magic",
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_font_of_magic"
+        ]
+      },
+      {
+        "key": "en:metamagic",
+        "name": "Метамагия",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_sorcerer_metamagic",
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_metamagic"
+        ]
+      },
+      {
+        "key": "en:sorcerous origin",
+        "name": "Происхождение чар",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_sorcerer_sorcerous_origin"
+        ]
+      },
+      {
+        "key": "en:sorcerous restoration",
+        "name": "Восстановление чар",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_sorcerer_sorcerous_restoration",
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_sorcerous_restoration"
+        ]
+      },
+      {
+        "key": "en:sorcery points",
+        "name": "Очки чар",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_sorcerer_sorcery_points"
+        ]
+      },
+      {
+        "key": "en:dark one's blessing",
+        "name": "Благословение Тёмного",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_the_fiend_dark_ones_blessing",
+          "ab_open5e_srd_2024_class_srd_2024_warlock_fiend_patron_dark_ones_blessing"
+        ]
+      },
+      {
+        "key": "en:dark one's own luck",
+        "name": "Удача Тёмного",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_the_fiend_dark_ones_own_luck",
+          "ab_open5e_srd_2024_class_srd_2024_warlock_fiend_patron_dark_ones_own_luck"
+        ]
+      },
+      {
+        "key": "en:expanded spell list",
+        "name": "Расширенный список заклинаний",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_the_fiend_expanded_spell_list"
+        ]
+      },
+      {
+        "key": "en:fiendish resilience",
+        "name": "Стойкость бестии",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_the_fiend_fiendish_resilience",
+          "ab_open5e_srd_2024_class_srd_2024_warlock_fiend_patron_fiendish_resilience"
+        ]
+      },
+      {
+        "key": "en:hurl through hell",
+        "name": "Бросок сквозь Преисподнюю",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_the_fiend_hurl_through_hell",
+          "ab_open5e_srd_2024_class_srd_2024_warlock_fiend_patron_hurl_through_hell"
+        ]
+      },
+      {
+        "key": "en:fast hands",
+        "name": "Быстрые пальцы",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_thief_fast_hands",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_thief_fast_hands"
+        ]
+      },
+      {
+        "key": "en:second-story work",
+        "name": "Форточник",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_thief_second_story_work",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_thief_second_story_work"
+        ]
+      },
+      {
+        "key": "en:supreme sneak",
+        "name": "Высшая скрытность",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_thief_supreme_sneak",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_thief_supreme_sneak"
+        ]
+      },
+      {
+        "key": "en:thief's reflexes",
+        "name": "Воровские рефлексы",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_thief_thiefs_reflexes",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_thief_thiefs_reflexes"
+        ]
+      },
+      {
+        "key": "en:use magic device",
+        "name": "Использование магических устройств",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_thief_use_magic_device",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_thief_use_magic_device"
+        ]
+      },
+      {
+        "key": "en:eldritch invocations",
+        "name": "Потусторонние инвокации",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_warlock_eldritch_invocations",
+          "ab_open5e_srd_2024_class_srd_2024_warlock_eldritch_invocations"
+        ]
+      },
+      {
+        "key": "en:eldritch master",
+        "name": "Потусторонний владыка",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_warlock_eldritch_master",
+          "ab_open5e_srd_2024_class_srd_2024_warlock_eldritch_master"
+        ]
+      },
+      {
+        "key": "en:invocations known",
+        "name": "Известные инвокации",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_warlock_invocations_known"
+        ]
+      },
+      {
+        "key": "en:mystic arcanum",
+        "name": "Мистический арканум",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_warlock_mystic_arcanum",
+          "ab_open5e_srd_2024_class_srd_2024_warlock_mystic_arcanum"
+        ]
+      },
+      {
+        "key": "en:otherworldly patron",
+        "name": "Сверхъестественный покровитель",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_warlock_otherworldly_patron"
+        ]
+      },
+      {
+        "key": "en:pact boon",
+        "name": "Дар договора",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_warlock_pact_boon"
+        ]
+      },
+      {
+        "key": "en:pact magic",
+        "name": "Магия договора",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_warlock_pact_magic",
+          "ab_open5e_srd_2024_class_srd_2024_warlock_pact_magic"
+        ]
+      },
+      {
+        "key": "en:slot level",
+        "name": "Круг ячеек",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_warlock_slot_level"
+        ]
+      },
+      {
+        "key": "en:open hand technique",
+        "name": "Техника Открытой Ладони",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_way_of_the_open_hand_open_hand_technique",
+          "ab_open5e_srd_2024_class_srd_2024_monk_warrior_of_the_open_hand_open_hand_technique"
+        ]
+      },
+      {
+        "key": "en:quivering palm",
+        "name": "Дрожащая ладонь",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_way_of_the_open_hand_quivering_palm",
+          "ab_open5e_srd_2024_class_srd_2024_monk_warrior_of_the_open_hand_quivering_palm"
+        ]
+      },
+      {
+        "key": "en:tranquility",
+        "name": "Безмятежность",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_way_of_the_open_hand_tranquility"
+        ]
+      },
+      {
+        "key": "en:wholeness of body",
+        "name": "Цельность тела",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_way_of_the_open_hand_wholeness_of_body",
+          "ab_open5e_srd_2024_class_srd_2024_monk_warrior_of_the_open_hand_wholeness_of_body"
+        ]
+      },
+      {
+        "key": "en:arcane recovery",
+        "name": "Магическое восстановление",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_wizard_arcane_recovery",
+          "ab_open5e_srd_2024_class_srd_2024_wizard_arcane_recovery"
+        ]
+      },
+      {
+        "key": "en:arcane tradition",
+        "name": "Магическая традиция",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_wizard_arcane_tradition"
+        ]
+      },
+      {
+        "key": "en:signature spells",
+        "name": "Фирменные заклинания",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_wizard_signature_spells",
+          "ab_open5e_srd_2024_class_srd_2024_wizard_signature_spells"
+        ]
+      },
+      {
+        "key": "en:spell mastery",
+        "name": "Мастер заклинаний",
+        "variantIds": [
+          "ab_open5e_srd_2014_class_srd_wizard_spell_mastery",
+          "ab_open5e_srd_2024_class_srd_2024_wizard_spell_mastery"
+        ]
+      },
+      {
+        "key": "en:grappler",
+        "name": "Рукопашный борец",
+        "variantIds": [
+          "ab_open5e_srd_2014_feat_srd_grappler",
+          "ab_open5e_srd_2024_feat_srd_2024_grappler"
+        ]
+      },
+      {
+        "key": "en:ability score increase",
+        "name": "Повышение характеристик",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_dragonborn_ability_score_increase_134b8cb778",
+          "ab_open5e_srd_2014_racial_srd_dwarf_ability_score_increase_ccd4272f3e",
+          "ab_open5e_srd_2014_racial_srd_elf_ability_score_increase_a401dde5c2",
+          "ab_open5e_srd_2014_racial_srd_gnome_ability_score_increase_b7f028c9dd",
+          "ab_open5e_srd_2014_racial_srd_half_elf_ability_score_increase_fe081dcbd2",
+          "ab_open5e_srd_2014_racial_srd_half_orc_ability_score_increase_08f7895f89",
+          "ab_open5e_srd_2014_racial_srd_halfling_ability_score_increase_a401dde5c2",
+          "ab_open5e_srd_2014_racial_srd_high_elf_ability_score_increase_82c9284a70",
+          "ab_open5e_srd_2014_racial_srd_hill_dwarf_ability_score_increase_a68a20a929",
+          "ab_open5e_srd_2014_racial_srd_human_ability_score_increase_407627ac2b",
+          "ab_open5e_srd_2014_racial_srd_lightfoot_ability_score_increase_945c7f6a60",
+          "ab_open5e_srd_2014_racial_srd_rock_gnome_ability_score_increase_cff8c0180c",
+          "ab_open5e_srd_2014_racial_srd_tiefling_ability_score_increase_a92f5de2ff"
+        ]
+      },
+      {
+        "key": "en:age",
+        "name": "Возраст",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_dragonborn_age_3cacf5623c",
+          "ab_open5e_srd_2014_racial_srd_dwarf_age_a4e801f456",
+          "ab_open5e_srd_2014_racial_srd_elf_age_1495b4e4d2",
+          "ab_open5e_srd_2014_racial_srd_gnome_age_bd4e350c82",
+          "ab_open5e_srd_2014_racial_srd_half_elf_age_f34cb6fa12",
+          "ab_open5e_srd_2014_racial_srd_half_orc_age_ebb34532cb",
+          "ab_open5e_srd_2014_racial_srd_halfling_age_1d33515775",
+          "ab_open5e_srd_2014_racial_srd_human_age_09c527590a",
+          "ab_open5e_srd_2014_racial_srd_tiefling_age_dd43fe8e1f"
+        ]
+      },
+      {
+        "key": "en:alignment",
+        "name": "Мировоззрение",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_dragonborn_alignment_95020684ee",
+          "ab_open5e_srd_2014_racial_srd_dwarf_alignment_fa2c70eb29",
+          "ab_open5e_srd_2014_racial_srd_elf_alignment_e8947dcdac",
+          "ab_open5e_srd_2014_racial_srd_gnome_alignment_c964841c2a",
+          "ab_open5e_srd_2014_racial_srd_half_elf_alignment_73707b33ea",
+          "ab_open5e_srd_2014_racial_srd_half_orc_alignment_55945e7240",
+          "ab_open5e_srd_2014_racial_srd_halfling_alignment_2f2190e7c4",
+          "ab_open5e_srd_2014_racial_srd_human_alignment_611fd4d59c",
+          "ab_open5e_srd_2014_racial_srd_tiefling_alignment_ceb0b4d175"
+        ]
+      },
+      {
+        "key": "en:damage resistance",
+        "name": "Сопротивление урону",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_dragonborn_damage_resistance_9a68c30923",
+          "ab_open5e_srd_2024_racial_srd_2024_dragonborn_damage_resistance_49d4f65be3"
+        ]
+      },
+      {
+        "key": "en:draconic ancestry table",
+        "name": "Таблица драконьего наследия",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_dragonborn_draconic_ancestry_table_6e22d5902a"
+        ]
+      },
+      {
+        "key": "en:languages",
+        "name": "Языки",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_dragonborn_languages_9bfd944b6d",
+          "ab_open5e_srd_2014_racial_srd_dwarf_languages_8429841781",
+          "ab_open5e_srd_2014_racial_srd_elf_languages_1cf6c40a44",
+          "ab_open5e_srd_2014_racial_srd_gnome_languages_1d2431cef4",
+          "ab_open5e_srd_2014_racial_srd_half_elf_languages_cb6c51fb36",
+          "ab_open5e_srd_2014_racial_srd_half_orc_languages_3ad867401d",
+          "ab_open5e_srd_2014_racial_srd_halfling_languages_7365257121",
+          "ab_open5e_srd_2014_racial_srd_human_languages_a2760250c4",
+          "ab_open5e_srd_2014_racial_srd_tiefling_languages_fce15a0a19"
+        ]
+      },
+      {
+        "key": "en:size",
+        "name": "Размер",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_dragonborn_size_4d83591591",
+          "ab_open5e_srd_2014_racial_srd_dwarf_size_d12e6b148d",
+          "ab_open5e_srd_2014_racial_srd_elf_size_1815120e42",
+          "ab_open5e_srd_2014_racial_srd_gnome_size_d66ceb86a4",
+          "ab_open5e_srd_2014_racial_srd_half_elf_size_748061f952",
+          "ab_open5e_srd_2014_racial_srd_half_orc_size_b41b725549",
+          "ab_open5e_srd_2014_racial_srd_halfling_size_e706f46bda",
+          "ab_open5e_srd_2014_racial_srd_human_size_52099137a5",
+          "ab_open5e_srd_2014_racial_srd_tiefling_size_b24ce6f5b7",
+          "ab_open5e_srd_2024_racial_srd_2024_dragonborn_size_6420182f02",
+          "ab_open5e_srd_2024_racial_srd_2024_dwarf_size_80a8f31eee",
+          "ab_open5e_srd_2024_racial_srd_2024_elf_size_bd246eca3c",
+          "ab_open5e_srd_2024_racial_srd_2024_gnome_size_9035b9c62c",
+          "ab_open5e_srd_2024_racial_srd_2024_goliath_size_a22c51420f",
+          "ab_open5e_srd_2024_racial_srd_2024_halfling_size_72fa783084",
+          "ab_open5e_srd_2024_racial_srd_2024_human_size_27db668fed",
+          "ab_open5e_srd_2024_racial_srd_2024_orc_size_319c23442d",
+          "ab_open5e_srd_2024_racial_srd_2024_tiefling_size_a8a3cfc123"
+        ]
+      },
+      {
+        "key": "en:speed",
+        "name": "Скорость",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_dragonborn_speed_e87b671777",
+          "ab_open5e_srd_2014_racial_srd_dwarf_speed_aacd291db6",
+          "ab_open5e_srd_2014_racial_srd_elf_speed_e87b671777",
+          "ab_open5e_srd_2014_racial_srd_gnome_speed_7ae470de48",
+          "ab_open5e_srd_2014_racial_srd_half_elf_speed_e87b671777",
+          "ab_open5e_srd_2014_racial_srd_half_orc_speed_e87b671777",
+          "ab_open5e_srd_2014_racial_srd_halfling_speed_7ae470de48",
+          "ab_open5e_srd_2014_racial_srd_human_speed_e87b671777",
+          "ab_open5e_srd_2014_racial_srd_tiefling_speed_e87b671777",
+          "ab_open5e_srd_2024_racial_srd_2024_dragonborn_speed_eb6d88b8e1",
+          "ab_open5e_srd_2024_racial_srd_2024_dwarf_speed_eb6d88b8e1",
+          "ab_open5e_srd_2024_racial_srd_2024_elf_speed_eb6d88b8e1",
+          "ab_open5e_srd_2024_racial_srd_2024_gnome_speed_eb6d88b8e1",
+          "ab_open5e_srd_2024_racial_srd_2024_goliath_speed_75c0af9bd0",
+          "ab_open5e_srd_2024_racial_srd_2024_halfling_speed_eb6d88b8e1",
+          "ab_open5e_srd_2024_racial_srd_2024_human_speed_eb6d88b8e1",
+          "ab_open5e_srd_2024_racial_srd_2024_orc_speed_eb6d88b8e1",
+          "ab_open5e_srd_2024_racial_srd_2024_tiefling_speed_eb6d88b8e1"
+        ]
+      },
+      {
+        "key": "en:dwarven combat training",
+        "name": "Боевая подготовка дварфа",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_dwarf_dwarven_combat_training_5c52fd8938"
+        ]
+      },
+      {
+        "key": "en:tool proficiency",
+        "name": "Владение инструментом",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_dwarf_tool_proficiency_d221d6a913"
+        ]
+      },
+      {
+        "key": "en:skill versatility",
+        "name": "Разнообразие навыков",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_half_elf_skill_versatility_fb621009b1"
+        ]
+      },
+      {
+        "key": "en:cantrip",
+        "name": "Фокус",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_high_elf_cantrip_8cb55ab28b"
+        ]
+      },
+      {
+        "key": "en:elf weapon training",
+        "name": "Эльфийская оружейная подготовка",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_high_elf_elf_weapon_training_52402902d5"
+        ]
+      },
+      {
+        "key": "en:extra language",
+        "name": "Дополнительный язык",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_high_elf_extra_language_5e5c6bbc5c",
+          "ab_полуэльф_дополнительный_язык"
+        ]
+      },
+      {
+        "key": "en:naturally stealthy",
+        "name": "Природная скрытность",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_lightfoot_naturally_stealthy_7a8d7b25cc",
+          "ab_open5e_srd_2024_racial_srd_2024_halfling_naturally_stealthy_688b9cab8f"
+        ]
+      },
+      {
+        "key": "en:artificer's lore",
+        "name": "Знания изобретателя",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_rock_gnome_artificer_s_lore_8eecb0709a"
+        ]
+      },
+      {
+        "key": "en:tinker",
+        "name": "Механик",
+        "variantIds": [
+          "ab_open5e_srd_2014_racial_srd_rock_gnome_tinker_43f57df4ac"
+        ]
+      },
+      {
+        "key": "en:barbarian subclass",
+        "name": "Подкласс варвара",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_barbarian_subclass"
+        ]
+      },
+      {
+        "key": "en:brutal strike",
+        "name": "Жестокий удар",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_brutal_strike"
+        ]
+      },
+      {
+        "key": "en:improved brutal strike",
+        "name": "Улучшенный жестокий удар",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_improved_brutal_strike"
+        ]
+      },
+      {
+        "key": "en:improved brutal strike (enhanced)",
+        "name": "Улучшенный жестокий удар: усиление",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_improved_brutal_strike_enhanced"
+        ]
+      },
+      {
+        "key": "en:instinctive pounce",
+        "name": "Инстинктивный рывок",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_instinctive_pounce"
+        ]
+      },
+      {
+        "key": "en:primal knowledge",
+        "name": "Первобытные знания",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_primal_knowledge"
+        ]
+      },
+      {
+        "key": "en:weapon mastery",
+        "name": "Оружейные приёмы",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_barbarian_weapon_mastery",
+          "ab_open5e_srd_2024_class_srd_2024_fighter_weapon_mastery",
+          "ab_open5e_srd_2024_class_srd_2024_paladin_weapon_mastery",
+          "ab_open5e_srd_2024_class_srd_2024_ranger_weapon_mastery",
+          "ab_open5e_srd_2024_class_srd_2024_rogue_weapon_mastery"
+        ]
+      },
+      {
+        "key": "en:bard spell list",
+        "name": "Список заклинаний барда",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_bard_bard_spell_list"
+        ]
+      },
+      {
+        "key": "en:bard subclass",
+        "name": "Подкласс барда",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_bard_bard_subclass"
+        ]
+      },
+      {
+        "key": "en:words of creation",
+        "name": "Слова творения",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_bard_words_of_creation"
+        ]
+      },
+      {
+        "key": "en:blessed strikes",
+        "name": "Благословенные удары",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_cleric_blessed_strikes"
+        ]
+      },
+      {
+        "key": "en:cleric spell list",
+        "name": "Список заклинаний жреца",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_cleric_cleric_spell_list"
+        ]
+      },
+      {
+        "key": "en:cleric subclasses",
+        "name": "Подклассы жреца",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_cleric_cleric_subclasses"
+        ]
+      },
+      {
+        "key": "en:divine order",
+        "name": "Божественный порядок",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_cleric_divine_order"
+        ]
+      },
+      {
+        "key": "en:greater divine intervention",
+        "name": "Великое божественное вмешательство",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_cleric_greater_divine_intervention"
+        ]
+      },
+      {
+        "key": "en:improved blessed strikes",
+        "name": "Улучшенные благословенные удары",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_cleric_improved_blessed_strikes"
+        ]
+      },
+      {
+        "key": "en:preserve life",
+        "name": "Сохранение жизни",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_cleric_life_domain_preserve_life"
+        ]
+      },
+      {
+        "key": "en:sear undead",
+        "name": "Опаление нежити",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_cleric_sear_undead"
+        ]
+      },
+      {
+        "key": "en:magical discoveries",
+        "name": "Магические открытия",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_college_of_lore_magical_discoveries"
+        ]
+      },
+      {
+        "key": "en:land's aid",
+        "name": "Помощь земли",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_druid_circle_of_the_land_lands_aid"
+        ]
+      },
+      {
+        "key": "en:circle of the land spells",
+        "name": "Заклинания круга Земли",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_druid_circle_of_the_land_spell_list"
+        ]
+      },
+      {
+        "key": "en:druid spell list",
+        "name": "Список заклинаний друида",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_druid_druid_spell_list"
+        ]
+      },
+      {
+        "key": "en:druid subclass",
+        "name": "Подкласс друида",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_druid_druid_subclass"
+        ]
+      },
+      {
+        "key": "en:elemental fury",
+        "name": "Ярость стихий",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_druid_elemental_fury"
+        ]
+      },
+      {
+        "key": "en:improved elemental fury",
+        "name": "Улучшенная ярость стихий",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_druid_improved_elemental_fury"
+        ]
+      },
+      {
+        "key": "en:primal order",
+        "name": "Первобытный порядок",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_druid_primal_order"
+        ]
+      },
+      {
+        "key": "en:wild companion",
+        "name": "Дикий компаньон",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_druid_wild_companion"
+        ]
+      },
+      {
+        "key": "en:wild resurgence",
+        "name": "Дикое возрождение",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_druid_wild_resurgence"
+        ]
+      },
+      {
+        "key": "en:cantrips known",
+        "name": "Известные фокусы",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_druid_wild_shape_uses"
+        ]
+      },
+      {
+        "key": "en:heroic warrior",
+        "name": "Героический воин",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_fighter_champion_heroic_warrior"
+        ]
+      },
+      {
+        "key": "en:fighter subclass",
+        "name": "Подкласс воина",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_fighter_fighter_subclass"
+        ]
+      },
+      {
+        "key": "en:studdied attacks",
+        "name": "Изученные атаки",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_fighter_studied_attacks"
+        ]
+      },
+      {
+        "key": "en:tactical master",
+        "name": "Мастер тактики",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_fighter_tactical_master"
+        ]
+      },
+      {
+        "key": "en:tactical mind",
+        "name": "Тактический ум",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_fighter_tactical_mind"
+        ]
+      },
+      {
+        "key": "en:tactical shift",
+        "name": "Тактическое перемещение",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_fighter_tactical_shift"
+        ]
+      },
+      {
+        "key": "en:three extra attacks",
+        "name": "Три дополнительные атаки",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_fighter_three_extra_attacks"
+        ]
+      },
+      {
+        "key": "en:two extra attacks",
+        "name": "Две дополнительные атаки",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_fighter_two_extra_attacks"
+        ]
+      },
+      {
+        "key": "en:acrobatic movement",
+        "name": "Акробатическое перемещение",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_acrobatic_movement"
+        ]
+      },
+      {
+        "key": "en:body and mind",
+        "name": "Тело и разум",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_body_and_mind"
+        ]
+      },
+      {
+        "key": "en:deflect attacks",
+        "name": "Отражение атак",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_deflect_attacks"
+        ]
+      },
+      {
+        "key": "en:deflect energy",
+        "name": "Отражение энергии",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_deflect_energy"
+        ]
+      },
+      {
+        "key": "en:disciplined survivor",
+        "name": "Дисциплинированный выживший",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_disciplined_survivor"
+        ]
+      },
+      {
+        "key": "en:empowered strikes",
+        "name": "Мощные удары",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_empowered_strikes"
+        ]
+      },
+      {
+        "key": "en:heightened focus",
+        "name": "Усиленное сосредоточение",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_heightened_focus"
+        ]
+      },
+      {
+        "key": "en:monk subclass",
+        "name": "Подкласс монаха",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_monk_subclass"
+        ]
+      },
+      {
+        "key": "en:monk's focus",
+        "name": "Сосредоточение монаха",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_monks_focus"
+        ]
+      },
+      {
+        "key": "en:perfect focus",
+        "name": "Совершенное сосредоточение",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_perfect_focus"
+        ]
+      },
+      {
+        "key": "en:self-restoration",
+        "name": "Самовосстановление",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_self_restoration"
+        ]
+      },
+      {
+        "key": "en:superior defense",
+        "name": "Превосходная защита",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_superior_defense"
+        ]
+      },
+      {
+        "key": "en:uncanny metabolism",
+        "name": "Невероятный метаболизм",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_uncanny_metabolism"
+        ]
+      },
+      {
+        "key": "en:fleet step",
+        "name": "Быстрый шаг",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_monk_warrior_of_the_open_hand_fleet_step"
+        ]
+      },
+      {
+        "key": "en:abjure foes",
+        "name": "Изгнание врагов",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_paladin_abjure_foes"
+        ]
+      },
+      {
+        "key": "en:aura expansion",
+        "name": "Расширение ауры",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_paladin_aura_expansion"
+        ]
+      },
+      {
+        "key": "en:faithful steed",
+        "name": "Верный конь",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_paladin_faithful_steed"
+        ]
+      },
+      {
+        "key": "en:sacred weapon",
+        "name": "Священное оружие",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_paladin_oath_of_devotion_sacred_weapon"
+        ]
+      },
+      {
+        "key": "en:smite of protection",
+        "name": "Защитная кара",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_paladin_oath_of_devotion_smite_of_protection"
+        ]
+      },
+      {
+        "key": "en:oath of devotion spells",
+        "name": "Заклинания клятвы Верности",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_paladin_oath_of_devotion_spells"
+        ]
+      },
+      {
+        "key": "en:paladin subclass",
+        "name": "Подкласс паладина",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_paladin_paladin_subclass"
+        ]
+      },
+      {
+        "key": "en:paladin's smite",
+        "name": "Кара паладина",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_paladin_paladins_smite"
+        ]
+      },
+      {
+        "key": "en:radiant strikes",
+        "name": "Сияющие удары",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_paladin_radiant_strikes"
+        ]
+      },
+      {
+        "key": "en:restoring touch",
+        "name": "Восстанавливающее касание",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_paladin_restoring_touch"
+        ]
+      },
+      {
+        "key": "en:paladin spell list",
+        "name": "Список заклинаний паладина",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_paladin_spell_list"
+        ]
+      },
+      {
+        "key": "en:deft explorer",
+        "name": "Ловкий исследователь",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_ranger_deft_explorer"
+        ]
+      },
+      {
+        "key": "en:hunter's lore",
+        "name": "Знания охотника",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_ranger_hunter_hunters_lore"
+        ]
+      },
+      {
+        "key": "en:superior hunter's prey",
+        "name": "Превосходная добыча охотника",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_ranger_hunter_superior_hunters_prey"
+        ]
+      },
+      {
+        "key": "en:nature's veil",
+        "name": "Природная вуаль",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_ranger_natures_veil"
+        ]
+      },
+      {
+        "key": "en:precise hunter",
+        "name": "Меткий охотник",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_ranger_precise_hunter"
+        ]
+      },
+      {
+        "key": "en:ranger subclass",
+        "name": "Подкласс следопыта",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_ranger_ranger_subclass"
+        ]
+      },
+      {
+        "key": "en:relentless hunter",
+        "name": "Неустанный охотник",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_ranger_relentless_hunter"
+        ]
+      },
+      {
+        "key": "en:roving",
+        "name": "Странствия",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_ranger_roving"
+        ]
+      },
+      {
+        "key": "en:ranger spell list",
+        "name": "Список заклинаний следопыта",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_ranger_spell_list"
+        ]
+      },
+      {
+        "key": "en:tireless",
+        "name": "Неутомимый",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_ranger_tireless"
+        ]
+      },
+      {
+        "key": "en:cunning strike",
+        "name": "Коварный удар",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_rogue_cunning_strike"
+        ]
+      },
+      {
+        "key": "en:devious strikes",
+        "name": "Коварные удары",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_rogue_devious_strikes"
+        ]
+      },
+      {
+        "key": "en:improved cunning strike",
+        "name": "Улучшенный коварный удар",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_rogue_improved_cunning_strike"
+        ]
+      },
+      {
+        "key": "en:rogue subclass",
+        "name": "Подкласс плута",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_rogue_rogue_subclass"
+        ]
+      },
+      {
+        "key": "en:steady aim",
+        "name": "Тщательное прицеливание",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_rogue_steady_aim"
+        ]
+      },
+      {
+        "key": "en:arcane apotheosis",
+        "name": "Чародейский апофеоз",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_arcane_apotheosis"
+        ]
+      },
+      {
+        "key": "en:draconic spells",
+        "name": "Драконьи заклинания",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_draconic_sorcery_draconic_spells"
+        ]
+      },
+      {
+        "key": "en:dragon companion",
+        "name": "Дракон-компаньон",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_draconic_sorcery_dragon_companion"
+        ]
+      },
+      {
+        "key": "en:innate sorcery",
+        "name": "Врожденное волшебство",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_innate_sorcery"
+        ]
+      },
+      {
+        "key": "en:sorcerer spell list",
+        "name": "Список заклинаний чародея",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_sorcerer_spell_list"
+        ]
+      },
+      {
+        "key": "en:sorcerer subclass",
+        "name": "Подкласс чародея",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_sorcerer_subclass"
+        ]
+      },
+      {
+        "key": "en:sorcery incarnate",
+        "name": "Воплощение волшебства",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_sorcerer_sorcery_incarnate"
+        ]
+      },
+      {
+        "key": "en:contact patron",
+        "name": "Связь с покровителем",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_warlock_contact_patron"
+        ]
+      },
+      {
+        "key": "en:fiend spells",
+        "name": "Заклинания Исчадия",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_warlock_fiend_patron_fiend_spells"
+        ]
+      },
+      {
+        "key": "en:magic cunning",
+        "name": "Магическая хитрость",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_warlock_magical_cunning"
+        ]
+      },
+      {
+        "key": "en:warlock spell list",
+        "name": "Список заклинаний колдуна",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_warlock_warlock_spell_list"
+        ]
+      },
+      {
+        "key": "en:warlock subclass",
+        "name": "Подкласс колдуна",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_warlock_warlock_subclass"
+        ]
+      },
+      {
+        "key": "en:memorize spell",
+        "name": "Запоминание заклинания",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_wizard_memorize_spell"
+        ]
+      },
+      {
+        "key": "en:ritual adept",
+        "name": "Адепт ритуалов",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_wizard_ritual_adept"
+        ]
+      },
+      {
+        "key": "en:scholar",
+        "name": "Учёный",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_wizard_scholar"
+        ]
+      },
+      {
+        "key": "en:wizard spell list",
+        "name": "Список заклинаний волшебника",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_wizard_wizard_spell_list"
+        ]
+      },
+      {
+        "key": "en:wizard subclass",
+        "name": "Подкласс волшебника",
+        "variantIds": [
+          "ab_open5e_srd_2024_class_srd_2024_wizard_wizard_subclass"
+        ]
+      },
+      {
+        "key": "en:alert",
+        "name": "Бдительный",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_alert"
+        ]
+      },
+      {
+        "key": "en:archery",
+        "name": "Стрельба",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_archery"
+        ]
+      },
+      {
+        "key": "en:boon of combat prowess",
+        "name": "Дар боевого мастерства",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_boon_of_combat_prowess"
+        ]
+      },
+      {
+        "key": "en:boon of dimensional travel",
+        "name": "Дар путешествий между измерениями",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_boon_of_dimensional_travel"
+        ]
+      },
+      {
+        "key": "en:boon of fate",
+        "name": "Дар судьбы",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_boon_of_fate"
+        ]
+      },
+      {
+        "key": "en:boon of irresistible offense",
+        "name": "Дар непреодолимой атаки",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_boon_of_irresistible_offense"
+        ]
+      },
+      {
+        "key": "en:boon of spell recall",
+        "name": "Дар возврата заклинаний",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_boon_of_spell_recall"
+        ]
+      },
+      {
+        "key": "en:boon of the night spirit",
+        "name": "Дар ночного духа",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_boon_of_the_night_spirit"
+        ]
+      },
+      {
+        "key": "en:boon of truesight",
+        "name": "Дар истинного видения",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_boon_of_truesight"
+        ]
+      },
+      {
+        "key": "en:defense",
+        "name": "Защита",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_defense"
+        ]
+      },
+      {
+        "key": "en:great weapon fighting",
+        "name": "Двуручное оружие",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_great_weapon_fighting"
+        ]
+      },
+      {
+        "key": "en:magic initiate",
+        "name": "Посвящённый в магию",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_magic_initiate"
+        ]
+      },
+      {
+        "key": "en:savage attacker",
+        "name": "Неистово атакующий",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_savage_attacker"
+        ]
+      },
+      {
+        "key": "en:skilled",
+        "name": "Умелый — черта",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_skilled"
+        ]
+      },
+      {
+        "key": "en:two-weapon fighting",
+        "name": "Два оружия",
+        "variantIds": [
+          "ab_open5e_srd_2024_feat_srd_2024_two_weapon_fighting"
+        ]
+      },
+      {
+        "key": "en:draconic flight",
+        "name": "Драконий полёт",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_dragonborn_draconic_flight_70ac957c66"
+        ]
+      },
+      {
+        "key": "en:elven lineage",
+        "name": "Эльфийское происхождение",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_elf_elven_lineage_5fae5eefea"
+        ]
+      },
+      {
+        "key": "en:gnomish cunning",
+        "name": "Гномская хитрость",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_gnome_gnomish_cunning_0821e2b509"
+        ]
+      },
+      {
+        "key": "en:gnomish lineage",
+        "name": "Гномское происхождение",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_gnome_gnomish_lineage_5093db0049"
+        ]
+      },
+      {
+        "key": "en:giant ancestry",
+        "name": "Наследие великанов",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_goliath_giant_ancestry_29c04a6dd0"
+        ]
+      },
+      {
+        "key": "en:large form",
+        "name": "Большой облик",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_goliath_large_form_41dc163255"
+        ]
+      },
+      {
+        "key": "en:powerful build",
+        "name": "Мощное телосложение",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_goliath_powerful_build_e321c354d8"
+        ]
+      },
+      {
+        "key": "en:resourceful",
+        "name": "Находчивый",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_human_resourceful_a0ecc758d5"
+        ]
+      },
+      {
+        "key": "en:skillful",
+        "name": "Умелый — особенность народа",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_human_skillful_eeb80fdebe"
+        ]
+      },
+      {
+        "key": "en:versatile",
+        "name": "Универсальный",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_human_versatile_56b1e1ebfc"
+        ]
+      },
+      {
+        "key": "en:adrenaline rush",
+        "name": "Прилив адреналина",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_orc_adrenaline_rush_f4e4a368bc"
+        ]
+      },
+      {
+        "key": "en:otherworldly presence",
+        "name": "Потустороннее присутствие",
+        "variantIds": [
+          "ab_open5e_srd_2024_racial_srd_2024_tiefling_otherworldly_presence_4bf2b93fc7"
+        ]
+      },
+      {
+        "key": "ru:дополнительный язык на выбор",
+        "name": "Дополнительный язык на выбор",
+        "variantIds": [
+          "ab_человек_дополнительный_язык_на_выбор"
+        ]
+      },
+      {
+        "key": "ru:универсальность и быстрая обучаемость",
+        "name": "Универсальность и быстрая обучаемость",
+        "variantIds": [
+          "ab_человек_универсальность_и_быстрая_обучаемость"
+        ]
+      },
+      {
+        "key": "ru:владение боевыми топорами, ручными топорами, молотами",
+        "name": "Владение боевыми топорами, ручными топорами, молотами",
+        "variantIds": [
+          "ab_дварф_владение_боевыми_топорами_ручными_топорами_молотами"
+        ]
+      },
+      {
+        "key": "ru:владение двумя навыками на выбор",
+        "name": "Владение двумя навыками на выбор",
+        "variantIds": [
+          "ab_полуэльф_владение_двумя_навыками_на_выбор"
+        ]
+      },
+      {
+        "key": "ru:сопротивление урону стихии предка",
+        "name": "Сопротивление урону стихии предка",
+        "variantIds": [
+          "ab_драконорожденный_сопротивление_урону_стихии_предка"
+        ]
+      },
+      {
+        "key": "ru:мировоззрение: хаотично-добрый",
+        "name": "Мировоззрение: Хаотично-добрый",
+        "variantIds": [
+          "ab_alignment_cg"
+        ]
+      },
+      {
+        "key": "ru:владение доспехами: волшебник",
+        "name": "Владение доспехами: Волшебник",
+        "variantIds": [
+          "ab_wiz_armor"
+        ]
+      },
+      {
+        "key": "ru:владение оружием: волшебник",
+        "name": "Владение оружием: Волшебник",
+        "variantIds": [
+          "ab_wiz_weapons"
+        ]
+      },
+      {
+        "key": "ru:заклинатель из невервинтера: эльф",
+        "name": "Заклинатель из Невервинтера: Эльф",
+        "variantIds": [
+          "ab_neverwinter_caster"
+        ]
+      },
+      {
+        "key": "ru:приют для верных огмы",
+        "name": "Приют для верных Огмы",
+        "variantIds": [
+          "ab_oghma_refuge"
+        ]
+      },
+      {
+        "key": "ru:ученик гаразель: лингвист",
+        "name": "Ученик Гаразель: Лингвист",
+        "variantIds": [
+          "ab_garasel_linguist"
+        ]
+      },
+      {
+        "key": "ru:владение доспехами: жрец (домен жизни)",
+        "name": "Владение доспехами: Жрец (Домен Жизни)",
+        "variantIds": [
+          "ab_life_armor"
+        ]
+      },
+      {
+        "key": "ru:владение оружием: жрец (домен жизни)",
+        "name": "Владение оружием: Жрец (Домен Жизни)",
+        "variantIds": [
+          "ab_life_weapons"
+        ]
+      },
+      {
+        "key": "ru:мировоззрение: законопослушно-добрый",
+        "name": "Мировоззрение: Законопослушно-добрый",
+        "variantIds": [
+          "ab_alignment_lg"
+        ]
+      },
+      {
+        "key": "ru:приют для верующих",
+        "name": "Приют для верующих",
+        "variantIds": [
+          "ab_shelter_faithful"
+        ]
+      },
+      {
+        "key": "ru:боевой махинатор",
+        "name": "Боевой махинатор",
+        "variantIds": [
+          "ab_sx_mastermind"
+        ]
+      },
+      {
+        "key": "ru:ловкая увертка",
+        "name": "Ловкая увертка",
+        "variantIds": [
+          "ab_sx_uncanny"
+        ]
+      },
+      {
+        "key": "ru:точное прицеливание",
+        "name": "Точное прицеливание",
+        "variantIds": [
+          "ab_sx_deadeye"
+        ]
+      },
+      {
+        "key": "ru:профессиональный вор",
+        "name": "Профессиональный вор",
+        "variantIds": [
+          "ab_sx_prothief"
+        ]
+      },
+      {
+        "key": "ru:скрытая атака (улучшенная)",
+        "name": "Скрытая атака (улучшенная)",
+        "variantIds": [
+          "ab_sx_sneak"
+        ]
+      },
+      {
+        "key": "ru:шокирующая атака (1 раз до отдыха)",
+        "name": "Шокирующая атака (1 раз до отдыха)",
+        "variantIds": [
+          "ab_sx_shock"
+        ]
+      },
+      {
+        "key": "ru:искусство карманника",
+        "name": "Искусство карманника",
+        "variantIds": [
+          "ab_sx_pickpocket"
+        ]
+      },
+      {
+        "key": "ru:проворство чейнджлинга",
+        "name": "Проворство чейнджлинга",
+        "variantIds": [
+          "ab_sx_agility"
+        ]
+      },
+      {
+        "key": "ru:перевертыш",
+        "name": "Перевертыш",
+        "variantIds": [
+          "ab_sx_shapechange"
+        ]
+      },
+      {
+        "key": "ru:расставление ловушек",
+        "name": "Расставление ловушек",
+        "variantIds": [
+          "ab_sx_traps"
+        ]
+      },
+      {
+        "key": "ru:врожденная харизма",
+        "name": "Врожденная харизма",
+        "variantIds": [
+          "ab_sx_charisma"
+        ]
+      },
+      {
+        "key": "ru:мировоззрение: хаотично-нейтральный",
+        "name": "Мировоззрение: Хаотично-нейтральный",
+        "variantIds": [
+          "ab_sx_align"
+        ]
+      },
+      {
+        "key": "ru:владение доспехами: плут",
+        "name": "Владение доспехами: Плут",
+        "variantIds": [
+          "ab_sx_armor"
+        ]
+      },
+      {
+        "key": "ru:владение оружием: плут",
+        "name": "Владение оружием: Плут",
+        "variantIds": [
+          "ab_sx_weapons"
+        ]
+      },
+      {
+        "key": "ru:ловкость рук",
+        "name": "Ловкость рук",
+        "variantIds": [
+          "ab_sx_sleight"
+        ]
+      },
+      {
+        "key": "ru:прожженный плут",
+        "name": "Прожженный плут",
+        "variantIds": [
+          "ab_sx_seasoned"
+        ]
+      },
+      {
+        "key": "ru:преимущества перемещения: лазание и прыжки",
+        "name": "Преимущества перемещения: Лазание и Прыжки",
+        "variantIds": [
+          "ab_sx_movement"
+        ]
+      },
+      {
+        "key": "ru:сочетание стилей: дуэлянт и защитник",
+        "name": "Сочетание стилей: Дуэлянт и Защитник",
+        "variantIds": [
+          "ab_lg_styles"
+        ]
+      },
+      {
+        "key": "ru:кости превосходства (4 × d8)",
+        "name": "Кости превосходства (4 × d8)",
+        "variantIds": [
+          "ab_lg_dice"
+        ]
+      },
+      {
+        "key": "ru:полуторный удар",
+        "name": "Полуторный удар",
+        "variantIds": [
+          "ab_lg_halfblow"
+        ]
+      },
+      {
+        "key": "ru:привилегированное положение",
+        "name": "Привилегированное положение",
+        "variantIds": [
+          "ab_lg_privilege"
+        ]
+      },
+      {
+        "key": "ru:владение доспехами: воин",
+        "name": "Владение доспехами: Воин",
+        "variantIds": [
+          "ab_lg_armor"
+        ]
+      },
+      {
+        "key": "ru:владение оружием: воин",
+        "name": "Владение оружием: Воин",
+        "variantIds": [
+          "ab_lg_weapons"
+        ]
+      },
+      {
+        "key": "ru:мировоззрение: законопослушно-нейтральный",
+        "name": "Мировоззрение: Законопослушно-нейтральный",
+        "variantIds": [
+          "ab_lg_align"
+        ]
+      },
+      {
+        "key": "ru:дипломатия: дварфы",
+        "name": "Дипломатия: Дварфы",
+        "variantIds": [
+          "ab_lg_dwarfdiplomacy"
+        ]
+      },
+      {
+        "key": "ru:дварфийский язык: блестящее владение",
+        "name": "Дварфийский язык: Блестящее владение",
+        "variantIds": [
+          "ab_lg_dwarvish"
+        ]
+      }
+    ]
+  },
   "editions": {
     "2014": 318,
     "2024": 309,
