@@ -5331,6 +5331,8 @@ const en=ABILITY_RULES.identity(ab);
 if(!['Second Wind','Action Surge'].includes(en)||ab.open5e?.ownerName!=='Fighter')return;
 const healing=en==='Second Wind',cost=healing?'bonus':'turnfree';
 ab.mode='active';ab.combatUsable=true;ab.uses=1;ab.rest='короткий отдых';
+// The imported manual card may still carry its previous unlimited-use tag.
+ab.tags=uniqTags((ab.tags||[]).filter(tag=>!['atwill','daily','longrest'].includes(tag)).concat(abilityEnrichTags(ab)));
 ab.mechanics={schemaVersion:GAME_MECHANICS_SCHEMA_VERSION,mode:'structured',origin:'explicit',sourceHash:mechanicsSourceHash(ab,'ability'),role:'active',
 activation:{cost},target:{kind:'self',base:1},resource:{uses:1,rest:ab.rest,pool:null,scaling:healing?[]:[{cls:'Воин',level:17,uses:2}]},
 duration:{kind:'instant',rounds:0,concentration:false,label:'Мгновенная'},

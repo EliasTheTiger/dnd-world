@@ -10,6 +10,7 @@ test('every catalog ability has a Russian name, edition and honest translation p
  const {e,a}=world();assert.equal(e.catalogs.abilities.length,693);
  for(const ab of e.catalogs.abilities){assert.match(ab.n,/[А-Яа-яЁё]/);assert.match(ab.x,/[А-Яа-яЁё]/);assert.equal(ab.abilityReview.revision,a.rules.revision);assert.ok(ab.abilityReview.descriptionStatus);}
  assert.equal(source(e,'Action Surge').n,'Порыв к действию');assert.equal(source(e,'Grappler').n,'Рукопашный борец');assert.equal(source(e,'Font of Inspiration').n,'Источник вдохновения');
+ for(const name of ['Action Surge','Second Wind']){const ab=source(e,name);assert.ok(ab.tags.includes('limited'));assert.ok(ab.tags.includes('shortrest'));assert.ok(!ab.tags.includes('atwill'));}
  assert.equal(source(e,'Restoring Touch','srd-2024').n,'Восстанавливающее касание');
  assert.equal(source(e,'Alignment').n,'Мировоззрение');assert.equal(source(e,'Cantrip').n,'Фокус');assert.equal(source(e,'Tranquility').n,'Безмятежность');
  assert.match(source(e,'Fey Ancestry').x,/испытания/);assert.doesNotMatch(source(e,'Fey Ancestry').x,/спасброс/);

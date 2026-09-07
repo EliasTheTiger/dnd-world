@@ -64,6 +64,11 @@ jobs:
           QA_SITE_ROOT: _site
           QA_EXPECTED_COMMIT: ${{ github.sha }}
         run: npm run qa:grimoire-workbench
+      - name: Check abilities on the built Pages candidate
+        env:
+          QA_SITE_ROOT: _site
+          QA_EXPECTED_COMMIT: ${{ github.sha }}
+        run: npm run qa:abilities
       - name: Upload final integration evidence
         if: always()
         uses: actions/upload-artifact@v4
