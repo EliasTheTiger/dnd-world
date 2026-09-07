@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {fileURLToPath} from 'node:url';
@@ -10,6 +11,7 @@ import Chests from '../scripts/chest-core.js';
 import Economy from '../scripts/economy-core.js';
 import Merchants from '../scripts/merchant-core.js';
 import Persistence from '../scripts/persistence-core.js';
+import FinalIntegration from '../qa/run-final-integration.cjs';
 import {loadRuntimeIntegrationEngine} from './helpers/runtime-catalog-loader.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -1230,7 +1232,7 @@ async function runCampaign(index, engine, catalog, buckets, aggregate, setVmTime
   for (const key of Object.keys(perCampaignCommits)) aggregate.productionCommits[key] += perCampaignCommits[key];
 }
 
-test('500 independent campaigns execute the production journey, audit/admit every catalog definition, and survive reconstruction', {timeout:900000}, async () => {
+test('500 independent campaigns execute the production journey, audit/admit every catalog definition, and survive reconstruction', {timeout:900000}, async t => {
   assert.equal(ACTOR_PROFILES.length,5);assert.equal(Merchants.DEFAULT_MERCHANT_TEMPLATES.length,10);assert.equal(CHEST_SCENARIOS.length,10);
   const engine = loadRuntimeIntegrationEngine();
   engine.setState({
@@ -1328,5 +1330,11 @@ test('500 independent campaigns execute the production journey, audit/admit ever
     fs.mkdirSync(path.dirname(path.resolve(evidencePath)),{recursive:true});
     fs.writeFileSync(path.resolve(evidencePath),JSON.stringify(summary,null,2) + '\n','utf8');
   }
+  // Exercise the actual publication gate against engine-generated receipts, even in the full suite.
+  // Synthetic contract fixtures alone previously missed drift after spell-circle corrections.
+  const acceptanceDir=fs.mkdtempSync(path.join(os.tmpdir(),'dnd-world-production-acceptance-'));
+  t.after(()=>fs.rmSync(acceptanceDir,{recursive:true,force:true}));
+  fs.writeFileSync(path.join(acceptanceDir,'campaign-matrix.json'),JSON.stringify(summary),'utf8');
+  assert.equal(FinalIntegration.readCampaignSummary(acceptanceDir).summary.completed,CAMPAIGN_COUNT);
   console.log('DND_WORLD_FINAL_INTEGRATION ' + JSON.stringify({...summary,campaignReceipts:`${summary.campaignReceipts.length} receipts`}));
 });

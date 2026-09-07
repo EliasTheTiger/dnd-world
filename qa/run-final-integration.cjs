@@ -11,6 +11,7 @@ const SKIP_FULL_SUITE = process.env.CI === 'true' && process.env.DND_WORLD_SKIP_
 const BROWSER_SCHEMA_VERSION = 'dnd-world-player-agent-run/1';
 const CAMPAIGN_SCHEMA_VERSION = 'dnd-world-final-integration-matrix/1';
 const CAMPAIGN_COUNT = 500;
+const EXPECTED_FORMULA_VARIANTS = 6410; // SRD 2014 circle corrections add two valid upcast variants.
 const EXPECTED_BROWSER_PHASES = Object.freeze(Array.from({ length: 15 }, (_, index) => `P${String(index + 1).padStart(2, '0')}`));
 const REQUIRED_CAMPAIGN_STAGES = Object.freeze([
   'campaign-start', 'starting-grants', 'merchant-visit', 'merchant-buy',
@@ -294,7 +295,7 @@ function readCampaignSummary(artifactDir) {
   else {
     if (formulaValidation.auditFunction !== 'gameDataAudit' || formulaValidation.scope !== 'installed-local-runtime') issues.push('structuredFormulaValidation must identify the production local-runtime audit');
     if (formulaValidation.executionClaim !== false) issues.push('structuredFormulaValidation.executionClaim must be false');
-    if (formulaValidation.variantsBuiltAndValidated !== 6408 || formulaValidation.errors !== 0) issues.push('structuredFormulaValidation must prove 6408 valid formula variants with zero errors');
+    if (formulaValidation.variantsBuiltAndValidated !== EXPECTED_FORMULA_VARIANTS || formulaValidation.errors !== 0) issues.push(`structuredFormulaValidation must prove ${EXPECTED_FORMULA_VARIANTS} valid formula variants with zero errors`);
     const expectedDefinitions={spells:958,abilities:693,items:193,foes:30,total:1874};
     if (!isRecord(formulaValidation.definitions)
       || Object.entries(expectedDefinitions).some(([key,value]) => formulaValidation.definitions[key] !== value)) {
@@ -319,7 +320,7 @@ function readCampaignSummary(artifactDir) {
     if (audit.worldErrors !== 0) issues.push('engineAudit.worldErrors must equal 0');
     if (audit.itemFailed !== 0) issues.push('engineAudit.itemFailed must equal 0');
     if (audit.itemPassed !== 1067) issues.push('engineAudit.itemPassed must equal 1067');
-    if (audit.worldVariants !== 6408) issues.push('engineAudit.worldVariants must equal 6408');
+    if (audit.worldVariants !== EXPECTED_FORMULA_VARIANTS) issues.push(`engineAudit.worldVariants must equal ${EXPECTED_FORMULA_VARIANTS}`);
     const expectedWorldCounts = {spells:958,abilities:693,items:193,foes:30,total:1874};
     if (!isRecord(audit.worldCounts)) issues.push('engineAudit.worldCounts object is missing');
     else for (const [key, expected] of Object.entries(expectedWorldCounts)) if (audit.worldCounts[key] !== expected) issues.push(`engineAudit.worldCounts.${key} must equal ${expected}`);
