@@ -33,6 +33,8 @@ test('Pages build validates and publishes only the current immutable catalog', (
   const versionedIndex = readFileSync(new URL(`../_site/releases/${release}/index.html`, import.meta.url), 'utf8');
   const releaseManifest = JSON.parse(readFileSync(new URL('../_site/release.json', import.meta.url), 'utf8'));
   assert.equal(builtIndex, versionedIndex);
+  assert.match(builtIndex, new RegExp(`href="/dnd-world/styles/treasure-workspaces\\.css\\?release=${release}"`));
+  assert.match(readFileSync(new URL('../_site/styles/treasure-workspaces.css', import.meta.url), 'utf8'), /\.trade-workspace/);
   assert.doesNotMatch(builtIndex, /__DND_WORLD_RELEASE__/);
   assert.match(builtIndex, new RegExp(`<meta name="dnd-world-release" content="${release}">`));
   assert.match(builtIndex, /<base href="\/dnd-world\/">/);

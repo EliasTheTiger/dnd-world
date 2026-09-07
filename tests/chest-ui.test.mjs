@@ -15,7 +15,7 @@ test('chest workspace exposes templates, review, placement and every requested p
   assert.match(html,/Таблица добычи/);
   assert.match(html,/function chestPlace\(/);
   assert.match(html,/const CHEST_ACTION_META=\{inspect:.*check:.*open:.*pick:.*disarm:.*destroy:/s);
-  assert.match(html,/Действия игроков · ActionEvaluation/);
+  assert.match(html,/Действия игроков<\/h3>/);
   assert.match(css,/\.chest-workspace/);
 });
 

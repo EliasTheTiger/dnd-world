@@ -27,5 +27,7 @@ test('merchant UI exposes manual stock, money, price, availability and relations
     assert.match(html,new RegExp('function '+functionName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\('));
   assert.match(html,/Явно разрешить мастеру покрыть нехватку/);
   assert.match(html,/Разрешение, автор и причина будут записаны в журнале/);
-  assert.match(html,/Item ID:/);
+  assert.match(html,/function merchantSellPreview\(/);
+  assert.match(html,/function merchantBuyPreview\(/);
+  assert.match(html,/function tradePicker\(/);
 });

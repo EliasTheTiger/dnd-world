@@ -42,6 +42,7 @@ function renderPublishedIndex(source, release) {
   let rendered = source.replaceAll(RELEASE_PLACEHOLDER, release);
   const assets = [
     { attribute: 'href', path: 'styles.css' },
+    { attribute: 'href', path: 'styles/treasure-workspaces.css' },
     ...runtimeFiles.map(name => ({ attribute: 'src', path: `scripts/${name}` })),
     { attribute: 'src', path: OPEN_CATALOG_PATH },
     { attribute: 'src', path: SPELL_FACTS_PATH },
@@ -146,6 +147,7 @@ async function buildSite(inputs) {
     catalogVersion: inputs.version,
   }, null, 2)}\n`);
   await cp(join(repositoryRoot, 'styles.css'), join(outputRoot, 'styles.css'));
+  await cp(join(repositoryRoot, 'styles'), join(outputRoot, 'styles'), { recursive: true });
   for (const name of runtimeFiles) await cp(join(repositoryRoot, 'scripts', name), join(outputRoot, 'scripts', name));
   await cp(join(repositoryRoot, 'assets'), join(outputRoot, 'assets'), { recursive: true });
   await cp(join(repositoryRoot, 'data', 'rulesets'), join(outputRoot, 'data', 'rulesets'), { recursive: true });

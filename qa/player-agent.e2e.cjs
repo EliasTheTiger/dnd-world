@@ -911,7 +911,9 @@ async function runJourney() {
     await advanceCombatToFresh('Року');
     await clickButton('Сундуки');
     await selectOptionAnywhere('Деревянный тайник');
-    await clickButton('✠ Создать сундук');
+    await clickButton('+ Создать сундук');
+    await clickButton('Игра');
+    await page.getByRole('combobox', {name:'Действующий персонаж',exact:true}).selectOption({label:'Року'});
     await clickButton('Разместить на сцене');
     const sceneRow = page.locator('main .chest-list-row').filter({ visible: true }).last();
     if (!await sceneRow.count()) throw new QaFailure('После размещения в сцене не появилась видимая строка объекта.');
@@ -923,24 +925,28 @@ async function runJourney() {
     await page.waitForTimeout(300);
 
     await clickButton('Торговцы');
-    await selectOptionAnywhere('Торговец общими товарами · general');
+    await selectOptionAnywhere('Торговец общими товарами');
     const create = page.getByRole('button', { name: /Создать и заполнить ассортимент|Новый торговец|Создать торговца|Создать NPC/i }).filter({ visible: true }).first();
     if (!await create.count()) throw new QaFailure('Нет видимого способа создать NPC-торговца.');
-    const merchantName = page.getByPlaceholder('по профессии').filter({ visible: true });
-    const merchantRegion = page.getByPlaceholder('любой').filter({ visible: true });
-    const merchantFlags = page.getByPlaceholder('через запятую').filter({ visible: true });
+    const merchantName = page.getByRole('textbox', {name:'Имя торговца',exact:true}).filter({ visible: true });
+    const merchantRegion = page.getByRole('textbox', {name:'Местоположение',exact:true}).filter({ visible: true });
+    await page.getByText('Сюжетные условия',{exact:true}).click();
+    const merchantFlags = page.getByRole('textbox', {name:'Флаги через запятую',exact:true}).filter({ visible: true });
     if (!await merchantName.count()) throw new QaFailure('Форма NPC не дает указать имя.');
     await merchantName.fill('Мара Медная');
     if (await merchantRegion.count()) await merchantRegion.fill('Медный Брод');
     if (await merchantFlags.count()) await merchantFlags.fill('шахта, проклятие');
     await create.click();
     await page.getByRole('heading', { name: 'Мара Медная', exact: true }).filter({ visible: true }).waitFor({ state: 'visible' });
+    await clickButton('Настройки мастера');
     const renderedRegion = page.locator('#merchantRegion').filter({ visible: true });
     await renderedRegion.waitFor({ state: 'visible' });
     const npcText = await page.locator('main').innerText();
     if (!npcText.includes('Мара Медная') || await renderedRegion.inputValue() !== 'Медный Брод') {
       throw new QaFailure('Созданный NPC или его сценовый регион не появились в интерфейсе.');
     }
+    await clickButton('Торговля');
+    await page.getByRole('combobox',{name:'Кто торгует',exact:true}).selectOption({label:'Року'});
     return 'Деревянный тайник размещен и осмотрен на сцене; NPC Мара Медная создана в регионе Медный Брод и видна в UI.';
   });
 
@@ -957,24 +963,27 @@ async function runJourney() {
     await clickButton('Торговцы');
     if (!(await page.locator('main').innerText()).includes('Мара Медная')) throw new QaFailure('Созданный на предыдущем шаге NPC Мара Медная потерян до торговли.');
     const merchantStock = async name => {
-      const rows = page.locator('main .merchant-row').filter({ visible: true, hasText: name });
+      const rows = page.locator('main .trade-product').filter({ visible: true, has:page.getByRole('heading',{name,exact:true}) });
       let total = 0;
       for (let index = 0; index < await rows.count(); index += 1) {
-        const field = rows.nth(index).locator('input[title="Остаток"]').first();
-        if (await field.count()) total += Number(await field.inputValue());
+        const label = await rows.nth(index).innerText();
+        const match = label.match(/Осталось (\d+) шт\./);
+        if (!match && !label.includes('Распродано')) throw new QaFailure('В карточке товара не показан остаток.');
+        total += Number(match?.[1] || 0);
       }
       return total;
     };
     const bookStockBefore = await merchantStock('Книга по истории');
     let buy = page.getByRole('button', { name: /Купить/i }).filter({ visible: true }).first();
     if (!await buy.count()) throw new QaFailure('У торговца нет видимого действия покупки.');
-    let firstStock = buy.locator('xpath=ancestor::*[contains(@class,"merchant-row")]').locator('input[title="Остаток"]').first();
-    const stockBeforeRefusal = await firstStock.inputValue();
-    await buy.click();
+    const firstStock = buy.locator('xpath=ancestor::article').locator('small').first();
+    const stockBeforeRefusal = await firstStock.innerText();
+    if (!await buy.isDisabled()) throw new QaFailure('Покупка без денег должна быть недоступна до коммита.');
+    if (!/Недостаточно денег/i.test(await buy.getAttribute('title') || '')) throw new QaFailure('Недоступная покупка не объясняет нехватку денег.');
     await page.waitForTimeout(250);
     const after = await bodyText();
     if (!/недостаточно|не хватает|0\s*(?:зм|монет)/i.test(after)) throw new QaFailure('Покупка без денег не дала понятного объяснения отказа.');
-    if (await firstStock.inputValue() !== stockBeforeRefusal) throw new QaFailure('После отклоненной покупки изменился остаток товара торговца.');
+    if (await firstStock.innerText() !== stockBeforeRefusal) throw new QaFailure('После отклоненной покупки изменился остаток товара торговца.');
 
     await openCharacter('Року');
     await clickButton('Инвентарь');
@@ -1004,15 +1013,14 @@ async function runJourney() {
     if (inventoryAfterSale['Книга по истории']) throw new QaFailure('Проданная книга все еще видна в инвентаре Року.');
     await clickButton('Торговцы');
 
-    const incenseRow = page.locator('.merchant-row[data-merchant-item="it_incense_t"]').filter({ visible: true });
+    const incenseRow = page.locator('.trade-product').filter({ visible: true, has:page.getByRole('heading',{name:'Благовония',exact:true}) });
     if (!await incenseRow.count()) throw new QaFailure('После продажи нет доступного дешевого товара для контрольной покупки.');
-    const incenseStock = incenseRow.locator('input[title="Остаток"]').first();
-    const incenseBefore = Number(await incenseStock.inputValue());
+    const incenseBefore = await merchantStock('Благовония');
     const incenseBuy = incenseRow.getByRole('button', { name: 'Купить', exact: true });
     if (!await incenseBuy.count() || await incenseBuy.isDisabled()) throw new QaFailure('Контрольная покупка благовоний недоступна без ясной причины.');
     await incenseBuy.click();
     await page.waitForTimeout(350);
-    const incenseAfter = Number(await page.locator('.merchant-row[data-merchant-item="it_incense_t"] input[title="Остаток"]').filter({ visible: true }).inputValue());
+    const incenseAfter = await merchantStock('Благовония');
     if (incenseAfter !== incenseBefore - 1) throw new QaFailure(`Покупка не уменьшила остаток благовоний ровно на один: ${incenseBefore} → ${incenseAfter}.`);
 
     await openCharacter('Року');
@@ -1106,20 +1114,25 @@ async function runJourney() {
 
   await step({
     phase: 'P12', id: 'create-place-open-chest',
-    action: 'Создать, утвердить и открыть деревянный тайник, сверить видимый инвентарь/деньги до и после, затем на свежем ходу повторить открытие.',
-    expected: 'Первый коммит выдает видимую добычу и помечает ее выданной; повторное открытие запрещено по состоянию и не дублирует ни предметы, ни монеты.',
-    reproduction: ['Открыть «Сундуки» и создать деревянный тайник.', 'Сгенерировать и утвердить добычу, разместить.', 'Снять UI-снимок кошелька и инвентаря Року.', 'Осмотреть и открыть, сверить выдачу.', 'На новом ходу повторить и сверить неизменность инвентаря/денег.']
+    action: 'Создать, утвердить и открыть деревянный тайник; отдельно забрать награду на новом ходу, сверить инвентарь/деньги и запрет повторной выдачи.',
+    expected: 'Открытие сохраняет награду в сундуке; «Забрать добычу» выдает ее один раз выбранному герою; повтор не меняет предметы или монеты.',
+    reproduction: ['Создать деревянный тайник и в «Свойствах» убрать замок.', 'В «Содержимом» подобрать и утвердить награду, затем разместить во вкладке «Игра».', 'Выбрать Року, осмотреть и открыть; проверить неизменность инвентаря.', 'На свежем ходу забрать добычу.', 'Еще на одном свежем ходу проверить запрет повторной выдачи.']
   }, async () => {
     await advanceCombatToFresh('Року');
     await clickButton('Сундуки');
     await selectOptionAnywhere('Деревянный тайник');
-    await clickButton('✠ Создать сундук');
+    await clickButton('+ Создать сундук');
+    await clickButton('Свойства');
     const lockType = page.getByRole('combobox', { name: 'Тип замка' }).filter({ visible: true });
     if (!await lockType.count()) throw new QaFailure('У сундука нет видимого структурированного типа замка.');
     await lockType.selectOption('none');
-    await clickButton('Сгенерировать');
-    const approve = page.getByRole('button', { name: 'Утвердить', exact: true }).filter({ visible: true });
-    if (await approve.count() && !await approve.isDisabled()) await approve.click();
+    await clickButton('Содержимое');
+    await page.getByText('Подобрать награду автоматически',{exact:true}).click();
+    await page.getByRole('combobox',{name:'Состав награды',exact:true}).selectOption('currency');
+    await clickButton('Подобрать содержимое');
+    await clickButton('Утвердить содержимое');
+    await clickButton('Игра');
+    await page.getByRole('combobox', {name:'Действующий персонаж',exact:true}).selectOption({label:'Року'});
     await clickButton('Разместить на сцене');
     const inspect = page.getByRole('button', { name: /Осмотреть/i }).filter({ visible: true }).first();
     if (!await inspect.count() || await inspect.isDisabled()) throw new QaFailure('Размещенный сундук нельзя осмотреть, либо причина блокировки неясна.');
@@ -1140,17 +1153,28 @@ async function runJourney() {
     const afterOpen = await mainDomFragment();
     if (beforeOpen === afterOpen) throw new QaFailure('Кнопка открытия сундука не изменила интерфейс и не объяснила отказ.');
     const chestAfterFirstOpen = await bodyText();
-    if (!/состояние:\s*открыт|выдано игроку/i.test(chestAfterFirstOpen)) throw new QaFailure('После коммита сундук не показал состояние «открыт»/«выдано игроку».');
+    if (!/открыт/i.test(chestAfterFirstOpen)) throw new QaFailure('После коммита сундук не показал состояние «открыт».');
+    await openCharacter('Року');
+    await clickButton('Инвентарь');
+    if (JSON.stringify(await visibleInventoryLedger()) !== JSON.stringify(lootLedgerBefore) || JSON.stringify(await visibleWallet()) !== JSON.stringify(lootWalletBefore)) {
+      throw new QaFailure('Открытие преждевременно выдало добычу до выбора действия «Забрать добычу».');
+    }
+    await advanceCombatToFresh('Року');
+    await clickButton('Сундуки');
+    await page.getByRole('button', {name:/Забрать добычу/}).filter({visible:true}).click();
+    if (!/Добыча выдана/i.test(await bodyText())) throw new QaFailure('Получение не пометило награду как выданную.');
     await openCharacter('Року');
     await clickButton('Инвентарь');
     const lootLedgerAfterFirst = await visibleInventoryLedger();
     const lootWalletAfterFirst = await visibleWallet();
     if (JSON.stringify(lootLedgerAfterFirst) === JSON.stringify(lootLedgerBefore) && JSON.stringify(lootWalletAfterFirst) === JSON.stringify(lootWalletBefore)) {
-      throw new QaFailure('Утвержденный сундук открыт, но ни видимый инвентарь, ни кошелек героя не изменились.');
+      throw new QaFailure('После получения добычи ни видимый инвентарь, ни кошелек героя не изменились.');
     }
 
     await advanceCombatToFresh('Року');
     await clickButton('Сундуки');
+    const repeatClaim = page.getByRole('button',{name:/Забрать добычу/}).filter({visible:true});
+    if (!await repeatClaim.isDisabled() || !/уже выдана/i.test(await repeatClaim.getAttribute('title') || '')) throw new QaFailure('Повторная выдача должна быть отключена с объяснением «уже выдана».');
     const repeatOpen = page.getByRole('button', { name: /Открыть/i }).filter({ visible: true }).last();
     if (!await repeatOpen.count()) throw new QaFailure('После первого открытия исчез контрол состояния сундука.');
     if (await repeatOpen.isDisabled()) {
@@ -1170,19 +1194,21 @@ async function runJourney() {
     }
     visibleStateMarkers.rokuInventoryAfterChest = lootLedgerAfterRepeat;
     visibleStateMarkers.rokuWalletAfterChest = lootWalletAfterRepeat;
-    return 'Первое открытие видимо выдало добычу; на свежем ходу повтор запрещен по состоянию, и весь UI-ledger остался неизменным.';
+    return 'Открытие сохранило награду в сундуке; отдельное получение выдало ее Року; повторные открытие и выдача запрещены, весь UI-ledger остался неизменным.';
   });
 
   await step({
     phase: 'P13', id: 'trap-and-mimic',
-    action: 'Создать сундук с ловушкой и сундук-мимик, проверить обнаружение/обезвреживание и открыть мимик с ручной инициативой.',
+    action: 'Септих с воровскими инструментами проверяет и обезвреживает ловушку; затем открывает мимика с ручной инициативой.',
     expected: 'Ловушка не срабатывает без проверки; мимик становится боевым участником после ручного d20, без дублирования добычи.',
     reproduction: ['Создать и разместить сундук с ловушкой.', 'Проверить и обезвредить.', 'Создать и разместить мимик.', 'Открыть, ввести d20 инициативы, подтвердить.']
   }, async () => {
-    await advanceCombatToFresh('Року');
+    await advanceCombatToFresh('Септих');
     await clickButton('Сундуки');
     await selectOptionAnywhere('Сундук с ловушкой');
-    await clickButton('✠ Создать сундук');
+    await clickButton('+ Создать сундук');
+    await clickButton('Игра');
+    await page.getByRole('combobox', {name:'Действующий персонаж',exact:true}).selectOption({label:'Септих'});
     await clickButton('Разместить на сцене');
     let check = page.getByRole('button', { name: /Проверить/i }).filter({ visible: true }).last();
     if (!await check.count() || await check.isDisabled()) throw new QaFailure('Ловушку нельзя проверить, либо отказ не объяснен.');
@@ -1194,7 +1220,7 @@ async function runJourney() {
     await apply.click();
     await page.waitForTimeout(350);
 
-    await advanceCombatToFresh('Року');
+    await advanceCombatToFresh('Септих');
     await clickButton('Сундуки');
     const disarm = page.getByRole('button', { name: /Обезвредить/i }).filter({ visible: true }).last();
     if (!await disarm.count() || await disarm.isDisabled()) throw new QaFailure(`Обнаруженную ловушку нельзя обезвредить: ${await disarm.getAttribute('title') || 'причина не показана'}.`);
@@ -1207,10 +1233,11 @@ async function runJourney() {
     await page.waitForTimeout(350);
     if (!/обезвреж/i.test(await bodyText())) throw new QaFailure('После успешного ручного броска состояние ловушки не объяснено как обезвреженное.');
 
-    await advanceCombatToFresh('Року');
+    await advanceCombatToFresh('Септих');
     await clickButton('Сундуки');
     await selectOptionAnywhere('Сундук-мимик');
-    await clickButton('✠ Создать сундук');
+    await clickButton('+ Создать сундук');
+    await clickButton('Игра');
     await clickButton('Разместить на сцене');
     const open = page.getByRole('button', { name: /Открыть/i }).filter({ visible: true }).last();
     if (!await open.count() || await open.isDisabled()) throw new QaFailure('Размещенный мимик нельзя открыть, либо отказ не объяснен.');
