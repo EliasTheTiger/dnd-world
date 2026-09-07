@@ -874,8 +874,11 @@ function loadEngine(random = () => 0, fetchImpl = null) {
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/magic-rules.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/grimoire-rules.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/hobbyworld-ability-terms.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/ability-rules.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'data/dnd5e/srd51-spell-facts.js'), 'utf8'), context);
   vm.runInContext(source, context);
+  vm.runInContext('renderMerchants=()=>{};renderChests=()=>{};', context);
   return context.__bg3SummonRuntimeAudit;
 }
 

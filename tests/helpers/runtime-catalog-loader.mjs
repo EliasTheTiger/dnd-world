@@ -15,6 +15,8 @@ function domElement(id) {
     className: '',
     classList: {toggle() {}, add() {}, remove() {}},
     closest() { return null; },
+    querySelectorAll() { return []; },
+    querySelector() { return null; },
   };
 }
 
@@ -60,6 +62,11 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
       }; },
       runItemIntegrationAudit, runRareBattleAudit, runSpellPreparationAudit,
       grimoireApi:{rules:GRIMOIRE_RULES,reconcile:grimoireReconcile,spellOf,grimoireActive,grimoireDuplicateName,spellCardHTML,renderSpellsDB,delSpellDB,grimoireRestore,spellClassTokens,spellRuleOf,inferComponents,spellExecutionPreflight,upgradeSpell,upgradeAbility,upgradeRace,upgradeClass},
+      abilitiesApi:{rules:ABILITY_RULES,reconcile:reconcileAbilityRules,abilityMaxUses,abilityOutcomePreflight,canUseAbilityCheck,abilityCardHTML,addAbilityFromDB,delCharAbility,stAbilities,renderAbilitiesDB,abilityCastFx,abilityOf,combatAbilityUsedThisTurn,combatAttackCount,filters:dbFlt.ab,
+        html(id){return document.getElementById(id).innerHTML;},
+        quiet(){renderChars=()=>{};renderCombat=()=>{};renderFoes=()=>{};renderChests=()=>{};renderMerchants=()=>{};},
+        setCast(ctx){castCtx=ctx;},roll(){return rollSpec;},advanceFxRound
+      },
       gameDataAudit, itemActions, itemProfile, itemUsesOf, itemAuditRollValues,
       itemUseOf, itemUseSpecOf, targetInfoOf, resolveOutcome, validateFormulaValues,
       useItemApply, castSpellApply, useAbilityApply, weaponSpecOf, weaponAttackApply,
@@ -81,7 +88,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         economyState(){return economyState;},
         failBackgroundPersistence(){runScheduledSave=async()=>false;},
         setDraft(c) {characterDraft=c;},draft(){return characterDraft;},
-        withoutPresentation(){renderChars=()=>{};renderCombat=()=>{};renderCharacterCreator=()=>{};characterCreatorClose=()=>{characterDraft=null;};}
+        withoutPresentation(){renderChars=()=>{};renderCombat=()=>{};renderChests=()=>{};renderMerchants=()=>{};renderCharacterCreator=()=>{};characterCreatorClose=()=>{characterDraft=null;};}
       },
       blankCombat, combatStart, combatNextTurn, combatSpend, combatCanSpend,
       coinCopperTotal, acTotal, eHpMax, effectiveConditions,

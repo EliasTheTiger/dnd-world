@@ -515,8 +515,11 @@ function loadFailClosedEngine(random) {
   vm.runInContext(fs.readFileSync(new URL('../scripts/character-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/magic-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/grimoire-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/hobbyworld-ability-terms.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/ability-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source, context);
+  vm.runInContext('renderMerchants=()=>{};renderChests=()=>{};', context);
   return context.__bg3ExtraProjectileFailClosed;
 }
 
@@ -640,8 +643,11 @@ function loadArrowRuntimeEngine(random) {
   vm.runInContext(fs.readFileSync(new URL('../scripts/character-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/magic-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/grimoire-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/hobbyworld-ability-terms.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/ability-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source, context);
+  vm.runInContext('renderMerchants=()=>{};renderChests=()=>{};', context);
   return context.__bg3ArrowRuntime;
 }
 

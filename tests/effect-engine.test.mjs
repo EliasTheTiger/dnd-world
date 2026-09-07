@@ -460,6 +460,8 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
   vm.runInContext(fs.readFileSync(new URL('../scripts/character-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/magic-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/grimoire-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/hobbyworld-ability-terms.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/ability-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source, context);
   return context.__engine;
@@ -2114,9 +2116,9 @@ test('парсер различает два вида урона, формулу
 test('пассивные черты не становятся действиями, а дыхание и стойкость имеют заряды', () => {
   const e = loadEngine();
   const abilities = e.seedAbilitiesDB();
-  const lucky = abilities.find(x => /^Везучий/.test(x.n));
-  const breath = abilities.find(x => /^Оружие дыхания/.test(x.n));
-  const relentless = abilities.find(x => /^Непоколебимая стойкость/.test(x.n));
+  const lucky = abilities.find(x => x.id === 'ab_полурослик_везучий');
+  const breath = abilities.find(x => x.id === 'ab_драконорожденный_оружие_дыхания');
+  const relentless = abilities.find(x => x.id === 'ab_полуорк_непоколебимая_стойкость');
 
   assert.equal(e.abilityIsActive(lucky), false);
   assert.equal(e.isPassiveAbility(lucky), true);
@@ -2168,7 +2170,7 @@ test('сопротивление от эффекта и уязвимость п�
 test('Непоколебимая стойкость и зелье последовательно меняют один боевой лист', () => {
   const e = loadEngine();
   const abilities = e.seedAbilitiesDB(), items = e.seedItemsDB();
-  const relentless = abilities.find(x => /^Непоколебимая стойкость/.test(x.n));
+  const relentless = abilities.find(x => x.id === 'ab_полуорк_непоколебимая_стойкость');
   const potion = items.find(x => /^Зелье лечения/.test(x.n));
   const target = hero('target', {
     hp: 10, hpMax: 30,
@@ -4237,7 +4239,7 @@ test('ритуальная метка не блокирует обычный к�
 
 test('оружие дыхания масштабирует одну, а не все четыре ступени урона', () => {
   const e = loadEngine();
-  const abilities = e.seedAbilitiesDB(), breath = abilities.find(x => /^\u041e\u0440\u0443\u0436\u0438\u0435 \u0434\u044b\u0445\u0430\u043d\u0438\u044f/.test(x.n));
+  const abilities = e.seedAbilitiesDB(), breath = abilities.find(x => x.id === 'ab_драконорожденный_оружие_дыхания');
   const target = {kind: 'none', known: false, name: 'цель'};
   const dice = [3, 6, 11, 16].map(level => {
     const caster = hero(`dragon-${level}`, {level, ab: {str: 10, dex: 10, con: 16, int: 10, wis: 10, cha: 10}});
@@ -4577,6 +4579,9 @@ test('Шокирующая атака требует 2d8, при равенст�
   values = {atk: 10, atk_2: 10, wdmg: 4, save: null, [threshold.key]: foe.ac};
   out = e.resolveOutcome(spec, values, {});
   assert.equal(e.validateFormulaValues(spec, values, out).ok, false, 'при равенстве нельзя пропустить спасбросок');
+  const beforeUnknown = JSON.stringify(e.state());
+  assert.equal(e.useAbilityApply(shock.id, rogue.id, `foe:${foe.id}`, out), false);
+  assert.equal(JSON.stringify(e.state()), beforeUnknown, 'неразрешённое равенство не меняет мир');
   values = {atk: 10, atk_2: 10, wdmg: 4, save: null, [threshold.key]: foe.ac + 1};
   out = e.resolveOutcome(spec, values, {});
   const valid = e.validateFormulaValues(spec, values, out);
@@ -4597,7 +4602,7 @@ test('активная боевая вкладка раскрывает все �
   const c = e.makeBlank(); Object.assign(c, {id: 'hero', name: 'Боевой герой', cls: 'Жрец', level: 5, hp: 20, hpMax: 20, slots: {1: {max: 4, cur: 2}}});
   const sword = items.find(x => x.n === 'Длинный меч'), potion = items.find(x => /^Зелье лечения/.test(x.n));
   c.inventory = [{id: 'sword', itemId: sword.id, qty: 1}, {id: 'potion', itemId: potion.id, qty: 1}]; c.equipment = {MAIN_HAND: 'sword'};
-  const bless = spells.find(x => x.n === 'Благословение'), breath = abilities.find(x => /^Оружие дыхания/.test(x.n));
+  const bless = spells.find(x => x.n === 'Благословение'), breath = abilities.find(x => x.id === 'ab_драконорожденный_оружие_дыхания');
   c.spellbook = [{spellId: bless.id, prep: true}]; c.abilities = [{abilityId: breath.id, cur: 1}];
   const foe = e.seedFoesDB()[0]; e.setState({chars: [c], items, spells, abilities, classes, foes: [foe]});
   e.combatStart([{kind: 'ally', id: c.id, nat: 20}, {kind: 'foe', id: foe.id, nat: 10}], 'Панели');
@@ -4606,7 +4611,7 @@ test('активная боевая вкладка раскрывает все �
   ['Раунд 1', 'Журнал боя', 'Завершить ход', 'Уклонение', 'Оружие', 'Заклинания', 'Способности', 'Инвентарь'].forEach(x => assert.ok(html.includes(x), `нет индикатора «${x}»`));
   e.combatSetGroup('weapons'); html = e.renderWorld().combat; assert.ok(html.includes('Длинный меч'));
   e.combatSetGroup('spells'); html = e.renderWorld().combat; assert.ok(html.includes('Благословение'));
-  e.combatSetGroup('abilities'); html = e.renderWorld().combat; assert.ok(html.includes('Оружие дыхания'));
+  e.combatSetGroup('abilities'); html = e.renderWorld().combat; assert.ok(html.includes(breath.n));
   e.combatSetGroup('items'); html = e.renderWorld().combat; assert.ok(html.includes('Зелье лечения'));
 });
 
@@ -4621,7 +4626,7 @@ test('все девять вкладок и шесть панелей листа
   c.inventory = [{id: 'sword', itemId: sword.id, qty: 1}, {id: 'potion', itemId: potion.id, qty: 1}];
   c.equipment = {MAIN_HAND: 'sword'};
   c.spellbook = [{spellId: spells.find(x => x.n === 'Благословение').id, prep: true}];
-  const breath = abilities.find(x => /^Оружие дыхания/.test(x.n));
+  const breath = abilities.find(x => x.id === 'ab_драконорожденный_оружие_дыхания');
   c.abilities = [{abilityId: breath.id, cur: 1}];
   const foe = {id: 'foe', n: 'Манекен', kind: 'monster', ac: 12, hp: 10, hpMax: 10, hpTemp: 0,
     abil: {str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10}, saveP: {}, profB: 2,
@@ -4638,7 +4643,7 @@ test('все девять вкладок и шесть панелей листа
     inventory: ['Инвентарь', 'Валюта', 'Зелье лечения'],
     equipment: ['Экипировка персонажа', 'Основная рука', 'Длинный меч'],
     spells: ['Ячейки заклинаний', 'Подготовлено', 'Благословение'],
-    abilities: ['Все способности', 'Оружие дыхания', 'готовы к применению'],
+    abilities: ['Все способности', breath.n, 'готовы к применению'],
     notes: ['Игрок', 'Заметки мастера']
   };
   Object.entries(expected).forEach(([panel, labels]) => {

@@ -4,3 +4,4 @@ node_modules/
 playwright-report/
 test-results/
 qa/evidence/
+qa/ability-audit/

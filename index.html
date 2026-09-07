@@ -216,6 +216,8 @@
 <script src="scripts/character-rules.js"></script>
 <script src="scripts/magic-rules.js"></script>
 <script src="scripts/grimoire-rules.js"></script>
+<script src="scripts/hobbyworld-ability-terms.js"></script>
+<script src="scripts/ability-rules.js"></script>
 <script src="data/dnd5e/srd51-spell-facts.js"></script>
 <script src="data/dnd5e/open5e-cc-v1/catalog.js"></script>
 <script>
@@ -1348,6 +1350,7 @@ function dnd5eOpenInstall(target,kind){
 const rows=dnd5eOpenCatalogRows(kind),ability=kind==='abilities';
 rows.forEach(source=>{const copy=dnd5eOpenClone(source),index=target.findIndex(row=>row&&row.id===copy.id);if(index>=0){
 const existing=target[index];
+if(ability&&existing.abilityReview&&(existing.abilityReview.custom||existing.abilityReview.revision===ABILITY_RULES.revision&&existing.catalogSource?.language==='ru'))return;
 if(!ability&&existing.grimoire){if(existing.catalogSource?.language!=='en'||existing.grimoire.translation==='custom')return;copy.grimoire={...existing.grimoire,revision:'',engineRevision:'',legacyDefinition:existing.grimoire.legacyDefinition||dnd5eOpenClone(existing)};}
 target[index]=copy;
 }else target.push(copy);
@@ -1359,7 +1362,7 @@ function dnd5eOpenCatalogInstalled(target,kind){
 const rows=dnd5eOpenCatalogRows(kind);if(!rows.length||!Array.isArray(target))return false;
 const byId=new Map(target.filter(Boolean).map(row=>[row.id,row]));return rows.every(row=>{
 const installed=byId.get(row.id);return !!installed&&installed.catalogSource&&installed.catalogSource.language==='ru'
-&&installed.catalogSource.localizationRevision===row.catalogSource.localizationRevision&&(installed.n===row.n||kind==='spells'&&installed.grimoire?.revision===GRIMOIRE_RULES.revision);
+&&installed.catalogSource.localizationRevision===row.catalogSource.localizationRevision&&(installed.n===row.n||kind==='spells'&&installed.grimoire?.revision===GRIMOIRE_RULES.revision||kind==='abilities'&&installed.abilityReview?.revision===ABILITY_RULES.revision);
 });
 }
 function dnd5eOpenCatalogIdsPresent(target,kind){
@@ -1431,7 +1434,7 @@ if(typeof applyAbilityCombatPatch==='function') applyAbilityCombatPatch(o);
 o.tags=uniqTags((o.tags||[]).concat(abilityEnrichTags(o)));
 upgradeAbility(o);
 });
-return out;
+return reconcileAbilityRules(out);
 }
 const TORGAR_ITEMS = [
 {id:'it_silver_comb', n:'Серебряная расческа', type:'wondrous', rarity:'необычный', custom:true,
@@ -3291,7 +3294,7 @@ const catalogInstalled=dnd5eOpenCatalogInstalled(abilitiesDB,'abilities');
 const abilityMigrationId='8-open5e-cc-ru-1';
 const recoveringPinnedCatalog=!catalogInstalled&&(flag===abilityMigrationId||dnd5eOpenCatalogIdsPresent(abilitiesDB,'abilities'));
 const raceRefs=reconcileRaceAbilityReferences(racesDB,abilitiesDB);
-if(flag===abilityMigrationId&&catalogInstalled&&!raceRefs.changed) return;
+if(flag===abilityMigrationId&&catalogInstalled&&!raceRefs.changed){reconcileAbilityRules(abilitiesDB);return;}
 const installed=dnd5eOpenInstall(abilitiesDB,'abilities');
 const clericArmor=abilitiesDB.find(a=>a.n==='Владение доспехами: Жрец (Домен Жизни)');
 if(clericArmor && clericArmor.x && clericArmor.x.indexOf('легкими и средними')<0)
@@ -3313,6 +3316,7 @@ chars.forEach(c=>(c.abilities||[]).forEach(e=>{
 const db=abilitiesDB.find(a=>a.id===e.abilityId);
 if(db&&db.uses!=null&&e.cur==null) e.cur=db.uses;
 }));
+reconcileAbilityRules(abilitiesDB);
 if(installed<500){if(raceRefs.changed)scheduleSave();return;}
 await store.set('dndworld2:abaudit',abilityMigrationId);
 if(!recoveringPinnedCatalog||raceRefs.changed) scheduleSave();
@@ -3836,6 +3840,7 @@ foesDB    = savedWorld?savedWorld.foes:(await readJSON('dndworld2:foes'))      |
 itemsDB.forEach(upgradeItem);
 spellsDB.forEach(upgradeSpell);
 abilitiesDB.forEach(upgradeAbility);
+reconcileAbilityRules(abilitiesDB);
 racesDB.forEach(upgradeRace);
 classesDB.forEach(upgradeClass);
 foesDB.forEach(upgradeFoe);
@@ -4194,6 +4199,7 @@ classesDB.forEach(upgradeClass);
 foesDB.forEach(upgradeFoe);
 pruneIncompleteCampaignArsenal();
 grimoireReconcile(spellsDB,chars);
+reconcileAbilityRules(abilitiesDB);
 const importedCatalogRefs=Array.isArray(data.catalogRefs)?data.catalogRefs:[],importedHonourProfile=bg3CatalogHasLegacyHonourRef(importedCatalogRefs),catalogRefsOk=bg3CatalogUseRefs(bg3CatalogStandardRefs(importedCatalogRefs));
 if(!catalogRefsOk)catalogWarning=' Ссылка на каталог предметов в файле некорректна; прежняя кампания не использована.';
 if(catalogRefsOk)chars.forEach(bg3LearnedSpellUpgradeEntries);
@@ -4242,7 +4248,7 @@ const FX_AB_WORDS={'сила':'str','силы':'str','ловкость':'dex','�
 
 
 function fxTextOf(rec){
-return [rec&&rec.x,rec&&rec.desc,rec&&rec.props].filter(Boolean).join('\n')
+return globalThis.DND_ABILITY_RULES.parserText([rec&&rec.x,rec&&rec.desc,rec&&rec.props].filter(Boolean).join('\n'))
 .replace(/\u0451/g,'е').replace(/\u0401/g,'Е').replace(/\u00ad/g,'').replace(/[−–—]/g,'-');
 }
 function fxPush(out, fx){
@@ -5275,12 +5281,60 @@ return armorViolations(c).filter(v=>off.indexOf(v.key)<0);
 }
 
 
+const ABILITY_RULES=globalThis.DND_ABILITY_RULES;
+function reconcileAbilityRules(rows){
+ABILITY_RULES.reconcile(rows);
+rows.forEach(ab=>{
+if(ab.abilityReview?.custom)return;
+// Editorial changes never recompile gameplay from the new prose.
+if(ab.mechanics)ab.mechanics.sourceHash=mechanicsSourceHash(ab,'ability');
+if(ab.catalogSource?.documentKey!=='srd-2014')return;
+const en=ABILITY_RULES.identity(ab);
+if(!['Second Wind','Action Surge'].includes(en)||ab.open5e?.ownerName!=='Fighter')return;
+const healing=en==='Second Wind',cost=healing?'bonus':'turnfree';
+ab.mode='active';ab.combatUsable=true;ab.uses=1;ab.rest='короткий отдых';
+ab.mechanics={schemaVersion:GAME_MECHANICS_SCHEMA_VERSION,mode:'structured',origin:'explicit',sourceHash:mechanicsSourceHash(ab,'ability'),role:'active',
+activation:{cost},target:{kind:'self',base:1},resource:{uses:1,rest:ab.rest,pool:null,scaling:healing?[]:[{cls:'Воин',level:17,uses:2}]},
+duration:{kind:'instant',rounds:0,concentration:false,label:'Мгновенная'},
+resolution:normalizeResolutionContract({attack:null,save:null,contest:null,rolls:healing?[{type:'heal',cnt:1,sides:10,mod:{source:'level'}}]:[],needsRoll:healing},'ability'),
+effects:[],proficiencies:{},passiveRules:{},combat:{cost,target:'self',usable:true,requiresWeapon:false,forceAttack:false,consumeOn:'',oncePerTurn:!healing,noRoll:!healing,grantAction:healing?0:1},manualNote:''};
+ab.enginePolicy={mode:'structured',handler:healing?'second-wind-2014':'action-surge-2014',reason:''};
+});
+return rows;
+}
+function abilityMaxUses(c,ab){
+if(!ab||ab.uses==null)return null;
+const rules=ab.mechanics?.resource?.scaling||[];
+return Math.max(ab.uses,...rules.filter(r=>r.cls===c?.cls&&c.level>=r.level).map(r=>r.uses));
+}
 function canUseAbilityCheck(caster, ab){
+if(!caster||!ab)return {ok:false,reason:'Герой или способность не найдены.'};
+if(!(caster.abilities||[]).some(e=>e.abilityId===ab.id))return {ok:false,reason:'Эта способность отсутствует у героя.'};
+if(ab.mechanics?.mode==='manual'||!abilityIsActive(ab))return {ok:false,reason:'Эта способность применяется по условию или служит справкой; самостоятельное действие недоступно.'};
+if(combatAbilityUsedThisTurn(ab,'ally:'+caster.id))return {ok:false,reason:'Эта способность уже использована в текущем ходу.'};
+if(['second-wind-2014','action-surge-2014'].includes(ab.enginePolicy?.handler)&&
+(caster.cls!=='Воин'||caster.level<(ab.enginePolicy.handler==='action-surge-2014'?2:1)))return {ok:false,reason:'У героя нет требуемого уровня воина.'};
 const active=abilityIsActive(ab);
 if(active){
 const cond=effectiveConditions(caster);
 const blockAct=ACTION_BLOCK_CONDS.filter(n=>cond.indexOf(n)>=0)[0];
 if(blockAct) return {ok:false, reason:'Состояние «'+blockAct+'» не позволяет совершать действия — способность неприменима.'};
+}
+return {ok:true};
+}
+function abilityOutcomePreflight(ab,rolls,caster){
+const resolution=currentMechanics(ab,'ability')?.resolution||{},combatRule=abilityCombatRules(ab);
+const attack=!!((resolution.attack&&!resolution.attack.autoHit)||combatRule.forceAttack||combatRule.consumeOn==='hit');
+if(attack&&typeof rolls?.hit!=='boolean')return {ok:false,reason:'Сначала введите результат атаки; неизвестное попадание не считается успехом.'};
+const threshold=resolution.threshold==='ac',resolvesTarget=!attack||rolls.hit;
+if(resolvesTarget&&threshold&&typeof rolls?.thresholdSuccess!=='boolean')return {ok:false,reason:'Сначала разрешите проверку эффекта против КД, включая испытание при равенстве.'};
+if(resolvesTarget&&resolution.save&&!threshold&&typeof rolls?.saveOk!=='boolean')return {ok:false,reason:'Сначала введите результат испытания цели.'};
+if((!attack||rolls.hit)&&resolution.contest&&typeof rolls?.contestWin!=='boolean')return {ok:false,reason:'Сначала введите результат состязания.'};
+for(const key of ['dmgTotal','healTotal','tempTotal'])if(rolls?.[key]!=null&&(!Number.isSafeInteger(rolls[key])||rolls[key]<0))return {ok:false,reason:'Итог броска должен быть целым неотрицательным числом.'};
+if(ab.enginePolicy?.handler==='second-wind-2014'&&rolls?.healTotal!=null&&caster&&(rolls.healTotal<caster.level+1||rolls.healTotal>caster.level+10))return {ok:false,reason:'Лечение должно соответствовать 1d10 + уровень воина.'};
+for(const die of resolution.rolls||[]){
+const key={heal:'healTotal',temp:'tempTotal',dmg:'dmgTotal'}[die.type];
+if(key&&rolls&&rolls[key]==null&&(!attack||rolls.hit))return {ok:false,reason:'Не введён итог броска способности.'};
 }
 return {ok:true};
 }
@@ -5300,6 +5354,7 @@ const lifecycleCheck=bg3LifecycleActorActionPreflight(caster,'','ability',rolls,
 if(!lifecycleCheck.ok)return bg3LifecycleBlock(lifecycleCheck,'Способность «'+ab.n+'»');
 const combatRule=abilityCombatRules(ab);
 const targetPlan=targetInfoOf(target);
+if(!targetPlan.known||!targetPlan.obj){setStatus('✕ Выберите существующую цель способности.',true);return false;}
 if(combatRule.target==='self'&&(targetPlan.kind!=='ally'||targetPlan.id!==caster.id)){
 const msg='«'+ab.n+'» действует только на самого героя.'; setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false;
 }
@@ -5309,12 +5364,14 @@ const msg='Для «'+ab.n+'» выберите существующую отд�
 if(!combatCastPreflight()) return false;
 const chk=canUseAbilityCheck(caster, ab);
 if(!chk.ok){ setStatus('✕ '+chk.reason, true); castShowErr&&castShowErr(chk.reason); return false; }
+const outcomeCheck=abilityOutcomePreflight(ab,rolls,caster);
+if(!outcomeCheck.ok){setStatus('✕ '+outcomeCheck.reason,true);castShowErr&&castShowErr(outcomeCheck.reason);return false;}
 rolls=rolls||(arguments.length>3?arguments[3]:null);
 if(!preflightOutcomeReactions(rolls,target)) return false;
 const interruptCarrier=rolls||castCtx,interruptCheck=bg3InterruptCastPreflight(interruptCarrier,{kind:'ability',actorKey:'ally:'+caster.id,target,
 casterId:caster.id,abilityId:ab.id,contexts:rolls&&rolls.attackMade?['OnPostRoll','OnCastHit'].concat(rolls.dmgTotal>0?['OnPreDamage']:[]):[]});
 if(!interruptCheck.ok)return bg3InterruptCastBlock(interruptCheck,'Способность «'+ab.n+'»');
-const resourceTriggered=combatRule.consumeOn!=='hit'||!rolls||rolls.hit===true;
+const resourceTriggered=combatRule.consumeOn!=='hit'||rolls?.hit===true;
 const requiredPool=abilityPoolOf(caster,ab);
 const poolRule=mechanics&&mechanics.resource&&mechanics.resource.pool;
 if(resourceTriggered&&poolRule&&poolRule.spends&&!requiredPool){
@@ -5329,12 +5386,12 @@ setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false;
 
 let chargeInfo='';
 const ownEntry=ab.uses!=null?(caster.abilities||[]).find(x=>x.abilityId===ab.id):null;
-const ownCur=ownEntry?(ownEntry.cur==null?ab.uses:ownEntry.cur):null;
+const ownMax=abilityMaxUses(caster,ab),ownCur=ownEntry?(ownEntry.cur==null?ownMax:ownEntry.cur):null;
 if(resourceTriggered&&ab.uses!=null&&!ownEntry){
 const msg='«'+ab.n+'» отсутствует в списке способностей героя — списать использование невозможно.';
 setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false;
 }
-if(resourceTriggered&&ownEntry&&ownCur<=0){
+if(resourceTriggered&&ownEntry&&(!Number.isSafeInteger(ownCur)||ownCur<=0||ownCur>ownMax)){
 const back=ab.rest?(' Восстановление: '+ab.rest+'.'):' Восстановление: после завершения боя.';
 const msg='Заряды «'+ab.n+'» исчерпаны.'+back;
 setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false;
@@ -5344,8 +5401,8 @@ if(resourceTriggered&&requiredPool){
 poolDb=requiredPool.ab;
 poolEntry=requiredPool.entry;
 if(poolDb&&poolEntry){
-poolCur=poolEntry.cur==null?poolDb.uses:poolEntry.cur;
-if(poolCur<=0){
+poolCur=poolEntry.cur==null?abilityMaxUses(caster,poolDb):poolEntry.cur;
+if(!Number.isSafeInteger(poolCur)||poolCur<=0||poolCur>abilityMaxUses(caster,poolDb)){
 const msg='«'+poolDb.n+'» — запас исчерпан.';
 setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false;
 }
@@ -5355,15 +5412,26 @@ const weaponPlan=(castCtx&&castCtx.kind==='ability'&&combatRule.forceAttack&&cas
 ?weaponAttackResourcePlan(caster,castCtx.weapon.entryId,castCtx.weapon.mode,{two:!!castCtx.weapon.two,rangeBand:castCtx.rangeBand,cover:castCtx.cover}):{ok:true};
 if(!weaponPlan.ok){ setStatus('✕ '+weaponPlan.reason,true); castShowErr&&castShowErr(weaponPlan.reason); return false; }
 
+// Collect the player's healing die before the resource transaction starts.
+if(!rolls){
+const heal=deriveAbilityHeal(ab,caster);
+if(heal&&targetPlan.kind==='ally'){
+askRolls({title:'✦ '+ab.n+' — '+caster.name,note:'Формула лечения: '+heal.cnt+'d'+heal.sides+(heal.plus?' + '+heal.plus:'')+'.',
+rows:[{key:'s',label:'Сумма '+heal.cnt+'d'+heal.sides,min:heal.cnt,max:heal.cnt*heal.sides}],
+compute:v=>'Лечение: '+(v.s+heal.plus),apply:v=>useAbilityApply(abilityId,casterId,target,{healTotal:v.s+heal.plus,notes:[],verdict:[]})});return true;
+}
+if(!combatRule.noRoll&&(mechanics?.resolution?.rolls||[]).length){setStatus('✕ Сначала введите результаты костей способности.',true);return false;}
+}
+
 const transactionLabel='Способность «'+ab.n+'»',interruptPermit=bg3InterruptCastBegin(interruptCheck);if(!interruptPermit.ok)return bg3InterruptCastBlock(interruptPermit,transactionLabel);
 try{
 if(!combatCommitCastAction(transactionLabel))return bg3SourceTransactionRollback(interruptPermit,transactionLabel,'combat action commit failed');
 if(!commitOutcomeReactions(rolls))throw new Error('outcome reaction commit failed');
 if(resourceTriggered&&ownEntry){
-ownEntry.cur=ownCur-1; chargeInfo=' · заряд −1 (осталось '+ownEntry.cur+' из '+ab.uses+')';
+ownEntry.cur=ownCur-1; chargeInfo=' · заряд −1 (осталось '+ownEntry.cur+' из '+ownMax+')';
 }
 if(resourceTriggered&&poolDb&&poolEntry){
-poolEntry.cur=poolCur-1; chargeInfo+=' · '+poolDb.n+' −1 (осталось '+poolEntry.cur+' из '+poolDb.uses+')';
+poolEntry.cur=poolCur-1; chargeInfo+=' · '+poolDb.n+' −1 (осталось '+poolEntry.cur+' из '+abilityMaxUses(caster,poolDb)+')';
 }
 if(!resourceTriggered&&(ownEntry||(rolls&&rolls.poolSpend))) chargeInfo+=' · ресурс не израсходован: попадание не подтверждено';
 if(weaponPlan.e) chargeInfo+=commitWeaponAttackResource(weaponPlan);
@@ -5375,36 +5443,28 @@ let info='';
 
 if(rolls){
 info+=applyRollsToTarget(target, rolls, '✦ '+ab.n);
-} else {
-
-const heal=deriveAbilityHeal(ab, caster);
-if(heal&&tIsAlly){
-bg3InterruptCastRollback(interruptPermit,'awaiting player healing roll');bg3SourceTransactionRerenderCheckpoint(interruptPermit.checkpoint);
-askRolls({title:'✦ '+ab.n+' — '+caster.name,
-note:'Формула лечения: '+heal.cnt+'d'+heal.sides+(heal.plus?' + '+heal.plus:'')+'.',
-rows:[{key:'s',label:'Сумма '+heal.cnt+'d'+heal.sides,sub:'от '+heal.cnt+' до '+(heal.cnt*heal.sides),min:heal.cnt,max:heal.cnt*heal.sides}],
-compute:v=>'Лечение: '+v.s+(heal.plus?' + '+heal.plus:'')+' = +'+(v.s+heal.plus)+' хитов',
-apply:v=>useAbilityApply(abilityId, casterId, target, {healTotal:v.s+heal.plus, notes:[], verdict:[]})});
-return true;
-}
 }
 
-const effectAllowed=outcomeAllowsEffect(rolls);
+const effectAllowed=outcomeAllowsEffect(rolls)&&(!rolls||rolls.hit!==false&&rolls.saveOk!==true&&rolls.contestWin!==false&&rolls.blocked!==true);
 const lasting=recFx(ab,'ability').filter(f=>!(f.stat==='hp'&&f.mode==='add'));
+const abilityCastId=castUid();
 if(lasting.length&&tIsAlly&&effectAllowed){
-applyFxTo(target.slice(5), {k:'ability', id:ab.id, label:ab.n, from:caster.name,
-why:'применено: '+caster.name+(ab.rest?' · восст.: '+ab.rest:''), fx:lasting});
+const entry={k:'ability',id:ab.id,label:ab.n,from:caster.name,casterId:caster.id,castId:abilityCastId,stackKey:'ability:'+ab.id,power:0,
+why:'применено: '+caster.name+(ab.rest?' · восст.: '+ab.rest:''),fx:lasting};
+if(mechanics&&mechanics.mode!=='legacy')attachMechanicsDuration(entry,mechanics.duration,0);
+else attachDuration(entry,{n:ab.n,d:ab.duration||'',x:ab.x||''},0);
+applyFxTo(target.slice(5),entry);
 info+=' · эффект наложен';
 } else if(lasting.length&&tinfo.kind==='foe'&&tinfo.obj&&effectAllowed){
 const entry={k:'ability',id:ab.id,label:ab.n,from:caster.name,casterId:caster.id,
-castId:castUid(),stackKey:'ability:'+ab.id,power:0,why:'применено: '+caster.name,fx:lasting.map(x=>Object.assign({},x))};
+castId:abilityCastId,stackKey:'ability:'+ab.id,power:0,why:'применено: '+caster.name,fx:lasting.map(x=>Object.assign({},x))};
 if(ab.mechanics&&ab.mechanics.mode!=='legacy') attachMechanicsDuration(entry,ab.mechanics.duration,0);
 else attachDuration(entry,{n:ab.n,d:'',x:ab.x||''},0);
 applyFxToFoe(tinfo.obj,entry);
 info+=' · эффект наложен на противника';
 }
 if(combatRule.thresholdCondition&&tinfo.obj&&effectAllowed){
-const entry={k:'ability',id:ab.id,label:ab.n,from:caster.name,casterId:caster.id,castId:castUid(),
+const entry={k:'ability',id:ab.id,label:ab.n,from:caster.name,casterId:caster.id,castId:abilityCastId,
 stackKey:'ability:'+ab.id,power:0,why:'применено: '+caster.name,
 fx:[{stat:'condition',mode:'text',value:combatRule.thresholdCondition}]};
 if(combat.active&&combatRule.until==='targetEndTurn') entry.combatUntilEndTurn=target;
@@ -5416,7 +5476,7 @@ info+=' · состояние «'+combatRule.thresholdCondition+'» наложе
 
 if(combatRule.goad&&tinfo.obj&&effectAllowed){
 const sourceKey='ally:'+caster.id;
-const entry={k:'ability',id:ab.id,label:ab.n,from:caster.name,casterId:caster.id,castId:castUid(),
+const entry={k:'ability',id:ab.id,label:ab.n,from:caster.name,casterId:caster.id,castId:abilityCastId,
 stackKey:'ability:'+ab.id+':'+caster.id,power:0,why:'помеха на атаки по целям, кроме '+caster.name,
 combatUntilEndTurn:sourceKey,combatSkipMatchingEnd:combat.active&&combatCurrentKey()===sourceKey,
 fx:[{stat:'attack.targetExcept',mode:'dis',value:sourceKey}]};
@@ -5424,7 +5484,7 @@ if(tinfo.kind==='ally') applyFxTo(tinfo.id,entry); else if(tinfo.kind==='foe') a
 info+=' · провокация действует до конца следующего хода '+caster.name;
 }
 if(combatRule.disarm&&tinfo.obj&&effectAllowed){
-const entry={k:'ability',id:ab.id,label:ab.n,from:caster.name,casterId:caster.id,castId:castUid(),
+const entry={k:'ability',id:ab.id,label:ab.n,from:caster.name,casterId:caster.id,castId:abilityCastId,
 stackKey:'ability:'+ab.id+':'+caster.id,power:0,why:'выбранный предмет упал к ногам цели',
 fx:[{stat:'note',mode:'text',value:'Разоружен: выбранный предмет лежит у ног цели'}]};
 if(tinfo.kind==='ally') applyFxTo(tinfo.id,entry); else if(tinfo.kind==='foe') applyFxToFoe(tinfo.obj,entry);
@@ -5453,7 +5513,7 @@ document.getElementById('castTitle').textContent='✦ «'+ab.n+'» — прим�
 const e=(caster.abilities||[]).find(x=>x.abilityId===ab.id);
 const info=[ABILITY_TYPES&&ABILITY_TYPES[ab.type]||ab.type];
 if(ab.source) info.push('источник: '+ab.source);
-if(ab.uses!=null) info.push('заряды: '+((e&&e.cur!=null)?e.cur:ab.uses)+' из '+ab.uses);
+if(ab.uses!=null) info.push('заряды: '+((e&&e.cur!=null)?e.cur:abilityMaxUses(caster,ab))+' из '+abilityMaxUses(caster,ab));
 if(ab.rest) info.push('восстановление: '+ab.rest);
 const chk=canUseAbilityCheck(caster, ab);
 if(!chk.ok) info.push('⚠ '+chk.reason);
@@ -6799,6 +6859,7 @@ return out;
 const AB_ACTIVE_RE=/вы можете потратить|вы тратите|потратить\s+(?:одну|один|одно)?\s*(?:кость|очко|заряд)|в качестве действия|действием|бонусным действием|своей реакцией|реакцией|бросок атаки|броска атаки|броску атаки|спасбросок|спасброска|проверк[уаи]|вы наносите|дополнительный урон|наносит[еь]\s+урон|восстанавлива[а-я]+\s+\d|можете попытаться|вы можете (?:выбрать|изменить|расставить|установить|совершить|использовать|применить|перебросить|создать)|при попадании|если вы попадаете|когда вы попадаете|один раз в ход|раз в ход|раз за бой|вы можете заставить|вы можете добавить/;
 function abilityIsActive(ab){
 if(!ab) return false;
+if(ab.mechanics?.mode==='manual')return false;
 if(ab.mechanics&&ab.mechanics.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&ab.mechanics.mode!=='legacy') return ab.mechanics.role==='active';
 if(ab.mode==='active') return true;
 if(ab.mode==='passive'||ab.mode==='resource'||ab.mode==='triggered') return false;
@@ -6818,6 +6879,7 @@ function isPassiveAbility(ab){
 /* Источник постоянных эффектов и владений. Активная способность (приемы, реакции,
 все, что применяется кнопкой) постоянных эффектов не дает — этого требовала
 ветка codex; при этом записи владений и расовых черт остаются постоянными. */
+if(ab?.mechanics?.mode==='manual')return false;
 if(ab&&ab.mechanics&&ab.mechanics.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&ab.mechanics.mode!=='legacy') return ab.mechanics.role==='passive';
 if(!ab||ab.mode==='resource'||ab.mode==='triggered'||ab.uses!=null||ab.rest) return false;
 if(ab.mode==='active') return false;
@@ -6862,8 +6924,8 @@ if(poolRule&&poolRule.spends){
 const hit=(caster.abilities||[]).map(e=>({e,db:abilityOf(e.abilityId)})).find(o=>o.db&&o.db.id!==ab.id&&o.db.mechanics
 &&o.db.mechanics.resource&&o.db.mechanics.resource.pool&&o.db.mechanics.resource.pool.provides===poolRule.spends);
 if(!hit) return null;
-const provider=hit.db.mechanics.resource.pool,cur=hit.e.cur==null?hit.db.uses:hit.e.cur;
-return {label:provider.label||'Общий ресурс',sides:+provider.sides||8,ab:hit.db,entry:hit.e,cur,max:hit.db.uses,addTo:poolRule.addTo||'dmg'};
+const provider=hit.db.mechanics.resource.pool,max=abilityMaxUses(caster,hit.db),cur=hit.e.cur==null?max:hit.e.cur;
+return {label:provider.label||'Общий ресурс',sides:+provider.sides||8,ab:hit.db,entry:hit.e,cur,max,addTo:poolRule.addTo||'dmg'};
 }
 /* В структурной записи отсутствие spends — явное правило. Описание не
 должно незаметно превращать способность в потребителя общего ресурса. */
@@ -6879,12 +6941,12 @@ const hit=(caster.abilities||[]).map(e=>({e, db:abilityOf(e.abilityId)}))
 .filter(o=>o.db&&o.db.id!==ab.id&&o.db.uses!=null&&p.pool.test(normRollTxt(o.db.n)+' '+normRollTxt(o.db.x)))[0];
 if(!hit) continue;
 const dm=(normRollTxt(hit.db.n)+' '+normRollTxt(hit.db.x)).match(/d(\d+)/);
-const cur=hit.e.cur==null?hit.db.uses:hit.e.cur;
+const max=abilityMaxUses(caster,hit.db),cur=hit.e.cur==null?max:hit.e.cur;
 
 let addTo='dmg';
 if(/добавить\s+ее\s+к\s+броску(?!\s+урона)|к\s+броску\s+атаки/.test(x)) addTo='atk';
 if(/к\s+броску\s+урона|к\s+урону/.test(x)) addTo='dmg';
-return {label:p.label, sides:dm?+dm[1]:8, ab:hit.db, entry:hit.e, cur, max:hit.db.uses, addTo};
+return {label:p.label, sides:dm?+dm[1]:8, ab:hit.db, entry:hit.e, cur, max, addTo};
 }
 return null;
 }
@@ -11278,7 +11340,7 @@ const arrowSpatial=ctx=>{const explicitData=arrowOptionalOwnData(ctx,'distanceEx
 const arrowAbilityMod=value=>summonMathFloorBinding((value-10)/2);
 const arrowAbilityMigrationSourceHash=ability=>{const keys=['n','mode','uses','rest','x','fx','combatCost','combatTarget','combatRequiresWeapon','combatForceAttack','combatConsumeOn','combatThreshold','combatThresholdCondition','combatUntil'];let value='ability|';for(let i=0;i<keys.length;i++){const key=keys[i],field=arrowOptionalOwnData(ability,key);if(!field.ok)return {ok:false,reason:'private-item-arrow-proficiency-source-hash-descriptor-required'};const source=!field.present||field.value===undefined?null:field.value;let encoded;if(key==='fx'&&source!==null){const dense=arrowDenseArray(source),own=privateIntrinsics.arrayIsArray(source)?privateIntrinsics.ownKeys(source):[];if(!dense.ok||dense.length!==0||own.length!==1||own[0]!=='length')return {ok:false,reason:'private-item-arrow-proficiency-source-hash-invalid'};encoded='[]';}else{const type=typeof source;if(source!==null&&type!=='string'&&type!=='number'&&type!=='boolean')return {ok:false,reason:'private-item-arrow-proficiency-source-hash-invalid'};try{encoded=privateIntrinsics.jsonStringify(source);}catch(_error){return {ok:false,reason:'private-item-arrow-proficiency-source-hash-invalid'};}if(typeof encoded!=='string')return {ok:false,reason:'private-item-arrow-proficiency-source-hash-invalid'};}if(i)value+='|';value+=encoded;}return {ok:true,value};};
 const arrowProficiencyNoConsequences=(ability,mechanics)=>{for(const key of ['fx','passiveFx','effects']){const clean=arrowLegacyEffectArrayEmpty(ability,key);if(!clean.ok)return {ok:false,reason:'private-item-arrow-proficiency-effect-source-fail-closed'};}for(const key of ['fx','passiveFx']){const clean=arrowLegacyEffectArrayEmpty(mechanics,key);if(!clean.ok)return {ok:false,reason:'private-item-arrow-proficiency-effect-source-fail-closed'};}const mechanicsEffects=arrowRequiredMechanicsEffects(mechanics);if(!mechanicsEffects.ok)return {ok:false,reason:'private-item-arrow-proficiency-effect-source-fail-closed'};for(const owner of [ability,mechanics]){const lifecycle=arrowOptionalOwnData(owner,'lifecyclePrograms');if(!lifecycle.ok)return {ok:false,reason:'private-item-arrow-proficiency-lifecycle-source-fail-closed'};if(lifecycle.present){const dense=arrowDenseArray(lifecycle.value);if(!dense.ok||dense.length)return {ok:false,reason:'private-item-arrow-proficiency-lifecycle-source-fail-closed'};}const granted=arrowOptionalOwnData(owner,'grantedInterrupts');if(!granted.ok)return {ok:false,reason:'private-item-arrow-proficiency-interrupt-source-fail-closed'};if(granted.present){const dense=arrowDenseArray(granted.value);if(!dense.ok||dense.length)return {ok:false,reason:'private-item-arrow-proficiency-interrupt-source-fail-closed'};}}const passiveRules=arrowOptionalOwnData(mechanics,'passiveRules');if(!passiveRules.ok||passiveRules.present&&(!arrowPlainDataObject(passiveRules.value)||privateIntrinsics.ownKeys(passiveRules.value).length))return {ok:false,reason:'private-item-arrow-proficiency-passive-rule-fail-closed'};const resolution=arrowOptionalOwnData(mechanics,'resolution');if(!resolution.ok)return resolution;if(resolution.present&&resolution.value){const needsRoll=ownData(resolution.value,'needsRoll'),attack=arrowOptionalOwnData(resolution.value,'attack'),save=arrowOptionalOwnData(resolution.value,'save'),contest=arrowOptionalOwnData(resolution.value,'contest'),rolls=arrowOptionalOwnData(resolution.value,'rolls');if(!needsRoll||needsRoll.value!==false||!attack.ok||attack.present&&attack.value!=null||!save.ok||save.present&&save.value!=null||!contest.ok||contest.present&&contest.value!=null||!rolls.ok||rolls.present&&!arrowEmptyDense(rolls.value))return {ok:false,reason:'private-item-arrow-proficiency-roll-semantics-fail-closed'};}const combatData=arrowOptionalOwnData(mechanics,'combat');if(!combatData.ok)return combatData;if(combatData.present&&combatData.value){if(!arrowPlainDataObject(combatData.value))return {ok:false,reason:'private-item-arrow-proficiency-combat-semantics-fail-closed'};for(const key of ['requiresWeapon','forceAttack','oncePerTurn','noRoll','inline','goad','disarm']){const row=arrowOptionalOwnData(combatData.value,key);if(!row.ok||row.present&&row.value!==false)return {ok:false,reason:'private-item-arrow-proficiency-combat-semantics-fail-closed'};}for(const key of ['grantAction']){const row=arrowOptionalOwnData(combatData.value,key);if(!row.ok||row.present&&+row.value!==0)return {ok:false,reason:'private-item-arrow-proficiency-combat-semantics-fail-closed'};}for(const key of ['consumeOn','until','contestBonus','threshold','thresholdCondition']){const row=arrowOptionalOwnData(combatData.value,key);if(!row.ok||row.present&&row.value!=='')return {ok:false,reason:'private-item-arrow-proficiency-combat-semantics-fail-closed'};}}return {ok:true};};
-const arrowProficiencyEvidence=(caster,expected)=>{const assignmentsData=ownData(caster,'abilities'),assignments=assignmentsData&&assignmentsData.value,denseAssignments=assignments&&arrowDenseArray(assignments),denseDb=arrowDenseArray(abilitiesDB);if(!denseAssignments||!denseAssignments.ok||denseAssignments.length!==1||!denseDb.ok)return {ok:false,reason:'private-item-arrow-explicit-weapon-proficiency-required'};const assignmentData=ownData(assignments,'0'),assignment=assignmentData&&assignmentData.value,abilityId=assignment&&ownData(assignment,'abilityId'),cur=assignment&&arrowOptionalOwnData(assignment,'cur'),notes=assignment&&arrowOptionalOwnData(assignment,'notes');if(!assignmentData||!arrowPlainDataObject(assignment)||!arrowOwnKeysAllowed(assignment,['abilityId','cur','notes'])||!abilityId||typeof abilityId.value!=='string'||!abilityId.value||!cur||!cur.ok||cur.present&&cur.value!=null||!notes||!notes.ok||notes.present&&typeof notes.value!=='string')return {ok:false,reason:'private-item-arrow-proficiency-assignment-invalid'};let ability=null,abilityIndex=-1;for(let i=0;i<denseDb.length;i++){const slot=ownData(abilitiesDB,summonStringBinding(i)),row=slot&&slot.value,id=row&&ownData(row,'id');if(!slot||!row||!id||typeof id.value!=='string')return {ok:false,reason:'private-item-arrow-ability-database-descriptor-required'};if(id.value===abilityId.value){if(ability)return {ok:false,reason:'private-item-arrow-proficiency-ability-ambiguous'};ability=row;abilityIndex=i;}}if(!ability)return {ok:false,reason:'private-item-arrow-proficiency-ability-membership-required'};const mode=arrowOptionalOwnData(ability,'mode'),uses=arrowOptionalOwnData(ability,'uses'),mechanicsData=ownData(ability,'mechanics'),mechanics=mechanicsData&&mechanicsData.value,schema=mechanics&&ownData(mechanics,'schemaVersion'),mechanicsMode=mechanics&&ownData(mechanics,'mode'),origin=mechanics&&ownData(mechanics,'origin'),sourceHash=mechanics&&ownData(mechanics,'sourceHash'),role=mechanics&&ownData(mechanics,'role'),proficienciesData=mechanics&&ownData(mechanics,'proficiencies'),proficiencies=proficienciesData&&proficienciesData.value,weaponsData=proficiencies&&ownData(proficiencies,'weapons'),weapons=weaponsData&&weaponsData.value,simple=weapons&&ownData(weapons,'simple'),martial=weapons&&ownData(weapons,'martial'),namesData=weapons&&ownData(weapons,'names'),names=namesData&&namesData.value,denseNames=names&&arrowDenseArray(names);if(!arrowPlainDataObject(ability)||!arrowOwnKeysAllowed(ability,['id','n','type','source','custom','tags','uses','rest','x','mode','duration','mechanics','bg3Id'])||!mode||!mode.ok||mode.present&&mode.value!=='passive'||!uses||!uses.ok||uses.present&&uses.value!=null||!arrowPlainDataObject(mechanics)||!arrowOwnKeysAllowed(mechanics,['schemaVersion','mode','origin','sourceHash','role','activation','target','resource','duration','resolution','effects','proficiencies','passiveRules','combat','manualNote','lifecyclePrograms','grantedInterrupts'])||!schema||schema.value!==1||!mechanicsMode||mechanicsMode.value!=='structured'||!origin||!['explicit','migration'].includes(origin.value)||!role||role.value!=='passive'||!arrowPlainDataObject(proficiencies)||!arrowOwnKeysAllowed(proficiencies,['weapons'])||!arrowPlainDataObject(weapons)||!arrowOwnKeysAllowed(weapons,['simple','martial','names'])||!simple||typeof simple.value!=='boolean'||!martial||typeof martial.value!=='boolean'||!denseNames||!denseNames.ok)return {ok:false,reason:'private-item-arrow-structured-proficiency-ability-required'};const nameRows=[];for(let i=0;i<denseNames.length;i++){const row=ownData(names,summonStringBinding(i));if(!row||typeof row.value!=='string'||!row.value)return {ok:false,reason:'private-item-arrow-structured-proficiency-name-invalid'};for(let j=0;j<i;j++)if(nameRows[j]===row.value)return {ok:false,reason:'private-item-arrow-structured-proficiency-name-ambiguous'};nameRows[i]=row.value;}const clean=arrowProficiencyNoConsequences(ability,mechanics);if(!clean.ok)return clean;if(origin.value==='migration'){const recomputed=arrowAbilityMigrationSourceHash(ability);if(!recomputed.ok||!sourceHash||typeof sourceHash.value!=='string'||sourceHash.value!==recomputed.value)return {ok:false,reason:recomputed.ok?'private-item-arrow-proficiency-source-hash-mismatch':recomputed.reason};}const payload=deepFreeze({schemaVersion:'bg3-item-arrow-proficiency-evidence/1',abilityId:abilityId.value,abilityIndex,assignmentIndex:0,simple:simple.value,martial:martial.value,names:privateIntrinsics.freeze(nameRows),abilitySha256:summonStableDigest(ability)}),digest=summonDigest(payload),evidence={abilities:abilitiesDB,assignments,assignment,ability,abilityIndex,payload,digest};if(expected&&(expected.abilities!==abilitiesDB||expected.assignments!==assignments||expected.assignment!==assignment||expected.ability!==ability||expected.abilityIndex!==abilityIndex||expected.digest!==digest))return {ok:false,reason:'private-item-arrow-proficiency-evidence-changed'};return {ok:true,evidence:privateIntrinsics.freeze(evidence)};};
+const arrowProficiencyEvidence=(caster,expected)=>{const assignmentsData=ownData(caster,'abilities'),assignments=assignmentsData&&assignmentsData.value,denseAssignments=assignments&&arrowDenseArray(assignments),denseDb=arrowDenseArray(abilitiesDB);if(!denseAssignments||!denseAssignments.ok||denseAssignments.length!==1||!denseDb.ok)return {ok:false,reason:'private-item-arrow-explicit-weapon-proficiency-required'};const assignmentData=ownData(assignments,'0'),assignment=assignmentData&&assignmentData.value,abilityId=assignment&&ownData(assignment,'abilityId'),cur=assignment&&arrowOptionalOwnData(assignment,'cur'),notes=assignment&&arrowOptionalOwnData(assignment,'notes');if(!assignmentData||!arrowPlainDataObject(assignment)||!arrowOwnKeysAllowed(assignment,['abilityId','cur','notes'])||!abilityId||typeof abilityId.value!=='string'||!abilityId.value||!cur||!cur.ok||cur.present&&cur.value!=null||!notes||!notes.ok||notes.present&&typeof notes.value!=='string')return {ok:false,reason:'private-item-arrow-proficiency-assignment-invalid'};let ability=null,abilityIndex=-1;for(let i=0;i<denseDb.length;i++){const slot=ownData(abilitiesDB,summonStringBinding(i)),row=slot&&slot.value,id=row&&ownData(row,'id');if(!slot||!row||!id||typeof id.value!=='string')return {ok:false,reason:'private-item-arrow-ability-database-descriptor-required'};if(id.value===abilityId.value){if(ability)return {ok:false,reason:'private-item-arrow-proficiency-ability-ambiguous'};ability=row;abilityIndex=i;}}if(!ability)return {ok:false,reason:'private-item-arrow-proficiency-ability-membership-required'};const mode=arrowOptionalOwnData(ability,'mode'),uses=arrowOptionalOwnData(ability,'uses'),mechanicsData=ownData(ability,'mechanics'),mechanics=mechanicsData&&mechanicsData.value,schema=mechanics&&ownData(mechanics,'schemaVersion'),mechanicsMode=mechanics&&ownData(mechanics,'mode'),origin=mechanics&&ownData(mechanics,'origin'),sourceHash=mechanics&&ownData(mechanics,'sourceHash'),role=mechanics&&ownData(mechanics,'role'),proficienciesData=mechanics&&ownData(mechanics,'proficiencies'),proficiencies=proficienciesData&&proficienciesData.value,weaponsData=proficiencies&&ownData(proficiencies,'weapons'),weapons=weaponsData&&weaponsData.value,simple=weapons&&ownData(weapons,'simple'),martial=weapons&&ownData(weapons,'martial'),namesData=weapons&&ownData(weapons,'names'),names=namesData&&namesData.value,denseNames=names&&arrowDenseArray(names);if(!arrowPlainDataObject(ability)||!arrowOwnKeysAllowed(ability,['id','n','type','source','custom','tags','uses','rest','x','mode','duration','mechanics','bg3Id','abilityReview'])||!mode||!mode.ok||mode.present&&mode.value!=='passive'||!uses||!uses.ok||uses.present&&uses.value!=null||!arrowPlainDataObject(mechanics)||!arrowOwnKeysAllowed(mechanics,['schemaVersion','mode','origin','sourceHash','role','activation','target','resource','duration','resolution','effects','proficiencies','passiveRules','combat','manualNote','lifecyclePrograms','grantedInterrupts'])||!schema||schema.value!==1||!mechanicsMode||mechanicsMode.value!=='structured'||!origin||!['explicit','migration'].includes(origin.value)||!role||role.value!=='passive'||!arrowPlainDataObject(proficiencies)||!arrowOwnKeysAllowed(proficiencies,['weapons'])||!arrowPlainDataObject(weapons)||!arrowOwnKeysAllowed(weapons,['simple','martial','names'])||!simple||typeof simple.value!=='boolean'||!martial||typeof martial.value!=='boolean'||!denseNames||!denseNames.ok)return {ok:false,reason:'private-item-arrow-structured-proficiency-ability-required'};const nameRows=[];for(let i=0;i<denseNames.length;i++){const row=ownData(names,summonStringBinding(i));if(!row||typeof row.value!=='string'||!row.value)return {ok:false,reason:'private-item-arrow-structured-proficiency-name-invalid'};for(let j=0;j<i;j++)if(nameRows[j]===row.value)return {ok:false,reason:'private-item-arrow-structured-proficiency-name-ambiguous'};nameRows[i]=row.value;}const clean=arrowProficiencyNoConsequences(ability,mechanics);if(!clean.ok)return clean;if(origin.value==='migration'){const recomputed=arrowAbilityMigrationSourceHash(ability);if(!recomputed.ok||!sourceHash||typeof sourceHash.value!=='string'||sourceHash.value!==recomputed.value)return {ok:false,reason:recomputed.ok?'private-item-arrow-proficiency-source-hash-mismatch':recomputed.reason};}const payload=deepFreeze({schemaVersion:'bg3-item-arrow-proficiency-evidence/1',abilityId:abilityId.value,abilityIndex,assignmentIndex:0,simple:simple.value,martial:martial.value,names:privateIntrinsics.freeze(nameRows),abilitySha256:summonStableDigest(ability)}),digest=summonDigest(payload),evidence={abilities:abilitiesDB,assignments,assignment,ability,abilityIndex,payload,digest};if(expected&&(expected.abilities!==abilitiesDB||expected.assignments!==assignments||expected.assignment!==assignment||expected.ability!==ability||expected.abilityIndex!==abilityIndex||expected.digest!==digest))return {ok:false,reason:'private-item-arrow-proficiency-evidence-changed'};return {ok:true,evidence:privateIntrinsics.freeze(evidence)};};
 const arrowWeaponProficiency=(record,selected,category,level)=>{const checked=arrowProficiencyEvidence(record.caster,record.proficiencyEvidence);if(!checked.ok)return checked;const grant=checked.evidence.payload,names=grant.names,named=selected.itemId==='it_ручной_арбалет'&&names.includes('ручн арбалет'),proficient=category==='simple'?grant.simple:(category==='martial'?grant.martial:false);if(!proficient&&!named)return {ok:false,reason:'private-item-arrow-explicit-weapon-proficiency-required'};return {ok:true,bonus:2+summonMathFloorBinding((level-1)/4),evidence:checked.evidence};};
 const arrowWeaponSemanticsClean=(mechanics,weapon)=>{const campaign=arrowOptionalOwnData(mechanics,'campaignRules'),resource=arrowOptionalOwnData(mechanics,'resource'),actions=arrowOptionalOwnData(mechanics,'actions'),lifecycle=arrowOptionalOwnData(mechanics,'lifecyclePrograms');if(!campaign.ok||!campaign.present||campaign.value!==null||!resource.ok||resource.present&&resource.value!=null||!actions.ok||actions.present&&!arrowEmptyDense(actions.value)||!lifecycle.ok||lifecycle.present&&!arrowEmptyDense(lifecycle.value))return {ok:false,reason:'private-item-arrow-weapon-resource-functor-semantics-fail-closed'};for(const key of ['coating','functors','weaponFunctors','onHit','onDamage']){const row=arrowOptionalOwnData(weapon,key);if(!row.ok||row.present)return {ok:false,reason:'private-item-arrow-weapon-resource-functor-semantics-fail-closed'};}return {ok:true};};
 const arrowLexicalWeapon=record=>{const selected=record&&record.selection&&record.selection.weapon,caster=record&&record.caster,item=selected&&selected.item;if(!selected||!caster||!item)return {ok:false,reason:'private-item-arrow-selected-weapon-required'};const supported=selected.itemId==='it_shortbow_s'&&!selected.offhand&&selected.equipmentSlot==='TWO_HAND'?{range:'80/320 футов',category:'simple',ammoType:'лук',loading:false,light:false,two:true}:selected.itemId==='it_ручной_арбалет'&&selected.offhand&&selected.equipmentSlot==='OFF_HAND'?{range:'9/36 м',category:'martial',ammoType:'арбалет',loading:true,light:true,two:false}:null;if(!supported)return {ok:false,reason:'private-item-arrow-bounded-weapon-formula-required'};const field=(owner,key)=>{const data=owner&&ownData(owner,key);return data&&data.value;},itemId=field(item,'id'),schema=field(item,'schemaVersion'),type=field(item,'type'),dmgText=field(item,'dmg'),dmgType=field(item,'dmgType'),mechanics=field(item,'mechanics'),mode=field(mechanics,'mode'),mechanicsSchema=field(mechanics,'schemaVersion'),profile=field(mechanics,'profile'),kind=field(profile,'kind'),weapon=field(profile,'weapon'),ranged=field(weapon,'ranged'),thrown=field(weapon,'thrown'),ammo=field(weapon,'ammo'),ammoType=field(weapon,'ammoType'),loading=field(weapon,'loading'),reach=field(weapon,'reach'),finesse=field(weapon,'finesse'),light=field(weapon,'light'),heavy=field(weapon,'heavy'),two=field(weapon,'two'),versatile=field(weapon,'versatile'),magic=field(weapon,'magic'),special=field(weapon,'special'),net=field(weapon,'net'),lance=field(weapon,'lance'),range=field(weapon,'range'),category=field(weapon,'category'),damage=field(weapon,'damage'),cnt=field(damage,'cnt'),sides=field(damage,'sides'),damageMod=field(damage,'mod'),damageType=field(damage,'type'),manual=field(damage,'manual'),bonus=field(weapon,'bonus'),bonusAtk=field(bonus,'atk'),bonusDmg=field(bonus,'dmg'),traits=field(weapon,'damageTraits'),magical=field(traits,'magical'),silvered=field(traits,'silvered'),adamantine=field(traits,'adamantine');if(itemId!==selected.itemId||schema!==6||type!=='weapon'||dmgText!=='1d6'||dmgType!=='колющий'||!arrowPlainDataObject(mechanics)||mechanicsSchema!==1||mode!=='structured'||!arrowPlainDataObject(profile)||kind!=='weapon'||!arrowPlainDataObject(weapon)||!arrowOwnKeysAllowed(weapon,['ranged','thrown','ammo','ammoType','loading','reach','finesse','light','heavy','two','versatile','magic','range','special','damage','damageTraits','bonus','category','net','lance'])||ranged!==true||thrown!==false||ammo!==true||ammoType!==supported.ammoType||loading!==supported.loading||reach!==false||finesse!==false||light!==supported.light||heavy!==false||two!==supported.two||versatile!==null||magic!==false||special!==''||net!==false||lance!==false||range!==supported.range||category!==supported.category||!arrowPlainDataObject(damage)||!arrowOwnKeysAllowed(damage,['cnt','sides','mod','type','manual'])||cnt!==1||sides!==6||damageMod!==0||damageType!=='колющий'||manual!==false||!arrowPlainDataObject(bonus)||!arrowOwnKeysAllowed(bonus,['atk','dmg'])||bonusAtk!==0||bonusDmg!==0||!arrowPlainDataObject(traits)||!arrowOwnKeysAllowed(traits,['magical','silvered','adamantine'])||magical!==false||silvered!==false||adamantine!==false)return {ok:false,reason:'private-item-arrow-bounded-weapon-formula-mismatch'};const semantics=arrowWeaponSemanticsClean(mechanics,weapon);if(!semantics.ok)return semantics;const levelData=ownData(caster,'level'),abData=ownData(caster,'ab'),dexData=abData&&ownData(abData.value,'dex');if(!levelData||!summonNumberIntegerBinding(levelData.value)||levelData.value<1||levelData.value>20||!abData||!arrowPlainDataObject(abData.value)||!dexData||!summonNumberIntegerBinding(dexData.value))return {ok:false,reason:'private-item-arrow-caster-weapon-ability-required'};const proficiency=arrowWeaponProficiency(record,selected,supported.category,levelData.value);if(!proficiency.ok)return proficiency;const dex=arrowAbilityMod(dexData.value),attackMod=dex+proficiency.bonus+bonusAtk,appliedAbility=selected.offhand?(dex<0?dex:0):dex;return {ok:true,value:privateIntrinsics.freeze({cnt,sides,damageType,damageMod:damageMod+bonusDmg+appliedAbility,attackMod,range,damageTags:privateIntrinsics.freeze({magical:false,silvered:false,adamantine:false})})};};
@@ -14812,7 +14874,7 @@ const at='ability['+i+'] '+ab.n;
 mechanicsErrors(ab.mechanics,'ability').forEach(msg=>errors.push(at+': '+msg));
 checkSpec(ab,'ability',at,0); checkFx(ab,'ability',at);
 const active=abilityIsActive(ab), passive=isPassiveAbility(ab);
-const role=ab.mechanics&&ab.mechanics.role||ab.mode,specialMode=role==='resource'||role==='triggered'||role==='manual';
+const role=ab.mechanics?.mode==='manual'?'manual':ab.mechanics&&ab.mechanics.role||ab.mode,specialMode=role==='resource'||role==='triggered'||role==='manual';
 if(ab.mechanics&&ab.mechanics.activation) coverage.actionCosts.add(ab.mechanics.activation.cost);
 if(ab.mechanics&&ab.mechanics.target) coverage.targetKinds.add(ab.mechanics.target.kind);
 if(specialMode){
@@ -18023,7 +18085,8 @@ return combatPrimeCast(key,combatAbilityCost(ab),'Способность «'+ab.
 function combatAbilityAfterApply(ab,casterId,rolls){
 if(!combat.active||!ab||combatCurrentKey()!=='ally:'+casterId) return;
 const rule=abilityCombatRules(ab),r=combatSyncActionState();
-if(rule.oncePerTurn&&(!rolls||rolls.hit===true)){ r.abilityUsed=r.abilityUsed||{}; r.abilityUsed[ab.id]=true; }
+if(!r)throw new Error('Не определено состояние текущего хода.');
+if(rule.oncePerTurn&&(rule.consumeOn!=='hit'||rolls?.hit===true)){ r.abilityUsed=r.abilityUsed||{}; r.abilityUsed[ab.id]=true; }
 const add=Math.max(0,+rule.grantAction||0);
 if(add){
 r.actionMax+=add; combatSyncActionState();
@@ -20056,7 +20119,7 @@ if(sp.hi) h+='<div class="props-block"><span class="pt">На больших ур
 else if(sp.l>0) h+='<div class="props-block note-ital" style="font-size:13px"><span class="pt">Более высокий круг:</span> '+(sp.grimoire?.upcastVerified?'отдельное усиление в описании SRD 5.1 не предусмотрено.':'отдельное усиление не указано; проверьте описание правила.')+'</div>';
 return h+'</div>';
 }
-const ABILITY_TYPES={class:'Классовая',racial:'Расовая',feat:'Черта',other:'Прочее'};
+const ABILITY_TYPES={class:'Классовая',racial:'Расовая',feat:'Черта',background:'Предыстория',other:'Прочее'};
 function abilityCardHTML(ab, extra){
 extra=extra||'';
 let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(ab.n)+'</h4>'
@@ -20067,13 +20130,19 @@ let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(ab.n)+'</h4>'
 h+=descBlock(ab.x);
 h+='<div class="stat-line"><b>Применение:</b> '+abilityModeLabel(ab)+'</div>';
 if(ab.catalogSource)h+='<div class="stat-line"><b>Источник:</b> '+esc(ab.catalogSource.documentName)+' · '+esc(ab.catalogSource.gamesystem)+' · CC-BY-4.0 · язык: русский</div>';
+const review=ab.abilityReview;
+if(review){
+h+='<div class="stat-line"><b>Названия:</b> '+(review.custom?'редакция мастера':review.nameStatus==='hobbyworld-glossary'?'сверено с глоссарием Hobby World':review.nameStatus==='glossary-terminology'?'терминология глоссария Hobby World; другое издание правил':'перевод проекта')+'</div>';
+h+='<div class="stat-line"><b>Описание:</b> '+(review.custom?'редакция мастера':review.descriptionStatus==='srd-2014-reviewed'?'сверено с SRD 2014; пересказ проекта':'нуждается в полной сверке с книгой')+'</div>';
+if(review.edition==='2024')h+='<div class="note-ital">D&D 2024 · справочная карточка для сравнения редакций.</div>';
+}
 if(ab.bg3Id===BG3_MEDIUM_ARMOR_MASTER.bg3Id)h+='<div class="stat-line"><b>Подтверждённая пассивная черта:</b> Мастер средних доспехов</div>';
 if(ab.uses) h+='<div class="stat-line"><b>Использований:</b> '+esc(String(ab.uses))+(ab.rest?' / '+esc(ab.rest):'')+'</div>';
 return h+'</div>';
 }
 
 
-const dbFlt={ sp:{q:'',l:'',s:''}, it:{q:'',taxonomy:'',rarity:'',tag:'',sort:'name'}, ab:{q:'',type:''} };
+const dbFlt={ sp:{q:'',l:'',s:''}, it:{q:'',taxonomy:'',rarity:'',tag:'',sort:'name'}, ab:{q:'',type:'',edition:'campaign',mode:'',page:0} };
 const localItemFlt={q:'',type:'',tag:''};
 let editing={sp:null,it:null,ab:null};
 let itemAuditView=null;
@@ -27158,24 +27227,34 @@ itemAuditView=null; scheduleSave(); renderItemsDB(); if(activeCharId) renderChar
 
 function renderAbilitiesDB(){
 const box=document.getElementById('tab-abilitiesdb'); const f=dbFlt.ab;
+const search=document.activeElement,caret=search?.id==='abilityDbSearch'?[search.selectionStart,search.selectionEnd]:null;
+const signature=JSON.stringify([f.q,f.type,f.edition,f.mode]);if(f.signature!==signature){f.page=0;f.signature=signature;}
 let h='<h2 class="rubric">Свод способностей мира</h2>'
 +'<div class="db-bar">'
-+'<input type="text" placeholder="Поиск способностей…" value="'+esc(f.q)+'" oninput="dbFlt.ab.q=this.value;renderAbilitiesDB()">'
++'<input id="abilityDbSearch" type="search" aria-label="Поиск способностей" placeholder="Название, описание, источник…" value="'+esc(f.q)+'" oninput="dbFlt.ab.q=this.value;renderAbilitiesDB()">'
 +'<select onchange="dbFlt.ab.type=this.value;renderAbilitiesDB()"><option value="">Все виды</option>'
 +Object.keys(ABILITY_TYPES).map(t=>'<option value="'+t+'"'+(f.type===t?' selected':'')+'>'+ABILITY_TYPES[t]+'</option>').join('')+'</select>'
++'<select aria-label="Редакция способностей" onchange="dbFlt.ab.edition=this.value;renderAbilitiesDB()">'+[['campaign','2014 и авторские'],['','Все источники'],['2014','D&D 2014'],['2024','D&D 2024 · справка'],['third-party','Сторонние правила'],['custom','Авторские правила']].map(([key,label])=>'<option value="'+key+'"'+(f.edition===key?' selected':'')+'>'+label+'</option>').join('')+'</select>'
++'<select aria-label="Применение способностей" onchange="dbFlt.ab.mode=this.value;renderAbilitiesDB()">'+[['','Любое применение'],['active','Активные'],['passive','Пассивные'],['resource','Ресурсы'],['triggered','По условию'],['manual','Справочные']].map(([key,label])=>'<option value="'+key+'"'+(f.mode===key?' selected':'')+'>'+label+'</option>').join('')+'</select>'
 +'<button class="btn rub" onclick="openAbilityEd(\'\')">✚ Новая способность</button></div>';
 if(editing.ab!==null) h+=abilityEditorHTML();
 const arr=abilitiesDB.filter(ab=>
-(!f.q || ab.n.toLowerCase().includes(f.q.toLowerCase()) || (ab.x||'').toLowerCase().includes(f.q.toLowerCase()))
+ABILITY_RULES.matches(ab,f.q)
 && (!f.type || ab.type===f.type)
-).sort((a,b)=>a.n.localeCompare(b.n,'ru')),shown=arr.slice(0,200);
-h+='<p class="note-ital" style="font-size:14px">Записей: '+arr.length+' из '+abilitiesDB.length+(arr.length>shown.length?' · показаны первые '+shown.length+'; уточните поиск':'')+'</p>';
+&& (!f.edition || (f.edition==='campaign'?['2014','custom'].includes(ABILITY_RULES.edition(ab)):ABILITY_RULES.edition(ab)===f.edition))
+&& (!f.mode || (ab.mechanics?.mode==='manual'?'manual':ab.mechanics?.role||ab.mode)===f.mode)
+).sort((a,b)=>a.n.localeCompare(b.n,'ru'));
+const pages=Math.max(1,Math.ceil(arr.length/40));f.page=Math.min(Math.max(0,f.page||0),pages-1);const shown=arr.slice(f.page*40,(f.page+1)*40);
+h+='<p class="note-ital" style="font-size:14px">Записей: '+arr.length+' из '+abilitiesDB.length+' · страница '+(f.page+1)+' из '+pages+'</p>';
+const pager=pages>1?'<div class="db-bar"><button class="btn ghost sm" '+(f.page===0?'disabled':'')+' onclick="dbFlt.ab.page--;renderAbilitiesDB()">← Назад</button><button class="btn ghost sm" '+(f.page===pages-1?'disabled':'')+' onclick="dbFlt.ab.page++;renderAbilitiesDB()">Далее →</button></div>':'';
+h+=pager;
 shown.forEach(ab=>{
 h+=abilityCardHTML(ab,
 '<button class="btn ghost sm" onclick="openAbilityEd(\''+ab.id+'\')">✎</button>'
 +'<button class="del-x" onclick="delAbilityDB(\''+ab.id+'\')">✕</button>');
 });
-box.innerHTML=h;
+box.innerHTML=h+pager;
+if(caret){const next=document.getElementById('abilityDbSearch');next?.focus();next?.setSelectionRange(caret[0],caret[1]);}
 }
 function openAbilityEd(id){ editing.ab=id; renderAbilitiesDB(); window.scrollTo({top:0,behavior:'smooth'}); }
 function abilityEditorHTML(){
@@ -27188,7 +27267,7 @@ return '<div class="editor"><h3>'+(editing.ab?'Правка способност
 +'<div><label>Источник (класс, раса…)</label><input type="text" id="edAbSrc" value="'+esc(ab.source||'')+'"></div>'
 +'<div><label>Макс. использований (пусто — без счета)</label><input type="number" id="edAbUses" min="0" value="'+(ab.uses!=null?ab.uses:'')+'"></div>'
 +'<div><label>Восстановление</label><select id="edAbRest"><option value=""'+(!ab.rest?' selected':'')+'>—</option>'
-+['короткий отдых','длинный отдых','раз в день','особое'].map(r=>'<option'+(ab.rest===r?' selected':'')+'>'+r+'</option>').join('')+'</select></div>'
++['короткий отдых','длинный отдых','раз в день','особое'].map(r=>'<option value="'+r+'"'+(ab.rest===r?' selected':'')+'>'+(r==='длинный отдых'?'долгий отдых':r)+'</option>').join('')+'</select></div>'
 +'<div><label>Как применяется</label><select id="edAbMode">'
 +[['','явно задать в mechanics'],['active','активная — кнопка «Применить» и формула бросков'],['passive','пассивная — действует постоянно'],['resource','ресурсная — общий счетчик'],['triggered','триггерная — реакция движка']]
 .map(o=>'<option value="'+o[0]+'"'+((ab.mode||'')===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></div>'
@@ -27221,11 +27300,13 @@ mechanics.resource.uses=data.uses; mechanics.resource.rest=data.rest;
 const errs=mechanicsErrors(mechanics,'ability'); if(errs.length){ alert('Mechanics способности не прошел аудит:\n'+errs.join('\n')); return; }
 data.mechanics=mechanics;
 const current=editing.ab&&abilitiesDB.find(x=>x.id===editing.ab),target=Object.assign({},current||{id:'ab_'+uid(),custom:true},data);
+target.abilityReview={...target.abilityReview,revision:ABILITY_RULES.revision,custom:true,nameStatus:'custom',descriptionStatus:'custom'};
 if(bg3Id)target.bg3Id=bg3Id;else delete target.bg3Id;
 if(bg3Id&&!bg3MediumArmorMasterPassiveMechanicsCheck(target)){
 alert('MediumArmorMaster можно подтвердить только для способности без использований, с режимом «пассивная» и явным структурированным mechanics.role="passive".');return;
 }
 if(current){Object.assign(current,target);if(!bg3Id)delete current.bg3Id;}else abilitiesDB.push(target);
+Object.assign(dbFlt.ab,{q:target.n,type:'',edition:ABILITY_RULES.edition(target),mode:'',page:0});
 editing.ab=null; scheduleSave(); renderAbilitiesDB(); if(activeCharId) renderChars();
 }
 function delAbilityDB(id){
@@ -27354,7 +27435,7 @@ function refreshShortRestResources(c){
 if(!c) return {pact:false};
 if(typeof bg3InterruptResetCooldowns==='function')bg3InterruptResetCooldowns(c,'short');
 if(typeof bg3GrantedWeaponResetCooldowns==='function')bg3GrantedWeaponResetCooldowns(c,'short');
-c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null&&db.rest==='короткий отдых') a.cur=db.uses; });
+c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null&&db.rest==='короткий отдых') a.cur=abilityMaxUses(c,db); });
 /* Непотраченные «вооруженные» эффекты печати не переносятся через отдых:
 иначе старое преимущество можно было использовать после восстановления
 ресурса и тут же подготовить второе. Сам запечатанный документ остается
@@ -27634,14 +27715,14 @@ const race=characterRace(c);
 const keep=new Set(desired.map(ab=>ab.id));
 const retired=(c.abilities||[]).filter(e=>e.characterGranted&&!keep.has(e.abilityId));
 if(retired.length){c.characterBuild.archivedAbilities=(c.characterBuild.archivedAbilities||[]).concat(retired);c.abilities=c.abilities.filter(e=>!retired.includes(e));}
-desired.forEach(ab=>{if(!c.abilities.some(e=>e.abilityId===ab.id)){const old=(c.characterBuild.archivedAbilities||[]).find(e=>e.abilityId===ab.id);c.abilities.push(old?{...old}:{abilityId:ab.id,cur:ab.uses??null,notes:'',characterGranted:true,buildSource:ab.type==='racial'?c.race:c.cls});}});
+desired.forEach(ab=>{if(!c.abilities.some(e=>e.abilityId===ab.id)){const old=(c.characterBuild.archivedAbilities||[]).find(e=>e.abilityId===ab.id);c.abilities.push(old?{...old}:{abilityId:ab.id,cur:abilityMaxUses(c,ab),notes:'',characterGranted:true,buildSource:ab.type==='racial'?c.race:c.cls});}});
 }
 function characterSyncOriginFeat(c){
 const name=c.race==='Человек'&&c.subrace==='Вариант человека'?c.buildChoices?.feat||'':'',previous=c.characterBuild.originFeat;
 if(previous&&previous.name!==name){if(previous.addedFeat)c.feats=(c.feats||[]).filter(f=>f!==previous.name);c.abilities=(c.abilities||[]).filter(e=>!e.originGranted);delete c.characterBuild.originFeat;}
 if(!name)return;
 if(!c.characterBuild.originFeat){const addedFeat=!(c.feats||[]).includes(name);if(addedFeat)(c.feats||=[]).push(name);c.characterBuild.originFeat={name,addedFeat};}
-const feat=abilitiesDB.find(a=>a.type==='feat'&&a.n===name&&a.catalogSource?.documentKey==='srd-2014');
+const feat=abilitiesDB.find(a=>a.type==='feat'&&(a.n===name||a.abilityReview?.aliases?.includes(name))&&a.catalogSource?.documentKey==='srd-2014');
 if(feat&&!c.abilities.some(e=>e.abilityId===feat.id))c.abilities.push({abilityId:feat.id,cur:feat.uses??null,notes:'',originGranted:true,buildSource:'Вариант человека'});
 }
 function characterSelectValue(key,value){
@@ -27768,7 +27849,7 @@ h+='<div class="character-form-grid">';
 t.toolChoices.forEach((options,i)=>h+=field('Инструмент / транспорт · '+(i+1),'<select id="creator-tool-'+i+'" onchange="characterCreatorChoice(\'tools\','+i+',this.value)">'+characterOptions(options,(c.buildChoices.tools||[])[i])+'</select>'));
 for(let i=0;i<t.languageChoices;i++)h+=field('Дополнительный язык · '+(i+1),'<select id="creator-language-'+i+'" onchange="characterCreatorChoice(\'languages\','+i+',this.value)">'+characterOptions(CHARACTER_RULES.languages.filter(v=>!p.languages.includes(v)),(c.buildChoices.languages||[])[i])+'</select>');
 if(c.editingId&&p.abilityChoices)for(let i=0;i<p.abilityChoices;i++)h+=field('Характеристика +1 · '+(i+1),'<select onchange="characterCreatorChoice(\'abilities\','+i+',this.value)">'+characterOptions(AB_KEYS.filter(k=>!p.exclude.includes(k)),(c.buildChoices.abilities||[])[i])+'</select>');
-if(p.featChoices)h+=field('Черта варианта человека','<select id="creator-feat" onchange="characterDraft.buildChoices.feat=this.value;renderCharacterCreator()">'+characterOptions(['Крепкий','Борец'],c.buildChoices.feat)+'</select><small>Крепкий: +2 хита за уровень. Борец: Сила 13; приемы захвата разрешает мастер.</small>');
+if(p.featChoices)h+=field('Черта варианта человека','<select id="creator-feat" onchange="characterDraft.buildChoices.feat=this.value;renderCharacterCreator()"><option value="">— Выберите —</option>'+[['Крепкий','Живучий'],['Борец','Рукопашный борец']].map(([value,label])=>'<option value="'+value+'"'+(c.buildChoices.feat===value?' selected':'')+'>'+label+'</option>').join('')+'</select><small>Живучий: +2 хита за уровень. Рукопашный борец: Сила 13; приёмы захвата разрешает мастер.</small>');
 h+='</div><p class="note-ital">Постоянные владения: '+esc(t.tools.filter(v=>!(c.buildChoices.tools||[]).includes(v)).join(', ')||'—')+'. Языки народа: '+esc(p.languages.join(', ')||'—')+'.</p>';
 }else{
 const errors=characterCreatorErrors(c);
@@ -28955,8 +29036,8 @@ if(equippedEntries.has(e.id)&&rule&&rule.athleticsContextBonus) e.equippedDays=M
 });
 Object.keys(c.slots).forEach(l=>{ c.slots[l].cur=c.slots[l].max; });
 if(c.magicResource){MAGIC_RULES.rest(c);if(magicUsesMp())magicEnsure(c);}
-if(c.characterBuild){c.characterBuild.slotSpent={};(c.characterBuild.archivedAbilities||[]).forEach(a=>{const db=abilityOf(a.abilityId);if(db?.uses!=null)a.cur=db.uses;});}
-c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null) a.cur=db.uses; });
+if(c.characterBuild){c.characterBuild.slotSpent={};(c.characterBuild.archivedAbilities||[]).forEach(a=>{const db=abilityOf(a.abilityId);if(db?.uses!=null)a.cur=abilityMaxUses(c,db);});}
+c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null) a.cur=abilityMaxUses(c,db); });
 (c.inventory||[]).forEach(e=>{ delete e.sealDocumentUsed; delete e.sealResolveUsed; });
 if(typeof bg3InterruptResetCooldowns==='function')bg3InterruptResetCooldowns(c,'long');
 if(typeof bg3GrantedWeaponResetCooldowns==='function')bg3GrantedWeaponResetCooldowns(c,'long');
@@ -29261,9 +29342,10 @@ return h+pager+'</div>';
 const abFlt={cat:'all',q:''};
 function addAbilityFromDB(abilityId){
 const c=cc(); if(!c) return;
+const db=abilityOf(abilityId),check=ABILITY_RULES.canAssign(c,db);
+if(!check.ok){setStatus('✕ '+check.reason,true);return false;}
 if(!c.abilities.some(x=>x.abilityId===abilityId)){
-const db=abilityOf(abilityId);
-c.abilities.push({abilityId, cur:db&&db.uses!=null?db.uses:null, notes:''});
+c.abilities.push({abilityId, cur:abilityMaxUses(c,db), notes:''});
 }
 sheetSearch.ab=''; scheduleSave(); renderChars();
 }
@@ -29272,8 +29354,9 @@ c.abilities=c.abilities.filter(x=>x.abilityId!==abilityId); scheduleSave(); rend
 function abilityUse(abilityId,d){
 const c=cc(); const e=c.abilities.find(x=>x.abilityId===abilityId); const db=abilityOf(abilityId);
 if(!e||!db||db.uses==null) return;
-if(e.cur==null) e.cur=db.uses;
-e.cur=Math.max(0,Math.min(db.uses,e.cur+d)); scheduleSave(); renderChars();
+const max=abilityMaxUses(c,db);
+if(e.cur==null) e.cur=max;
+e.cur=Math.max(0,Math.min(max,e.cur+d)); scheduleSave(); renderChars();
 }
 function quickAddAbility(){
 const g=id=>document.getElementById(id);
@@ -29291,9 +29374,9 @@ const act=list.filter(x=>x.db.uses!=null);
 if(!act.length) return '';
 let ready=0, backShort=0, backLong=0, backBattle=0;
 act.forEach(x=>{
-const cur=x.e.cur==null?x.db.uses:x.e.cur;
+const max=abilityMaxUses(c,x.db),cur=x.e.cur==null?max:x.e.cur;
 if(cur>0) ready++;
-const miss=x.db.uses-cur;
+const miss=max-cur;
 if(miss>0){
 if(x.db.rest==='короткий отдых') backShort+=miss;
 else if(x.db.rest==='длинный отдых'||x.db.rest==='раз в день') backLong+=miss;
@@ -29317,7 +29400,7 @@ h+='<div class="db-bar"><input type="text" placeholder="Найти способ�
 if(sheetSearch.ab.trim().length>1){
 const q=sheetSearch.ab.toLowerCase();
 const has=new Set(c.abilities.map(x=>x.abilityId));
-const hits=abilitiesDB.filter(ab=>ab.n.toLowerCase().includes(q)&&!has.has(ab.id)).slice(0,10);
+const hits=abilitiesDB.filter(ab=>ABILITY_RULES.matches(ab,q)&&ABILITY_RULES.edition(ab)!=='2024'&&!has.has(ab.id)).slice(0,10);
 h+=hits.length?hits.map(ab=>'<div class="spell-hit" onclick="addAbilityFromDB(\''+ab.id+'\')"><span><b>'+esc(ab.n)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+esc(ABILITY_TYPES[ab.type]||'')+(ab.source?', '+esc(ab.source):'')+'</span></span><span style="color:var(--gold)">+ вписать</span></div>').join('')
 :'<p class="note-ital" style="font-size:14px">В своде мира такого нет — создайте свое.</p>';
 }
@@ -29332,7 +29415,7 @@ h+='<div class="editor"><h3>Быстрое создание способност
 +'<button class="btn rub" onclick="quickAddAbility()">Создать и вписать</button> '
 +'<button class="btn ghost" onclick="quickForm.ab=false;renderChars()">Отменить</button></div>';
 }
-const groups=[['racial','Расовые черты'],['class','Классовые способности'],['feat','Черты'],['other','Особые']];
+const groups=[['racial','Расовые черты'],['class','Классовые способности'],['feat','Черты'],['background','Особенности предыстории'],['other','Особые']];
 let shown=0;
 groups.forEach(gr=>{
 if(abFlt.cat!=='all'&&abFlt.cat!==gr[0]) return;
@@ -29343,9 +29426,9 @@ h+='<h3 class="rubric" style="font-size:22px;margin-top:12px">'+gr[1]+'</h3>';
 list.forEach(x=>{
 let uses='';
 if(x.ab.uses!=null){
-const cur=x.e.cur==null?x.ab.uses:x.e.cur;
+const max=abilityMaxUses(c,x.ab),cur=x.e.cur==null?max:x.e.cur;
 uses='<span class="uses-box"><button class="mini-btn" onclick="abilityUse(\''+x.ab.id+'\',-1)">−</button>'
-+cur+' / '+x.ab.uses+'<button class="mini-btn" onclick="abilityUse(\''+x.ab.id+'\',1)">+</button>'
++cur+' / '+max+'<button class="mini-btn" onclick="abilityUse(\''+x.ab.id+'\',1)">+</button>'
 +(x.ab.rest?'<span style="font-style:italic">'+esc(x.ab.rest)+'</span>':'')+'</span>';
 }
 const isActive=abilityIsActive(x.ab);

@@ -871,6 +871,8 @@ function loadEngine() {
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/hobbyworld-ability-terms.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/ability-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source, context);
   return context.__bg3ActionBoundary;
 }
