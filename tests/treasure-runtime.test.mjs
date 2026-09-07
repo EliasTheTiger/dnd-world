@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import Economy from '../scripts/economy-core.js';
 import Chests from '../scripts/chest-core.js';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
-function fn(name){const start=html.indexOf('function '+name+'(');assert.ok(start>=0,name);const next=html.indexOf('\nfunction ',start+10);return html.slice(start,next);}
+function fn(name){let start=html.indexOf('function '+name+'(');assert.ok(start>=0,name);if(html.slice(start-6,start)==='async ')start-=6;const next=html.indexOf('\nfunction ',start+10);return html.slice(start,next);}
 test('merchant base quote applies the displayed percentage to catalogue value, not an already discounted sale',()=>{
  const model=Economy.createItemPriceModel({itemId:'sword',ruleset:'dnd5e-2014',rawPrice:'10 зм',source:{type:'test',reference:'catalogue'},saleRule:{kind:'half',basisPoints:'5000'}}),context={DndEconomy:Economy,itemEconomyOf:()=>model,economyState:{priceSettings:{},tradeContext:{}}};vm.createContext(context);vm.runInContext(fn('merchantBaseQuote'),context);assert.equal(context.merchantBaseQuote({},'sale',{}).amountMinor,'1000');assert.equal(model.saleRule.basisPoints,'5000');
 });
@@ -20,6 +20,16 @@ test('chest action preflight requires every actual trap die and initiative befor
 });
 test('trap poison uses the same damage type as a character poison resistance',()=>{
  const context={dmgTypeCanon:s=>s};vm.createContext(context);vm.runInContext(fn('chestDamageType'),context);assert.equal(context.chestDamageType('poison'),'яд');assert.equal(context.chestDamageType('acid'),'кислота');
+});
+
+test('opening a chest keeps the next claim disabled until the action and durable save finish',async()=>{
+ let release,reject;const calls=[],buttons=[{disabled:false,setAttribute(k,v){this[k]=v;}}];
+ const context={chestUiActionBusy:false,document:{querySelectorAll:()=>buttons},gameActionExecute(id){calls.push(id);return new Promise((resolve,fail)=>{release=resolve;reject=fail;});},renderChests(){context.renders++;buttons[0].disabled=context.chestUiActionBusy;},renders:0};
+ vm.createContext(context);vm.runInContext(fn('chestExecuteAction'),context);
+ const opening=context.chestExecuteAction('open','token');assert.equal(context.chestUiActionBusy,true);assert.equal(buttons[0].disabled,true);
+ assert.equal(await context.chestExecuteAction('claim','new-token'),false);assert.deepEqual(calls,['open']);assert.equal(context.renders,0);
+ release({success:true});await opening;assert.equal(context.chestUiActionBusy,false);assert.equal(buttons[0].disabled,false);assert.equal(context.renders,1);
+ const claiming=context.chestExecuteAction('claim','new-token');assert.deepEqual(calls,['open','claim']);reject(new Error('save failed'));await assert.rejects(claiming,/save failed/);assert.equal(context.chestUiActionBusy,false);assert.equal(buttons[0].disabled,false);assert.equal(context.renders,2);
 });
 test('reentrant rendering flushes pending edits once without nesting DOM replacement',()=>{
  const context={document:{activeElement:{blur(){context.nested=context.tradeRenderBegin('merchant',box);}}}};const box={contains:()=>true};vm.createContext(context);vm.runInContext('const tradeRenderLocks=new Set();\n'+fn('tradeRenderBegin'),context);assert.equal(context.tradeRenderBegin('merchant',box),true);assert.equal(context.nested,false);
