@@ -7,6 +7,7 @@
     "qa:characters": "node qa/characters.e2e.cjs",
     "qa:magic": "node qa/magic-systems.e2e.cjs",
     "qa:grimoire": "node qa/grimoire.e2e.cjs",
+    "qa:grimoire-workbench": "node qa/grimoire-workbench.e2e.cjs",
     "qa:player": "node qa/player-agent.e2e.cjs",
     "qa:player:headed": "node qa/player-agent.e2e.cjs --headed"
   },

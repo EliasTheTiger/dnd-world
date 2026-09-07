@@ -2149,7 +2149,36 @@ function spellClassTokens(sp){
 return GRIMOIRE_RULES.classTokens(sp&&sp.c);
 }
 function spellClassListHas(c,sp){
-const m=casterMeta(c); return !!(grimoireActive(sp)&&m&&m.abbr&&spellClassTokens(sp).indexOf(m.abbr)>=0);
+const m=casterMeta(c); return !!(grimoireActive(sp)&&m&&m.abbr&&(spellClassTokens(sp).indexOf(m.abbr)>=0||subclassSpellRule(c,sp)));
+}
+function subclassSpellRule(c,sp){
+const key=GRIMOIRE_RULES.identity(sp);
+return MAGIC_RULES.subclassSpells(c).find(row=>row.level<=c.level&&GRIMOIRE_RULES.normalize(row.english)===key)||null;
+}
+function syncSubclassSpellGrants(c){
+const before=JSON.stringify(c.spellbook||[]);
+c.spellbook=(c.spellbook||[]).flatMap(entry=>{
+if(!entry.subclassSpellGrant)return [entry];
+const rule=subclassSpellRule(c,spellOf(entry.spellId));
+if(rule?.kind==='prepared'&&rule.source===entry.subclassSpellGrant.source)return [entry];
+return entry.subclassSpellGrant.base?[itemClone(entry.subclassSpellGrant.base)]:[];
+});
+for(const rule of MAGIC_RULES.subclassSpells(c).filter(row=>row.kind==='prepared'&&row.level<=c.level)){
+const sp=spellsDB.find(row=>grimoireActive(row)&&GRIMOIRE_RULES.identity(row)===GRIMOIRE_RULES.normalize(rule.english));if(!sp)continue;
+let entry=c.spellbook.find(row=>row.spellId===sp.id);
+if(!entry){entry={spellId:sp.id};c.spellbook.push(entry);entry.subclassSpellGrant={source:rule.source,base:null};}
+else if(!entry.subclassSpellGrant){
+const base=itemClone(entry);
+// Old seeded Life-domain flags represented this same grant, not an independent feature.
+if(base.access==='subclass'&&base.source===rule.source){base.access='classList';base.prep=false;for(const key of ['granted','alwaysPrepared','countsAgainstPreparation','countsAgainstKnown'])delete base[key];}
+entry.subclassSpellGrant={source:rule.source,base};
+}
+Object.assign(entry,{access:'subclass',granted:true,alwaysPrepared:true,countsAgainstPreparation:false,countsAgainstKnown:false,prep:true,source:rule.source});
+}
+return before!==JSON.stringify(c.spellbook);
+}
+function loreSecretRemaining(c){
+return c.cls==='Бард'&&c.subcls==='Коллегия Знаний'&&c.level>=6?Math.max(0,2-(c.spellbook||[]).filter(e=>e.loreSecret).length):0;
 }
 function spellEntryGranted(e){
 return !!(e&&(e.granted||e.alwaysPrepared||e.countsAgainstKnown===false||e.access==='feature'||e.access==='subclass'||e.access==='feat'||e.ritualOnly));
@@ -2163,7 +2192,7 @@ const row=SPELLS_KNOWN_2014[c&&c.cls]; return row?row[Math.max(0,Math.min(19,(+c
 }
 function cantripKnownMax(c){
 if(CHARACTER_RULES&&CHARACTER_RULES.thirdCaster(c))return (c.cls==='Плут'?3:2)+(c.level>=10?1:0);
-const row=CANTRIPS_KNOWN_2014[c&&c.cls]; return row?row[Math.max(0,Math.min(19,(+c.level||1)-1))]:0;
+const row=CANTRIPS_KNOWN_2014[c&&c.cls],bonus=c.cls==='Друид'&&c.subcls==='Круг Земли'&&c.level>=2?1:0; return row?row[Math.max(0,Math.min(19,(+c.level||1)-1))]+bonus:0;
 }
 function spellLearningState(c){
 if(!c.spellLearning||typeof c.spellLearning!=='object') c.spellLearning={replacements:0,anyClassChoices:0};
@@ -2180,6 +2209,8 @@ return (c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&+sp
 }
 function spellEntryEligible(c,e,sp){
 if(!grimoireActive(sp)) return false;
+if(e?.loreSecret&&(c.cls!=='Бард'||c.subcls!=='Коллегия Знаний'||c.level<6||(c.spellbook||[]).filter(row=>row.loreSecret).length>2))return false;
+if(e?.subclassSpellGrant&&subclassSpellRule(c,sp)?.kind!=='prepared')return false;
 const m=casterMeta(c);
 if(!m) return spellEntryGranted(e);
 if(+sp.l>0&&+sp.l>maxCircleFor(c)) return false;
@@ -2288,7 +2319,13 @@ function spellAddCheck(c,sp,opts){
 if(!grimoireActive(sp))return {ok:false,reason:'Эта запись не входит в действующий гримуар D&D 2014.'};
 opts=opts||{}; const m=casterMeta(c);
 if(!m) return {ok:false,reason:'Класс «'+c.cls+'» не имеет заклинательной прогрессии.'};
-const learning=spellLearningState(c),magicalSecret=c.cls==='Бард'&&+sp.l>0&&learning.anyClassChoices>0;
+if((c.spellbook||[]).some(e=>e.spellId===sp.id))return {ok:false,reason:'Это заклинание уже есть в списке героя; повторный выбор не заменяет другое заклинание.'};
+if(opts.loreSecret){
+if(loreSecretRemaining(c)<1)return {ok:false,reason:'Нет свободных дополнительных «Тайн магии» Коллегии Знаний.'};
+if(+sp.l>maxCircleFor(c))return {ok:false,reason:'Этот круг недоступен герою.'};
+return {ok:true,special:'loreSecret'};
+}
+const learning=c.spellLearning||{},magicalSecret=c.cls==='Бард'&&+sp.l>0&&learning.anyClassChoices>0;
 if(!opts.granted&&!spellClassListHas(c,sp)&&!magicalSecret) return {ok:false,reason:'«'+sp.n+'» не входит в список класса «'+c.cls+'».'};
 if(+sp.l>0&&+sp.l>maxCircleFor(c)) return {ok:false,reason:'Доступны заклинания не выше '+maxCircleFor(c)+' круга.'};
 if(+sp.l===0&&!opts.granted&&cantripKnownCount(c)>=cantripKnownMax(c))
@@ -26770,12 +26807,77 @@ const done=await bg3TreasureCommit(plan);if(!done.ok)throw new Error(done.reason
 }catch(error){if(error&&error.code==='BG3_CATALOG_STALE')return;setStatus('Добыча не выдана: '+bg3FriendlyError(error,'не удалось проверить результат'),true);renderItemsDB();}
 }
 
+const grimoireDesk={actorId:'',view:'all',sort:'level',compare:[],open:{}};
+const grimoireOn=(name,...args)=>esc(name+'('+args.map(value=>JSON.stringify(value)).join(',')+')');
+function grimoireSpellStatus(c,sp){
+const m=currentMechanics(sp,'spell'),rule=spellRuleOf(sp),errors=spellRuleErrors(rule);
+const engineReady=!!m&&m.mode!=='manual'&&!errors.length;
+const result={engineReady,engineReason:engineReady?'Последствия по структуре; цели и броски проверяются при наложении.':errors.length?'Правило требует исправления: '+errors.join('; '):'Справочное заклинание: последствия пока разрешает мастер.',code:'reference',label:'Справочник',canOpen:false};
+if(!c)return result;
+const entry=(c.spellbook||[]).find(e=>e.spellId===sp.id),access=spellAccessCheck(c,sp,entry),paid=slotPlanFor(c,sp),ritual=spellRitualAllowed(c,sp,entry),classList=spellClassListHas(c,sp),ready=spellEntryReady(c,entry,sp);
+Object.assign(result,{classList,access:access.ok,ready,ritual,paid:paid.ok,cost:+sp.l===0?'0 · заговор':magicUsesMp()?MAGIC_RULES.costs[sp.l]+' MP (базовый круг)':paid.ok?paid.lv+' круг · 1 ячейка':'ячейка '+sp.l+' круга или выше'});
+if(!access.ok){
+result.code=classList&&+sp.l<=maxCircleFor(c)&&!entry?'learn':'unavailable';result.label=result.code==='learn'?'Нужно изучить':'Нет доступа';result.reason=access.reason;
+}else if(!ready&&!ritual){result.code='prepare';result.label='Нужна подготовка';result.reason='Включите в план подготовки и завершите долгий отдых.';}
+else if(!paid.ok&&!ritual){result.code='resource';result.label='Не хватает ресурса';result.reason=paid.reason;}
+else {result.code=paid.ok?'ready':'ritual';result.label=paid.ok?'Доступно по списку и ресурсу':'Доступен ритуал';result.reason=paid.ok?result.cost:'Без расхода ресурса · обычное время + 10 минут';}
+const casting=canCastCheck(c,sp);
+if(access.ok&&(paid.ok||ritual)&&!casting.ok){result.code='blocked';result.label='Наложение ограничено';result.reason=casting.reason;}
+result.canOpen=engineReady&&access.ok&&(paid.ok||ritual)&&casting.ok;
+if(combat.active){result.canOpen=false;result.reason=(result.reason?result.reason+' ':'')+'В бою выберите действие в боевой панели: там учитывается экономика хода.';}
+if(castCtx||rollSpec||magicSwitchBusy)result.canOpen=false;
+if(sp.conc&&concLabelOf(c))result.concentration='При успешном наложении прекратится концентрация: '+concLabelOf(c)+'.';
+return result;
+}
+function grimoireFavorite(id){const sp=spellOf(id);if(!sp||!grimoireActive(sp))return;sp.grimoire={...sp.grimoire,gmFavorite:!sp.grimoire?.gmFavorite};scheduleSave();renderSpellsDB();}
+function grimoireNote(id,value){const sp=spellOf(id);if(!sp)return false;sp.grimoire={...sp.grimoire,gmNote:String(value||'').slice(0,2000)};scheduleSave();return true;}
+function grimoireCompare(id){const at=grimoireDesk.compare.indexOf(id);if(at>=0)grimoireDesk.compare.splice(at,1);else if(grimoireDesk.compare.length<3)grimoireDesk.compare.push(id);else{setStatus('Для сравнения выберите до трёх заклинаний.',true);return;}renderSpellsDB();}
+function grimoireOpenCast(id){const c=getCh(grimoireDesk.actorId),sp=spellOf(id);if(!c||!sp)return false;const status=grimoireSpellStatus(c,sp);if(!status.canOpen){setStatus(status.reason||status.engineReason,true);return false;}castSpellFx(sp.id,c.id);return true;}
+function grimoireHeroSheet(id){if(!getCh(id))return;activeCharId=id;sheetTab='spells';switchTab('chars');renderChars();}
+function grimoireLearn(id,loreSecret){const c=getCh(grimoireDesk.actorId);if(!c||combat.active||castCtx||rollSpec||magicSwitchBusy)return false;activeCharId=c.id;addSpellFromDB(id,{loreSecret:!!loreSecret});renderSpellsDB();return true;}
+function circleLandSet(id,value){
+const c=getCh(id);if(!c||c.cls!=='Друид'||c.subcls!=='Круг Земли'||!Object.hasOwn(MAGIC_RULES.landSpells,value)||combat.active||castCtx||rollSpec||magicSwitchBusy)return false;
+c.circleLand=value;upgradeSpellcastingState(c);scheduleSave();renderChars();renderSpellsDB();return true;
+}
+function casterGuideHTML(c){
+const meta=casterMeta(c);if(!meta)return '<p class="note-ital">У этого героя нет классовой заклинательной прогрессии. Дарованные способности сохраняют свои отдельные правила.</p>';
+const notes={
+'Волшебник':'Книга и подготовка — разные списки. Ритуал из книги не требует подготовки. На коротком отдыхе можно выбрать восстановление ячеек.',
+'Жрец':'Подготовка из списка класса. Заклинания домена всегда подготовлены и не занимают обычный лимит. Ритуал должен быть подготовлен.',
+'Друид':'Подготовка из списка класса; ритуал должен быть подготовлен. Круг Земли добавляет заговор, заклинания местности и восстановление на коротком отдыхе.',
+'Паладин':'Магия с 2-го уровня; подготовка по Харизме и половине уровня с округлением вниз. Заклинания клятвы — сверх лимита. Класс сам не даёт ритуалы и заговоры.',
+'Следопыт':'Магия с 2-го уровня. Выбранный известный список; одна замена при повышении уровня. В правилах 2014 нет классовых заговоров и ритуального наложения.',
+'Бард':'Известный список и ритуалы из него. Коллегия Знаний на 6-м уровне даёт два дополнительных выбора любого класса, включая заговоры, сверх обычного лимита.',
+'Чародей':'Известный список; отдельная подготовка не нужна. Очки чародейства и MP — разные ресурсы; метамагия требует собственного правила и не выдаётся переключателем MP.',
+'Колдун':'Известный список и магия договора с коротким отдыхом. Расширенный список покровителя даёт выбор для изучения, а не бесплатные известные заклинания. Арканум 6–9 кругов — отдельная особенность.',
+'Воин':'Мистический рыцарь использует Интеллект и прогрессию на треть с 3-го уровня. Основные школы — ограждение и воплощение; отдельные уровни разрешают выбор других школ.',
+'Плут':'Мистический ловкач использует Интеллект и прогрессию на треть с 3-го уровня. Основные школы — иллюзия и очарование. Особые приёмы Волшебной руки требуют отдельных правил.'};
+const rules=MAGIC_RULES.subclassSpells(c),prepared=rules.filter(row=>row.kind==='prepared'&&row.level<=c.level),missing=prepared.filter(row=>!spellsDB.some(sp=>grimoireActive(sp)&&GRIMOIRE_RULES.identity(sp)===GRIMOIRE_RULES.normalize(row.english)));
+let h='<details class="caster-guide"><summary>'+esc(c.cls)+' · '+c.level+' уровень · до '+maxCircleFor(c)+' круга · правила магии</summary><p>'+esc(notes[c.cls]||'Условия доступа определяются заклинательной прогрессией класса.')+'</p>';
+h+='<div class="caster-guide-stats"><span>Атака <b>'+fmtMod(spellAtk(c))+'</b></span><span>СЛ <b>'+spellDC(c)+'</b></span><span>Заговоры <b>'+cantripKnownCount(c)+' / '+cantripKnownMax(c)+'</b></span><span>'+(meta.preparation==='known'?'Известно <b>'+knownSpellCount(c)+' / '+knownSpellMax(c):'Подготовлено <b>'+prepCount(c)+' / '+prepMax(c))+'</b></span></div>';
+if(magicFreeAccess())h+='<p>В этой кампании действует 2.1: классовые лимиты изучения и подготовки временно отключены; выше показаны сохранённые классические выборы.</p>';
+if(c.cls==='Друид'&&c.subcls==='Круг Земли'&&c.level>=2)h+='<label>Местность Круга Земли <select aria-label="Местность Круга Земли" onchange="circleLandSet('+esc(JSON.stringify(c.id))+',this.value)"'+(combat.active||castCtx||rollSpec?' disabled':'')+'><option value="">Выберите местность</option>'+Object.keys(MAGIC_RULES.landSpells).map(name=>'<option'+(c.circleLand===name?' selected':'')+'>'+esc(name)+'</option>').join('')+'</select></label><p>Выбор сохраняется у героя. Смена местности — правка персонажа мастером вне боя, без восстановления ресурсов.</p>';
+if(loreSecretRemaining(c))h+='<p>Свободно дополнительных «Тайн магии»: <b>'+loreSecretRemaining(c)+'</b>. Выберите героя в гримуаре и используйте кнопку «Дополнительная тайна» в нужной карточке.</p>';
+if(prepared.length)h+='<p>Заклинания подкласса по текущему уровню: <b>'+prepared.length+'</b>; всегда подготовлены вне обычного лимита.</p>';
+if(missing.length)h+='<p>В гримуаре отсутствуют или скрыты: '+esc(missing.map(row=>row.english).join(', '))+'. Автоматическая выдача ждёт доступной карточки.</p>';
+if(c.subcls&&!rules.length&&['Жрец','Паладин','Колдун'].includes(c.cls))h+='<p>Таблица заклинаний этого подкласса ещё не подключена автоматически. Проверьте дарованные записи героя.</p>';
+const recovery=MAGIC_RULES.recoveryFeature(c);if(recovery)h+='<p>'+esc(recovery.name)+': '+(c[recovery.key]?'использовано до долгого отдыха':magicUsesMp()?'до '+2*recovery.budget+' MP на коротком отдыхе (правило проекта)':'на коротком отдыхе выбрать ячейки 1–5 кругов с суммой до '+recovery.budget)+'.</p>';
+return h+'</details>';
+}
+function grimoireStatusHTML(status){return '<div class="grimoire-status" data-access="'+status.code+'"><b>'+esc(status.label)+'</b>'+(status.reason?'<span>'+esc(status.reason)+'</span>':'')+'<small>'+esc(status.engineReason)+'</small>'+(status.concentration?'<span class="grimoire-caution">'+esc(status.concentration)+'</span>':'')+'</div>';}
+function grimoireComparisonHTML(c){
+const rows=grimoireDesk.compare.map(spellOf).filter(grimoireActive);if(!rows.length)return '';
+return '<section class="grimoire-comparison" aria-label="Сравнение заклинаний"><div class="row-line"><h3>Сравнение · '+rows.length+' / 3</h3><button class="btn ghost sm" onclick="grimoireDesk.compare=[];renderSpellsDB()">Очистить сравнение</button></div><div class="grimoire-compare-grid">'+rows.map(sp=>'<article><h4>'+esc(sp.n)+'</h4><dl>'+[['Круг',sp.l||'Заговор'],['Время',sp.t],['Дистанция',sp.r],['Длительность',sp.d],['Компоненты',sp.cm],['Концентрация',sp.conc?'Да':'Нет'],['Ритуал',sp.ritual?'Да':'Нет']].map(([key,value])=>'<dt>'+key+'</dt><dd>'+esc(String(value||'—'))+'</dd>').join('')+'</dl>'+grimoireStatusHTML(grimoireSpellStatus(c,sp))+'<p>'+esc(sp.hi||'Отдельное усиление не указано; проверьте правило.')+'</p><button class="btn ghost sm" onclick="'+grimoireOn('grimoireCompare',sp.id)+'">Убрать из сравнения</button></article>').join('')+'</div></section>';
+}
 function renderSpellsDB(){
 const box=document.getElementById('tab-spellsdb'),f=dbFlt.sp,focused=document.activeElement&&document.activeElement.id==='grimoire-search',caret=focused?document.activeElement.selectionStart:null;
-const active=spellsDB.filter(grimoireActive),arr=active.filter(sp=>GRIMOIRE_RULES.matches(sp,f.q)&& (f.l===''||sp.l===+f.l)&&(!f.s||sp.s===f.s)&&(!f.cls||spellClassTokens(sp).includes(f.cls))&&(!f.trait||(f.trait==='ritual'?sp.ritual:f.trait==='conc'?sp.conc:f.trait==='manual'?sp.mechanics?.mode==='manual':sp.mechanics?.mode!=='manual'))).sort((a,b)=>a.l-b.l||a.n.localeCompare(b.n,'ru'));
+const actor=getCh(grimoireDesk.actorId),statuses=new Map(),status=sp=>{if(!statuses.has(sp.id))statuses.set(sp.id,grimoireSpellStatus(actor,sp));return statuses.get(sp.id);};
+if(!actor){grimoireDesk.actorId='';grimoireDesk.view='all';}
+const active=spellsDB.filter(grimoireActive),arr=active.filter(sp=>GRIMOIRE_RULES.matches(sp,f.q)&& (f.l===''||sp.l===+f.l)&&(!f.s||sp.s===f.s)&&(!f.cls||spellClassTokens(sp).includes(f.cls))&&(!f.favorite||sp.grimoire?.gmFavorite)&&(!f.trait||(f.trait==='ritual'?sp.ritual:f.trait==='conc'?sp.conc:f.trait==='manual'?!status(sp).engineReady:status(sp).engineReady))&&(grimoireDesk.view==='all'||grimoireDesk.view==='class'&&(status(sp).classList||status(sp).access)||grimoireDesk.view==='ready'&&status(sp).access&&(status(sp).paid||status(sp).ritual)&&status(sp).code!=='blocked')).sort((a,b)=>(grimoireDesk.sort==='name'?0:a.l-b.l)||a.n.localeCompare(b.n,'ru'));
 const size=24,pages=Math.max(1,Math.ceil(arr.length/size));f.page=Math.max(0,Math.min(pages-1,+f.page||0));const shown=arr.slice(f.page*size,(f.page+1)*size);
 const paging='<nav class="grimoire-pages" aria-label="Страницы гримуара"><button class="btn ghost sm"'+(!f.page?' disabled':'')+' onclick="dbFlt.sp.page--;renderSpellsDB()">← Назад</button><span>'+(arr.length?(f.page*size+1)+'–'+(f.page*size+shown.length):'0')+' из '+arr.length+' · '+(f.page+1)+' / '+pages+'</span><button class="btn ghost sm"'+(f.page>=pages-1?' disabled':'')+' onclick="dbFlt.sp.page++;renderSpellsDB()">Далее →</button></nav>';
 let h='<h2 class="rubric">Гримуар мира</h2><p class="grimoire-intro"><b>D&D 5e · редакция 2014</b> · '+active.length+' уникальных заклинаний. Поиск учитывает прежние названия и английский оригинал.</p>'
++'<section class="grimoire-desk" aria-label="Рабочее место мастера"><div><b>Магия героя</b><p>Выберите героя, чтобы видеть доступ, подготовку и стоимость. Окончательная проверка целей и компонентов выполняется при наложении.</p></div><div class="grimoire-desk-controls"><select aria-label="Герой в гримуаре" onchange="grimoireDesk.actorId=this.value;dbFlt.sp.page=0;renderSpellsDB()"><option value="">Общий справочник</option>'+chars.map(c=>'<option value="'+esc(c.id)+'"'+(actor?.id===c.id?' selected':'')+'>'+esc(c.name)+' · '+esc(c.cls)+' '+c.level+'</option>').join('')+'</select><select aria-label="Доступ героя"'+(!actor?' disabled':'')+' onchange="grimoireDesk.view=this.value;dbFlt.sp.page=0;renderSpellsDB()">'+[['all','Весь гримуар'],['class','Список класса и особенности'],['ready','Доступны по списку и ресурсу']].map(([key,name])=>'<option value="'+key+'"'+(grimoireDesk.view===key?' selected':'')+'>'+name+'</option>').join('')+'</select>'+(actor?'<button class="btn ghost sm" onclick="'+grimoireOn('grimoireHeroSheet',actor.id)+'">Открыть магию героя</button>':'')+'</div>'+(actor?casterGuideHTML(actor):'')+'</section>'
 +'<div class="db-bar grimoire-filters">'
 +'<input id="grimoire-search" type="search" aria-label="Поиск в гримуаре" placeholder="Название, прежний перевод, описание…" value="'+esc(f.q)+'" oninput="dbFlt.sp.q=this.value;dbFlt.sp.page=0;renderSpellsDB()">'
 +'<select aria-label="Круг" onchange="dbFlt.sp.l=this.value;dbFlt.sp.page=0;renderSpellsDB()"><option value="">Все круги</option><option value="0"'+(f.l==='0'?' selected':'')+'>Заговоры</option>'
@@ -26784,14 +26886,22 @@ let h='<h2 class="rubric">Гримуар мира</h2><p class="grimoire-intro">
 +SPELL_SCHOOLS.map(s=>'<option'+(f.s===s?' selected':'')+'>'+s+'</option>').join('')+'</select>'
 +'<select aria-label="Класс" onchange="dbFlt.sp.cls=this.value;dbFlt.sp.page=0;renderSpellsDB()"><option value="">Все классы</option>'+Object.entries(GRIMOIRE_RULES.classes).map(([key,name])=>'<option value="'+key+'"'+(f.cls===key?' selected':'')+'>'+name+'</option>').join('')+'</select>'
 +'<select aria-label="Свойства заклинания" onchange="dbFlt.sp.trait=this.value;dbFlt.sp.page=0;renderSpellsDB()"><option value="">Все свойства</option>'+[['ritual','Ритуалы'],['conc','Концентрация'],['automatic','С последствиями в движке'],['manual','Справочные правила']].map(([key,name])=>'<option value="'+key+'"'+(f.trait===key?' selected':'')+'>'+name+'</option>').join('')+'</select>'
-+'<button class="btn ghost sm" onclick="dbFlt.sp={q:\'\',l:\'\',s:\'\',page:0};renderSpellsDB()">Сбросить фильтры</button>'
++'<select aria-label="Порядок заклинаний" onchange="grimoireDesk.sort=this.value;dbFlt.sp.page=0;renderSpellsDB()"><option value="level">По кругу и названию</option><option value="name"'+(grimoireDesk.sort==='name'?' selected':'')+'>По алфавиту</option></select>'
++'<button class="btn ghost sm" aria-pressed="'+!!f.favorite+'" onclick="dbFlt.sp.favorite=!dbFlt.sp.favorite;dbFlt.sp.page=0;renderSpellsDB()">★ Избранное</button>'
++'<button class="btn ghost sm" onclick="dbFlt.sp={q:\'\',l:\'\',s:\'\',page:0};grimoireDesk.view=\'all\';grimoireDesk.sort=\'level\';renderSpellsDB()">Сбросить фильтры</button>'
 +'<button class="btn rub" onclick="openSpellEd(\'\')">✚ Новое заклинание</button></div>';
 if(editing.sp!==null) h+=spellEditorHTML();
+h+=grimoireComparisonHTML(actor);
 h+=paging;if(!arr.length)h+='<div class="empty-scroll">Заклинания не найдены. Измените запрос или сбросьте фильтры.</div>';
 shown.forEach(sp=>{
-h+='<details class="grimoire-entry" data-spell-id="'+esc(sp.id)+'"><summary><strong>'+esc(sp.n)+'</strong><span>'+(sp.l?sp.l+' круг':'Заговор')+' · '+esc(sp.s)+(sp.ritual?' · Ритуал':'')+(sp.conc?' · Концентрация':'')+'</span></summary>'+spellCardHTML(sp,
+const state=status(sp),selected=grimoireDesk.compare.includes(sp.id);
+h+='<details class="grimoire-entry" data-spell-id="'+esc(sp.id)+'"'+(grimoireDesk.open[sp.id]?' open':'')+' ontoggle="grimoireDesk.open['+esc(JSON.stringify(sp.id))+']=this.open"><summary><strong>'+(sp.grimoire?.gmFavorite?'★ ':'')+esc(sp.n)+'</strong><span>'+(sp.l?sp.l+' круг':'Заговор')+' · '+esc(sp.s)+(sp.ritual?' · Ритуал':'')+(sp.conc?' · Концентрация':'')+'</span>'+(actor?'<span class="grimoire-summary-status">'+esc(state.label)+' · '+esc(state.cost||'')+'</span>':'')+'</summary><div class="grimoire-actions">'
++'<button class="btn ghost sm" aria-pressed="'+!!sp.grimoire?.gmFavorite+'" onclick="'+grimoireOn('grimoireFavorite',sp.id)+'">'+(sp.grimoire?.gmFavorite?'★ В избранном':'☆ В избранное')+'</button><button class="btn ghost sm" aria-pressed="'+selected+'" onclick="'+grimoireOn('grimoireCompare',sp.id)+'">'+(selected?'✓ В сравнении':'Сравнить')+'</button>'
++(actor?'<button class="btn rub sm"'+(!state.canOpen?' disabled':'')+' onclick="'+grimoireOn('grimoireOpenCast',sp.id)+'">Наложить · '+esc(actor.name)+'</button>':'')
++(actor&&!magicFreeAccess()&&!combat.active&&state.code==='learn'?'<button class="btn ghost sm" onclick="'+grimoireOn('grimoireLearn',sp.id,false)+'">Изучить</button>':'')
++(actor&&!magicFreeAccess()&&!combat.active&&loreSecretRemaining(actor)&&!(actor.spellbook||[]).some(e=>e.spellId===sp.id)&&sp.l<=maxCircleFor(actor)?'<button class="btn ghost sm" onclick="'+grimoireOn('grimoireLearn',sp.id,true)+'">Дополнительная тайна</button>':'')+'</div>'+grimoireStatusHTML(state)+spellCardHTML(sp,
 '<button class="btn ghost sm" aria-label="Редактировать '+esc(sp.n)+'" onclick="openSpellEd(\''+sp.id+'\')">✎</button>'
-+'<button class="del-x" title="Убрать из игровых списков" onclick="delSpellDB(\''+sp.id+'\')">✕</button>')+'</details>';
++'<button class="del-x" title="Убрать из игровых списков" onclick="delSpellDB(\''+sp.id+'\')">✕</button>')+'<label class="grimoire-note">Заметка мастера · не меняет правила<textarea aria-label="Заметка мастера: '+esc(sp.n)+'" maxlength="2000" onchange="grimoireNote('+esc(JSON.stringify(sp.id))+',this.value)">'+esc(sp.grimoire?.gmNote||'')+'</textarea></label></details>';
 });
 h+=paging;
 const archived=spellsDB.filter(sp=>sp.grimoire?.status==='archive'||sp.grimoire?.hidden);
@@ -27449,29 +27559,52 @@ if(pact){ Object.keys(c.slots||{}).forEach(l=>{ c.slots[l].cur=c.slots[l].max;if
 if(pact&&c.magicResource)MAGIC_RULES.rest(c);
 return {pact};
 }
-function shortRest(){
+function magicRecoveryDialog(c){
+document.getElementById('magic-recovery-dialog')?.remove();
+const feature=MAGIC_RULES.recoveryFeature(c),dialog=document.createElement('dialog');dialog.id='magic-recovery-dialog';dialog.className='magic-recovery-dialog';
+const context=actor=>JSON.stringify(actor&&[actor.id,actor.cls,actor.subcls,actor.level,actor.slots,actor.arcUsed,actor.naturalRecoveryUsed,campaignMagic.mode]),openedContext=context(c);
+const current=()=>{if(cc()?.id===c.id&&context(cc())===openedContext)return true;dialog.querySelector('#magic-recovery-error').textContent='Магия героя изменилась. Отмените выбор и откройте отдых заново.';return false;};
+dialog.setAttribute('aria-labelledby','magic-recovery-title');
+dialog.innerHTML='<form method="dialog"><h3 id="magic-recovery-title">'+esc(feature.name)+'</h3><p>Выберите потраченные ячейки. Сумма кругов — не более <b>'+feature.budget+'</b>; ячейки 6–9 круга не восстанавливаются.</p>'
++Object.entries(c.slots||{}).filter(([level,row])=>+level<=5&&row.cur<row.max).map(([level,row])=>'<label>'+level+' круг · потрачено '+(row.max-row.cur)+' <input aria-label="Восстановить ячейки '+level+' круга" type="number" min="0" max="'+(row.max-row.cur)+'" value="0" data-recover-level="'+level+'"></label>').join('')
++'<output id="magic-recovery-total" aria-live="polite">Выбрано: 0 / '+feature.budget+'</output><p role="alert" id="magic-recovery-error"></p><div class="row-line"><button type="button" class="btn rub" id="magic-recovery-confirm">Завершить отдых и восстановить</button><button type="button" class="btn ghost" id="magic-recovery-skip">Отдых без восстановления ячеек</button><button class="btn ghost" value="cancel">Отмена</button></div></form>';
+document.body.append(dialog);
+dialog.addEventListener('input',()=>{let total=0;dialog.querySelectorAll('[data-recover-level]').forEach(input=>total+=Number(input.value)*Number(input.dataset.recoverLevel));dialog.querySelector('#magic-recovery-total').textContent='Выбрано: '+(Number.isFinite(total)?total:'—')+' / '+feature.budget;dialog.querySelector('#magic-recovery-error').textContent='';});
+dialog.querySelector('#magic-recovery-confirm').onclick=()=>{
+if(!current())return;
+const choices=[];let invalid=false;dialog.querySelectorAll('[data-recover-level]').forEach(input=>{const count=Number(input.value);if(!Number.isSafeInteger(count)||count<0||count>Number(input.max))invalid=true;else for(let i=0;i<count;i++)choices.push(Number(input.dataset.recoverLevel));});
+const plan=invalid?{ok:false,reason:'Укажите целое число потраченных ячеек.'}:MAGIC_RULES.recoveryPlan(c,'slots',choices);
+if(!plan.ok){dialog.querySelector('#magic-recovery-error').textContent=plan.reason;return;}
+if(cc()?.id!==c.id){dialog.querySelector('#magic-recovery-error').textContent='Выбран другой герой. Откройте отдых заново.';return;}
+if(shortRest(choices)!==false)dialog.close();
+};
+dialog.querySelector('#magic-recovery-skip').onclick=()=>{if(current()&&shortRest(null)!==false)dialog.close();};
+dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();
+}
+function shortRest(recoveryChoice){
 const c=cc(); if(!c) return;
 if(magicSwitchBusy||combat.active||castCtx||rollSpec){setStatus('Завершите открытое действие и активный бой перед отдыхом.',true);return false;}
-const refreshed=refreshShortRestResources(c),pact=refreshed.pact;
-
-if(c.cls==='Волшебник' && !c.arcUsed && casterMeta(c)){
+const feature=MAGIC_RULES.recoveryFeature(c),eligible=feature&&!c[feature.key];let recovery=null;
+if(eligible&&recoveryChoice===undefined){
 if(magicUsesMp()){
-const amount=Math.min(magicPool(c).spent,2*Math.ceil(c.level/2));
-if(amount>0&&confirm('Арканное восстановление: вернуть '+amount+' MP? Доступно один раз до долгого отдыха.')){MAGIC_RULES.recover(c,amount);c.arcUsed=true;}
-}else{
-let budget=Math.ceil(c.level/2);
-const lvls=Object.keys(c.slots||{}).map(Number).sort((a,b)=>a-b).filter(lv=>lv<=5);
-const miss=lvls.some(lv=>c.slots[lv].cur<c.slots[lv].max);
-if(miss && confirm('⚕ Арканное восстановление (раз в день): вернуть потраченные ячейки суммарным кругом до '+budget+' (ячейки не выше 5 круга)?')){
-const got=[];
-lvls.forEach(lv=>{ while(budget>=lv && c.slots[lv].cur<c.slots[lv].max){ c.slots[lv].cur++; budget-=lv; got.push(lv); } });
-c.arcUsed=true;
-if(got.length) setStatus('⚕ Арканное восстановление: возвращены ячейки кругов '+got.join(', ')+'.');
+const amount=Math.min(magicPool(c).spent,2*feature.budget);
+if(amount>0&&confirm(feature.name+': вернуть '+amount+' MP? Доступно один раз до долгого отдыха.'))recoveryChoice=amount;
+}else if(Object.entries(c.slots||{}).some(([level,row])=>+level<=5&&row.cur<row.max)){magicRecoveryDialog(c);return false;}
 }
+if(recoveryChoice!=null){
+recovery=MAGIC_RULES.recoveryPlan(c,magicUsesMp()?'mp':'slots',recoveryChoice);
+if(!recovery.ok){setStatus(recovery.reason,true);return false;}
+if(magicUsesMp())MAGIC_RULES.validateState(c.magicResource);
 }
+const refreshed=refreshShortRestResources(c),pact=refreshed.pact;
+if(recovery){
+if(recovery.mode==='mp')MAGIC_RULES.recover(c,recovery.amount);
+else for(const [level,count] of Object.entries(recovery.counts)){c.slots[level].cur+=count;if(c.characterBuild?.slotSpent)c.characterBuild.slotSpent[level]=c.slots[level].max-c.slots[level].cur;}
+c[recovery.feature.key]=true;
 }
-setStatus('☕ Короткий отдых: способности короткого отдыха восстановлены'+(pact?(magicUsesMp()?'; MP магии договора восстановлены':'; все ячейки магии договора восстановлены'):'')+'; кости хитов тратьте кнопкой ⚁ в поле «Кости хитов».');
+setStatus('☕ Короткий отдых: способности короткого отдыха восстановлены'+(recovery?'; '+recovery.feature.name+': '+(recovery.mode==='mp'?recovery.amount+' MP':'ячейки '+Object.entries(recovery.counts).map(([level,n])=>level+' круга ×'+n).join(', ')):'')+(pact?(magicUsesMp()?'; MP магии договора восстановлены':'; все ячейки магии договора восстановлены'):'')+'; кости хитов тратьте кнопкой ⚁ в поле «Кости хитов».');
 scheduleSave(); renderChars();
+return true;
 }
 function upgradeSpellcastingState(c){
 if(!c) return false;
@@ -27483,6 +27616,10 @@ if(!Array.isArray(c.spellbook)){ c.spellbook=[]; touched=true; }
 if(!Array.isArray(spellsDB)||!spellsDB.length){
 if(!c.spellLearning||typeof c.spellLearning!=='object'){ c.spellLearning={replacements:0,anyClassChoices:0};touched=true; }
 return touched;
+}
+if(syncSubclassSpellGrants(c))touched=true;
+if(c.cls==='Бард'&&c.subcls==='Коллегия Знаний'&&c.level>=6)for(const entry of c.spellbook.filter(e=>e.loreSecret)){
+const before=JSON.stringify(entry);Object.assign(entry,{access:'feature',granted:true,countsAgainstKnown:false,source:'Дополнительные тайны магии · Коллегия Знаний'});if(before!==JSON.stringify(entry))touched=true;
 }
 const synced=syncClassSpellAccess(c); if(synced.added.length||synced.removed.length) touched=true;
 c.spellbook.forEach(e=>{
@@ -28919,7 +29056,7 @@ sheetSearch.sp='';scheduleSave();renderChars();setStatus('Выбрано для 
 return true;
 }
 function commitSpellLearningSelection(c,sp,check){
-const meta=casterMeta(c),replacing=meta&&meta.preparation==='known'&&c.spellReplacementDraft&&c.spellReplacementDraft.removeId;
+const meta=casterMeta(c),replacing=check?.special!=='loreSecret'&&meta&&meta.preparation==='known'&&c.spellReplacementDraft&&c.spellReplacementDraft.removeId;
 if(replacing){
 const removeId=c.spellReplacementDraft.removeId;
 c.spellbook=c.spellbook.filter(e=>e.spellId!==removeId);
@@ -28927,6 +29064,7 @@ const learning=spellLearningState(c);learning.replacements=Math.max(0,learning.r
 delete c.spellReplacementDraft;
 }
 const entry={spellId:sp.id,prep:false,access:spellEntryAccessFor(c,sp)};
+if(check?.special==='loreSecret')Object.assign(entry,{access:'feature',granted:true,countsAgainstKnown:false,loreSecret:true,source:'Дополнительные тайны магии · Коллегия Знаний'});
 if(check&&check.special==='magicalSecrets'){
 entry.access='magicalSecrets';entry.anyClassKnown=true;entry.source='Тайны магии барда';
 const learning=spellLearningState(c);learning.anyClassChoices=Math.max(0,learning.anyClassChoices-1);
@@ -28934,11 +29072,12 @@ const learning=spellLearningState(c);learning.anyClassChoices=Math.max(0,learnin
 if(!c.spellbook.some(x=>x.spellId===sp.id)) c.spellbook.push(entry);
 return {replaced:!!replacing,entry};
 }
-function addSpellFromDB(spellId){
+function addSpellFromDB(spellId,options){
 if(magicFreeAccess())return;
 const c=cc(),sp=spellOf(spellId); if(!c||!sp) return;
+if(castCtx||rollSpec||magicSwitchBusy){setStatus('Завершите открытое действие перед изменением списка заклинаний.',true);return;}
 if(combat&&combat.active){ setStatus('✕ Книгу, известные заклинания и заговоры нельзя менять во время активного боя.',true); return; }
-const chk=spellAddCheck(c,sp,{replacement:!!c.spellReplacementDraft}); if(!chk.ok){ setStatus('✕ '+chk.reason,true); return; }
+const chk=spellAddCheck(c,sp,{replacement:!!c.spellReplacementDraft,loreSecret:!!options?.loreSecret}); if(!chk.ok){ setStatus('✕ '+chk.reason,true); return; }
 const result=commitSpellLearningSelection(c,sp,chk);
 sheetSearch.sp=''; scheduleSave(); renderChars();
 if(result.replaced) setStatus('↔ Замена завершена: новое известное заклинание — «'+sp.n+'».');
@@ -29053,7 +29192,7 @@ const rem=fxRemaining(a), end=(a.k==='ability'||a.k==='use'||a.untilLongRest||(r
 if(end) detachActiveFx(c,a); else keep.push(a);
 });
 c.activeFx=keep.concat(addedAfterRemove.filter(x=>!keep.includes(x)));
-c.spentRest=0; c.arcUsed=false;
+c.spentRest=0; c.arcUsed=false; c.naturalRecoveryUsed=false;
 if(typeof rechargeItems==='function') rechargeItems(c,'long');
 if(typeof fxInvalidate==='function') fxInvalidate();
 syncStackedGrants(c);
@@ -29222,11 +29361,12 @@ let h=magicSettingsHTML()+'<div class="panel">';
 h+='<div class="row-line"><h3 class="rubric" style="font-size:22px;margin:0">'+(magicUsesMp()?'Магия героя · MP':'Ячейки заклинаний')+'</h3><span class="grow"></span>'
 +(!magicUsesMp()?'<button class="btn ghost sm" id="spellPrepAuditBtn" onclick="runSpellPreparationAudit()">◇ Аудит подготовки: 320</button>':'')
 +(!magicUsesMp()?'<button class="btn ghost sm" onclick="suggestSlots()">По таблице заклинателя</button>':'')
++'<button class="btn ghost sm" onclick="shortRest()">☕ Короткий отдых</button>'
 +'<button class="btn ghost sm" onclick="longRest()">☾ Долгий отдых</button></div>';
 const audit=spellPrepAuditView;
 h+='<div id="spellPrepAuditOut" style="display:'+(audit?'block':'none')+';margin:8px 0;padding:8px;border:1px solid '+(audit&&audit.failed?'#9f3d32':'#4f7655')+';background:#f6f2e7;color:'+(audit&&audit.failed?'#9f2f25':'#315f39')+';font-size:13px">'
 +(audit?(audit.failed?('✕ '+audit.passed+' / '+audit.total+'; первый сбой: '+esc(audit.failures[0].className)+', '+audit.failures[0].level+' ур. — '+esc(audit.failures[0].message)):('✓ '+audit.passed+' / '+audit.total+' проверок · 8 классов × 20 уровней × 2 цикла · кампания не изменена')):'')+'</div>';
-h+=spellDashHTML(c);
+h+=spellDashHTML(c)+casterGuideHTML(c);
 
 const sab=spellAbOf(c);
 h+='<div class="spell-stats"><span>Заклинательная характеристика: <select onchange="setSpellAb(this.value)">'
@@ -29291,17 +29431,17 @@ const bg3Learned=bg3Array(c.bg3LearnedSpells).filter(row=>bg3LearnedSpellEntryCh
 if(bg3Learned.length)h+='<div class="props-block"><span class="pt">Проверенная книга заклинаний каталога:</span>'
 +bg3Learned.map(row=>'<div class="bg3-summary" style="cursor:default"><img class="item-icon sm" src="'+esc(row.icon&&row.icon.src||'')+'" alt=""><div class="bg3-summary-main"><div class="bg3-summary-name">'+esc(row.label||row.spellId)+'</div><div class="bg3-summary-meta">'+(+row.level===0?'заговор':row.level+' уровень')+' · '+esc(row.school)+' · '+esc(row.spellId)+' · '+esc(row.eligibilityEvidence)+'</div></div><button class="btn ghost sm fx-cast" onclick="bg3LearnedSpellOpen(\''+c.id+'\',\''+row.id+'\')">✦ Сотворить</button></div>').join('')+'</div>';
 const entries=characterSpellEntries(c).map(e=>({e, sp:spellOf(e.spellId)})).filter(x=>x.sp)
-.filter(x=>(!bookFlt.q||x.sp.n.toLowerCase().includes(bookFlt.q.toLowerCase()))
+.filter(x=>(!bookFlt.q||GRIMOIRE_RULES.matches(x.sp,bookFlt.q))
 &&(bookFlt.l===''||x.sp.l===+bookFlt.l)
 &&(freeMode||knownMode||bookFlt.prep===''||(+x.sp.l>0&&(bookFlt.prep==='1')===spellEntryReady(c,x.e,x.sp))))
 .sort((a,b)=>a.sp.l-b.sp.l||a.sp.n.localeCompare(b.sp.n,'ru'));
 if(!entries.length){ if(!bg3Learned.length)h+='<div class="empty-scroll"><span class="big">❦</span>Нет заклинаний по выбранным условиям. Проверьте поиск, круг и уровень героя.</div>'; return h+'</div>'; }
 const hasDraft=!!(c.spellPrepDraft&&Array.isArray(c.spellPrepDraft.choices)),plannedIds=preparedChoiceIds(c,hasDraft);
-const pageSize=24,page=freeMode?Math.max(0,Math.min(bookFlt.page,Math.ceil(entries.length/pageSize)-1)):0;
-const pager=freeMode&&entries.length>pageSize?'<div class="row-line magic-book-pages"><button class="btn ghost sm"'+(!page?' disabled':'')+' onclick="bookFlt.page='+Math.max(0,page-1)+';renderChars()">← Назад</button><span role="status">'+(page*pageSize+1)+'–'+Math.min(entries.length,(page+1)*pageSize)+' из '+entries.length+'</span><button class="btn ghost sm"'+((page+1)*pageSize>=entries.length?' disabled':'')+' onclick="bookFlt.page='+(page+1)+';renderChars()">Далее →</button></div>':'';
+const pageSize=24,page=Math.max(0,Math.min(bookFlt.page,Math.ceil(entries.length/pageSize)-1));
+const pager=entries.length>pageSize?'<div class="row-line magic-book-pages"><button class="btn ghost sm"'+(!page?' disabled':'')+' onclick="bookFlt.page='+Math.max(0,page-1)+';renderChars()">← Назад</button><span role="status">'+(page*pageSize+1)+'–'+Math.min(entries.length,(page+1)*pageSize)+' из '+entries.length+'</span><button class="btn ghost sm"'+((page+1)*pageSize>=entries.length?' disabled':'')+' onclick="bookFlt.page='+(page+1)+';renderChars()">Далее →</button></div>':'';
 h+=pager;
 let lastL=-1;
-(freeMode?entries.slice(page*pageSize,(page+1)*pageSize):entries).forEach(x=>{
+entries.slice(page*pageSize,(page+1)*pageSize).forEach(x=>{
 if(x.sp.l!==lastL){ lastL=x.sp.l;
 h+='<h3 class="rubric" style="font-size:21px;margin-top:12px">'+(lastL===0?'Заговоры':lastL+' круг')+'</h3>'; }
 const access=spellAccessCheck(c,x.sp,x.e),ready=spellEntryReady(c,x.e,x.sp),ritualReady=spellRitualAllowed(c,x.sp,x.e),castReady=access.ok&&(+x.sp.l===0||ready||ritualReady);

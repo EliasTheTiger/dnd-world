@@ -8,7 +8,7 @@ import {createRequire} from 'node:module';
 import {fileURLToPath} from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'pages.yml'), 'utf8');
+const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'pages.yml'), 'utf8').replace(/\r\n/g, '\n');
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 const integrationRunner = fs.readFileSync(path.join(root, 'qa', 'run-final-integration.cjs'), 'utf8');
 const require = createRequire(import.meta.url);
@@ -196,6 +196,8 @@ test('integration CI job installs Chromium, avoids the duplicate full suite and 
   assert.match(workflow, /QA_SITE_ROOT: _site/);
   assert.match(workflow, /\n  integration:\n[\s\S]*?DND_WORLD_SKIP_FULL_SUITE: '1'[\s\S]*?run: npm run qa:integration/);
   assert.match(workflow, /if: always\(\)[\s\S]*?actions\/upload-artifact@v4[\s\S]*?path: qa\/evidence\//);
+  assert.match(workflow, /QA_SITE_ROOT: _site\n\s+QA_EXPECTED_COMMIT: \$\{\{ github.sha \}\}\n\s+run: npm run qa:grimoire-workbench/);
+  assert.equal(packageJson.scripts['qa:grimoire-workbench'], 'node qa/grimoire-workbench.e2e.cjs');
   assert.doesNotMatch(workflow.match(/\n  integration:\n([\s\S]*?)\n  build:/)?.[1] || '', /node --test tests\/\*\.test\.\*/);
 });
 

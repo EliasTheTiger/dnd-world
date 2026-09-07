@@ -59,6 +59,11 @@ jobs:
           DND_WORLD_SKIP_FULL_SUITE: '1'
           QA_SITE_ROOT: _site
         run: npm run qa:integration
+      - name: Check the grimoire on the built Pages candidate
+        env:
+          QA_SITE_ROOT: _site
+          QA_EXPECTED_COMMIT: ${{ github.sha }}
+        run: npm run qa:grimoire-workbench
       - name: Upload final integration evidence
         if: always()
         uses: actions/upload-artifact@v4

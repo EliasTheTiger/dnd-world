@@ -92,6 +92,34 @@
 .character-creator-footer{position:sticky;bottom:-24px;background:var(--parch);display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:24px;padding:16px 0 4px;border-top:1px solid var(--frame)}
 @media(max-width:700px){.character-creator-back{padding:8px}.character-creator{max-height:calc(100dvh - 16px);padding:18px 14px}.character-form-grid{grid-template-columns:1fr}.character-abilities{grid-template-columns:repeat(3,minmax(0,1fr))}.character-steps{grid-template-columns:repeat(2,1fr)}.character-skill-options{grid-template-columns:repeat(2,minmax(0,1fr))}.character-creator-footer{bottom:-18px}.character-creator-footer>span:first-child{width:100%;font-size:14px}.sheet-head>div{min-width:0!important}.sheet-head select{max-width:100%}}
 /* The grimoire keeps spell scanning compact; full rules remain one click away. */
+.grimoire-desk{border:1px solid var(--line,#c9bfa6);border-left:4px solid var(--rubric,#822f25);padding:18px;margin-bottom:16px;background:var(--parch-2,#eee5d1)}
+.grimoire-desk p{font-size:15px;line-height:1.5;margin:6px 0 12px}
+.grimoire-desk-controls,.grimoire-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.grimoire-desk-controls select{flex:1 1 240px;min-width:0;max-width:100%}
+.grimoire-actions{padding:8px}
+.grimoire-actions button:disabled{opacity:.42;filter:grayscale(.75);box-shadow:none;cursor:not-allowed}
+.grimoire-status{display:grid;gap:5px;padding:10px 12px;margin:4px 0 8px;border-left:3px solid var(--line,#c9bfa6);font-size:14px;line-height:1.45;background:rgba(255,255,255,.25)}
+.grimoire-status[data-access="ready"],.grimoire-status[data-access="ritual"]{border-color:#397252}
+.grimoire-status[data-access="blocked"],.grimoire-status[data-access="resource"]{border-color:#ab642d}
+.grimoire-status small{color:var(--ink-faint,#665d50)}
+.grimoire-caution{color:var(--rubric,#822f25)}
+.grimoire-summary-status{display:block;margin-top:3px}
+.grimoire-note{display:block;padding:8px;font-size:14px}
+.grimoire-note textarea{display:block;box-sizing:border-box;width:100%;min-height:65px;margin:6px 0 12px}
+.grimoire-comparison{margin:20px 0;padding:16px;border:1px solid var(--line,#c9bfa6);background:var(--parch-2,#eee5d1)}
+.grimoire-comparison h3{margin:0 0 8px;font-size:21px}
+.grimoire-compare-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:16px}
+.grimoire-compare-grid article{min-width:0;overflow-wrap:anywhere;background:var(--parch,#f6f0e1);padding:12px}
+.grimoire-compare-grid h4{font-size:19px;margin:4px 0 14px;color:var(--rubric,#822f25)}
+.grimoire-compare-grid dl{display:grid;grid-template-columns:auto 1fr;gap:8px;font-size:14px;line-height:1.45}
+.grimoire-compare-grid dt{font-weight:bold}.grimoire-compare-grid dd{margin:0}
+.grimoire-compare-grid p{font-size:14px;line-height:1.45}
+.caster-guide{margin:12px 0;padding:12px;border:1px solid var(--line,#c9bfa6);font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.caster-guide summary{font-weight:bold;cursor:pointer}.caster-guide p{margin:8px 0}.caster-guide select{max-width:100%}
+.caster-guide-stats{display:flex;gap:10px 24px;flex-wrap:wrap}.caster-guide label{display:grid;gap:6px}
+.magic-recovery-dialog{margin:auto;inset:0;color:var(--ink,#332c25);background:var(--parch,#f6f0e1);border:2px solid var(--frame,#796844);padding:24px;max-width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 32px);box-sizing:border-box;overflow:auto}
+.magic-recovery-dialog::backdrop{background:rgba(0,0,0,.55)}.magic-recovery-dialog label{display:flex;gap:16px;align-items:center;justify-content:space-between;margin:12px 0}.magic-recovery-dialog input{width:72px;min-height:38px}.magic-recovery-dialog [role="alert"]{color:var(--rubric,#822f25)}
+@media(max-width:600px){.grimoire-desk{padding:12px}.grimoire-comparison{padding:10px}.grimoire-actions button{min-height:36px}.grimoire-desk-controls select{width:100%}.grimoire-desk-controls button{width:100%}.magic-recovery-dialog{padding:16px}}
 .grimoire-intro{line-height:1.55;margin:0 0 16px}
 .grimoire-filters{flex-wrap:wrap;gap:8px}
 .grimoire-filters input{flex:1 1 260px;min-width:0}
