@@ -77,6 +77,8 @@ function loadLocalItemsFromEngine() {
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(repositoryRoot, 'scripts', 'hobbyworld-ability-terms.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repositoryRoot, 'scripts', 'ability-rules.js'), 'utf8'), context);
   vm.runInContext(source, context);
   return JSON.parse(JSON.stringify(context.__itemDomainLocalItems));
 }

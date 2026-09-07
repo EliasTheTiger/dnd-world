@@ -552,6 +552,8 @@ function loadDethroneRuntimeEngine(random) {
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'hobbyworld-ability-terms.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'ability-rules.js'), 'utf8'), context);
   vm.runInContext(source, context);
   const runtime = context.__bg3DethroneRuntime;
   runtime.setPromptResults = values => { promptResults = [...values]; };
