@@ -18178,7 +18178,8 @@ function combatAbilityAfterApply(ab,casterId,rolls){
 if(!combat.active||!ab||combatCurrentKey()!=='ally:'+casterId) return;
 const rule=abilityCombatRules(ab),r=combatSyncActionState();
 if(!r)throw new Error('Не определено состояние текущего хода.');
-if(rule.oncePerTurn&&(rule.consumeOn!=='hit'||rolls?.hit===true)){ r.abilityUsed=r.abilityUsed||{}; r.abilityUsed[ab.id]=true; }
+const oncePerTurn=rule.oncePerTurn||(abilityCatalogIndex().byId.get(ab.id)?.variants||[]).some(variant=>abilityCombatRules(variant).oncePerTurn);
+if(oncePerTurn&&(rule.consumeOn!=='hit'||rolls?.hit===true)){ r.abilityUsed=r.abilityUsed||{}; r.abilityUsed[ab.id]=true; }
 const add=Math.max(0,+rule.grantAction||0);
 if(add){
 r.actionMax+=add; combatSyncActionState();

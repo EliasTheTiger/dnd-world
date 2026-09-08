@@ -139,8 +139,11 @@ test('race and class auto-grants reuse owned counterparts at repeated sync witho
 
 test('changing an Action Surge source cannot bypass its once-per-turn restriction',()=>{
  const {e,a,c}=world(),ab=source(e,'Action Surge'),legacy=a.abilityOf('ab_lg_surge'),combat=e.blankCombat();
- Object.assign(combat,{active:true,id:'same-turn',round:1,turnIndex:0,order:[{kind:'ally',id:c.id,key:'ally:'+c.id,initiative:10}],turn:{actorKey:'ally:'+c.id,actionsUsed:0,actionMax:2,bonusUsed:false,abilityUsed:{[legacy.id]:true}}});
- c.abilities=[{abilityId:ab.id,cur:1,notes:''}];e.setState({...e.state(),combat});
+ Object.assign(combat,{active:true,id:'same-turn',round:1,turnIndex:0,order:[{kind:'ally',id:c.id,key:'ally:'+c.id,initiative:10}],turn:{actorKey:'ally:'+c.id,actionsUsed:0,actionMax:1,bonusUsed:false,abilityUsed:{}}});
+ c.abilities=[{abilityId:legacy.id,cur:1,notes:''}];e.setState({...e.state(),combat});
+ a.setCast({kind:'ability',abilityId:legacy.id,casterId:c.id,combatActorKey:'ally:'+c.id,combatCost:'turnfree'});
+ assert.equal(e.useAbilityApply(legacy.id,c.id,'ally:'+c.id,{notes:[],verdict:[]}),true);assert.equal(c.abilities[0].cur,0);assert.equal(e.state().combat.turn.actionMax,2);
+ a.delCharAbility(legacy.id);a.addAbilityFromDB(ab.id);
  assert.equal(a.combatAbilityUsedThisTurn(ab,'ally:'+c.id),true);const before=JSON.stringify(e.state());assert.equal(e.useAbilityApply(ab.id,c.id,'ally:'+c.id,{notes:[],verdict:[]}),false);assert.equal(JSON.stringify(e.state()),before);
 });
 
