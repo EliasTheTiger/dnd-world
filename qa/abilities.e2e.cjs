@@ -71,7 +71,7 @@ const server=http.createServer((req,res)=>{
   assert.deepEqual(await page.evaluate(()=>{const c=getCh('abilities-qa-fighter');return [c.hp,c.abilities[0].cur,c.hpMax];}),[27,0,100]);
   await page.screenshot({path:path.join(output,'03-second-wind.png'),fullPage:false});
   // Simulate a legacy save with a full duplicate next to the spent canonical copy.
-  await page.evaluate(()=>{getCh('abilities-qa-fighter').abilities.push({abilityId:'ab_lg_secondwind',cur:1,notes:'Заметка из старой копии'});return runScheduledSave();});await page.reload({waitUntil:'domcontentloaded'});
+  await page.evaluate(async()=>{await runScheduledSave();getCh('abilities-qa-fighter').abilities.push({abilityId:'ab_lg_secondwind',cur:1,notes:'Заметка из старой копии'});scheduleSave();return runScheduledSave();});await page.reload({waitUntil:'domcontentloaded'});
   await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
   assert.deepEqual(await page.evaluate(()=>{const c=getCh('abilities-qa-fighter');return [c.hp,c.abilities[0].cur,c.hpMax];}),[27,0,100]);
   assert.deepEqual(await page.evaluate(()=>{const c=getCh('abilities-qa-fighter');return [c.abilities.length,c.abilities[0].notes];}),[2,'Заметка из старой копии']);
