@@ -457,6 +457,12 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
+  if (options.itemDomain === true || options.itemSurface === true) {
+    vm.runInContext(fs.readFileSync(new URL('../scripts/item-domain-model.js', import.meta.url), 'utf8'), context);
+  }
+  if (options.itemSurface === true) {
+    vm.runInContext(fs.readFileSync(new URL('../scripts/public-item-surface.js', import.meta.url), 'utf8'), context);
+  }
   vm.runInContext(fs.readFileSync(new URL('../scripts/character-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/magic-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/grimoire-rules.js', import.meta.url), 'utf8'), context);
@@ -3014,7 +3020,7 @@ test('item economy runtime: structured zero, exact copper, nested mass and unit-
 });
 
 test('item economy runtime: every gp mutation rejects sub-copper values without rounding', async () => {
-  const e = loadEngine();
+  const e = loadEngine(() => 0, null, null, null, {itemDomain: true});
   assert.equal(e.exactCopperFromGp(0), 0);
   assert.equal(e.exactCopperFromGp(0.29), 29);
   assert.equal(e.exactCopperFromGp('12,37'), 1237);
@@ -3024,7 +3030,10 @@ test('item economy runtime: every gp mutation rejects sub-copper values without 
   const mechanics = bg3TestMechanics({kind: 'valuable'});
   mechanics.profile.mass = {state: 'value', kg: 0.1, display: '0.1 кг', unit: 'kg'};
   mechanics.profile.value = {state: 'value', mode: 'inventory', gp: null, cp: null, display: 'оценивается по экземпляру', defaultGp: 1.23};
-  const item = {id: 'exact-copper-instance', n: 'Exact copper instance', type: 'equipment', schemaVersion: 6, mechanics},
+  const completeItem = e.seedItemsDB().find(item => item.id === 'it_gem_10');
+  assert.ok(completeItem, 'grant fixtures start with a complete item');
+  mechanics.interactions = plain(completeItem.mechanics.interactions);
+  const item = {...completeItem, id: 'exact-copper-instance', n: 'Exact copper instance', type: 'equipment', schemaVersion: 6, mechanics},
     entry = {id: 'priced-entry', itemId: item.id, qty: 1, valueGp: 1.23},
     actor = hero('exact-copper-owner', {coins: {pm: 0, zm: 20, em: 0, sm: 0, mm: 0}, inventory: [entry]});
   assert.equal(e.itemEntryGoldValue({valueGp: 0}, item), 0);
@@ -3058,7 +3067,8 @@ test('item economy runtime: every gp mutation rejects sub-copper values without 
   assert.equal(malformedAddActor.inventory.find(row=>row.id!=='malformed-add').valueGp,100);
 
   const fixedMechanics=bg3TestMechanics({kind:'valuable'});fixedMechanics.profile.mass={state:'value',kg:0.1,display:'0.1 кг',unit:'kg'};fixedMechanics.profile.value={state:'value',gp:5,cp:500,display:'5 зм'};
-  const fixedItem={id:'exact-copper-fixed',n:'Exact fixed price',type:'equipment',schemaVersion:6,mechanics:fixedMechanics},fixedActor=hero('fixed-price-owner',{inventory:[]});e.setState({chars:[fixedActor],items:[fixedItem],activeCharId:fixedActor.id});
+  fixedMechanics.interactions=plain(completeItem.mechanics.interactions);
+  const fixedItem={...completeItem,id:'exact-copper-fixed',n:'Exact fixed price',type:'equipment',schemaVersion:6,mechanics:fixedMechanics},fixedActor=hero('fixed-price-owner',{inventory:[]});e.setState({chars:[fixedActor],items:[fixedItem],activeCharId:fixedActor.id});
   const fixedPlan=await e.itemWorkspaceGrantPlanFor(fixedActor.id,fixedItem.id,1,{valueGp:'1.001'});assert.equal(fixedPlan.ok,true,fixedPlan.reason);assert.equal(fixedPlan.valueGp,null,'a fixed-price grant ignores an unexpected instance override');
   const fixedDone=await e.itemWorkspaceGrantCommit(fixedPlan);assert.equal(fixedDone.ok,true,fixedDone.reason);assert.equal(Object.prototype.hasOwnProperty.call(fixedActor.inventory[0],'valueGp'),false);
 
@@ -7190,7 +7200,7 @@ test('BG3 private root first click hydrates and prepares the exact cold read wit
 test('BG3 granted private read survives scheduled persistence during open and before confirm',async()=>{
   const row={itemId:'bg3:item:rt:48a43c1b-c677-4b96-b46e-ed1c68ad8170:stats:T0JKX0Jvb2s',useId:'bg3-use-94190ba0ab73fd93e62f',bookId:'LOW_SteelWatchFoundry_BaniteCardPlayers'};
   async function grantedWorld(suffix){
-    let randomCalls=0;const e=loadEngine(()=>{randomCalls++;return .25;},selectedBg3FileFetch()),actor=hero('granted-private-root-reader-'+suffix,{knownRecipes:[],inventory:[]});
+    let randomCalls=0;const e=loadEngine(()=>{randomCalls++;return .25;},selectedBg3FileFetch(),null,null,{itemDomain:true}),actor=hero('granted-private-root-reader-'+suffix,{knownRecipes:[],inventory:[]});
     e.setState({chars:[actor],items:[],activeCharId:actor.id});assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile:'standard',manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();assert.equal(await e.itemWorkspaceGiveTo(row.itemId,actor.id,1),true,e.elementText('saveStatus'));
     const entry=actor.inventory.find(value=>value.itemId===row.itemId);assert.ok(entry,'the real catalogue grant creates the exact inventory entry');return {e,actor,entry,randomCalls:()=>randomCalls,randomAfterGrant:randomCalls};
   }
@@ -7208,7 +7218,7 @@ test('BG3 granted private read survives scheduled persistence during open and be
 });
 
 test('BG3 granted private read opens beside an equipped lifecycle BG3 item',async()=>{
-  const book={itemId:'bg3:item:rt:48a43c1b-c677-4b96-b46e-ed1c68ad8170:stats:T0JKX0Jvb2s',useId:'bg3-use-94190ba0ab73fd93e62f'},ringId='bg3:item:rt:9ce563ca-82b0-4c28-bd82-8640fd0a5be3:stats:TUFHX0VsZW1lbnRhbEdpc2hfRWxlbWVudGFsSW5mdXNpb25fUmluZw',e=loadEngine(()=>.25,selectedBg3FileFetch()),actor=hero('granted-private-root-equipped-reader',{knownRecipes:[],inventory:[]});
+  const book={itemId:'bg3:item:rt:48a43c1b-c677-4b96-b46e-ed1c68ad8170:stats:T0JKX0Jvb2s',useId:'bg3-use-94190ba0ab73fd93e62f'},ringId='bg3:item:rt:9ce563ca-82b0-4c28-bd82-8640fd0a5be3:stats:TUFHX0VsZW1lbnRhbEdpc2hfRWxlbWVudGFsSW5mdXNpb25fUmluZw',e=loadEngine(()=>.25,selectedBg3FileFetch(),null,null,{itemDomain:true}),actor=hero('granted-private-root-equipped-reader',{knownRecipes:[],inventory:[]});
   e.setState({chars:[actor],items:[],activeCharId:actor.id});assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile:'standard',manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();
   assert.equal(await e.itemWorkspaceGiveTo(ringId,actor.id,1),true);const ringEntry=actor.inventory.find(entry=>entry.itemId===ringId);assert.ok(ringEntry);e.invEquipToggle(ringEntry.id);assert.ok(Object.values(actor.equipment).includes(ringEntry.id),JSON.stringify(actor.equipment));await e.bg3LifecycleSchedule(actor);await e.bg3LifecycleSchedule(actor);
   assert.equal(await e.itemWorkspaceGiveTo(book.itemId,actor.id,1),true);const bookEntry=actor.inventory.find(entry=>entry.itemId===book.itemId);assert.ok(bookEntry);await e.runScheduledSave();
@@ -7218,7 +7228,7 @@ test('BG3 granted private read opens beside an equipped lifecycle BG3 item',asyn
 });
 
 test('BG3 private read does not reconcile an unequipped lifecycle wearable',async()=>{
-  const book={itemId:'bg3:item:rt:48a43c1b-c677-4b96-b46e-ed1c68ad8170:stats:T0JKX0Jvb2s',useId:'bg3-use-94190ba0ab73fd93e62f'},ringId='bg3:item:rt:9ce563ca-82b0-4c28-bd82-8640fd0a5be3:stats:TUFHX0VsZW1lbnRhbEdpc2hfRWxlbWVudGFsSW5mdXNpb25fUmluZw',e=loadEngine(()=>.25,selectedBg3FileFetch()),actor=hero('granted-private-root-unequipped-reader',{knownRecipes:[],inventory:[]});
+  const book={itemId:'bg3:item:rt:48a43c1b-c677-4b96-b46e-ed1c68ad8170:stats:T0JKX0Jvb2s',useId:'bg3-use-94190ba0ab73fd93e62f'},ringId='bg3:item:rt:9ce563ca-82b0-4c28-bd82-8640fd0a5be3:stats:TUFHX0VsZW1lbnRhbEdpc2hfRWxlbWVudGFsSW5mdXNpb25fUmluZw',e=loadEngine(()=>.25,selectedBg3FileFetch(),null,null,{itemDomain:true}),actor=hero('granted-private-root-unequipped-reader',{knownRecipes:[],inventory:[]});
   e.setState({chars:[actor],items:[],activeCharId:actor.id});assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile:'standard',manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();assert.equal(await e.itemWorkspaceGiveTo(ringId,actor.id,1),true);assert.equal(await e.itemWorkspaceGiveTo(book.itemId,actor.id,1),true);const bookEntry=actor.inventory.find(entry=>entry.itemId===book.itemId),pending=e.bg3ItemArrowTestLifecycleRuntimeSnapshot(actor).pending;if(pending)await pending;await Promise.resolve();const lifecycle=e.bg3ItemArrowTestLifecycleRuntimeSnapshot(actor);let hits=0;const poison={then(){hits++;throw new Error('unequipped lifecycle must not reconcile');}};lifecycle.pendingMap.set(actor,poison);try{assert.equal(await e.bg3ItemProgramOpen(bookEntry.id,actor.id,book.useId),true,e.elementText('castErr'));}finally{lifecycle.pendingMap.delete(actor);}assert.equal(hits,0);e.closeCastModal();
 });
 
@@ -10686,7 +10696,7 @@ function productionBg3ItemPresentationObservedFetch(options={}){
   return {fetch,calls,entered,release(){if(!released){released=true;releaseResolve();}}};
 }
 async function productionBg3ItemPresentationWorld(observed=productionBg3ItemPresentationObservedFetch(),profile='standard',engineOptions={}){
-  const e=loadEngine(()=>0,observed.fetch,null,null,engineOptions),actor=hero('production-item-presentation-'+profile,{inventory:[]});e.setState({chars:[actor],items:e.seedItemsDB(),activeCharId:actor.id});
+  const e=loadEngine(()=>0,observed.fetch,null,null,{itemDomain:true,...engineOptions}),actor=hero('production-item-presentation-'+profile,{inventory:[]});e.setState({chars:[actor],items:e.seedItemsDB(),activeCharId:actor.id});
   assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();return {e,actor,observed,profile};
 }
 
@@ -10815,7 +10825,8 @@ test('character-bound A7 item is pruned and retained food variants contain no pl
 });
 
 test('world-bound production items are pruned while the action filter still preserves A18 A20 and generic container open',async()=>{
-  const {e,actor}=await productionBg3ItemPresentationWorld();await e.bg3ItemPresentationEnsure();const production=[{id:BG3_WORLD_BOUND_ROPE,actionType:2},{id:BG3_WORLD_BOUND_RAT_TUNNEL,actionType:3},{id:BG3_WORLD_BOUND_DOOR,actionType:9}],available=new Set(e.bg3CatalogSearch('',{}).map(row=>row.id));for(const sample of production)assert.equal(available.has(sample.id),false);
+  // This filter unit test intentionally uses partial synthetic root programs.
+  const {e,actor}=await productionBg3ItemPresentationWorld(productionBg3ItemPresentationObservedFetch(),'standard',{itemDomain:false});await e.bg3ItemPresentationEnsure();const production=[{id:BG3_WORLD_BOUND_ROPE,actionType:2},{id:BG3_WORLD_BOUND_RAT_TUNNEL,actionType:3},{id:BG3_WORLD_BOUND_DOOR,actionType:9}],available=new Set(e.bg3CatalogSearch('',{}).map(row=>row.id));for(const sample of production)assert.equal(available.has(sample.id),false);
   const sourceAction=(id,label,actionType,attributes)=>({id,label,cost:'object',target:'self',consume:{kind:'none',amount:0},handler:'bg3RootProgram',program:{mode:'typed',sourceAction:{primary:{actionType,attributes}}}}),worldTypes=[1,2,3,4,9,10,14,15,16,17,22,24,26,27,35],worldLabels=worldTypes.map(type=>'Мировое действие '+type),synthetic={id:'it-world-bound-action-filter',n:'Нейтральный жетон',type:'equipment',rarity:'обычный',tags:[],schemaVersion:6,useMode:'structured',mechanics:{schemaVersion:1,mode:'structured',origin:'explicit',effects:[{stat:'ac',mode:'add',value:1}],actions:[...worldTypes.map(type=>sourceAction('synthetic-a'+type,'Мировое действие '+type,type,{})),sourceAction('synthetic-event','Событие мира',7,{EventID:'WORLD_BOUND_EVENT'}),sourceAction('synthetic-a18','Вскрыть замок',18,{}),sourceAction('synthetic-a20','Обезвредить ловушку',20,{})],interactions:[],lifecyclePrograms:[]},source:{classification:'playable'}},entry={id:'synthetic-world-bound-entry',itemId:synthetic.id,qty:1};actor.inventory=[entry];e.setState({chars:[actor],items:[synthetic],activeCharId:actor.id});const actions=e.itemActions(actor,entry,synthetic),rows=e.bg3ItemRuleRows(synthetic,actor.id,entry.id),worldPattern=new RegExp(worldLabels.concat('Событие мира').join('|'));assert.equal(actions.some(action=>worldPattern.test(action.label)),false);assert.equal(rows.some(row=>worldPattern.test(row.label)),false);assert.ok(actions.some(action=>action.label==='Вскрыть замок'));assert.ok(actions.some(action=>action.label==='Обезвредить ловушку'));assert.ok(rows.some(row=>row.kind==='action'&&row.label==='Вскрыть замок'));assert.ok(rows.some(row=>row.kind==='action'&&row.label==='Обезвредить ловушку'));assert.ok(rows.some(row=>row.kind==='effect'&&row.effect.stat==='ac'),'neutral direct mechanics remain');const card=e.itemCardHTML(synthetic,'',{actorId:actor.id,entryId:entry.id,interactive:true,presentationDetail:false});assert.match(card,/Нейтральный жетон/);assert.match(card,/Вскрыть замок/);assert.match(card,/Обезвредить ловушку/);assert.doesNotMatch(card,worldPattern);assert.doesNotMatch(card,/WORLD_BOUND_EVENT/);assert.equal(await e.bg3ItemInstructionsOpen(synthetic.id,actor.id,entry.id,''),true);const body=e.elementText('showBody');assert.match(body,/Профиль:/);assert.match(body,/Класс доспеха/);assert.match(body,/Вскрыть замок/);assert.match(body,/Обезвредить ловушку/);assert.doesNotMatch(body,worldPattern);assert.doesNotMatch(body,/WORLD_BOUND_EVENT/);assert.equal(actor.inventory[0].itemId,synthetic.id);
   const container=plain(synthetic);container.id='bg3:item:rt:00000000-0000-0000-0000-000000000181:stats:T0JKX0NvbnRhaW5lcg';container.n='WORLD_TECH_CONTAINER_NAME';container.mechanics.effects=[];container.mechanics.actions=[sourceAction('synthetic-container-a1','Открыть мировой контейнер',1,{})];container.mechanics.interactions=[{id:'synthetic-container-open',label:'Открыть контейнер',handler:'containerOpen',cost:'object'}];const containerEntry={id:'synthetic-container-entry',itemId:container.id,qty:1,inside:[]};actor.inventory=[containerEntry];e.setState({chars:[actor],items:[container],activeCharId:actor.id});const containerActions=e.itemActions(actor,containerEntry,container);assert.equal(containerActions.some(action=>action.label==='Открыть мировой контейнер'),false,'A1 source action stays world-bound');assert.ok(containerActions.some(action=>action.label==='Открыть контейнер'&&/^containerOpen\(/.test(action.fn)),'neutral container interaction remains usable after A1 filtering');
 });
@@ -11028,7 +11039,7 @@ test('profile switches discard in-flight presentation search and detail without 
 });
 
 test('an active unified item query refreshes after the Standard catalogue is repinned',async()=>{
-  const itemId=PRODUCTION_BG3_ITEM_PRESENTATION.safeMarkupItemId,world=await productionBg3ItemPresentationWorld(productionBg3ItemPresentationObservedFetch()),e=world.e;e.itemWorkspaceTestFilters({q:itemId,source:'bg3',classification:'all'});assert.ok(e.itemWorkspaceSearch().some(row=>row.id===itemId));assert.equal(e.bg3CatalogUseRefs([]),true);assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile:'standard',manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);assert.equal(e.itemWorkspaceSearch().length,0,'loading state may be empty but cannot become a persistent cached result');await e.bg3CatalogEnsureIndex();assert.ok(e.itemWorkspaceSearch().some(row=>row.id===itemId),'republished Standard index invalidates the empty loading-state cache without another keystroke');
+  const itemId=PRODUCTION_BG3_ITEM_PRESENTATION.safeMarkupItemId,world=await productionBg3ItemPresentationWorld(productionBg3ItemPresentationObservedFetch()),e=world.e;await e.bg3ItemPresentationEnsure();e.itemWorkspaceTestFilters({q:itemId,source:'bg3',classification:'all'});assert.ok(e.itemWorkspaceSearch().some(row=>row.id===itemId));assert.equal(e.bg3CatalogUseRefs([]),true);assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile:'standard',manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);assert.equal(e.itemWorkspaceSearch().length,0,'loading state may be empty but cannot become a persistent cached result');await e.bg3CatalogEnsureIndex();assert.equal(e.itemWorkspaceSearch().length,0,'unverified source index cannot leak into the workspace');await e.bg3ItemPresentationEnsure();assert.ok(e.itemWorkspaceSearch().some(row=>row.id===itemId),'verified Standard presentation refreshes the active query without another keystroke');
 });
 
 test('редактор предмета сохраняет точную механику записи и после сохранения оставляет её выбранной',()=>{
@@ -11044,7 +11055,7 @@ test('расширенные настройки предмета не удаля
 });
 
 test('арсенал не показывает кампанийный или сырой каталожный счётчик до готовности строгого Standard-набора', async () => {
-  const e=loadEngine(()=>0,selectedBg3FileFetch()),localItems=e.seedItemsDB(),recipient=hero('atomic-catalog-recipient',{inventory:[]}),presentation=productionBg3Json('data/bg3/ui/bg3-24532579-v10-item-presentation/manifest.json');
+  const e=loadEngine(()=>0,selectedBg3FileFetch(),null,null,{itemSurface:true}),localItems=e.seedItemsDB(),recipient=hero('atomic-catalog-recipient',{inventory:[]}),presentation=productionBg3Json('data/bg3/ui/bg3-24532579-v10-item-presentation/manifest.json');
   e.setState({chars:[recipient],items:localItems,activeCharId:recipient.id});
   assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile:'standard',manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);
 
@@ -11062,28 +11073,28 @@ test('арсенал не показывает кампанийный или с�
   const finalTotal=e.itemWorkspaceTestFilters().length,ready=e.renderWorld().itemsdb;
   assert.match(ready,/data-catalog-state="ready"/);assert.match(ready,new RegExp(`data-user-items="${finalTotal}"`));
   assert.match(ready,/catalog-result-list|Поиск и фильтры предметов/);assert.equal(e.elementText('itemsTabButton'),`Предметы · ${finalTotal.toLocaleString('ru-RU')}`);
-  assert.ok(finalTotal>=presentation.counts.items,'готовое состояние не теряет ни одного предмета строгого Standard-каталога');
+  assert.ok(finalTotal>1500&&finalTotal<presentation.counts.items,'готовый список объединяет повторные названия');assert.equal(e.bg3CatalogSearch('',{}).length,presentation.counts.items,'исходные идентификаторы остаются доступны движку');
 });
 
 test('единый каталог одновременно ищет строгий Standard BG3 v10 и предметы кампании', async () => {
-  const e=loadEngine(()=>0,selectedBg3FileFetch()),localItems=e.seedItemsDB(),recipient=hero('unified-catalog-recipient',{inventory:[]}),presentation=productionBg3Json('data/bg3/ui/bg3-24532579-v10-item-presentation/manifest.json'),
+  const e=loadEngine(()=>0,selectedBg3FileFetch(),null,null,{itemSurface:true}),localItems=e.seedItemsDB(),recipient=hero('unified-catalog-recipient',{inventory:[]}),presentation=productionBg3Json('data/bg3/ui/bg3-24532579-v10-item-presentation/manifest.json'),
     profile=selectedBg3Catalog.current.defaultRulesProfile||'standard',presentationIds=new Set(presentation.items.map(row=>row[0])),available=presentation.counts.items,fmt=value=>(+value).toLocaleString('ru-RU');
   assert.ok(localItems.length>0,'локальная база кампании не пуста');e.setState({chars:[recipient],items:localItems,activeCharId:recipient.id});
   assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);
   await e.bg3CatalogEnsureIndex();await e.bg3ItemPresentationEnsure();
   const playable=e.bg3CatalogSearch('',{classification:'playable'}),combined=e.itemWorkspaceTestFilters(),campaignOnly=combined.filter(row=>row.source==='campaign'),swords=e.itemWorkspaceTestFilters({q:'меч'}),bg3Rows=combined.filter(row=>row.source==='bg3');
-  assert.equal(playable.length,bg3Rows.filter(row=>row.classification==='playable').length,'production v10 сохраняет явную игровую классификацию');
-  assert.equal(combined.length,available+campaignOnly.length,'единый каталог возвращает Standard BG3 и только полные предметы кампании');
-  assert.equal(bg3Rows.length,available,'ни одна запись строгой presentation-проекции не скрывается фильтром или дедупликацией');
-  assert.equal(new Set(bg3Rows.map(row=>row.id)).size,bg3Rows.length,'каждая запись полного каталога сохраняет собственный точный идентификатор');
-  assert.deepEqual([...new Set(bg3Rows.map(row=>row.id))].sort(),[...presentationIds].sort(),'пользовательский список совпадает с закреплённым строгим Standard-набором');
+  assert.ok(bg3Rows.filter(row=>row.classification==='playable').length<=playable.length);
+  assert.equal(new Set(combined.map(row=>row.name.normalize('NFKC').trim().toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[«»„“”"']/g,'').replace(/\s*\+\s*(\d+)/g,'+$1'))).size,combined.length,'одна карточка на название, включая предметы кампании');
+  assert.ok(bg3Rows.length<available,'вариации объединены в пользовательском списке');
+  assert.ok(bg3Rows.every(row=>presentationIds.has(row.id)),'все карточки прошли проверку полноты');
+  assert.deepEqual(plain(e.bg3CatalogSearch('',{}).map(row=>row.id).sort()),[...presentationIds].sort(),'точные определения сохранены для инвентарей и рецептов');
   assert.ok(campaignOnly.every(row=>row.source==='campaign'));
   if(campaignOnly.some(row=>/меч/i.test(row.name)))assert.ok(swords.some(row=>row.source==='campaign'),'одно поле поиска находит полный кампанийный меч');
   assert.ok(swords.some(row=>row.source==='bg3'),'то же поле поиска находит мечи BG3');
 
   e.itemWorkspaceTestFilters();const html=e.renderWorld().itemsdb,heroStart=html.indexOf('id="bg3CatalogPrimary"'),listStart=html.indexOf('class="catalog-result-list"'),listEnd=html.indexOf('id="itemWorkspaceDetail"',listStart),listHtml=html.slice(listStart,listEnd);
   assert.equal(e.engineVersion(),'5.0');assert.equal(e.engineLabel(),'Движок 5.0 · каталог предметов');
-  const userTotal=available+campaignOnly.length;assert.equal(e.elementText('releaseBadge'),`Движок 5.0 · каталог предметов · ${fmt(userTotal)} предметов`);
+  const userTotal=combined.length;assert.equal(e.elementText('releaseBadge'),`Движок 5.0 · каталог предметов · ${fmt(userTotal)} предметов`);
   assert.equal(e.elementText('itemsTabButton'),`Предметы · ${fmt(userTotal)}`);
   assert.ok(heroStart>=0&&listStart>heroStart&&listEnd>listStart,'единый master-detail каталог собран в одном блоке');
   assert.match(html,new RegExp(`data-user-items="${userTotal}"`));
@@ -11100,13 +11111,13 @@ test('единый каталог одновременно ищет строги
   const pouch=localItems.find(item=>item.id==='it_gem_pouch'),pouchPlan=await e.itemWorkspaceGrantPlanFor(recipient.id,pouch.id,1),pouchDone=await e.itemWorkspaceGrantCommit(pouchPlan),pouchEntry=recipient.inventory.find(entry=>entry.itemId===pouch.id);assert.equal(pouchDone.ok,true,pouchDone.reason);assert.equal(pouchEntry.filled,true,'единая выдача сохраняет старую семантику наполненного контейнера');assert.equal(pouchEntry.inside.length,1);assert.equal(pouchEntry.inside[0].itemId,'it_gem_10');assert.equal(pouchEntry.inside[0].qty,10);
   const recipeAsset=await e.bg3CatalogEnsureAsset('recipes'),recipeRows=e.bg3RecipeSearch(''),recipePanel=e.bg3RecipeTestPanelHTML(),recipeCount=recipeAsset.recipes.length;assert.ok(recipeCount>0);assert.equal(recipeRows.length,recipeCount);assert.equal(new Set(recipeRows.map(row=>row.id)).size,recipeCount);assert.match(recipePanel,new RegExp(`Найдено рецептов: ${recipeCount}`));assert.match(e.bg3RuntimeTabsHTML(),new RegExp(`Рецепты · ${recipeCount}`));
   const treasureAsset=await e.bg3CatalogEnsureAsset('treasure'),treasureRows=e.bg3TreasureSearch(''),treasureUserCount=e.bg3TreasureUserTableCount(treasureAsset),treasurePanel=e.bg3TreasureTestPanelHTML(),treasureTabs=e.bg3RuntimeTabsHTML(),treasureCount=treasureAsset.tables.length;assert.ok(treasureCount>0,'строгая production-проекция добычи не пуста');assert.equal(treasureRows.length,treasureCount);assert.equal(new Set(treasureRows.map(row=>row.id)).size,treasureCount);assert.equal(treasureUserCount,treasureCount,'пользовательский список не скрывает вложенные или одноимённые таблицы добычи');assert.match(treasurePanel,new RegExp(`Найдено таблиц: ${treasureCount}`));assert.match(treasureTabs,/Таблицы добычи ·/);
-  const deepTable=treasureAsset.tables.find(table=>e.bg3TreasureCandidateIds(table,treasureAsset,30).length>24);assert.ok(deepTable,'production treasure graph contains a table deeper than the former 24-item search limit');const deepIds=e.bg3TreasureCandidateIds(deepTable,treasureAsset,30),deepId=deepIds.slice(24).find(id=>{const row=e.bg3CatalogSearch(id,{})[0];return row&&row.names&&(row.names.ru||row.names.en);}),deepRow=deepId&&e.bg3CatalogSearch(deepId,{})[0],deepName=deepRow&&deepRow.names&&(deepRow.names.ru||deepRow.names.en);assert.ok(deepName);await e.bg3TreasureRelationsEnsure(treasureAsset);assert.ok(e.bg3TreasureSearch(deepName).some(table=>table.id===deepTable.id),'поиск находит таблицу по предмету после прежней границы 24');
+  const deepTable=treasureAsset.tables.find(table=>e.bg3TreasureCandidateIds(table,treasureAsset,30).length>24);assert.ok(deepTable,'production treasure graph contains a table deeper than the former 24-item search limit');const deepIds=e.bg3TreasureCandidateIds(deepTable,treasureAsset,30),deepId=deepIds.slice(24).find(id=>{const row=e.bg3CatalogSearch('',{}).find(row=>row.id===id);return row&&row.names&&(row.names.ru||row.names.en);}),deepRow=deepId&&e.bg3CatalogSearch('',{}).find(row=>row.id===deepId),deepName=deepRow&&deepRow.names&&(deepRow.names.ru||deepRow.names.en);assert.ok(deepName);await e.bg3TreasureRelationsEnsure(treasureAsset);assert.ok(e.bg3TreasureSearch(deepName).some(table=>table.id===deepTable.id),'поиск находит таблицу по предмету после прежней границы 24');
 });
 
 const UNIFIED_BG3_PORTABLE_ITEM=PRODUCTION_BG3_ITEM_PRESENTATION.safeMarkupItemId;
 
 test('выдача BG3 фиксирует выбранного героя до hydration, складывает количество и атомарно откатывает lifecycle-сбой',async()=>{
-  const e=loadEngine(()=>0,selectedBg3FileFetch()),first=hero('catalog-first',{inventory:[]}),second=hero('catalog-second',{inventory:[]}),items=e.seedItemsDB(),profile=selectedBg3Catalog.current.defaultRulesProfile||'standard';
+  const e=loadEngine(()=>0,selectedBg3FileFetch(),null,null,{itemDomain:true}),first=hero('catalog-first',{inventory:[]}),second=hero('catalog-second',{inventory:[]}),items=e.seedItemsDB(),profile=selectedBg3Catalog.current.defaultRulesProfile||'standard';
   e.setState({chars:[first,second],items,activeCharId:first.id});assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();
   assert.ok(e.bg3CatalogSearch(UNIFIED_BG3_PORTABLE_ITEM,{}).some(row=>row.id===UNIFIED_BG3_PORTABLE_ITEM),'фиксированный предмет существует в production v10');
   const untouched=plain([first.inventory,second.inventory]);assert.equal((await e.itemWorkspaceGrantPlanFor(first.id,UNIFIED_BG3_PORTABLE_ITEM,1.9)).ok,false,'транзакционная граница отвергает дробное количество');assert.equal(await e.addInvFromBG3(UNIFIED_BG3_PORTABLE_ITEM,'missing-explicit-hero'),false,'неверный явный actorId не перенаправляется выбранному герою');assert.deepEqual(plain([first.inventory,second.inventory]),untouched);
@@ -11126,7 +11137,7 @@ test('выдача BG3 фиксирует выбранного героя до h
 });
 
 test('отложенный lifecycle-сбой выдачи не откатывает параллельное изменение другого героя и сохраняет явный actorId',async()=>{
-  const e=loadEngine(()=>0,selectedBg3FileFetch()),recipient=hero('catalog-explicit-recipient',{inventory:[]}),other=hero('catalog-unrelated-actor',{inventory:[]}),items=e.seedItemsDB(),profile=selectedBg3Catalog.current.defaultRulesProfile||'standard';e.setState({chars:[recipient,other],items,activeCharId:other.id});assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();e.itemWorkspaceTestSelectHero(other.id);
+  const e=loadEngine(()=>0,selectedBg3FileFetch(),null,null,{itemDomain:true}),recipient=hero('catalog-explicit-recipient',{inventory:[]}),other=hero('catalog-unrelated-actor',{inventory:[]}),items=e.seedItemsDB(),profile=selectedBg3Catalog.current.defaultRulesProfile||'standard';e.setState({chars:[recipient,other],items,activeCharId:other.id});assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();e.itemWorkspaceTestSelectHero(other.id);
   const plan=await e.itemWorkspaceGrantPlanFor(recipient.id,UNIFIED_BG3_PORTABLE_ITEM,2);assert.equal(plan.ok,true,plan.reason);assert.equal(plan.actorId,recipient.id);const recipientBefore=plain(recipient),gate=e.itemWorkspaceGrantTestDeferredLifecycleFailure(),pending=e.itemWorkspaceGrantCommit(plan),draft=await gate.entered;assert.equal(draft.id,recipient.id,'lifecycle preflight receives a detached draft of the explicit recipient');assert.notEqual(draft,recipient);assert.equal(gate.calls(),1);
   const unrelatedEntry={id:'parallel-unrelated-entry',itemId:items[0].id,qty:1,notes:'added while recipient preflight was pending'};other.notes='parallel world mutation survives';other.inventory.push(unrelatedEntry);let failed;try{gate.release();failed=await pending;}finally{gate.restore();}assert.equal(failed.ok,false);assert.equal(failed.rolledBack,true);assert.match(failed.reason,/injected deferred catalog grant lifecycle failure/);assert.deepEqual(plain(recipient),recipientBefore,'recipient remains pre-commit immutable');assert.equal(other.notes,'parallel world mutation survives');assert.equal(other.inventory[0],unrelatedEntry,'failure does not restore a whole-world snapshot over another actor');assert.equal(e.itemWorkspaceTestState().heroId,other.id);
   const retry=await e.itemWorkspaceGrantCommit(plan);assert.equal(retry.ok,true,retry.reason);const granted=recipient.inventory.find(row=>row.itemId===UNIFIED_BG3_PORTABLE_ITEM);assert.ok(granted);assert.equal(granted.qty,2);assert.equal(other.inventory[0],unrelatedEntry);assert.equal(other.inventory.some(row=>row.itemId===UNIFIED_BG3_PORTABLE_ITEM),false,'selected/active other actor never receives the explicit recipient grant');

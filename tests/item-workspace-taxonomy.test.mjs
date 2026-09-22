@@ -41,6 +41,9 @@ function loadWorkspaceAudit() {
         bg3Catalog.index = {items: JSON.parse(JSON.stringify(bg3Rows || []))};
         bg3Catalog.items = new Map();
         bg3Catalog.summaries = new Map(bg3Catalog.index.items.map(row => [row.id, row]));
+        for(const row of bg3Catalog.index.items)row.icon={src:'assets/test-icon.webp'};
+        bg3ItemPresentation.byItem=new Map(bg3Catalog.index.items.map(row=>[row.id,{itemId:row.id}]));
+        bg3ItemPresentation.root={byItem:bg3ItemPresentation.byItem};
         bg3CatalogSearchCache = {epoch: -1, profile: '', rows: [], docs: new Map(), availableCount: 0, facets: null};
         itemWorkspaceSearchResultCache = {key: '', rows: []};
       },

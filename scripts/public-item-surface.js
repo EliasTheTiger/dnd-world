@@ -69,6 +69,39 @@
     return icon && icon.kind === 'glyph' ? `встроенный символ ${sanitizePublicText(icon.value)}` : 'встроенная иконка предмета';
   }
 
+  function itemNameKey(value) {
+    return String(value == null ? '' : value).normalize('NFKC').trim().toLocaleLowerCase('ru')
+      .replace(/ё/gu, 'е').replace(/[«»„“”"']/gu, '').replace(/[‐‑–—]/gu, '-')
+      .replace(/\s*\+\s*(\d+)/gu, '+$1').replace(/\s+/gu, ' ');
+  }
+
+  // One card per public name. This is a view, never an ID migration: inventory,
+  // recipe, book-content and world references keep their exact source records.
+  // Select before filtering so searches cannot change the item being granted.
+  function canonicalItemRows(rows) {
+    const groups = new Map();
+    const priority = row => [
+      row.item && row.item.custom === true ? 0 : row.source === 'bg3' ? 1 : 2,
+      row.classification === 'duplicate' ? 1 : 0,
+      String(row.statsId || '').length,
+      String(row.id || ''),
+    ];
+    const compare = (a, b) => {
+      const left = priority(a), right = priority(b);
+      for (let i = 0; i < left.length; i++) {
+        if (left[i] !== right[i]) return left[i] < right[i] ? -1 : 1;
+      }
+      return 0;
+    };
+    for (const row of Array.isArray(rows) ? rows : []) {
+      if (!row || !row.id) continue;
+      const key = itemNameKey(row.name) || String(row.id);
+      const previous = groups.get(key);
+      if (!previous || compare(row, previous) < 0) groups.set(key, row);
+    }
+    return [...groups.values()];
+  }
+
   function sanitizeElementAttributes(element) {
     if (!element || typeof element.getAttribute !== 'function') return;
     for (const name of ['aria-label', 'placeholder', 'title']) {
@@ -131,6 +164,8 @@
     publicStructuredText,
     publicSourceLabel,
     publicIconLabel,
+    itemNameKey,
+    canonicalItemRows,
     sanitizeDom,
     attachDomGuard,
   });

@@ -20168,19 +20168,26 @@ const passiveParts=[];if((passive.effects||[]).length)passiveParts.push('эфф�
 const chargeText=charges.enabled?'запас '+charges.maximum+'; '+((charges.recovery||[]).length?'восстановление: '+charges.recovery.map(itemDomainStructuredText).join('; '):'восстановление не предусмотрено'):'заряды не используются',iconText=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicIconLabel(domain.icon):'встроенная иконка предмета',sourceText=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicSourceLabel():'Встроенный каталог D&D World',tags=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicTagValues(domain.tags):domain.tags,publicHandlers=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicHandlerValues(handlers):handlers;
 return '<details class="props-block"'+(open?' open':'')+'><summary class="toggle-link">Полный контракт предмета</summary><div style="margin-top:8px"><b>Идентификатор:</b> '+esc(publicItemIdentifier(domain.id))+'</div><div><b>Классификация:</b> '+esc(itemDomainCodeLabel(tax.category)+' / '+itemDomainCodeLabel(tax.subcategory)+' · '+itemDomainCodeLabel(tax.type)+' / '+itemDomainCodeLabel(tax.subtype))+'</div><div><b>Источник:</b> '+esc(sourceText)+'</div><div><b>Иконка:</b> '+esc(iconText)+'</div><div><b>Редкость:</b> '+esc(domain.rarity)+' · <b>Вес:</b> '+esc(domain.economy.weight.value+' '+domain.economy.weight.unit)+'</div><div><b>Требования:</b> '+esc(requirements.length?requirements.map(itemDomainStructuredText).join('; '):'особых требований нет')+' · <b>Настройка:</b> '+(attunement.required?'требуется':'не требуется')+'</div><div><b>Заряды:</b> '+esc(chargeText)+' · <b>Расходуемость:</b> '+(consumable.value?'расходуемый предмет':'не расходуется')+'</div><div style="margin-top:7px"><b>Допустимые действия, цели, ограничения и эффекты:</b>'+actionRows+'</div><div style="margin-top:7px"><b>Постоянные эффекты:</b> '+esc(passiveParts.join(' · ')||'отсутствуют')+'</div><div><b>Взаимодействие с окружением:</b> '+esc(environment.length?environment.map(itemDomainStructuredText).join('; '):'не изменяет окружение')+'</div><div><b>Теги:</b> '+esc(tags.join(', ')||'публичные теги не заданы')+'</div><div><b>Обработчики движка:</b> '+esc(publicHandlers.map(ref=>ref.id+' → '+ref.executor).join(', '))+'</div></details>';
 }
+function itemIconHTML(it,size){
+size=Number(size)||64;const raw=it&&it.item||it,domain=raw&&raw.n?itemDomainOf(raw):null,icon=it&&it.icon||domain&&domain.item&&domain.item.icon,
+kind=it&&it.kind||raw&&raw.mechanics&&raw.mechanics.profile&&raw.mechanics.profile.kind||raw&&raw.type,
+glyphs={weapon:'⚔',armor:'🛡',shield:'🛡',potion:'⚗',poison:'⚗',scroll:'📜',lore:'📖',material:'💎',tool:'🛠',container:'📦',food:'🍎',water:'💧',light:'🕯',instrument:'♫',magic:'✦'},
+glyph=icon&&icon.kind==='glyph'?icon.value:glyphs[kind]||'🎒',src=icon&&icon.src;
+return '<span class="item-icon item-icon-frame'+(size<64?' sm':'')+'" style="width:'+size+'px;height:'+size+'px" aria-hidden="true"><span class="item-icon-fallback">'+esc(glyph)+'</span>'+(src?'<img src="'+esc(src)+'" width="'+size+'" height="'+size+'" loading="lazy" decoding="async" alt="" onerror="this.hidden=true">':'')+'</span>';
+}
 function itemCardHTML(it, extra, options){
 upgradeItem(it);
 extra=extra||'';options=options||{};
 const actorId=String(options.actorId||''),entryId=String(options.entryId||''),isBg3=bg3CatalogIsId(it&&it.id),interactive=options.interactive===true&&!!actorId&&!!entryId&&isBg3,instructionCall=focusId=>'bg3ItemInstructionsOpen('+esc(JSON.stringify(it.id))+','+esc(JSON.stringify(actorId))+','+esc(JSON.stringify(entryId))+','+esc(JSON.stringify(String(focusId||'')))+')',instructionButton=focusId=>interactive?'<button class="btn ghost sm" type="button" onclick="'+instructionCall(focusId)+'">открыть инструкцию</button>':'',fullInstructionButton=isBg3?'<button class="btn ghost sm" type="button" title="Открыть подробные условия, последствия и ограничения каждого свойства" onclick="'+instructionCall('')+'">ℹ Полные правила</button>':'';
 if(options.presentationDetail===true&&interactive)bg3ItemPresentationEnsureForCard(it.id,actorId);
-const domainState=itemDomainOf(it),domainIcon=domainState.ok&&domainState.item&&domainState.item.icon,icon=it.icon&&it.icon.src?'<img class="item-icon" src="'+esc(it.icon.src)+'" width="'+(+it.icon.width||64)+'" height="'+(+it.icon.height||64)+'" loading="lazy" decoding="async" alt="">':domainIcon&&domainIcon.kind==='glyph'?'<span class="item-icon" aria-hidden="true">'+esc(domainIcon.value)+'</span>':'',displayName=publicItemText(userFacingItemName(it,'Предмет'));
+const icon=itemIconHTML(it,64),displayName=publicItemText(userFacingItemName(it,'Предмет'));
 let h='<div class="entry-card">'+(icon?'<div class="item-card-layout">'+icon:'')+'<div class="item-card-main"><div class="entry-head"><h4>'+esc(displayName)+'</h4>'
 +'<span class="type-tag">'+esc(ITEM_TYPES[it.type]||it.type)+'</span>'
 +(it.rarity && it.rarity!=='обычный'?'<span class="type-tag">'+esc(it.rarity)+'</span>':'')
 +tagChips(it.tags,ITEM_TAGS)
 +'<span class="spacer"></span>'+fullInstructionButton+extra+'</div>';
 h+=String(it.desc||'').trim()?descBlock(publicItemText(it.desc),options.fullDescription===true,bg3CatalogIsId(it.id)):(bg3CatalogIsId(it.id)?bg3ItemSourceFallbackHTML(it):'<div class="note-ital" style="font-size:13px">Описание не указано.</div>');
-h+=itemArsenalContractHTML(it,options.fullDescription===true);
+h+=itemArsenalContractHTML(it,false);
 if(String(it.text||'').trim())h+='<details class="props-block"'+(options.fullDescription===true?' open':'')+'><summary class="toggle-link">Прочитать содержимое</summary><div class="entry-desc" style="margin-top:7px">'+esc(it.text)+'</div></details>';
 const meta=[];
 if(it.dmg) meta.push('<b>Урон:</b> <span class="dmg">'+esc(it.dmg)+(it.dmgType?' ('+esc(it.dmgType)+')':'')+'</span>');
@@ -20224,7 +20231,7 @@ const useIcon=u.icon&&u.icon.src?'<img class="item-icon sm" src="'+esc(u.icon.sr
 const label=bg3CatalogIsId(it.id)?bg3UserFacingLabel(u.label,'Использовать предмет'):u.label;
 return '<div class="recipe-step" style="display:grid;grid-template-columns:'+(useIcon?'38px ':'')+'minmax(0,1fr);gap:6px;align-items:center">'+useIcon+'<div><b>'+esc(label)+'</b><div>'+esc(parts.join(' · '))+'</div>'+instructionButton(u.id)+'</div></div>';
 }).join('')+'</div>';
-} else if(it.useMode==='manual'&&!isBg3) h+='<div class="props-block note-ital"><span class="pt">Решение мастера:</span> '+esc(it.manualNote||'Эффект разыгрывает мастер.')+'</div>';
+} else if(it.useMode==='manual'&&!isBg3&&!itemArsenalReadiness(it).ok) h+='<div class="props-block note-ital"><span class="pt">Решение мастера:</span> '+esc(it.manualNote||'Эффект разыгрывает мастер.')+'</div>';
 const interactions=itemInteractionsOf(it).filter(row=>!bg3InteractionCoveredByExactUse(it,row,cardUses));if(interactions.length&&!isBg3)h+='<div class="props-block"><span class="pt">Взаимодействия:</span>'+interactions.map(row=>{const kind=BG3_CATALOG_INTERACTION_NAMES[row.handler]||'',cost=row.cost?combatCostLabel(row.cost):'';return '<div style="margin-top:4px"><b>'+esc(row.label||kind||'Действие')+'</b>'+([kind,cost].filter(Boolean).length?' — '+esc([kind,cost].filter(Boolean).join(' · ')):'')+instructionButton(row.id)+'</div>';}).join('')+'</div>';
 if(it.props&&!isBg3) h+='<div class="props-block"><span class="pt">Свойства:</span><div class="entry-desc">'+esc(it.props)+'</div></div>';
 if(bg3CatalogIsId(it.id)){h+=bg3LifecycleItemHTML(it,actorId);h+=bg3InventoryStatusTransitionItemHTML(it);h+=bg3InterruptItemHTML(it);}
@@ -26499,10 +26506,25 @@ function itemWorkspaceRowFromLocal(it){const sourceCategory=String(it.type||'');
 function itemWorkspaceLocalDocument(it){const kind=itemWorkspaceLocalKind(it),category=itemWorkspaceCampaignCategory(it);return itemSearchDocument([it.n,it.i18n&&it.i18n.en&&it.i18n.en.name,it.desc,it.props,it.text,it.type,ITEM_TYPES[it.type],ITEM_CATEGORY_LABELS[category],it.rarity,bg3Array(it.tags).map(tag=>ITEM_TAGS[tag]&&ITEM_TAGS[tag].ru||tag),kind,ITEM_KIND_LABELS[kind]]);}
 function itemWorkspaceTaxonomyKey(row){return [row&&row.kind,row&&row.category,row&&row.type].map(value=>String(value||'')).join('|');}
 function itemWorkspaceTaxonomyLabel(row){const labels=[itemWorkspaceKindLabel(row&&row.kind),itemWorkspaceCategoryLabel(row&&row.category),ITEM_TYPES[row&&row.type]||String(row&&row.type||'')].map(value=>String(value||'').trim()).filter(Boolean);return [...new Set(labels)].join(' · ');}
+function itemWorkspaceCanonicalRows(){
+// The verified presentation is the allow-list; the raw index also contains
+// incomplete source definitions needed by saved inventories and world links.
+const rows=[];
+if(bg3ItemPresentation.root&&bg3Catalog.index)for(const sourceRow of bg3CatalogSearchCacheEnsure().rows){
+if(!bg3ItemPresentation.byItem.has(sourceRow.id)||!sourceRow.icon||!sourceRow.icon.src)continue;
+const row=itemWorkspaceRowFromBg3(sourceRow);if(row.item&&!itemArsenalReadiness(row.item).ok)continue;rows.push(row);
+}
+for(const it of itemsDB){if(bg3CatalogIsId(it.id)||!itemArsenalReadiness(it).ok)continue;rows.push(itemWorkspaceRowFromLocal(it));}
+return PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.canonicalItemRows(rows):rows;
+}
 function itemWorkspaceSearch(){
-const f=dbFlt.it,query=f.q||'',campaignFingerprint=itemsDB.map(it=>{const mechanics=it&&it.mechanics||{};return [it.id,it.n,it.i18n&&it.i18n.en&&it.i18n.en.name,it.type,it.rarity,bg3Array(it.tags).join(','),it.desc,it.text,it.props,bg3Array(mechanics.actions).length,bg3Array(mechanics.interactions).length,bg3Array(mechanics.lifecyclePrograms).length].join('\u0001');}).join('\u0002'),cacheKey=[bg3Catalog.epoch,bg3Catalog.index?1:0,bg3ItemPresentation.root?1:0,bg3ItemPresentation.searchReady?1:0,JSON.stringify(f),campaignFingerprint].join('|');if(itemWorkspaceSearchResultCache.key===cacheKey)return itemWorkspaceSearchResultCache.rows;if(PUBLIC_ITEM_SURFACE&&PUBLIC_ITEM_SURFACE.containsForbiddenBranding(query)){itemWorkspaceSearchResultCache={key:cacheKey,rows:[]};return [];}const rows=[];
-if(bg3Catalog.index)for(const sourceRow of bg3CatalogSearch(query,{rarity:f.rarity,tag:''})){const row=itemWorkspaceRowFromBg3(sourceRow);if(f.taxonomy&&itemWorkspaceTaxonomyKey(row)!==f.taxonomy||f.tag&&!itemWorkspaceTagMatches(row.tags,f.tag))continue;rows.push(row);}
-for(const it of itemsDB){if(!itemArsenalReadiness(it).ok)continue;const row=itemWorkspaceRowFromLocal(it),documentText=itemWorkspaceLocalDocument(it);if(f.taxonomy&&itemWorkspaceTaxonomyKey(row)!==f.taxonomy||f.rarity&&row.rarity!==f.rarity||f.tag&&!itemWorkspaceTagMatches(row.tags,f.tag)||!itemSearchMatches(documentText,query))continue;rows.push(row);}
+const f=dbFlt.it,query=f.q||'';
+if(PUBLIC_ITEM_SURFACE&&PUBLIC_ITEM_SURFACE.containsForbiddenBranding(query))return [];
+const catalogMatches=new Set(bg3Catalog.index?bg3CatalogSearch(query,{rarity:f.rarity,tag:''}).map(row=>row.id):[]);
+const rows=itemWorkspaceCanonicalRows().filter(row=>{
+if(f.taxonomy&&itemWorkspaceTaxonomyKey(row)!==f.taxonomy||f.rarity&&row.rarity!==f.rarity||f.tag&&!itemWorkspaceTagMatches(row.tags,f.tag))return false;
+return row.source==='bg3'?catalogMatches.has(row.id):itemSearchMatches(itemWorkspaceLocalDocument(row.item),query);
+});
 const rarityRank={'обычный':0,'необычный':1,'редкий':2,'очень редкий':3,'легендарный':4,'артефакт':5},sort=f.sort||'name',q=itemSearchNormalize(query);
 let rankOf=null;
 if(q&&sort!=='source'&&sort!=='type'&&sort!=='rarity'){
@@ -26511,7 +26533,7 @@ rankOf=new Map();
 for(const row of rows)rankOf.set(row,itemSearchRank(row.name,row.id,row.statsId,row.source==='bg3'?(docsMap&&docsMap.get(row.id)||''):itemWorkspaceLocalDocument(row.item),q));
 }
 rows.sort((a,b)=>sort==='type'?ITEM_SEARCH_COLLATOR.compare(itemWorkspaceTaxonomyLabel(a),itemWorkspaceTaxonomyLabel(b))||ITEM_SEARCH_COLLATOR.compare(a.name,b.name):sort==='rarity'?(rarityRank[b.rarity]??-1)-(rarityRank[a.rarity]??-1)||ITEM_SEARCH_COLLATOR.compare(a.name,b.name):q?rankOf.get(a)-rankOf.get(b)||ITEM_SEARCH_COLLATOR.compare(a.name,b.name):ITEM_SEARCH_COLLATOR.compare(a.name,b.name)||a.id.localeCompare(b.id));
-itemWorkspaceSearchResultCache={key:cacheKey,rows};return rows;
+return rows;
 }
 function itemWorkspaceClassLabel(value){return ITEM_CLASS_LABELS[value]||value||'—';}
 function itemWorkspaceKindLabel(value){return ITEM_KIND_LABELS[value]||String(value||'').replace(/[._-]+/g,' ')||'Прочие предметы';}
@@ -26526,7 +26548,7 @@ function bg3ItemWorkspaceCatalogReady(){return !!(bg3Catalog.index&&bg3ItemPrese
 function bg3ReleaseSummaryHTML(){
 const ready=bg3ItemWorkspaceCatalogReady();
 if(!ready)return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-catalog-state="loading" aria-busy="true" aria-label="Сводка полной игровой базы предметов"><div class="bg3-release-head"><span class="bg3-release-title">Полный арсенал предметов</span><span class="bg3-release-sub">единый поиск по встроенному каталогу и предметам кампании · обычные правила</span></div><div class="catalog-state" role="status" aria-live="polite">Загружается и проверяется полный Standard-каталог…</div></section>';
-const cache=bg3CatalogSearchCacheEnsure(),available=cache.availableCount||0,campaign=itemsDB.filter(item=>itemArsenalReadiness(item).ok).length,total=available+campaign,
+const rows=itemWorkspaceCanonicalRows(),available=rows.filter(row=>row.source==='bg3').length,campaign=rows.length-available,total=rows.length,
 recipes=bg3Catalog.assets.recipes&&bg3Catalog.assets.recipes.recipes.length;
 return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-catalog-state="ready" data-user-items="'+total+'" aria-label="Сводка полной игровой базы предметов"><div class="bg3-release-head"><span class="bg3-release-title">Полный арсенал предметов</span>'
 +'<span class="bg3-release-sub">единый поиск по встроенному каталогу и предметам кампании · обычные правила</span></div>'
@@ -26536,7 +26558,7 @@ return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-catalog-st
 +(recipes?'<div class="bg3-release-metric"><b>'+bg3Count(recipes)+'</b>рецептов</div>':'')+'</div></section>';
 }
 function refreshBg3ReleaseLabels(){
-const ready=bg3ItemWorkspaceCatalogReady(),count=ready?(bg3CatalogSearchCacheEnsure().availableCount||0)+itemsDB.filter(item=>itemArsenalReadiness(item).ok).length:0,badge=document.getElementById('releaseBadge'),tab=document.getElementById('itemsTabButton');
+const ready=bg3ItemWorkspaceCatalogReady(),count=ready?itemWorkspaceCanonicalRows().length:0,badge=document.getElementById('releaseBadge'),tab=document.getElementById('itemsTabButton');
 if(badge)badge.textContent=ENGINE_LABEL+(ready?' · '+bg3Count(count)+' предметов':'');
 if(badge&&RELEASE_COMMIT)badge.title='Опубликованная сборка '+RELEASE_COMMIT+' · полный каталог и подробные игровые свойства предметов';
 if(tab)tab.textContent='Предметы'+(ready?' · '+bg3Count(count):'');
@@ -26604,7 +26626,7 @@ if(!row)return '';if(!itemWorkspacePortable(row))return '<span class="catalog-so
 const hero=itemWorkspaceHero(),heroName=hero&&hero.name||'герою',review=row.source==='bg3'&&row.classification!=='playable',disabled=!hero?' disabled title="Сначала создайте героя"':'';return '<div class="item-grant-controls"><button class="btn '+(review?'ghost':'rub')+' sm" aria-label="Выдать '+esc(row.name)+' в количестве '+itemWorkspace.qty+' герою '+esc(heroName)+'"'+disabled+' onclick="itemWorkspaceGive('+esc(JSON.stringify(row.id))+')">+ '+(compact?(review?'выдать вариант':'выдать'):'выдать '+esc(heroName))+'</button></div>';
 }
 function itemWorkspaceListRowHTML(row,selected){
-const icon=row.icon&&row.icon.src?'<img class="item-icon sm" src="'+esc(row.icon.src)+'" width="42" height="42" loading="lazy" decoding="async" alt="">':'<span class="item-icon sm" aria-hidden="true"></span>',taxonomy=itemWorkspaceTaxonomyLabel(row),desc=String(row.description||'').trim(),p=row.presentation,actionable=row.source==='campaign'||p&&p.actionCount+p.interactionCount+p.lifecycleCount+p.effectCount>0;
+const icon=itemIconHTML(row,42),taxonomy=itemWorkspaceTaxonomyLabel(row),desc=String(row.description||'').trim(),p=row.presentation,actionable=row.source==='campaign'||p&&p.actionCount+p.interactionCount+p.lifecycleCount+p.effectCount>0;
 return '<div class="catalog-result-row'+(selected?' selected':'')+'" data-item-id="'+esc(row.id)+'">'+icon+'<button class="catalog-result-open" type="button" onclick="itemWorkspaceSelect('+esc(JSON.stringify(row.id))+')" aria-label="Открыть карточку '+esc(row.name)+'" aria-pressed="'+(selected?'true':'false')+'"><div class="catalog-result-name">'+esc(row.name)+'</div><div class="catalog-result-meta">'+esc(taxonomy+(row.rarity?' · '+row.rarity:'')+(actionable?' · готов к движку':''))+'</div>'+(desc?'<div class="catalog-result-desc">'+esc(desc)+'</div>':'')+'</button>'+itemWorkspaceGrantControlsHTML(row,true)+'</div>';
 }
 function itemWorkspaceSelectedRow(rows){
@@ -26620,7 +26642,8 @@ id=String(id||'');itemWorkspace.selectedId=id;itemWorkspace.presentationSelected
 }
 function itemWorkspaceDetailHTML(row){
 if(!row)return '<div class="catalog-state item-detail-placeholder"><div><b>Ничего не найдено</b><br>Измените запрос или сбросьте фильтры.</div></div>';
-if(row.source==='bg3')itemWorkspaceEnsureHydrated(row);if(row.source==='bg3'&&!row.item){const icon=row.icon&&row.icon.src?'<img class="item-icon" src="'+esc(row.icon.src)+'" width="64" height="64" loading="eager" decoding="async" alt="">':'';return '<div class="entry-card item-detail-placeholder">'+icon+'<div><h4>'+esc(row.name)+'</h4><p>Загружаются описание, характеристики и доступные действия…</p></div></div>';}
+if(row.source==='bg3')itemWorkspaceEnsureHydrated(row);if(row.source==='bg3'&&!row.item){const icon=itemIconHTML(row,64);return '<div class="entry-card item-detail-placeholder">'+icon+'<div><h4>'+esc(row.name)+'</h4><p>Загружаются описание, характеристики и доступные действия…</p></div></div>';}
+if(!itemArsenalReadiness(row.item).ok)return '<div class="catalog-state" role="alert">Карточка не прошла проверку полноты. Выдача недоступна.</div>';
 const it=row.item,extra=itemWorkspaceGrantControlsHTML(row,false)+(row.source==='campaign'?'<button class="btn ghost sm" onclick="openItemEd('+esc(JSON.stringify(row.id))+')">✎ изменить</button><button class="del-x" onclick="delItemDB('+esc(JSON.stringify(row.id))+')">✕</button>':'');
 const actor=itemWorkspaceHero();return itemCardHTML(it,extra,{fullDescription:true,presentationDetail:true,actorId:actor&&actor.id||''});
 }
@@ -26632,7 +26655,7 @@ catch(error){if(epoch!==bg3Catalog.epoch||error&&error.code==='BG3_CATALOG_STALE
 async function itemWorkspaceGrantPlanFor(actorId,itemId,qty,opts){
 opts=opts||{};const c=getCh(String(actorId||'')),amount=Number(qty);if(!c)return {ok:false,reason:'выбранный герой не найден'};if(!Number.isInteger(amount)||amount<1||amount>999)return {ok:false,reason:'количество должно быть целым числом от 1 до 999'};
 const epoch=bg3Catalog.epoch;let presentation=null;if(bg3CatalogIsId(itemId)){presentation=await bg3ItemPresentationEnsure();if(epoch!==bg3Catalog.epoch)return {ok:false,stale:true,reason:'профиль каталога изменился во время загрузки'};if(!presentation||!presentation.byItem.has(String(itemId)))return {ok:false,reason:'предмет не входит в проверенный строгий арсенал'};await bg3CatalogHydrate([itemId]);}if(epoch!==bg3Catalog.epoch)return {ok:false,stale:true,reason:'профиль каталога изменился во время загрузки'};
-const it=itemOf(itemId);if(!it)return {ok:false,reason:'предмет отсутствует в текущей базе'};const sourceAudit=bg3ItemSourceAuditOverride(it);if(bg3CatalogIsId(itemId)&&sourceAudit&&sourceAudit.inventory===false)return {ok:false,manual:true,reason:sourceAudit.reason};if(bg3CatalogIsId(itemId)){const source=it.source||{},classification=source.classification,profile=itemProfile(it),sourcePortableBlock=bg3ItemSourceInventoryBlock(it),inventoryClass=['playable','duplicate'].includes(classification)||(classification==='needs-review'&&source.category&&source.category!=='unclassified');if(sourcePortableBlock)return {ok:false,reason:sourcePortableBlock};if(!inventoryClass||profile.flags.portable!==true)return {ok:false,reason:'этот объект относится к миру или вспомогательным данным и не переносится в инвентарь'};if(itemMassKg(it)==null)return {ok:false,reason:'вес этого предмета неприменим или не определён; выдача в инвентарь заблокирована'};}
+const it=itemOf(itemId);if(!it)return {ok:false,reason:'предмет отсутствует в текущей базе'};if(!itemArsenalReadiness(it).ok)return {ok:false,reason:'предмет не прошёл проверку полноты; выдача недоступна'};const sourceAudit=bg3ItemSourceAuditOverride(it);if(bg3CatalogIsId(itemId)&&sourceAudit&&sourceAudit.inventory===false)return {ok:false,manual:true,reason:sourceAudit.reason};if(bg3CatalogIsId(itemId)){const source=it.source||{},classification=source.classification,profile=itemProfile(it),sourcePortableBlock=bg3ItemSourceInventoryBlock(it),inventoryClass=['playable','duplicate'].includes(classification)||(classification==='needs-review'&&source.category&&source.category!=='unclassified');if(sourcePortableBlock)return {ok:false,reason:sourcePortableBlock};if(!inventoryClass||profile.flags.portable!==true)return {ok:false,reason:'этот объект относится к миру или вспомогательным данным и не переносится в инвентарь'};if(itemMassKg(it)==null)return {ok:false,reason:'вес этого предмета неприменим или не определён; выдача в инвентарь заблокирована'};}
 let valueGp=null,valueCp=null;if(itemUsesInventoryValue(it)){const requestedValueGp=opts.valueGp;if(requestedValueGp==null)return {ok:false,needsValue:true,item:it,c,qty:amount,reason:'нужна оценочная стоимость экземпляра'};const valueCopper=exactCopperFromGp(requestedValueGp);if(valueCopper==null||valueCopper<=0)return {ok:false,reason:'стоимость должна быть положительной суммой с точностью до медной монеты'};valueCp=String(valueCopper);valueGp=valueCopper/100;}
 const transition=bg3InventoryMutationGuard(c,[],{context:'catalog-give',additions:[{itemId,qty:amount}]});if(!transition.ok)return transition;
 return {ok:true,kind:'catalog-give-plan',actorId:c.id,itemId:String(itemId),qty:amount,valueGp:valueGp==null?null:valueGp,valueCp,epoch,c,it,presentation,itemSnapshot:JSON.stringify(itemClone(it)),inventorySnapshot:JSON.stringify(itemClone(c.inventory||[])),equipmentSnapshot:JSON.stringify(itemClone(c.equipment||{})),catalogVersion:bg3Catalog.current&&bg3Catalog.current.catalogVersion||'',profile:bg3Catalog.preferredProfile||'',committed:false};
@@ -27250,7 +27273,7 @@ return h+'</div>';
 function itemWorkspaceFilterSet(key,value,controlId){if(!Object.prototype.hasOwnProperty.call(dbFlt.it,key))return;dbFlt.it[key]=String(value||'');bg3Catalog.page=0;itemWorkspace.selectedId='';itemWorkspace.presentationSelectedId='';renderItemsDB();const control=controlId&&document.getElementById(controlId);if(control&&typeof control.focus==='function')control.focus();}
 function itemWorkspaceResetFilters(){dbFlt.it={q:'',taxonomy:'',rarity:'',tag:'',sort:'name'};bg3Catalog.page=0;itemWorkspace.selectedId='';itemWorkspace.presentationSelectedId='';renderItemsDB();}
 function itemWorkspaceFacetValues(){
-const cache=bg3Catalog.index?bg3CatalogSearchCacheEnsure():null,facets={taxonomies:new Map(),rarities:new Set(),tags:new Set()};for(const sourceRow of cache&&cache.rows||[]){const row=itemWorkspaceRowFromBg3(sourceRow),key=itemWorkspaceTaxonomyKey(row);facets.taxonomies.set(key,itemWorkspaceTaxonomyLabel(row));facets.rarities.add(row.rarity);for(const tag of row.tags)facets.tags.add(tag);}for(const it of itemsDB){if(!itemArsenalReadiness(it).ok)continue;const row=itemWorkspaceRowFromLocal(it),key=itemWorkspaceTaxonomyKey(row);facets.taxonomies.set(key,itemWorkspaceTaxonomyLabel(row));facets.rarities.add(row.rarity);for(const tag of row.tags)facets.tags.add(tag);}return facets;
+const facets={taxonomies:new Map(),rarities:new Set(),tags:new Set()};for(const row of itemWorkspaceCanonicalRows()){const key=itemWorkspaceTaxonomyKey(row);facets.taxonomies.set(key,itemWorkspaceTaxonomyLabel(row));facets.rarities.add(row.rarity);for(const tag of row.tags)facets.tags.add(tag);}return facets;
 }
 function itemWorkspaceOption(value,current,label){return '<option value="'+esc(value)+'"'+(current===value?' selected':'')+'>'+esc(label)+'</option>';}
 function itemWorkspaceFiltersHTML(){

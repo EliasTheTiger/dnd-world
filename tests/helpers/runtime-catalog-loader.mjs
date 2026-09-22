@@ -61,6 +61,19 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         racesDB,classesDB,rulesDB,foesDB,activeCharId,fxRound,combat,lastCastEvent
       }; },
       runItemIntegrationAudit, runRareBattleAudit, runSpellPreparationAudit,
+      itemsApi: {
+        rows:itemWorkspaceCanonicalRows, search:itemWorkspaceSearch, filters:dbFlt.it,
+        row:itemWorkspaceRowFromBg3, detail:itemWorkspaceDetailHTML, icon:itemIconHTML,
+        list:itemWorkspaceListRowHTML, card:itemCardHTML, grant:itemWorkspaceGrantPlanFor,
+        readiness:itemArsenalReadiness, summary:bg3ReleaseSummaryHTML,
+        install(index, presentation, loaded=[]) {
+          bg3Catalog.epoch++;bg3Catalog.index=index;
+          bg3Catalog.summaries=new Map(index.items.map(row=>[row.id,row]));
+          bg3Catalog.items=new Map(loaded.map(item=>[item.id,item]));
+          bg3ItemPresentation.root=presentation?{byItem:new Map(presentation.items.map(row=>[row[0],{itemId:row[0]}]))}:null;
+          bg3ItemPresentation.byItem=bg3ItemPresentation.root?bg3ItemPresentation.root.byItem:new Map();
+        },
+      },
       grimoireApi:{rules:GRIMOIRE_RULES,reconcile:grimoireReconcile,spellOf,grimoireActive,grimoireDuplicateName,spellCardHTML,renderSpellsDB,delSpellDB,grimoireRestore,spellClassTokens,spellRuleOf,inferComponents,spellExecutionPreflight,upgradeSpell,upgradeAbility,upgradeRace,upgradeClass,
         grimoireSpellStatus,grimoireFavorite,grimoireNote,grimoireCompare,grimoireOpenCast,grimoireComparisonHTML,casterGuideHTML,circleLandSet,desk:grimoireDesk},
       abilitiesApi:{rules:ABILITY_RULES,reconcile:reconcileAbilityRules,reconcileAssignments:reconcileAbilityAssignments,abilityCatalogIndex,abilityUniqueEntries,characterSyncFeatures,addRaceTraitsToChar,quickAddAbility,saveAbilityEd,abilitySelectVariant,abilityMaxUses,abilityOutcomePreflight,canUseAbilityCheck,abilityCardHTML,addAbilityFromDB,delCharAbility,stAbilities,renderAbilitiesDB,abilityCastFx,abilityOf,combatAbilityUsedThisTurn,combatAttackCount,filters:dbFlt.ab,
