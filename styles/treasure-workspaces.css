@@ -107,3 +107,18 @@
 @media(max-width:950px){.trade-columns{grid-template-columns:1fr}.trade-workspace .chest-workspace{grid-template-columns:190px minmax(0,1fr)}.trade-workspace .chest-actions{grid-template-columns:1fr}}
 @media(max-width:700px){.trade-heading{align-items:start;gap:12px}.trade-heading h2{font-size:30px}.trade-badge{font-size:11px;padding:6px}.trade-party{grid-template-columns:1fr 1fr;gap:15px;padding:16px}.trade-party>.trade-field{grid-column:1/-1}.trade-workspace .chest-workspace{grid-template-columns:1fr;gap:16px}.trade-workspace .chest-list{position:static;max-height:200px;grid-template-columns:repeat(2,minmax(0,1fr))}.trade-workspace .chest-list:empty{display:none}.trade-tabs{gap:2px}.trade-tabs button{font-size:14px;padding:10px}.trade-workspace .merchant-panel,.trade-workspace .chest-section,.trade-create{padding:15px}.trade-add{display:grid;grid-template-columns:1fr}.trade-workspace .merchant-money{grid-template-columns:repeat(3,minmax(0,1fr))}.trade-form{gap:12px}.trade-workspace .chest-actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.trade-workspace .chest-actions{grid-template-columns:1fr}.trade-product{gap:12px}.trade-total{font-size:12px}.trade-buy{gap:8px}.trade-workspace .chest-editor-head{padding:14px}.trade-workspace .chest-loot-row{grid-template-columns:minmax(0,1fr) 66px auto;gap:8px}.trade-workspace .chest-name{font-size:21px}}
+.recipe-intro h3{margin:0 0 6px;color:var(--rubric,#8d2114)}
+.recipe-intro p{margin:0 0 16px;color:var(--ink-faint,#695338)}
+.recipe-filters{display:grid;grid-template-columns:minmax(220px,2fr) 1fr 1fr;gap:12px;margin:12px 0}
+.recipe-filters label,.recipe-form>label,.recipe-card>label{display:grid;gap:5px}
+.recipe-filters input,.recipe-filters select,.recipe-form input,.recipe-form select,.recipe-card>label select{width:100%;box-sizing:border-box}
+.recipe-ingredient{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line,#c0a678)}
+.recipe-ingredient>div{flex:1;min-width:0}.recipe-ingredient>div>div{font-size:13px;color:var(--ink-faint,#695338)}
+.recipe-stock{padding:4px 7px;border:1px solid #6e7950;color:#43582d;white-space:nowrap}.recipe-stock.missing{border-color:#a45537;color:#842d1b}
+.recipe-toolbar{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}.recipe-card h4{margin:18px 0 8px}
+.recipe-form{display:grid;gap:12px;margin-top:16px;padding-top:14px;border-top:2px solid var(--gold,#92773e)}
+.recipe-form .recipe-check{display:flex;align-items:flex-start;gap:7px}.recipe-check input{width:auto;margin-top:3px}
+.recipe-confirm{padding:12px;border:2px solid var(--gold,#92773e);background:rgba(244,233,202,.7)}
+.recipe-ready{border-left:3px solid #5c713b}.recipe-card .recipe-result-head h3{margin:0 0 8px}.recipe-card .recipe-result-head .type-tag{margin:0 5px 5px 0}
+@media(max-width:760px){.recipe-filters{grid-template-columns:1fr}.recipe-card .recipe-result-head{align-items:flex-start}.recipe-stock{font-size:12px}.recipe-form{padding:10px}.recipe-workbench .asset-master-detail{grid-template-columns:1fr}}
+.recipe-result-head{display:flex;align-items:center;gap:14px}.recipe-result-head>div{min-width:0}.recipe-card{overflow-wrap:anywhere}.recipe-card .editor label{display:grid;gap:5px;margin:10px 0}.recipe-card .editor input,.recipe-card .editor textarea{width:100%;box-sizing:border-box}.recipe-history{margin-top:20px}

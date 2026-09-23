@@ -220,6 +220,8 @@
 <script src="scripts/grimoire-rules.js"></script>
 <script src="scripts/hobbyworld-ability-terms.js"></script>
 <script src="scripts/ability-rules.js"></script>
+<script src="scripts/recipe-rules.js"></script>
+<script src="scripts/recipe-workbench.js"></script>
 <script src="data/dnd5e/srd51-spell-facts.js"></script>
 <script src="data/dnd5e/open5e-cc-v1/catalog.js"></script>
 <script>
@@ -3740,7 +3742,7 @@ const queued=campaignEnvelopeCasQueue.then(operation);campaignEnvelopeCasQueue=q
 };
 const campaignEnvelopeRepository=PERSISTENCE_CORE?new PERSISTENCE_CORE.EnvelopeRepository({adapter:campaignEnvelopeAdapter,key:CAMPAIGN_ENVELOPE_KEY,backupKey:CAMPAIGN_ENVELOPE_BACKUP_KEY}):null;
 let worldSnapshotRevision=0;
-function worldSnapshotPayload(){const snapshotRevision=++worldSnapshotRevision,payload={schemaVersion:WORLD_SNAPSHOT_SCHEMA,snapshotRevision,campaignMagic,chars,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,
+function worldSnapshotPayload(){const snapshotRevision=++worldSnapshotRevision,payload={schemaVersion:WORLD_SNAPSHOT_SCHEMA,snapshotRevision,campaignMagic,recipeState,chars,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,
 classes:classesDB,rules:rulesDB,foes:foesDB,fxRound,combat,harvestedSources,economyState,merchantState,worldState,chestState,catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};return PROJECTION_CORE?PROJECTION_CORE.stripDerived(payload):payload;}
 function validWorldSnapshot(value){return !!(value&&value.schemaVersion===WORLD_SNAPSHOT_SCHEMA&&Array.isArray(value.chars)&&Array.isArray(value.items)
 &&Array.isArray(value.spells)&&Array.isArray(value.abilities)&&Array.isArray(value.races)&&Array.isArray(value.classes)&&Array.isArray(value.rules)&&Array.isArray(value.foes));}
@@ -3867,6 +3869,7 @@ campaignEnvelopeRevision=-1;campaignLastPersistenceReceipt=null;campaignEnvelope
 if(!savedWorldRaw)savedWorldRaw=await readJSON('dndworld2:world-snapshot');
 const savedWorld=validWorldSnapshot(savedWorldRaw)?savedWorldRaw:null;
 campaignMagic=MAGIC_RULES.settings(savedWorld&&savedWorld.campaignMagic);
+recipeState=RECIPE_RULES.state(savedWorld&&savedWorld.recipeState);
 worldState=WORLD_STATE_CORE?WORLD_STATE_CORE.normalize(savedWorld&&savedWorld.worldState||WORLD_STATE_CORE.blank('default')):(savedWorld&&savedWorld.worldState||worldState);
 chestState=CHEST_CORE?CHEST_CORE.normalizeState(savedWorld?savedWorld.chestState:await readJSON('dndworld2:chest-state')):(savedWorld&&savedWorld.chestState||chestState);
 economyState=normalizeEconomyState(savedWorld?savedWorld.economyState:await readJSON('dndworld2:economy-state'));economyServiceCache=null;
@@ -4204,7 +4207,7 @@ compute:v=>inp.value.trim()+' → '+(v.s+mod2),
 apply:v=>diceOutSet(inp.value.trim()+' → '+(v.s+mod2)+' (кости '+v.s+(mod2?(mod2>0?' +':' ')+mod2:'')+')')});
 }
 function dndWorldExportPayload(){
-return {app:'dndworld2', exported:new Date().toISOString(),campaignMagic,
+return {app:'dndworld2', exported:new Date().toISOString(),campaignMagic,recipeState,
 chars, journal, combat, harvestedSources, economyState, merchantState, worldState, chestState, items:itemsDB, spells:spellsDB, abilities:abilitiesDB, races:racesDB, classes:classesDB, rules:rulesDB, foes:foesDB,
 catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};
 }
@@ -4219,7 +4222,7 @@ let catalogWarning='';
 if(data&&data.app==='dndworld2'){
 const importedMagic=MAGIC_RULES.settings(data.campaignMagic);
 for(const c of (data.chars||[])){MAGIC_RULES.slots(c.slots);if(c.magicResource)MAGIC_RULES.validateState(c.magicResource);}
-campaignMagic=importedMagic;
+campaignMagic=importedMagic;recipeState=RECIPE_RULES.state(data.recipeState);
 chars=data.chars||[]; journal=data.journal||[];
 if(typeof bg3InventoryStatusTransitionReset==='function')bg3InventoryStatusTransitionReset();
 combat=normalizeCombatState(data.combat);
@@ -10712,7 +10715,7 @@ const rootCommitPostcondition=(record,plan)=>{if(plan.combat){const object=ownDa
 const rootPresentationCall=callback=>{const roots=rootWorldRoots(null,false),captured=graphCapture(roots),checkpoint=captured.ok&&summonCheckpointCapture(roots);if(!captured.ok||!checkpoint)return false;try{callback();}catch(_error){}const checked=rootWorldBindingsSame(roots,null,false)&&graphCheck(roots,captured.graph).ok;if(!checked)try{rootWorldRebind(roots);return !!summonCheckpointRestore(checkpoint)&&rootWorldBindingsSame(roots,null,false)&&graphCheck(roots,captured.graph).ok;}catch(_error){return false;}return true;};
 const rootPostwriteReceiptCapture=(record,plan)=>{if(!rootStaticAuthorityCheck()||!record||record.tokenState.state!=='committing'||!privateIntrinsics.weakSetHas(state.rootLocks,record.source.entry)||!rootCommitPostcondition(record,plan)||!rootSourceEntryCheck(record.source).ok||pinnedAction(record.official.itemId,record.official.useId)!==record.official||rootKnownBinding(record.official.useId)!==record.known)return {ok:false,reason:'private-item-root-postwrite-authority-failed'};const roots=rootWorldRoots(record.ctx,true);if(!rootWorldBindingsSame(roots,record.ctx,true)||castCtx!==record.ctx||privateIntrinsics.weakMapGet(state.rootContexts,record.ctx)!==record)return {ok:false,reason:'private-item-root-postwrite-world-changed'};const graph=graphCapture(roots);return graph.ok?{ok:true,roots,graph:graph.graph}:graph;};
 const rootPostwriteReceiptCheck=(record,plan,receipt)=>{if(!receipt||!rootStaticAuthorityCheck()||record.tokenState.state!=='committing'||!privateIntrinsics.weakSetHas(state.rootLocks,record.source.entry)||!rootWorldBindingsSame(receipt.roots,record.ctx,true)||castCtx!==record.ctx||privateIntrinsics.weakMapGet(state.rootContexts,record.ctx)!==record||!rootCommitPostcondition(record,plan)||!rootSourceEntryCheck(record.source).ok||pinnedAction(record.official.itemId,record.official.useId)!==record.official||rootKnownBinding(record.official.useId)!==record.known)return {ok:false,reason:'private-item-root-postwrite-tail-failed'};const graph=graphCheck(receipt.roots,receipt.graph);return graph.ok?{ok:true}:graph;};
-const rootWorldSnapshotSerialize=record=>{const identity=record&&record.official&&record.official.identity;if(!identity||typeof identity.version!=='string'||typeof identity.profile!=='string'||typeof identity.manifestSha256!=='string'||!summonNumberIntegerBinding(worldSnapshotRevision)||worldSnapshotRevision<0||worldSnapshotRevision>=9007199254740991)return {ok:false,reason:'private-item-root-world-snapshot-identity-required'};const catalogRef={id:'bg3',version:identity.version,profile:'standard'};if(identity.manifestSha256)catalogRef.manifestSha256=identity.manifestSha256;const snapshotRevision=worldSnapshotRevision+1,payload={schemaVersion:WORLD_SNAPSHOT_SCHEMA,snapshotRevision,chars,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,classes:classesDB,rules:rulesDB,foes:foesDB,fxRound,combat,harvestedSources,economyState,catalogRefs:[catalogRef],bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};let serialized,parsed;try{serialized=summonCanonicalJSON(payload);parsed=privateIntrinsics.jsonParse(serialized);}catch(_error){return {ok:false,reason:'private-item-root-world-snapshot-serialization-failed'};}if(typeof serialized!=='string'||!parsed||parsed.schemaVersion!==WORLD_SNAPSHOT_SCHEMA||parsed.snapshotRevision!==snapshotRevision||!privateIntrinsics.arrayIsArray(parsed.chars)||!privateIntrinsics.arrayIsArray(parsed.items)||!privateIntrinsics.arrayIsArray(parsed.spells)||!privateIntrinsics.arrayIsArray(parsed.abilities)||!privateIntrinsics.arrayIsArray(parsed.races)||!privateIntrinsics.arrayIsArray(parsed.classes)||!privateIntrinsics.arrayIsArray(parsed.rules)||!privateIntrinsics.arrayIsArray(parsed.foes)||!parsed.economyState||parsed.economyState.schemaVersion!==ECONOMY_STATE_SCHEMA||!privateIntrinsics.arrayIsArray(parsed.catalogRefs)||parsed.catalogRefs.length!==1)return {ok:false,reason:'private-item-root-world-snapshot-validation-failed'};return {ok:true,serialized,snapshotRevision};};
+const rootWorldSnapshotSerialize=record=>{const identity=record&&record.official&&record.official.identity;if(!identity||typeof identity.version!=='string'||typeof identity.profile!=='string'||typeof identity.manifestSha256!=='string'||!summonNumberIntegerBinding(worldSnapshotRevision)||worldSnapshotRevision<0||worldSnapshotRevision>=9007199254740991)return {ok:false,reason:'private-item-root-world-snapshot-identity-required'};const catalogRef={id:'bg3',version:identity.version,profile:'standard'};if(identity.manifestSha256)catalogRef.manifestSha256=identity.manifestSha256;const snapshotRevision=worldSnapshotRevision+1,payload={schemaVersion:WORLD_SNAPSHOT_SCHEMA,snapshotRevision,recipeState,chars,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,classes:classesDB,rules:rulesDB,foes:foesDB,fxRound,combat,harvestedSources,economyState,catalogRefs:[catalogRef],bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};let serialized,parsed;try{serialized=summonCanonicalJSON(payload);parsed=privateIntrinsics.jsonParse(serialized);}catch(_error){return {ok:false,reason:'private-item-root-world-snapshot-serialization-failed'};}if(typeof serialized!=='string'||!parsed||parsed.schemaVersion!==WORLD_SNAPSHOT_SCHEMA||parsed.snapshotRevision!==snapshotRevision||!privateIntrinsics.arrayIsArray(parsed.chars)||!privateIntrinsics.arrayIsArray(parsed.items)||!privateIntrinsics.arrayIsArray(parsed.spells)||!privateIntrinsics.arrayIsArray(parsed.abilities)||!privateIntrinsics.arrayIsArray(parsed.races)||!privateIntrinsics.arrayIsArray(parsed.classes)||!privateIntrinsics.arrayIsArray(parsed.rules)||!privateIntrinsics.arrayIsArray(parsed.foes)||!parsed.economyState||parsed.economyState.schemaVersion!==ECONOMY_STATE_SCHEMA||!privateIntrinsics.arrayIsArray(parsed.catalogRefs)||parsed.catalogRefs.length!==1)return {ok:false,reason:'private-item-root-world-snapshot-validation-failed'};return {ok:true,serialized,snapshotRevision};};
 const rootLocalStorageWriteExact=serialized=>{if(typeof serialized!=='string'||!rootStorageBinding||typeof rootStorageSetBinding!=='function')return false;try{privateIntrinsics.reflectApply(rootStorageSetBinding,rootStorageBinding,['dndworld2:world-snapshot',serialized]);return true;}catch(_error){return false;}};
 const rootPrimaryStorageEnqueueExact=serialized=>{if(typeof serialized!=='string'||!rootPrimaryStorageBinding||typeof rootPrimaryStorageSetBinding!=='function')return false;try{const pending=privateIntrinsics.reflectApply(rootPrimaryStorageSetBinding,rootPrimaryStorageBinding,['dndworld2:world-snapshot',serialized]);if(pending)try{privateIntrinsics.promiseThen(pending,()=>true,()=>false);}catch(_error){}return true;}catch(_error){return false;}};
 const rootStorageCommitCall=(record,plan,serialized)=>{const roots=rootWorldRoots(record&&record.ctx,true),captured=graphCapture(roots),checkpoint=captured.ok&&summonCheckpointCapture(roots);if(!record||!plan||!captured.ok||!checkpoint||!rootWorldBindingsSame(roots,record.ctx,true)||castCtx!==record.ctx||privateIntrinsics.weakMapGet(state.rootContexts,record.ctx)!==record)return false;try{rootPrimaryStorageEnqueueExact(serialized);}catch(_error){}const checked=rootWorldBindingsSame(roots,record.ctx,true)&&castCtx===record.ctx&&privateIntrinsics.weakMapGet(state.rootContexts,record.ctx)===record&&graphCheck(roots,captured.graph).ok&&savePendWorld===true&&rootCommitPostcondition(record,plan);if(checked)return true;try{rootWorldRebind(roots);castCtx=record.ctx;return !!summonCheckpointRestore(checkpoint)&&rootWorldBindingsSame(roots,record.ctx,true)&&castCtx===record.ctx&&privateIntrinsics.weakMapGet(state.rootContexts,record.ctx)===record&&graphCheck(roots,captured.graph).ok&&savePendWorld===true&&rootCommitPostcondition(record,plan);}catch(_error){return false;}};
@@ -14208,7 +14211,7 @@ const it=itemOf(e.itemId); if(!it) return;
 upgradeItem(it);
 const use=itemUseOf(it,useId); if(!use) return;
 if(bg3ItemStorageStoryExecutionBlocked(it,use))return false;
-if(bg3RecipeProgramAction(use))return bg3RecipeProgramOpen(entryId,caster.id,use.id);
+if(bg3RecipeProgramAction(use))return bg3RecipeProgramOpen(entryId,caster.id,use.id,true);
 if(bg3LearnSpellProgramAction(use))return bg3LearnSpellOpen(entryId,caster.id,use.id);
 const bookPlan=bg3RuleProgramPlanOf(use),bookReady=bg3BookProgramReady(bookPlan,caster);
 if(!bookReady.ok){if(bookReady.pending){setStatus('⌁ Загружается содержимое книги…');bg3BookPrepareProgram(bookPlan,caster).then(check=>{if(!check.ok){setStatus('✕ '+bg3PublicRuntimeReason(check.reason,'Содержимое книги пока недоступно.'),true);return;}itemCastFx(entryId,caster.id,use.id);});return;}setStatus('✕ '+bg3PublicRuntimeReason(bookReady.reason,'Содержимое книги пока недоступно.'),true);return;}
@@ -16056,9 +16059,10 @@ renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderRaces(); renderCla
 });
 const chCamp=makeChan('кампания','c',
 ()=>{ const b=syncBase(), r=syncRoom(); return (b&&r)? b+'/campaigns/'+r+'.json' : null; },
-()=>({ chars, journal, combat, harvestedSources, economyState, merchantState, worldState, chestState, catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState }),
+()=>({ chars, journal, combat, recipeState, harvestedSources, economyState, merchantState, worldState, chestState, catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState }),
 (d)=>{ const incomingRefs=Array.isArray(d.catalogRefs)?d.catalogRefs:[],incomingHonourProfile=bg3CatalogHasLegacyHonourRef(incomingRefs),catalogRefsOk=bg3CatalogUseRefs(bg3CatalogStandardRefs(incomingRefs));
 if(!catalogRefsOk)setStatus('Кампания содержит некорректную ссылку на каталог BG3.',true);
+recipeState=RECIPE_RULES.state(d.recipeState);
 chars=(d.chars||[]).map(x=>typeof upgradeChar3==='function'?upgradeChar3(x):x);chars.forEach(bg3LearnedSpellUpgradeEntries); journal=d.journal||[];
 combat=normalizeCombatState(d.combat); harvestedSources=d.harvestedSources&&typeof d.harvestedSources==='object'?d.harvestedSources:{};
 economyState=normalizeEconomyState(d.economyState);economyServiceCache=null;
@@ -16105,7 +16109,7 @@ const nextTreasure=bg3TreasureNormalizeState(remote.bg3TreasureState||bg3Treasur
 const remoteEconomy=normalizeEconomyState(remote.economyState),nextEconomy=normalizeEconomyState(economyState);
 nextEconomy.operations=mergeStableEntries(remoteEconomy.operations,nextEconomy.operations);nextEconomy.priceAudit=mergeStableEntries(remoteEconomy.priceAudit,nextEconomy.priceAudit);
 nextEconomy.priceSettings=Object.assign({},nextEconomy.priceSettings,remoteEconomy.priceSettings);nextEconomy.tradeContext=Object.assign({},nextEconomy.tradeContext,remoteEconomy.tradeContext);
-return {chars:nextChars,journal:nextJournal,combat:nextCombat,harvestedSources:nextHarvested,economyState:nextEconomy,catalogRefs,bg3SceneState:nextScene,bg3StoryState:nextStory,bg3TadpoleState:nextTadpole,bg3TreasureState:nextTreasure};
+return {chars:nextChars,journal:nextJournal,combat:nextCombat,recipeState:RECIPE_RULES.state(remote.recipeState||recipeState),harvestedSources:nextHarvested,economyState:nextEconomy,catalogRefs,bg3SceneState:nextScene,bg3StoryState:nextStory,bg3TadpoleState:nextTadpole,bg3TreasureState:nextTreasure};
 }
 
 
@@ -18461,7 +18465,7 @@ return combatUseItemForActor(key,entryId,um[1],combatItemActionCost(a));
 }
 if(/^bg3RecipeProgramOpen/.test(a.fn)){
 const um=String(a.fn).match(/bg3RecipeProgramOpen\('[^']*','[^']*','([^']+)'\)/);if(!um)return false;
-activeCharId=o.id;bg3RecipeProgramOpen(entryId,o.id,um[1]);return true;
+activeCharId=o.id;bg3RecipeProgramOpen(entryId,o.id,um[1],true);return true;
 }
 if(/^bg3LearnSpellOpen/.test(a.fn)){
 const um=String(a.fn).match(/bg3LearnSpellOpen\('[^']*','[^']*','([^']+)'\)/);if(!um)return false;
@@ -19267,6 +19271,7 @@ const explicit=recipe&&recipe.requirements||{},tools=Array.isArray(selectedToolI
 facilities=[explicit.facility].concat(tools.map(id=>CRAFT_FACILITY_BY_TOOL[id])).filter(Boolean);
 return {formulaRequired:explicit.formulaRequired===true,toolMode:explicit.toolMode==='any'?'any':'all',facilities:[...new Set(facilities)],explicit};
 }
+const legacyCraftProofs=new WeakMap();
 function craftPlanFor(c,recipeId,opts){
 opts=opts||{};
 const recipe=(typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).find(r=>r.id===recipeId);
@@ -19313,16 +19318,18 @@ if(left>0){ const it=itemOf(input.itemId); return {ok:false,reason:'Не хва�
 const result=itemOf(recipe.result.itemId);
 if(!result) return {ok:false,reason:'Результат рецепта отсутствует в базе: '+recipe.result.itemId+'.'};
 const transitionGuard=bg3InventoryMutationGuard(c,deductions,{context:'legacy-craft',additions:[{itemId:recipe.result.itemId,qty:+recipe.result.qty||0}]});if(!transitionGuard.ok)return transitionGuard;
-return {ok:true,caster:c,recipe,toolEntries,toolEntry:toolEntries[0]||null,selectedToolIds,slot,deductions,result,craftReq,
+const plan={ok:true,caster:c,recipe,toolEntries,toolEntry:toolEntries[0]||null,selectedToolIds,slot,deductions,result,craftReq,
 formulaConfirmed:craftReq.formulaRequired&&!alreadyKnows&&opts.formulaConfirmed===true,
 confirmedFacilities,facilityConfirmed:!unconfirmedFacilities.length};
+legacyCraftProofs.set(plan,{used:false,stamp:recipeActorStamp(c)});return plan;
 }
 function commitCraftPlan(plan){
-if(!plan||!plan.ok||!plan.caster||!plan.recipe) return {ok:false,reason:'Нет подтвержденного плана ремесла.'};
+const proof=plan&&legacyCraftProofs.get(plan);if(!proof||proof.used||!plan.ok||!plan.caster||!plan.recipe)return {ok:false,reason:'Нет нового подтверждённого плана ремесла.'};if(proof.stamp!==recipeActorStamp(plan.caster))return {ok:false,reason:'Герой изменился: проверьте изготовление заново.'};
 const fresh=craftPlanFor(plan.caster,plan.recipe.id,{toolId:plan.selectedToolIds&&plan.selectedToolIds[0],formulaConfirmed:!!plan.formulaConfirmed,confirmedFacilities:(plan.confirmedFacilities||[]).slice()});
 if(!fresh.ok) return fresh;
 const c=fresh.caster;
 const transitionGuard=bg3InventoryMutationGuard(c,fresh.deductions,{context:'legacy-craft-commit',additions:[{itemId:fresh.recipe.result.itemId,qty:+fresh.recipe.result.qty||0}]});if(!transitionGuard.ok)return transitionGuard;
+proof.used=true;
 if(fresh.formulaConfirmed){ c.knownRecipes=Array.isArray(c.knownRecipes)?c.knownRecipes:[]; if(c.knownRecipes.indexOf(fresh.recipe.id)<0)c.knownRecipes.push(fresh.recipe.id); }
 fresh.deductions.forEach(d=>{
 const e=invEntryOf(c,d.entryId);
@@ -19334,7 +19341,7 @@ c.inventory=c.inventory.filter(x=>x.id!==e.id);
 }
 });
 if(fresh.slot&&fresh.recipe.requirements&&fresh.recipe.requirements.consumeSlot)commitSlotPlan(c,magicUsesMp()?fresh.slot:{mode:'slot',lv:+fresh.recipe.requirements.slotLevel});
-let out=(c.inventory||[]).find(e=>e.itemId===fresh.recipe.result.itemId);
+let out=(c.inventory||[]).find(e=>e.itemId===fresh.recipe.result.itemId&&Object.keys(e).every(k=>['id','itemId','qty','notes'].includes(k))&&!e.notes);
 if(out) out.qty=(+out.qty||0)+fresh.recipe.result.qty;
 else { out={id:'inv_'+uid(),itemId:fresh.recipe.result.itemId,qty:fresh.recipe.result.qty,notes:''}; c.inventory.push(out); }
 const elapsedRounds=worldDurationRounds(fresh.recipe.duration);
@@ -19350,48 +19357,11 @@ return '<div class="props-block" style="margin:7px 0"><div class="row-line"><b c
 +'<button class="btn '+(p.ok?'rub':'ghost')+' sm" style="margin-top:5px" '+(p.ok?'onclick="craftExecute(\''+r.id+'\')"':'disabled title="'+esc(p.reason)+'"')+'>'+(p.ok?'Создать':'Недоступно: '+esc(p.reason))+'</button></div>';
 }
 function craftOpen(entryId){
-const c=cc(),e=c&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId),list=it&&craftRecipesForTool(it.id);
-if(!c||!it||!list||!list.length){ setStatus('✕ Для этого инструмента пока нет структурированных рецептов.',true); return false; }
-craftCtx={charId:c.id,toolEntryId:e.id};
-document.getElementById('craftTitle').textContent='🛠 '+it.n+' — ремесло';
-document.getElementById('craftInfo').textContent='Рецепты проверяют все ингредиенты до списания. Сайт не бросает кости и не продвигает календарь автоматически.';
-document.getElementById('craftBody').innerHTML=list.map(r=>craftRecipeLine(c,r)).join('');
-document.getElementById('craftBack').style.display='flex'; return true;
+const c=cc(),entry=c&&invEntryOf(c,entryId),list=entry&&craftRecipesForTool(entry.itemId);
+if(!c||!list?.length){setStatus('Для этого инструмента пока нет рецептов.',true);return false;}return recipeOpen(list[0].id,c.id);
 }
-function craftExecute(recipeId){
-const c=craftCtx&&getCh(craftCtx.charId),recipe=(typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).find(r=>r.id===recipeId),
-openedTool=c&&craftCtx&&invEntryOf(c,craftCtx.toolEntryId),
-preview=c&&recipe?craftPlanFor(c,recipeId,{deferRequirements:true,toolId:openedTool&&openedTool.itemId}):null,req=preview&&preview.ok?preview.craftReq:craftRequirementsOf(recipe);
-if(!c||!recipe){ setStatus('✕ Рецепт или ремесленник больше недоступны.',true); return false; }
-let formulaConfirmed=false;
-if(c&&req.formulaRequired&&(c.knownRecipes||[]).indexOf(recipeId)<0){
-if(!confirm('Мастер подтверждает, что «'+c.name+'» изучил формулу «'+recipe.n+'»?')) return false;
-formulaConfirmed=true;
-}
-const missing=req.facilities.filter(x=>(c.craftingFacilities||[]).indexOf(x)<0),facilityConfirmed=!missing.length||confirm('Подтвердите доступ к месту работы: '+missing.join(', ')+'.');
-if(!facilityConfirmed) return false;
-const plan=craftPlanFor(c,recipeId,{toolId:preview&&preview.selectedToolIds&&preview.selectedToolIds[0],facilityConfirmed,formulaConfirmed});
-if(!plan.ok){ setStatus('✕ '+plan.reason,true); if(c) document.getElementById('craftBody').innerHTML=craftRecipesForTool((itemOf((invEntryOf(c,craftCtx.toolEntryId)||{}).itemId)||{}).id).map(r=>craftRecipeLine(c,r)).join(''); return false; }
-const done=commitCraftPlan(plan); if(!done.ok){ setStatus('✕ '+done.reason,true); return false; }
-itemLog(c,'🛠 '+c.name+': создано «'+done.result.n+'» ×'+done.qty+'; работа заняла '+done.recipe.duration);
-renderChars();
-const tool=invEntryOf(c,craftCtx.toolEntryId); if(tool) document.getElementById('craftBody').innerHTML=craftRecipesForTool(tool.itemId).map(r=>craftRecipeLine(c,r)).join('');
-return true;
-}
-function craftDirect(recipeId,charId){
-const c=getCh(charId||activeCharId),recipe=(typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).find(r=>r.id===recipeId),
-preview=c&&recipe?craftPlanFor(c,recipeId,{deferRequirements:true}):null,req=preview&&preview.ok?preview.craftReq:craftRequirementsOf(recipe);
-if(!c||!recipe){ setStatus('✕ Рецепт или ремесленник не найдены.',true); return false; }
-let formulaConfirmed=false;
-if(req.formulaRequired&&(c.knownRecipes||[]).indexOf(recipeId)<0){ if(!confirm('Мастер подтверждает изученную формулу «'+recipe.n+'»?')) return false;formulaConfirmed=true; }
-const missing=req.facilities.filter(x=>(c.craftingFacilities||[]).indexOf(x)<0),facilityConfirmed=!missing.length||confirm('Подтвердите доступ к месту работы: '+missing.join(', ')+'.');
-if(!facilityConfirmed) return false;
-const plan=craftPlanFor(c,recipeId,{toolId:preview&&preview.selectedToolIds&&preview.selectedToolIds[0],facilityConfirmed,formulaConfirmed});
-if(!plan.ok){ setStatus('✕ '+plan.reason,true); return false; }
-const done=commitCraftPlan(plan); if(!done.ok){ setStatus('✕ '+done.reason,true); return false; }
-itemLog(c,'🛠 '+c.name+': создано «'+done.result.n+'» ×'+done.qty+'; работа заняла '+done.recipe.duration+(done.slot?(magicUsesMp()?' · потрачено '+done.slot.cost+' MP':' · ячейка '+done.recipe.requirements.slotLevel+' круга израсходована'):''));
-renderChars(); renderItemsDB(); return true;
-}
+function craftExecute(recipeId){return recipeOpen(recipeId,craftCtx?.charId||activeCharId);}
+function craftDirect(recipeId,charId){return recipeOpen(recipeId,charId||activeCharId);}
 function harvestYieldSpec(raw){
 const s=String(raw||'').trim(),m=s.match(/^(\d*)d(\d+)/i),fixed=s.match(/^(\d+)/);
 if(m) return {cnt:+m[1]||1,sides:+m[2],fixed:0,label:s};
@@ -19720,7 +19690,7 @@ if(use.trigger==='incomingDamage'||use.trigger==='wouldDropToZero'||use.trigger=
 B('↯',useLabel,"itemTriggerExplain('"+e.id+"','"+use.id+"')",'Контекстное свойство появляется внутри соответствующей формулы',use.cost); return;
 }
 if(bg3RecipeProgramAction(use)){
-B(useIcon[use.cost]||'⚗',useLabel,"bg3RecipeProgramOpen('"+e.id+"','"+c.id+"','"+use.id+"')",'Открыть связанный рецепт и проверить необходимые ингредиенты',use.cost);return;
+B(useIcon[use.cost]||'⚗',useLabel,"bg3RecipeProgramOpen('"+e.id+"','"+c.id+"','"+use.id+"',true)",'Открыть связанный рецепт и проверить необходимые ингредиенты',use.cost);return;
 }
 if(bg3LearnSpellProgramAction(use)){
 B('✦',useLabel,"bg3LearnSpellOpen('"+e.id+"','"+c.id+"','"+use.id+"')",'Переписать заклинание с учётом класса, стоимости и книги героя',use.cost);return;
@@ -19896,14 +19866,14 @@ if(bg3CatalogIsId(it&&it.id)&&coverage&&coverage.effectStatus==='source-inert')r
 return rows.length?'<div class="props-block"><span class="pt">Характеристики:</span>'+rows.map(row=>'<div style="margin-top:3px">'+row+'</div>').join('')+'</div>':'';
 }
 function itemWorkspaceRelationView(view,query){
-if(!['recipes','treasure'].includes(view))return;const summary=bg3Catalog.summaries.get(String(query||''));bg3RuntimeView=view;bg3RuntimeQuery=summary?bg3UserItemName(summary,''):String(query||'');bg3RuntimePage=0;bg3RecipeOpenId='';bg3TreasureOpenId='';
+if(!['recipes','treasure'].includes(view))return;const summary=gameItemDefinition(String(query||''))||bg3Catalog.summaries.get(String(query||''));bg3RuntimeView=view;bg3RuntimeQuery=summary?userFacingItemName(summary,''):String(query||'');if(view==='recipes'){recipeDesk.category='';recipeDesk.availability='';}bg3RuntimePage=0;bg3RecipeOpenId='';bg3TreasureOpenId='';
 if(activeWorldTab!=='itemsdb')switchTab('itemsdb');renderItemsDB();
 }
 function itemRelationsHTML(it){
-if(!bg3CatalogIsId(it&&it.id))return '';const source=it.source||{},availability=source.availability||{},presentation=bg3ItemPresentation.byItem.get(it.id),recipes=[...new Set(bg3Array(availability.recipeRecords).map(String).filter(Boolean))],recipeHint=Math.max(recipes.length,presentation&&presentation.recipeSources||0),recipeAsset=bg3Catalog.assets&&bg3Catalog.assets.recipes,canonicalRecipes=recipeAsset?bg3RecipeRelationsForItem(recipeAsset,it.id):null,treasure=[...new Set(bg3Array(availability.treasureTables).map(String).filter(Boolean))],treasureHint=Math.max(treasure.length,presentation&&presentation.treasureSources||0),treasureAsset=bg3Catalog.assets&&bg3Catalog.assets.treasure,canonicalTreasure=treasureAsset?bg3TreasureRelationsForItem(treasureAsset,it.id):null;
+if(!it)return '';const source=it.source||{},availability=source.availability||{},presentation=bg3ItemPresentation.byItem.get(it.id),recipes=[...new Set(bg3Array(availability.recipeRecords).map(String).filter(Boolean))],recipeHint=Math.max(recipes.length,presentation&&presentation.recipeSources||0,recipesUsingItem(it.id).length),recipeAsset=bg3Catalog.assets&&bg3Catalog.assets.recipes,canonicalRecipes=recipeAsset?gameRecipeRows().filter(r=>r.resultIds.includes(it.id)||r.inputs.some(i=>i.ids.includes(it.id))):null,treasure=[...new Set(bg3Array(availability.treasureTables).map(String).filter(Boolean))],treasureHint=Math.max(treasure.length,presentation&&presentation.treasureSources||0),treasureAsset=bg3Catalog.assets&&bg3Catalog.assets.treasure,canonicalTreasure=treasureAsset?bg3TreasureRelationsForItem(treasureAsset,it.id):null;
 if(!recipeHint&&!treasureHint)return '';
 let h='<section class="props-block item-relations"><span class="pt">Связи предмета:</span><div class="bg3-ref-icons">';
-if(recipeHint)h+='<button class="btn ghost sm" type="button" onclick="itemWorkspaceRelationView(\'recipes\','+esc(JSON.stringify(it.id))+')">⚗ '+(canonicalRecipes?'Связанные рецепты · '+canonicalRecipes.length:'Найти связанные рецепты · '+recipeHint)+'</button>';
+if(canonicalRecipes?canonicalRecipes.length:recipeHint)h+='<button class="btn ghost sm" type="button" onclick="itemWorkspaceRelationView(\'recipes\','+esc(JSON.stringify(it.id))+')">⚗ '+(canonicalRecipes?'Связанные рецепты · '+canonicalRecipes.length:'Найти связанные рецепты · '+recipeHint)+'</button>';
 if(treasureHint)h+='<button class="btn ghost sm" type="button" onclick="itemWorkspaceRelationView(\'treasure\','+esc(JSON.stringify(it.id))+')">◇ '+(canonicalTreasure?'Таблицы добычи · '+canonicalTreasure.length:'Найти все таблицы добычи · '+treasureHint)+'</button>';
 return h+'</div></section>';
 }
@@ -26573,7 +26543,7 @@ function bg3ReleaseSummaryHTML(){
 const ready=bg3ItemWorkspaceCatalogReady();
 if(!ready)return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-catalog-state="loading" aria-busy="true" aria-label="Сводка полной игровой базы предметов"><div class="bg3-release-head"><span class="bg3-release-title">Полный арсенал предметов</span><span class="bg3-release-sub">Все предметы вашей D&D-игры</span></div><div class="catalog-state" role="status" aria-live="polite">Загружается и проверяется база предметов вашей игры…</div></section>';
 const total=itemWorkspaceCanonicalRows().length,
-recipes=bg3Catalog.assets.recipes&&bg3Catalog.assets.recipes.recipes.length;
+recipes=bg3Catalog.assets.recipes&&RECIPE_RULES.groups(gameRecipeRows()).length;
 return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-catalog-state="ready" data-user-items="'+total+'" aria-label="Сводка полной игровой базы предметов"><div class="bg3-release-head"><span class="bg3-release-title">Полный арсенал предметов</span>'
 +'<span class="bg3-release-sub">Все предметы вашей D&D-игры</span></div>'
 +'<div class="bg3-release-metrics"><div class="bg3-release-metric"><b>'+bg3Count(total)+'</b>предметов в игре</div>'
@@ -26629,7 +26599,7 @@ let c=itemWorkspace.heroId&&getCh(itemWorkspace.heroId);if(!c&&activeCharId)c=ge
 itemWorkspace.heroId=c&&c.id||'';return c;
 }
 function itemWorkspaceHeroOptionsHTML(){const selected=itemWorkspaceHero();return chars.map(c=>'<option value="'+esc(c.id)+'"'+(selected&&selected.id===c.id?' selected':'')+'>'+esc(c.name||c.id)+'</option>').join('');}
-function itemWorkspaceSetHero(id){itemWorkspace.heroId=getCh(id)?id:'';renderItemsDB();}
+function itemWorkspaceSetHero(id){itemWorkspace.heroId=getCh(id)?id:'';recipePreparation=null;renderItemsDB();}
 function itemWorkspaceSetQty(value){const qty=Math.max(1,Math.min(999,Math.floor(+value||1)));itemWorkspace.qty=qty;const input=document.getElementById('itemWorkspaceQty');if(input)input.value=String(qty);}
 function bg3ItemSourceInventoryBlock(it){
 const facts=it&&it.mechanics&&it.mechanics.sourceFacts&&it.mechanics.sourceFacts.facts||{},pickable=facts.pickable,movable=facts.movable;
@@ -26648,7 +26618,7 @@ if(checkMass&&itemMassKg(it)==null)return 'Вес предмета не опре
 return '';
 }
 function itemWorkspacePortable(row){return !!(row&&(row.item?!itemInventoryBlock(row.item,false):bg3ItemSourceAuditAllows(row,'inventory')&&['playable','duplicate'].includes(row.classification)));}
-function itemWorkspaceHeroToolbarHTML(){const hero=itemWorkspaceHero();return '<div class="items-workspace-toolbar" aria-label="Получатель предмета">'
+function itemWorkspaceHeroToolbarHTML(){const hero=itemWorkspaceHero();if(bg3RuntimeView==='recipes')return '<div class="items-workspace-toolbar"><div><label for="itemWorkspaceHero">Кто изготавливает</label><select id="itemWorkspaceHero" onchange="itemWorkspaceSetHero(this.value)"'+(chars.length?'':' disabled')+'>'+(chars.length?itemWorkspaceHeroOptionsHTML():'<option value="">Сначала создайте героя</option>')+'</select></div></div>';return '<div class="items-workspace-toolbar" aria-label="Получатель предмета">'
 +'<div><label for="itemWorkspaceHero">Герой-получатель</label><select id="itemWorkspaceHero" onchange="itemWorkspaceSetHero(this.value)"'+(chars.length?'':' disabled')+'>'+(chars.length?itemWorkspaceHeroOptionsHTML():'<option value="">Сначала создайте героя</option>')+'</select></div>'
 +'<div><label for="itemWorkspaceQty">Количество</label><input id="itemWorkspaceQty" type="number" min="1" max="999" step="1" value="'+itemWorkspace.qty+'" oninput="itemWorkspaceSetQty(this.value)"></div>'
 +'<div><span class="catalog-source '+(hero?'bg3':'')+'">'+(hero?'Выдача: '+esc(hero.name||hero.id):'Нет героя')+'</span></div></div>';}
@@ -26733,7 +26703,7 @@ if(!asset)return 0;if(bg3TreasureUserTableCountCache.asset===asset)return bg3Tre
 const count=bg3Array(asset.tables).length;bg3TreasureUserTableCountCache={asset,count};return count;
 }
 function bg3RuntimeTabsHTML(){
-const rc=bg3Catalog.assets.recipes&&bg3Catalog.assets.recipes.recipes.length,tc=bg3TreasureUserTableCount(bg3Catalog.assets.treasure);
+const rc=bg3Catalog.assets.recipes&&RECIPE_RULES.groups(gameRecipeRows()).length,tc=bg3TreasureUserTableCount(bg3Catalog.assets.treasure);
 return '<div class="bg3-asset-tabs" role="tablist" aria-label="Разделы единого арсенала"><button role="tab" aria-selected="'+(bg3RuntimeView==='items')+'" class="btn '+(bg3RuntimeView==='items'?'rub':'ghost')+' sm" onclick="bg3CatalogSetRuntimeView(\'items\')">Предметы</button>'
 +'<button role="tab" aria-selected="'+(bg3RuntimeView==='recipes')+'" class="btn '+(bg3RuntimeView==='recipes'?'rub':'ghost')+' sm" onclick="bg3CatalogSetRuntimeView(\'recipes\')">Рецепты'+(rc?' · '+rc:'')+'</button>'
 +'<button role="tab" aria-selected="'+(bg3RuntimeView==='treasure')+'" class="btn '+(bg3RuntimeView==='treasure'?'rub':'ghost')+' sm" onclick="bg3CatalogSetRuntimeView(\'treasure\')">Таблицы добычи'+(tc?' · '+tc:'')+'</button></div>';
@@ -26756,13 +26726,13 @@ return '<div class="catalog-state">Загружаются '+label+'…</div>';
 function bg3RecipeProgramSourcesFor(c,recipe,asset){
 const rows=[];if(!c||!recipe||!asset)return rows;for(const entry of c.inventory||[]){if(!entry||!(+entry.qty>0))continue;const item=itemOf(entry.itemId);for(const use of item&&item.mechanics&&item.mechanics.actions||[]){const descriptor=bg3RecipeProgramDescriptor(use);if(!descriptor.ok||descriptor.kind!=='combine')continue;const resolution=bg3RecipeProgramResolution(descriptor,asset);if(resolution.ok&&resolution.recipeIds.includes(recipe.id))rows.push({entryId:entry.id,useId:use.id,itemId:item.id,label:userFacingItemName(item,'Предмет'),invalidRecipeIds:resolution.invalidRecipeIds.slice()});}}return rows;
 }
-function bg3RecipeDisplayItem(recipe){const ids=recipe.dye?bg3Array((recipe.inputs.find(input=>input.slot===recipe.dye.slot)||{}).candidateIds):bg3Array(recipe.result&&recipe.result.candidateIds),id=bg3AvailableIds(ids)[0]||ids[0]||'',row=id&&bg3Catalog.summaries.get(id),fallback=recipe.dye?'Окрашенный предмет':bg3UserFacingLabel(recipe.result&&recipe.result.statsId,'Готовый предмет');return {id,row,name:bg3UserItemName(row,bg3UserFacingLabel(recipe.name,fallback)),icon:row&&row.icon||null};}
+function bg3RecipeDisplayItem(recipe){const normalized=recipe&&RECIPE_RULES.imported(recipe,recipeItem);if(normalized)return {id:normalized.iconItem.id,row:normalized.iconItem,name:RECIPE_RULES.applyState(normalized,recipeState).name,icon:normalized.iconItem.icon||null};const ids=recipe.dye?bg3Array((recipe.inputs.find(input=>input.slot===recipe.dye.slot)||{}).candidateIds):bg3Array(recipe.result&&recipe.result.candidateIds),id=bg3AvailableIds(ids)[0]||ids[0]||'',row=id&&bg3Catalog.summaries.get(id),fallback=recipe.dye?'Окрашенный предмет':bg3UserFacingLabel(recipe.result&&recipe.result.statsId,'Готовый предмет');return {id,row,name:bg3UserItemName(row,bg3UserFacingLabel(recipe.name,fallback)),icon:row&&row.icon||null};}
 function bg3RecipeOperationLabel(value){return {Consume:'расходуется',Transform:'преобразуется',None:'остаётся',Dye:'окрашивается'}[value]||'используется';}
 function bg3RecipeAlchemyLabel(value){return {ExtractToSolution:'экстракт превращается в раствор',IngredientsToExtract:'ингредиенты превращаются в экстракт',None:'обычное сочетание'}[value]||'';}
 function bg3RecipeCombineLabel(value){return {Base:'основа сочетания',None:''}[value]||'';}
 function bg3RecipeManualReasonLabel(value){const reason=String(value||'');if(/^категория /i.test(reason))return 'не найдена подходящая категория ингредиента';if(/^не разрешен вход /i.test(reason))return 'для одного из ингредиентов не найден игровой предмет';if(/^не разрешен результат /i.test(reason))return 'для результата не найден игровой предмет';if(/^PreviewStatsID /i.test(reason))return 'источник описывает только предварительный результат';if(/^Result 1 /i.test(reason))return 'источник содержит два разных результата';return 'часть состава не удалось сопоставить с игровыми предметами';}
 function bg3RecipeInputLabel(input,index){const id=bg3AvailableIds(input&&input.candidateIds)[0]||bg3Array(input&&input.candidateIds)[0],row=id&&bg3Catalog.summaries.get(id);return bg3UserItemName(row,'Ингредиент '+(index+1));}
-function bg3RecipeSelect(id){bg3RecipeOpenId=String(id||'');renderItemsDB();itemWorkspaceRevealDetail();}
+function bg3RecipeSelect(id){return recipeOpen(String(id||''),itemWorkspaceHero()?.id);}
 function bg3RecipeSetLearned(recipeId,actorId,learned){const actor=getCh(String(actorId||'')),asset=bg3Catalog.assets.recipes,recipe=asset&&asset.byId.get(bg3RecipeCanonicalId(recipeId));if(!actor||!recipe)return setStatus('Выберите героя и рецепт.',true);const name=bg3RecipeDisplayItem(recipe).name||'этот рецепт',already=bg3Array(actor.knownRecipes).includes(recipe.id);if(already===learned)return;if(!window.confirm((learned?'Отметить формулу «':'Убрать формулу «')+name+(learned?'» как изученную выбранным героем?':'» из изученных у выбранного героя?')))return;actor.knownRecipes=learned?[...new Set(bg3Array(actor.knownRecipes).concat(recipe.id))]:bg3Array(actor.knownRecipes).filter(id=>bg3RecipeCanonicalId(id)!==recipe.id);scheduleSave();setStatus(learned?'✓ Формула отмечена как изученная.':'✓ Формула удалена из изученных.');renderChars();renderItemsDB();}
 function bg3RecipeSummaryHTML(recipe,selected){const display=bg3RecipeDisplayItem(recipe),name=display.name||'Готовый предмет',icon=display.icon&&display.icon.src?'<img class="item-icon sm" src="'+esc(display.icon.src)+'" width="42" height="42" loading="lazy" decoding="async" alt="">':'<span class="item-icon sm"></span>',ingredients=recipe.inputs.map(bg3RecipeInputLabel).join(' + '),result=recipe.dye?'Окрашивание предмета':('Получится: '+display.name+' ×'+recipe.result.qty);return '<div class="catalog-result-row'+(selected?' selected':'')+'">'+icon+'<button type="button" class="catalog-result-open" onclick="bg3RecipeSelect('+esc(JSON.stringify(recipe.id))+')" aria-label="Открыть рецепт '+esc(name)+'" aria-pressed="'+(selected?'true':'false')+'"><div class="catalog-result-name">'+esc(name)+'</div><div class="catalog-result-meta">'+esc(result)+'</div><div class="catalog-result-desc">'+esc(ingredients||'Состав не указан')+'</div></button><button class="btn ghost sm" aria-label="Показать состав рецепта '+esc(name)+'" onclick="bg3RecipeSelect('+esc(JSON.stringify(recipe.id))+')">открыть ›</button></div>';}
 function bg3RecipeCardHTML(recipe){
@@ -26798,7 +26768,7 @@ const lines=ids.map((id,i)=>{const row=bg3Catalog.summaries.get(id);return (i+1)
 const raw=window.prompt(label+'\nВведите номер варианта:\n'+lines.join('\n'),'1');if(raw==null)return null;
 const n=Math.floor(+raw);if(n>=1&&n<=ids.length)return ids[n-1];setStatus('Выберите номер из списка.',true);return null;
 }
-async function bg3RecipeProgramOpen(entryId,casterId,useId){
+async function bg3RecipeProgramOpen(entryId,casterId,useId,openWorkbench){
 try{
 const c=getCh(casterId||activeCharId),e=c&&invEntryOf(c,entryId),it=e&&itemOf(e.itemId),use=it&&itemUseOf(it,useId),descriptor=bg3RecipeProgramDescriptor(use);
 if(!descriptor.ok)throw new Error(descriptor.reason);if(!c||!e||!it)throw new Error('герой или предмет больше не доступен');
@@ -26811,6 +26781,7 @@ if(!window.confirm('Изучить рецепт «'+bg3RecipeDisplayItem(plan.re
 const done=await bg3RecipeUnlockCommit(plan);if(!done.ok)throw new Error(done.reason);
 setStatus('✓ '+c.name+': изучен рецепт «'+bg3RecipeDisplayItem(done.recipe).name+'».');renderChars();renderItemsDB(it.id);return true;
 }
+if(openWorkbench){const recipeId=resolution.recipeIds.find(id=>gameRecipeOf(id));if(recipeId)return recipeOpen(recipeId,c.id);setStatus('У этого предмета нет самостоятельного способа изготовления. Связанные действия выполняются в соответствующей сцене.',true);return false;}
 let recipeId=resolution.recipeIds[0];
 if(resolution.recipeIds.length>1){const raw=window.prompt('Выберите рецепт:\n'+resolution.recipeIds.map((id,i)=>(i+1)+'. '+bg3RecipeDisplayItem(asset.byId.get(id)).name).join('\n'),'1');
 if(raw==null)return false;const n=Math.floor(+raw);recipeId=n>=1&&n<=resolution.recipeIds.length?resolution.recipeIds[n-1]:bg3RecipeCanonicalId(raw);
@@ -27334,7 +27305,7 @@ if(bg3ItemPresentation.error)h+='<div class="catalog-state" role="alert">✕ П�
 else h+='<div class="catalog-state" role="status" aria-live="polite">Загружается и проверяется полный Standard-каталог…</div>';
 }
 if(!bg3ItemWorkspaceCatalogReady()){box.innerHTML=h+'</section>';refreshBg3ReleaseLabels();return;}
-if(bg3Catalog.index&&bg3RuntimeView==='recipes') h+=bg3RecipesPanelHTML();
+if(bg3Catalog.index&&bg3RuntimeView==='recipes') h+=recipeWorkbenchHTML();
 else if(bg3Catalog.index&&bg3RuntimeView==='treasure') h+=bg3TreasurePanelHTML();
 else if(bg3RuntimeView!=='items') h+='<div class="catalog-state">Этот подраздел станет доступен после проверки закреплённого каталога предметов.</div>';
 else {
@@ -28806,7 +28777,7 @@ if(report.ok){setStatus('✓ Денежный журнал цел: '+report.tota
 setStatus('✕ В денежном журнале найдено ошибок: '+report.errors.length+(details?' · '+details:''),true);return false;
 }
 function jumpToItemEd(id){ switchTab('itemsdb'); openItemEd(id); }
-function knownRecipeName(recipeId,index){const local=(typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).find(recipe=>recipe.id===recipeId);if(local)return local.n||'Формула '+(index+1);const asset=bg3Catalog.assets.recipes,recipe=asset&&asset.byId.get(bg3RecipeCanonicalId(recipeId));return recipe?(bg3RecipeDisplayItem(recipe).name||'Формула '+(index+1)):'Изученная формула '+(index+1);}
+function knownRecipeName(recipeId,index){const name=recipeState.overrides[recipeId]?.name;if(name)return name;const local=(typeof ITEM_RECIPES_V45==='undefined'?[]:ITEM_RECIPES_V45).find(recipe=>recipe.id===recipeId);if(local)return local.n||'Формула '+(index+1);const asset=bg3Catalog.assets.recipes,recipe=asset&&asset.byId.get(bg3RecipeCanonicalId(recipeId));return recipe?(bg3RecipeDisplayItem(recipe).name||'Формула '+(index+1)):'Изученная формула '+(index+1);}
 function knownRecipeLabelsEnsure(c){
 const known=bg3Array(c&&c.knownRecipes);
 if(!known.length||bg3Catalog.assets.recipes||bg3Catalog.assetErrors.has('recipes'))return;

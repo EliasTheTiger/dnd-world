@@ -873,6 +873,8 @@ function loadEngine() {
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/hobbyworld-ability-terms.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/ability-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-workbench.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source, context);
   return context.__bg3ActionBoundary;
 }

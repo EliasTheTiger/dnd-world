@@ -390,6 +390,8 @@ function loadEngine(storage = new Map()) {
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(repo,'scripts/recipe-rules.js'),'utf8'),context);
+  vm.runInContext(fs.readFileSync(path.join(repo,'scripts/recipe-workbench.js'),'utf8'),context);
   vm.runInContext(source, context);
   const api = context.__bg3RootCausal;
   api.storedWorldSnapshot = () => storage.get('dndworld2:world-snapshot') || null;

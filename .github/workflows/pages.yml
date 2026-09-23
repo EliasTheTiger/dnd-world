@@ -73,6 +73,12 @@ jobs:
         env:
           QA_SITE_ROOT: _site
         run: node qa/game-items.e2e.cjs
+      - name: Check every recipe record and the crafting journey
+        env:
+          QA_SITE_ROOT: _site
+        run: |
+          node scripts/audit-game-recipes.mjs --check
+          node qa/game-recipes.e2e.cjs
       - name: Upload final integration evidence
         if: always()
         uses: actions/upload-artifact@v4
