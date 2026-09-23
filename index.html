@@ -2650,7 +2650,7 @@ const ITEM_DATA_MIGRATION_ID='items-v7-unique-runtime-20260811';
 const SYSTEM_ITEM_DEFINITION_FIELDS=['n','type','rarity','custom','tags','slot','weight','cost','dmg','dmgType','desc','props','text','cap','box','contents',
 'ac','strReq','fx','passiveFx','useMode','uses','resource','tool','material','campaignRules','manualNote'];
 function mergeSystemItemDefinition(target,source){
-if(!target||!source||target.id!==source.id) return target;
+if(!target||!source||target.id!==source.id||target.custom===true) return target;
 SYSTEM_ITEM_DEFINITION_FIELDS.forEach(k=>{
 if(Object.prototype.hasOwnProperty.call(source,k)) target[k]=itemClone(source[k]);
 else delete target[k];
@@ -3058,8 +3058,11 @@ return target;
 function canonicalizeItemDatabase(db,party,worldCombat){
 db=Array.isArray(db)?db:[]; party=Array.isArray(party)?party:[];
 const byId=new Map(db.map(it=>[it.id,it])),aliases=Object.assign({},LEGACY_ITEM_ID_ALIASES);
+// Persisted game definitions retain their IDs; name folding belongs to the view.
+for(const id of Object.keys(aliases))if(byId.get(id)?.gameDefinition===true)delete aliases[id];
 
 db.forEach(it=>{
+if(it.gameDefinition===true)return;
 const normalized=String(it.id||'').replace(/ё/g,'е');
 if(normalized!==it.id&&byId.has(normalized)) aliases[it.id]=normalized;
 });
@@ -3074,7 +3077,7 @@ Object.keys(aliases).forEach(id=>{ aliases[id]=resolve(id); });
 slug/id, затем встроенную запись; недостающие поля дубля не теряются. */
 const groups=new Map();
 db.forEach(it=>{
-if(aliases[it.id]) return;
+if(aliases[it.id]||it.gameDefinition===true) return;
 const k=itemIdentityKey(it.n); if(!k) return;
 if(!groups.has(k)) groups.set(k,[]);
 groups.get(k).push(it);
@@ -3443,10 +3446,12 @@ return it.economy||null;
 }
 function itemEconomyOf(it){
 if(!it)return null;
+if(gameItemStored(it.id)?.gameDefinition===true)it=gameItemDefinition(it.id);
 if(String(it.id||'').startsWith('bg3:item:'))return it.economy&&it.economy.schemaVersion==='dnd-world-item-price/1'?it.economy:economyCreateItemPrice(it);
 return economyEnsureItemPrice(it);
 }
 function economyQuoteForItem(it,side,context){
+if(it&&gameItemStored(it.id)?.gameDefinition===true)it=gameItemDefinition(it.id);
 const api=globalThis.DndEconomy,model=itemEconomyOf(it);if(!api||!model)return {ok:false,manualReviewRequired:true,reason:'economy-unavailable'};
 const resolved=Object.assign({},economyState.tradeContext||{},context||{});if(!resolved.rarity&&it&&it.rarity)resolved.rarity=it.rarity;
 return api.quotePrice(model,side||'purchase',resolved,economyState.priceSettings||{});
@@ -3493,7 +3498,7 @@ model.audit=(Array.isArray(previous&&previous.audit)?previous.audit:[]).concat([
 return {ok:true,model,audit};
 }
 function itemPriceOverride(itemId,side){
-const api=globalThis.DndEconomy,it=itemsDB.find(row=>row.id===itemId);if(!api||!it)return false;
+const api=globalThis.DndEconomy,source=gameItemDefinition(itemId),it=source&&itemClone(source);if(!api||!it)return false;
 const model=economyEnsureItemPrice(it);if(!model){setStatus('✕ Модель цены недоступна.',true);return false;}
 const current=model.manualOverrides&&model.manualOverrides[side],minorText=current&&current.amountMinor!=null?String(current.amountMinor):'',minor=/^\d+$/.test(minorText)?BigInt(minorText):null,
 fallback=minor==null?String(itemGoldValue(it)||0):(minor/100n).toString()+((minor%100n)?'.'+(minor%100n).toString().padStart(2,'0').replace(/0+$/,''):''),
@@ -3501,7 +3506,7 @@ raw=window.prompt('Новая '+(side==='sale'?'цена продажи':'цен
 const reason=window.prompt('Причина изменения цены:', 'Решение мастера');if(reason==null)return false;
 try{
 const changed=api.applyManualPriceOverride(model,{side,amount:String(raw).replace(',','.'),currencyId:'zm',userId:economyUserId(),reason:String(reason).trim(),at:new Date().toISOString(),id:'price-audit-'+uid()},economyState.currencies);
-it.economy=changed.model;economyState.priceAudit.push(itemClone(changed.audit));scheduleSave();renderItemsDB();if(activeCharId)renderChars();return true;
+it.economy=changed.model;it.custom=true;gameItemSave(it);economyState.priceAudit.push(itemClone(changed.audit));scheduleSave();renderItemsDB();if(activeCharId)renderChars();return true;
 }catch(error){setStatus('✕ '+String(error&&error.message||error),true);return false;}
 }
 function economyCatalogAudit(list){
@@ -9457,7 +9462,7 @@ if(combat&&typeof combat==='object'){combat.zones=cleanNested(combat.zones);comb
 function pruneIncompleteCampaignArsenal(){
 if(!ITEM_DOMAIN_MODEL||typeof ITEM_DOMAIN_MODEL.arsenalReadiness!=='function')return {removed:0,issues:{}};
 const context=ITEM_DOMAIN_MODEL.createMigrationContext((itemsDB||[]).concat(bg3Catalog&&bg3Catalog.index&&bg3Catalog.index.items||[])),kept=[],removed=new Set(),issues={};
-for(const it of itemsDB||[]){const readiness=itemArsenalReadiness(it,context);if(readiness.ok)kept.push(it);else{removed.add(String(it&&it.id||''));issues[String(it&&it.id||'')]=(readiness.issues||[]).slice();}}
+for(const it of itemsDB||[]){if(it.gameDefinition===true){kept.push(it);continue;}const readiness=itemArsenalReadiness(it,context);if(readiness.ok)kept.push(it);else{removed.add(String(it&&it.id||''));issues[String(it&&it.id||'')]=(readiness.issues||[]).slice();}}
 if(!removed.size)return {removed:0,issues};itemsDB=kept;itemArsenalRemoveReferences(removed);itemDomainContextCache={key:'',context:null};itemWorkspaceSearchResultCache={key:'',rows:[]};return {removed:removed.size,issues};
 }
 function itemDomainActionOf(it,kind,id){
@@ -10467,6 +10472,12 @@ const rel='items/'+shard+'.json',descriptor=bg3CatalogArtifactDescriptor(rel);if
 const itemCheck=(item,use)=>{const itemOrigin=item&&state.itemOrigins.get(item),useOrigin=use&&state.useOrigins.get(use);if(!itemOrigin||!useOrigin||useOrigin.itemOrigin!==itemOrigin||useOrigin.use!==use||itemOrigin.actions[useOrigin.useIndex]!==use)return {ok:false,reason:'private-pinned-item-action-required'};
 const shard=shardCheck(itemOrigin.record.shard,itemOrigin.record.items);if(!shard.ok)return shard;const summary=summaryCheck(String(item.id),itemOrigin.summary);if(!summary.ok)return summary;let mapped;try{mapped=privateIntrinsics.mapGet(shard.identity.items,item.id);}catch(_error){return {ok:false,reason:'private-item-map-invalid'};}if(mapped!==item)return {ok:false,reason:'private-item-map-membership-changed'};return {ok:true,itemOrigin,useOrigin,identity:shard.identity};};
 const canonicalItemCheck=item=>{const origin=item&&state.itemOrigins.get(item);if(!origin)return {ok:false,reason:'private-pinned-item-required'};const shard=shardCheck(origin.record.shard,origin.record.items);if(!shard.ok)return shard;const summary=summaryCheck(String(item.id),origin.summary);if(!summary.ok)return summary;let mapped;try{mapped=privateIntrinsics.mapGet(shard.identity.items,item.id);}catch(_error){return {ok:false,reason:'private-item-map-invalid'};}return mapped===item?{ok:true,itemOrigin:origin,identity:shard.identity}:{ok:false,reason:'private-item-map-membership-changed'};};
+const gamePresentationOverlayMatches=(local,item)=>{
+const marker=local&&ownData(local,'gameDefinition');if(!marker||marker.value!==true)return false;
+for(const key of ['id','type','slot','weight','dmg','dmgType','ac','strReq','useMode']){const left=ownData(local,key),right=ownData(item,key);if((left&&left.value)!==(right&&right.value))return false;}
+const left=ownData(local,'mechanics'),right=ownData(item,'mechanics');if(!left||!right)return false;
+try{return summonCanonicalJSON(left.value)===summonCanonicalJSON(right.value);}catch(_error){return false;}
+};
 const artifactPromiseBind=(cap,promise,key)=>{if(cap!==BG3_ITEM_FORMULA_LOADER_CAP)throw new Error('private rule artifact loader capability required');state.artifactPromises.set(promise,Object.freeze({promise,key,identity:catalogIdentity()}));};
 const artifactPromiseCheck=(promise,key)=>{const record=promise&&state.artifactPromises.get(promise),identity=catalogIdentity();return !!(record&&record.promise===promise&&record.key===key&&identitySame(identity,record.identity));};
 const artifactAttest=(cap,payload,key,rel,descriptor)=>{if(cap!==BG3_ITEM_FORMULA_LOADER_CAP)throw new Error('private rule artifact loader capability required');if(!prototypeAuthorityCheck())return false;const identity=catalogIdentity(),index=indexCheck();if(!index.ok||!identitySame(identity,index.identity)||!payload)return false;deepFreeze(payload);const record=Object.freeze({identity,payload,key,rel:String(rel),descriptor:descriptorRecord(descriptor,rel)});state.artifactOrigins.set(payload,record);return true;};
@@ -11299,7 +11310,7 @@ standard:privateIntrinsics.freeze({useId:'bg3-use-bdd6d926d0d92df10d58',learnUse
 const dethroneKnownUseId=useId=>typeof useId==='string'&&useId===dethroneProfiles.standard.useId;
 const dethroneProfileFor=(itemId,useId,profile)=>{const row=dethroneProfiles[profile];return itemId===dethroneItemId&&row&&row.useId===useId?row:null;};
 const dethroneCandidateForOfficial=(item,use)=>{const itemId=item&&ownData(item,'id'),useId=use&&ownData(use,'id'),program=use&&ownData(use,'program'),profile=program&&program.value&&ownData(program.value,'sourceProfile');return itemId&&typeof itemId.value==='string'&&useId&&typeof useId.value==='string'&&profile&&typeof profile.value==='string'?dethroneProfileFor(itemId.value,useId.value,profile.value):null;};
-const dethroneDefinitionCheck=item=>{const id=item&&ownData(item,'id');if(!id||id.value!==dethroneItemId)return {ok:false,reason:'private-item-dethrone-definition-identity-required'};let catalog=null;try{catalog=privateIntrinsics.mapGet(bg3Catalog.items,dethroneItemId)||null;}catch(_error){return {ok:false,reason:'private-item-dethrone-catalog-membership-invalid'};}if(catalog!==item)return {ok:false,reason:'private-item-dethrone-canonical-catalog-definition-required'};const local=exactById(itemsDB,dethroneItemId);if(local.ok&&local.value!==item)return {ok:false,reason:'private-item-dethrone-local-catalog-definition-ambiguous'};return {ok:true};};
+const dethroneDefinitionCheck=item=>{const id=item&&ownData(item,'id');if(!id||id.value!==dethroneItemId)return {ok:false,reason:'private-item-dethrone-definition-identity-required'};let catalog=null;try{catalog=privateIntrinsics.mapGet(bg3Catalog.items,dethroneItemId)||null;}catch(_error){return {ok:false,reason:'private-item-dethrone-catalog-membership-invalid'};}if(catalog!==item)return {ok:false,reason:'private-item-dethrone-canonical-catalog-definition-required'};const local=exactById(itemsDB,dethroneItemId);if(local.ok&&local.value!==item&&!gamePresentationOverlayMatches(local.value,item))return {ok:false,reason:'private-item-dethrone-local-catalog-definition-ambiguous'};return {ok:true};};
 const dethroneMechanicsFor=(item,profile)=>profile===BG3_GAME_RULES_PROFILE&&item?ownData(item,'mechanics'):null;
 const dethroneAdjacentLearn=(item,profile,row)=>{const mechanicsData=dethroneMechanicsFor(item,profile),actionsData=mechanicsData&&mechanicsData.value&&ownData(mechanicsData.value,'actions'),actions=actionsData&&actionsData.value;if(!privateIntrinsics.arrayIsArray(actions))return null;let found=null;for(let i=0;i<actions.length;i++){const slot=ownData(actions,summonStringBinding(i)),action=slot&&slot.value,id=action&&ownData(action,'id');if(id&&id.value===row.learnUseId){if(found)return null;found=action;}}return found;};
 const dethroneSourceCheck=(item,use,plan)=>{
@@ -11316,7 +11327,7 @@ if(!root||root.id!==expectedRoot||root.sourceRootTemplateUuid!=='b2e1168a-021d-4
 const learn=dethroneAdjacentLearn(item,profile,row),learnProgram=learn&&ownData(learn,'program'),learnContract=learnProgram&&learnProgram.value&&ownData(learnProgram.value,'learnSpell'),requirements=learnContract&&learnContract.value&&ownData(learnContract.value,'requirements'),profilesData=requirements&&requirements.value&&ownData(requirements.value,'eligibleClassDescriptions');if(!learn||learn.handler!=='bg3LearnSpellProgram'||learn.cost!=='object'||learn.target!=='self'||!learnProgram||learnProgram.value.mode!=='mixed'||!learnContract||learnContract.value.spellId!==dethroneSpellId||!learnContract.value.spell||+learnContract.value.spell.level!==5||learnContract.value.spell.ruleId!==dethroneRuleId||!requirements||requirements.value.complete!==true||!profilesData||!privateIntrinsics.arrayIsArray(profilesData.value)||profilesData.value.length===0)return {ok:false,reason:'private-item-dethrone-scroll-evidence-mismatch'};
 return {ok:true,profile,row,sealed,root,rule,ruleProgram,scrollEvidence:privateIntrinsics.freeze({action:learn,contract:learnContract.value,profiles:profilesData.value})};
 };
-const arrowItemLookup=itemId=>{let local=null,catalog=null;const localMatch=exactById(itemsDB,itemId);if(localMatch.ok)local=localMatch.value;try{catalog=privateIntrinsics.mapGet(bg3Catalog.items,itemId)||null;}catch(_error){return null;}return local&&catalog&&local!==catalog?null:(catalog||local);};
+const arrowItemLookup=itemId=>{let local=null,catalog=null;const localMatch=exactById(itemsDB,itemId);if(localMatch.ok)local=localMatch.value;try{catalog=privateIntrinsics.mapGet(bg3Catalog.items,itemId)||null;}catch(_error){return null;}return local&&catalog&&local!==catalog&&!gamePresentationOverlayMatches(local,catalog)?null:(catalog||local);};
 const arrowWeaponShape=item=>{const mechanics=item&&ownData(item,'mechanics'),profile=mechanics&&ownData(mechanics.value,'profile'),kind=profile&&ownData(profile.value,'kind'),weapon=profile&&ownData(profile.value,'weapon'),ranged=weapon&&ownData(weapon.value,'ranged'),ammo=weapon&&ownData(weapon.value,'ammo');return !!(kind&&kind.value==='weapon'&&ranged&&ranged.value===true&&ammo&&ammo.value===true);};
 const arrowWeaponCandidates=caster=>{const inventoryData=caster&&ownData(caster,'inventory'),equipmentData=caster&&ownData(caster,'equipment'),inventory=inventoryData&&inventoryData.value,equipment=equipmentData&&equipmentData.value;if(!privateIntrinsics.arrayIsArray(inventory)||!equipment)return {ok:false,reason:'private-item-arrow-inventory-equipment-required'};const slots=[['MAIN_HAND','main'],['TWO_HAND','main'],['OFF_HAND','offhand']],rows=[];
 for(let i=0;i<slots.length;i++){const slot=slots[i],idData=ownData(equipment,slot[0]),entryId=idData&&idData.value;if(typeof entryId!=='string'||!entryId)continue;let duplicate=false;for(let j=0;j<rows.length;j++)if(rows[j].entryId===entryId)duplicate=true;if(duplicate)continue;const entry=exactById(inventory,entryId),itemId=entry.ok&&ownData(entry.value,'itemId'),item=itemId&&typeof itemId.value==='string'&&arrowItemLookup(itemId.value);if(!entry.ok||!item||!arrowWeaponShape(item))continue;rows[rows.length]=privateIntrinsics.freeze({slot:slot[1],equipmentSlot:slot[0],offhand:slot[1]==='offhand',entryId,entry:entry.value,itemId:itemId.value,item});}
@@ -11330,7 +11341,7 @@ const arrowCombatReceiptFor=casterId=>{const view=arrowCombatLexicalView(casterI
 const arrowOptionalOwnData=(owner,key)=>{let descriptor;try{descriptor=privateIntrinsics.getOwnPropertyDescriptor(owner,key);}catch(_error){return {ok:false,reason:'private-item-arrow-own-descriptor-required'};}if(!descriptor)return {ok:true,present:false,value:undefined};if(!privateIntrinsics.hasOwn(descriptor,'value'))return {ok:false,reason:'private-item-arrow-accessor-source-fail-closed'};return {ok:true,present:true,value:descriptor.value};};
 const arrowDenseArray=value=>{if(!privateIntrinsics.arrayIsArray(value))return {ok:false,reason:'private-item-arrow-dense-array-required'};const length=ownData(value,'length');if(!length||!summonNumberIntegerBinding(length.value)||length.value<0)return {ok:false,reason:'private-item-arrow-dense-array-required'};for(let i=0;i<length.value;i++)if(!ownData(value,summonStringBinding(i)))return {ok:false,reason:'private-item-arrow-dense-array-required'};return {ok:true,length:length.value};};
 const arrowLocalItemById=itemId=>{let found=null,index=-1;const dense=arrowDenseArray(itemsDB);if(!dense.ok)return {ok:false,reason:'private-item-arrow-local-item-database-invalid'};for(let i=0;i<dense.length;i++){const slot=ownData(itemsDB,summonStringBinding(i)),id=slot&&slot.value&&ownData(slot.value,'id');if(id&&id.value===itemId){if(found)return {ok:false,reason:'private-item-arrow-local-item-identity-ambiguous'};found=slot.value;index=i;}}return {ok:true,item:found,index};};
-const arrowDefinitionResolve=(itemId,expected)=>{const local=arrowLocalItemById(itemId);if(!local.ok)return local;let catalog=null;try{catalog=privateIntrinsics.mapGet(bg3Catalog.items,itemId)||null;}catch(_error){return {ok:false,reason:'private-item-arrow-catalog-item-map-invalid'};}if(local.item&&catalog&&local.item!==catalog)return {ok:false,reason:'private-item-arrow-catalog-local-definition-collision'};if(catalog){const canonical=canonicalItemCheck(catalog),catalogId=ownData(catalog,'id');let exactKey=null;try{exactKey=catalogId&&privateIntrinsics.mapGet(bg3Catalog.items,catalogId.value);}catch(_error){return {ok:false,reason:'private-item-arrow-catalog-item-map-invalid'};}if(!canonical.ok||!catalogId||typeof catalogId.value!=='string'||catalogId.value!==itemId||exactKey!==catalog)return {ok:false,reason:'private-item-arrow-canonical-catalog-definition-required'};}const item=catalog||local.item;if(!item||expected&&item!==expected)return {ok:false,reason:'private-item-arrow-item-definition-membership-changed'};return {ok:true,item,localIndex:local.index,catalogMember:catalog===item};};
+const arrowDefinitionResolve=(itemId,expected)=>{const local=arrowLocalItemById(itemId);if(!local.ok)return local;let catalog=null;try{catalog=privateIntrinsics.mapGet(bg3Catalog.items,itemId)||null;}catch(_error){return {ok:false,reason:'private-item-arrow-catalog-item-map-invalid'};}if(local.item&&catalog&&local.item!==catalog&&!gamePresentationOverlayMatches(local.item,catalog))return {ok:false,reason:'private-item-arrow-catalog-local-definition-collision'};if(catalog){const canonical=canonicalItemCheck(catalog),catalogId=ownData(catalog,'id');let exactKey=null;try{exactKey=catalogId&&privateIntrinsics.mapGet(bg3Catalog.items,catalogId.value);}catch(_error){return {ok:false,reason:'private-item-arrow-catalog-item-map-invalid'};}if(!canonical.ok||!catalogId||typeof catalogId.value!=='string'||catalogId.value!==itemId||exactKey!==catalog)return {ok:false,reason:'private-item-arrow-canonical-catalog-definition-required'};}const item=catalog||local.item;if(!item||expected&&item!==expected)return {ok:false,reason:'private-item-arrow-item-definition-membership-changed'};return {ok:true,item,localIndex:local.index,catalogMember:catalog===item};};
 const arrowDefinitionBindings=(allowedCaster,profile,expected)=>{const world=arrowDenseArray(chars),bindings=[],roots=[];if(!world.ok)return {ok:false,reason:'private-item-arrow-definition-world-descriptor-required'};for(let c=0;c<world.length;c++){const actorData=ownData(chars,summonStringBinding(c)),actor=actorData&&actorData.value,actorId=actor&&ownData(actor,'id'),inventoryData=actor&&ownData(actor,'inventory'),inventory=inventoryData&&inventoryData.value,denseInventory=arrowDenseArray(inventory);if(!actorData||!actor||!actorId||typeof actorId.value!=='string'||!denseInventory.ok)return {ok:false,reason:'private-item-arrow-definition-world-descriptor-required'};for(let i=0;i<denseInventory.length;i++){const entryData=ownData(inventory,summonStringBinding(i)),entry=entryData&&entryData.value,entryId=entry&&ownData(entry,'id'),itemId=entry&&ownData(entry,'itemId');if(!entryData||!entry||!entryId||typeof entryId.value!=='string'||!itemId||typeof itemId.value!=='string')return {ok:false,reason:'private-item-arrow-definition-world-descriptor-required'};const definition=arrowDefinitionResolve(itemId.value);if(!definition.ok)return definition;const effects=arrowItemEffectSourcesClean(definition.item);if(!effects.ok)return effects;const lifecycle=arrowLifecycleRowsStrict(definition.item);if(!lifecycle.ok)return lifecycle;let lifecycleRef=null,lifecycleDigest='';for(let r=0;r<lifecycle.refs.length;r++){const refData=ownData(lifecycle.refs,summonStringBinding(r)),ref=refData&&refData.value;if(!refData||!ref||typeof ref!=='object')return {ok:false,reason:'private-item-arrow-interrupt-world-descriptor-required'};const granted=arrowOptionalOwnData(ref,'grantedInterrupts');if(!granted.ok)return {ok:false,reason:'private-item-arrow-interrupt-descriptor-accessor-fail-closed'};if(granted.present){const dense=arrowDenseArray(granted.value);if(!dense.ok)return {ok:false,reason:'private-item-arrow-interrupt-descriptor-shape-invalid'};if(dense.length)return {ok:false,reason:'private-item-arrow-interrupt-world-effects-fail-closed'};}const exact=actor===allowedCaster&&itemId.value===arrowElementalInfusion.itemId&&arrowElementalInfusionRefCheck(actor,entry,definition.item,lifecycle.refs,profile);if(!exact||!exact.ok)return {ok:false,reason:'private-item-arrow-observer-lifecycle-source-fail-closed'};lifecycleRef=exact.ref;lifecycleDigest=exact.refDigest;}const binding=privateIntrinsics.freeze({actor,inventory,entry,item:definition.item,actorId:actorId.value,entryId:entryId.value,itemId:itemId.value,catalogMember:definition.catalogMember,localIndex:definition.localIndex,lifecycleRef,lifecycleDigest});bindings[bindings.length]=binding;roots[roots.length]=definition.item;}}if(expected){const dense=arrowDenseArray(expected);if(!dense.ok||dense.length!==bindings.length)return {ok:false,reason:'private-item-arrow-definition-membership-changed'};for(let i=0;i<bindings.length;i++){const previous=ownData(expected,summonStringBinding(i)),current=bindings[i];if(!previous||previous.value.actor!==current.actor||previous.value.inventory!==current.inventory||previous.value.entry!==current.entry||previous.value.item!==current.item||previous.value.actorId!==current.actorId||previous.value.entryId!==current.entryId||previous.value.itemId!==current.itemId||previous.value.catalogMember!==current.catalogMember||previous.value.localIndex!==current.localIndex||previous.value.lifecycleRef!==current.lifecycleRef||previous.value.lifecycleDigest!==current.lifecycleDigest)return {ok:false,reason:'private-item-arrow-definition-membership-changed'};}}return {ok:true,bindings:privateIntrinsics.freeze(bindings),roots:privateIntrinsics.freeze(roots)};};
 const arrowLifecycleRowsStrict=item=>{const mechanics=arrowOptionalOwnData(item,'mechanics');if(!mechanics.ok)return mechanics;if(!mechanics.present||mechanics.value==null)return {ok:true,refs:privateIntrinsics.freeze([])};if(typeof mechanics.value!=='object')return {ok:false,reason:'private-item-arrow-lifecycle-mechanics-invalid'};const lifecycle=arrowOptionalOwnData(mechanics.value,'lifecyclePrograms');if(!lifecycle.ok)return lifecycle;if(!lifecycle.present)return {ok:true,refs:privateIntrinsics.freeze([])};const dense=arrowDenseArray(lifecycle.value);return dense.ok?{ok:true,refs:lifecycle.value}:{ok:false,reason:'private-item-arrow-lifecycle-programs-invalid'};};
 const arrowElementalInfusionRefCheck=(actor,entry,item,refs,profile)=>{const exact=arrowElementalInfusion,refRows=arrowDenseArray(refs),itemId=item&&ownData(item,'id'),slot=item&&ownData(item,'slot'),source=item&&ownData(item,'source'),stats=source&&source.value&&ownData(source.value,'statsId'),uuid=source&&source.value&&ownData(source.value,'rootTemplateUuid'),entryId=entry&&ownData(entry,'id'),entryItem=entry&&ownData(entry,'itemId'),qty=entry&&ownData(entry,'qty');
@@ -19856,7 +19867,7 @@ if(!bg3CatalogIsId(it&&it.id))return '';
 const source=it.source||{},profiles=bg3Array(source.profiles),availability=source.availability||{},summary=bg3CatalogItemMechanicsSummary(it),interactionNames=summary.interactionHandlers.map(handler=>BG3_CATALOG_INTERACTION_NAMES[handler]||handler),
 noAffordance=!summary.actions&&!summary.lifecycle&&!summary.interactions,state=noAffordance?bg3ItemNoAffordancePresentation(it).identity:(summary.blockedActions||summary.blockedLifecycle?'подтверждённые механики исполняются; неподдерживаемые ветви недоступны':'типизировано источником');
 let h='<details class="props-block"><summary class="toggle-link">Целостность предмета</summary><div style="margin-top:6px"><span class="bg3-weight">'+esc(publicItemIdentifier(it.id))+'</span>'
-+'<div style="margin-top:3px"><b>Источник:</b> встроенный каталог D&D World · редакция 10 · '+esc(source.classification||'—')+' · '+esc(source.category||'—')+'</div>'
++'<div style="margin-top:3px"><b>Принадлежность:</b> Моя D&D-игра</div>'
 +'<div style="margin-top:3px"><b>Механика:</b> '+esc(state)+' · действия '+summary.typedActions+' типизированы / '+summary.blockedActions+' заблокированы источником · события '+summary.typedLifecycle+' типизированы / '+summary.blockedLifecycle+' заблокированы источником · взаимодействия '+summary.interactions+' · окончательная проверка выполняется перед применением</div>';
 if(interactionNames.length)h+='<div style="margin-top:3px"><b>Взаимодействия:</b> '+esc(interactionNames.join(' · '))+'</div>';
 const treasure=bg3Array(availability.treasureTables).length,recipes=bg3Array(availability.recipeRecords).length,placements=bg3ItemPlacementEvidenceCount(source.placementEvidence);
@@ -20167,7 +20178,7 @@ const actionCost={action:'действие','bonus-action':'бонусное д�
 const actionRows=actions.length?actions.map(action=>{const req=(action.requirements||[]).concat(action.restrictions||[]),resource=action.resourceCost&&action.resourceCost.kind!=='none'?(itemDomainCodeLabel(action.resourceCost.kind)+' ×'+action.resourceCost.amount):'отдельный ресурс не расходуется';return '<div class="recipe-step"><b>'+esc(publicItemText(action.label))+'</b><div><b>Активация:</b> '+esc(actionCost[action.activation&&action.activation.cost]||itemDomainCodeLabel(action.activation&&action.activation.cost))+' · <b>Цель:</b> '+esc(targets[action.targets&&action.targets.kind]||itemDomainCodeLabel(action.targets&&action.targets.kind))+' ×'+esc(action.targets&&action.targets.count)+'</div><div><b>Ограничения:</b> '+esc(req.length?req.map(itemDomainStructuredText).join('; '):'дополнительных ограничений нет')+' · <b>Расход:</b> '+esc(resource)+'</div><div><b>Последствия:</b> '+esc(itemDomainResultText(action.result))+'</div></div>';}).join(''):'<div>Активных действий нет; предмет работает через постоянные эффекты.</div>';
 const passiveParts=[];if((passive.effects||[]).length)passiveParts.push('эффекты: '+passive.effects.map(itemDomainStructuredText).join('; '));if((passive.conditions||[]).length)passiveParts.push('состояния: '+passive.conditions.map(itemDomainStructuredText).join('; '));if((passive.modifiers||[]).length)passiveParts.push('модификаторы: '+passive.modifiers.map(itemDomainStructuredText).join('; '));
 const chargeText=charges.enabled?'запас '+charges.maximum+'; '+((charges.recovery||[]).length?'восстановление: '+charges.recovery.map(itemDomainStructuredText).join('; '):'восстановление не предусмотрено'):'заряды не используются',iconText=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicIconLabel(domain.icon):'встроенная иконка предмета',sourceText=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicSourceLabel():'Встроенный каталог D&D World',tags=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicTagValues(domain.tags):domain.tags,publicHandlers=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicHandlerValues(handlers):handlers;
-return '<details class="props-block"'+(open?' open':'')+'><summary class="toggle-link">Полный контракт предмета</summary><div style="margin-top:8px"><b>Идентификатор:</b> '+esc(publicItemIdentifier(domain.id))+'</div><div><b>Классификация:</b> '+esc(itemDomainCodeLabel(tax.category)+' / '+itemDomainCodeLabel(tax.subcategory)+' · '+itemDomainCodeLabel(tax.type)+' / '+itemDomainCodeLabel(tax.subtype))+'</div><div><b>Источник:</b> '+esc(sourceText)+'</div><div><b>Иконка:</b> '+esc(iconText)+'</div><div><b>Редкость:</b> '+esc(domain.rarity)+' · <b>Вес:</b> '+esc(domain.economy.weight.value+' '+domain.economy.weight.unit)+'</div><div><b>Требования:</b> '+esc(requirements.length?requirements.map(itemDomainStructuredText).join('; '):'особых требований нет')+' · <b>Настройка:</b> '+(attunement.required?'требуется':'не требуется')+'</div><div><b>Заряды:</b> '+esc(chargeText)+' · <b>Расходуемость:</b> '+(consumable.value?'расходуемый предмет':'не расходуется')+'</div><div style="margin-top:7px"><b>Допустимые действия, цели, ограничения и эффекты:</b>'+actionRows+'</div><div style="margin-top:7px"><b>Постоянные эффекты:</b> '+esc(passiveParts.join(' · ')||'отсутствуют')+'</div><div><b>Взаимодействие с окружением:</b> '+esc(environment.length?environment.map(itemDomainStructuredText).join('; '):'не изменяет окружение')+'</div><div><b>Теги:</b> '+esc(tags.join(', ')||'публичные теги не заданы')+'</div><div><b>Обработчики движка:</b> '+esc(publicHandlers.map(ref=>ref.id+' → '+ref.executor).join(', '))+'</div></details>';
+return '<details class="props-block"'+(open?' open':'')+'><summary class="toggle-link">Полный контракт предмета</summary><div style="margin-top:8px"><b>Идентификатор:</b> '+esc(publicItemIdentifier(domain.id))+'</div><div><b>Классификация:</b> '+esc(itemDomainCodeLabel(tax.category)+' / '+itemDomainCodeLabel(tax.subcategory)+' · '+itemDomainCodeLabel(tax.type)+' / '+itemDomainCodeLabel(tax.subtype))+'</div><div><b>Принадлежность:</b> '+esc(sourceText)+'</div><div><b>Иконка:</b> '+esc(iconText)+'</div><div><b>Редкость:</b> '+esc(domain.rarity)+' · <b>Вес:</b> '+esc(domain.economy.weight.value+' '+domain.economy.weight.unit)+'</div><div><b>Требования:</b> '+esc(requirements.length?requirements.map(itemDomainStructuredText).join('; '):'особых требований нет')+' · <b>Настройка:</b> '+(attunement.required?'требуется':'не требуется')+'</div><div><b>Заряды:</b> '+esc(chargeText)+' · <b>Расходуемость:</b> '+(consumable.value?'расходуемый предмет':'не расходуется')+'</div><div style="margin-top:7px"><b>Допустимые действия, цели, ограничения и эффекты:</b>'+actionRows+'</div><div style="margin-top:7px"><b>Постоянные эффекты:</b> '+esc(passiveParts.join(' · ')||'отсутствуют')+'</div><div><b>Взаимодействие с окружением:</b> '+esc(environment.length?environment.map(itemDomainStructuredText).join('; '):'не изменяет окружение')+'</div><div><b>Теги:</b> '+esc(tags.join(', ')||'публичные теги не заданы')+'</div><div><b>Обработчики движка:</b> '+esc(publicHandlers.map(ref=>ref.id+' → '+ref.executor).join(', '))+'</div></details>';
 }
 function itemIllustration(it){
 const art=globalThis.DndWorldItemArt;if(art)return art.forItem(it);
@@ -20179,6 +20190,7 @@ size=Number(size)||64;const icon=itemIllustration(it),art=globalThis.DndWorldIte
 return '<span class="item-icon item-icon-frame'+(size<64?' sm':'')+'" style="width:'+size+'px;height:'+size+'px" aria-hidden="true">'+(icon&&icon.src?'<img src="'+esc(icon.src)+'" width="'+size+'" height="'+size+'" loading="lazy" decoding="async" alt=""'+itemImageErrorHTML()+'>':art?'<img src="'+esc(art.fallbackData)+'" width="'+size+'" height="'+size+'" alt="">':'')+'</span>';
 }
 function itemCardHTML(it, extra, options){
+it=it&&gameItemStored(it.id)?.gameDefinition===true?gameItemDefinition(it.id):it;
 upgradeItem(it);
 extra=extra||'';options=options||{};
 const actorId=String(options.actorId||''),entryId=String(options.entryId||''),isBg3=bg3CatalogIsId(it&&it.id),interactive=options.interactive===true&&!!actorId&&!!entryId&&isBg3,instructionCall=focusId=>'bg3ItemInstructionsOpen('+esc(JSON.stringify(it.id))+','+esc(JSON.stringify(actorId))+','+esc(JSON.stringify(entryId))+','+esc(JSON.stringify(String(focusId||'')))+')',instructionButton=focusId=>interactive?'<button class="btn ghost sm" type="button" onclick="'+instructionCall(focusId)+'">открыть инструкцию</button>':'',fullInstructionButton=isBg3?'<button class="btn ghost sm" type="button" title="Открыть подробные условия, последствия и ограничения каждого свойства" onclick="'+instructionCall('')+'">ℹ Полные правила</button>':'';
@@ -26503,40 +26515,49 @@ if(rank<99)ranked.push({row,rank});}
 if(q)ranked.sort((a,b)=>a.rank-b.rank||ITEM_SEARCH_COLLATOR.compare(cache.pre.get(a.row.id).sortName,cache.pre.get(b.row.id).sortName)||a.row.id.localeCompare(b.row.id));
 return ranked.map(value=>value.row);
 }
-function itemWorkspaceLocalKind(it){const profile=itemProfile(it);if(profile.kind&&ITEM_KIND_RU[profile.kind])return profile.kind;if(it.type==='weapon')return 'weapon';if(it.type==='armor')return 'armor';if(it.type==='potion')return 'potion';if(it.type==='scroll')return 'scroll';return 'campaign';}
-function itemWorkspaceRowFromBg3(row){const loaded=bg3Catalog.items.get(row.id),presentation=bg3ItemPresentation.byItem.get(row.id)||null,detail=bg3ItemPresentation.details.get(row.id)||null,names=row.names||{},sourceCategory=String(row.category||'');return {id:row.id,source:'bg3',name:publicItemText(bg3UserItemName(row,'Предмет')),en:publicItemText(bg3UserFacingLabel(names.en,'')),type:row.type||'',kind:row.kind||'',sourceCategory,category:itemWorkspaceBg3Category(row),classification:row.classification||'',rarity:row.rarity||'',tags:bg3Array(row.tags),icon:row.icon||null,statsId:row.statsId||'',description:publicItemText(loaded&&loaded.desc||detail&&detail.description&&(detail.description.ru||detail.description.en)||''),row,item:loaded||null,presentation,presentationDetail:detail};}
-function itemWorkspaceRowFromLocal(it){const sourceCategory=String(it.type||'');return {id:it.id,source:'campaign',name:String(it.n||it.id).trim(),en:it.i18n&&it.i18n.en&&it.i18n.en.name||'',type:sourceCategory,kind:itemWorkspaceLocalKind(it),sourceCategory,category:itemWorkspaceCampaignCategory(it),classification:'campaign',rarity:it.rarity||'обычный',tags:bg3Array(it.tags),icon:it.icon||null,statsId:'',description:String(it.desc||''),row:null,item:it};}
+function itemWorkspaceLocalKind(it){const profile=itemProfile(it);if(profile.kind&&ITEM_KIND_RU[profile.kind])return profile.kind;if(it.type==='weapon')return 'weapon';if(it.type==='armor')return 'armor';if(it.type==='potion')return 'potion';if(it.type==='scroll')return 'scroll';return 'misc';}
+function itemWorkspaceRowFromBg3(row){
+const loaded=gameItemDefinition(row.id),presentation=bg3ItemPresentation.byItem.get(row.id)||null,detail=bg3ItemPresentation.details.get(row.id)||null,names=row.names||{},sourceCategory=String(row.category||'');
+const result={id:row.id,source:'game',canonicalRank:1,name:publicItemText(bg3UserItemName(row,'Предмет')),en:publicItemText(bg3UserFacingLabel(names.en,'')),type:row.type||'',kind:row.kind||'',sourceCategory,category:itemWorkspaceBg3Category(row),classification:row.classification||'',rarity:row.rarity||'',tags:bg3Array(row.tags),icon:row.icon||null,statsId:row.statsId||'',description:publicItemText(loaded&&loaded.desc||detail&&detail.description&&(detail.description.ru||detail.description.en)||''),row,item:loaded||null,presentation,presentationDetail:detail};
+if(loaded&&loaded.custom)Object.assign(result,{name:publicItemText(loaded.n),en:loaded.i18n&&loaded.i18n.en&&loaded.i18n.en.name||'',type:loaded.type,kind:itemWorkspaceLocalKind(loaded),category:itemWorkspaceCampaignCategory(loaded),rarity:loaded.rarity,tags:bg3Array(loaded.tags),icon:loaded.icon||result.icon,description:publicItemText(loaded.desc)});
+return result;
+}
+function itemWorkspaceRowFromLocal(it){const sourceCategory=String(it.type||'');return {id:it.id,source:'game',canonicalRank:2,name:String(it.n||it.id).trim(),en:it.i18n&&it.i18n.en&&it.i18n.en.name||'',type:sourceCategory,kind:itemWorkspaceLocalKind(it),sourceCategory,category:itemWorkspaceCampaignCategory(it),classification:'playable',rarity:it.rarity||'обычный',tags:bg3Array(it.tags),icon:it.icon||null,statsId:'',description:String(it.desc||''),row:null,item:it};}
 function itemWorkspaceLocalDocument(it){const kind=itemWorkspaceLocalKind(it),category=itemWorkspaceCampaignCategory(it);return itemSearchDocument([it.n,it.i18n&&it.i18n.en&&it.i18n.en.name,it.desc,it.props,it.text,it.type,ITEM_TYPES[it.type],ITEM_CATEGORY_LABELS[category],it.rarity,bg3Array(it.tags).map(tag=>ITEM_TAGS[tag]&&ITEM_TAGS[tag].ru||tag),kind,ITEM_KIND_LABELS[kind]]);}
 function itemWorkspaceTaxonomyKey(row){return [row&&row.kind,row&&row.category,row&&row.type].map(value=>String(value||'')).join('|');}
 function itemWorkspaceTaxonomyLabel(row){const labels=[itemWorkspaceKindLabel(row&&row.kind),itemWorkspaceCategoryLabel(row&&row.category),ITEM_TYPES[row&&row.type]||String(row&&row.type||'')].map(value=>String(value||'').trim()).filter(Boolean);return [...new Set(labels)].join(' · ');}
 function itemWorkspaceCanonicalRows(){
-// The verified presentation is the allow-list; the raw index also contains
-// incomplete source definitions needed by saved inventories and world links.
-const rows=[];
+// All definitions belong to this game. The verified index is a lazy storage
+// adapter; saved edits take precedence by the same stable ID, never by origin.
+const rows=[],seen=new Set(),hidden=new Set(itemsDB.filter(it=>it.archived).map(it=>itemIdentityKey(it.n)));
 if(bg3ItemPresentation.root&&bg3Catalog.index)for(const sourceRow of bg3CatalogSearchCacheEnsure().rows){
-if(!bg3ItemPresentation.byItem.has(sourceRow.id)||!sourceRow.icon||!sourceRow.icon.src)continue;
-const row=itemWorkspaceRowFromBg3(sourceRow);if(row.item&&!itemArsenalReadiness(row.item).ok)continue;rows.push(row);
+if(!bg3ItemPresentation.byItem.has(sourceRow.id))continue;
+const row=itemWorkspaceRowFromBg3(sourceRow);seen.add(row.id);
+if(!row.icon||!row.icon.src||row.item&&(row.item.archived||!itemArsenalReadiness(row.item).ok))continue;rows.push(row);
 }
-for(const it of itemsDB){if(bg3CatalogIsId(it.id)||!itemArsenalReadiness(it).ok)continue;rows.push(itemWorkspaceRowFromLocal(it));}
-return PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.canonicalItemRows(rows):rows;
+for(const it of itemsDB){if(seen.has(it.id)||it.archived||!itemArsenalReadiness(it).ok)continue;rows.push(itemWorkspaceRowFromLocal(it));}
+const visible=rows.filter(row=>!hidden.has(itemIdentityKey(row.name)));
+return PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.canonicalItemRows(visible):visible;
 }
-function itemWorkspaceSearch(){
-const f=dbFlt.it,query=f.q||'';
+function itemWorkspaceDocument(row){
+// Search the current game definition; an edited title/description must not
+// continue to be indexed under stale imported text.
+if(row.item&&row.item.custom||!row.row)return itemWorkspaceLocalDocument(row.item);
+const docs=bg3Catalog.index?bg3CatalogSearchDocs():null;
+return itemSearchDocument([row.name,row.en,row.description,itemWorkspaceTaxonomyLabel(row),row.rarity,row.tags,docs&&docs.get(row.id)||'']);
+}
+function itemWorkspaceSearch(filters){
+const f=filters||dbFlt.it,query=f.q||'',q=itemSearchNormalize(query),sort=f.sort||'name';
 if(PUBLIC_ITEM_SURFACE&&PUBLIC_ITEM_SURFACE.containsForbiddenBranding(query))return [];
-const catalogMatches=new Set(bg3Catalog.index?bg3CatalogSearch(query,{rarity:f.rarity,tag:''}).map(row=>row.id):[]);
-const rows=itemWorkspaceCanonicalRows().filter(row=>{
-if(f.taxonomy&&itemWorkspaceTaxonomyKey(row)!==f.taxonomy||f.rarity&&row.rarity!==f.rarity||f.tag&&!itemWorkspaceTagMatches(row.tags,f.tag))return false;
-return row.source==='bg3'?catalogMatches.has(row.id):itemSearchMatches(itemWorkspaceLocalDocument(row.item),query);
-});
-const rarityRank={'обычный':0,'необычный':1,'редкий':2,'очень редкий':3,'легендарный':4,'артефакт':5},sort=f.sort||'name',q=itemSearchNormalize(query);
-let rankOf=null;
-if(q&&sort!=='source'&&sort!=='type'&&sort!=='rarity'){
-const docsMap=bg3Catalog.index?bg3CatalogSearchDocs():null;
-rankOf=new Map();
-for(const row of rows)rankOf.set(row,itemSearchRank(row.name,row.id,row.statsId,row.source==='bg3'?(docsMap&&docsMap.get(row.id)||''):itemWorkspaceLocalDocument(row.item),q));
+const ranked=[];
+for(const row of itemWorkspaceCanonicalRows()){
+if(f.taxonomy&&itemWorkspaceTaxonomyKey(row)!==f.taxonomy||f.rarity&&row.rarity!==f.rarity||f.tag&&!itemWorkspaceTagMatches(row.tags,f.tag))continue;
+const doc=itemWorkspaceDocument(row),rank=itemSearchRank(row.name,row.id,row.statsId,doc,q);
+if(q&&rank>=99)continue;ranked.push({row,rank});
 }
-rows.sort((a,b)=>sort==='type'?ITEM_SEARCH_COLLATOR.compare(itemWorkspaceTaxonomyLabel(a),itemWorkspaceTaxonomyLabel(b))||ITEM_SEARCH_COLLATOR.compare(a.name,b.name):sort==='rarity'?(rarityRank[b.rarity]??-1)-(rarityRank[a.rarity]??-1)||ITEM_SEARCH_COLLATOR.compare(a.name,b.name):q?rankOf.get(a)-rankOf.get(b)||ITEM_SEARCH_COLLATOR.compare(a.name,b.name):ITEM_SEARCH_COLLATOR.compare(a.name,b.name)||a.id.localeCompare(b.id));
-return rows;
+const rarityRank={'обычный':0,'необычный':1,'редкий':2,'очень редкий':3,'легендарный':4,'артефакт':5};
+ranked.sort((a,b)=>(sort==='type'?ITEM_SEARCH_COLLATOR.compare(itemWorkspaceTaxonomyLabel(a.row),itemWorkspaceTaxonomyLabel(b.row)):sort==='rarity'?(rarityRank[b.row.rarity]??-1)-(rarityRank[a.row.rarity]??-1):q?a.rank-b.rank:0)||ITEM_SEARCH_COLLATOR.compare(a.row.name,b.row.name)||a.row.id.localeCompare(b.row.id));
+return ranked.map(value=>value.row);
 }
 function itemWorkspaceClassLabel(value){return ITEM_CLASS_LABELS[value]||value||'—';}
 function itemWorkspaceKindLabel(value){return ITEM_KIND_LABELS[value]||String(value||'').replace(/[._-]+/g,' ')||'Прочие предметы';}
@@ -26550,14 +26571,12 @@ function bg3RuNoun(value,one,few,many){const n=Math.abs(Math.trunc(+value||0)),l
 function bg3ItemWorkspaceCatalogReady(){return !!(bg3Catalog.index&&bg3ItemPresentation.root);}
 function bg3ReleaseSummaryHTML(){
 const ready=bg3ItemWorkspaceCatalogReady();
-if(!ready)return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-catalog-state="loading" aria-busy="true" aria-label="Сводка полной игровой базы предметов"><div class="bg3-release-head"><span class="bg3-release-title">Полный арсенал предметов</span><span class="bg3-release-sub">единый поиск по встроенному каталогу и предметам кампании · обычные правила</span></div><div class="catalog-state" role="status" aria-live="polite">Загружается и проверяется полный Standard-каталог…</div></section>';
-const rows=itemWorkspaceCanonicalRows(),available=rows.filter(row=>row.source==='bg3').length,campaign=rows.length-available,total=rows.length,
+if(!ready)return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-catalog-state="loading" aria-busy="true" aria-label="Сводка полной игровой базы предметов"><div class="bg3-release-head"><span class="bg3-release-title">Полный арсенал предметов</span><span class="bg3-release-sub">Все предметы вашей D&D-игры</span></div><div class="catalog-state" role="status" aria-live="polite">Загружается и проверяется база предметов вашей игры…</div></section>';
+const total=itemWorkspaceCanonicalRows().length,
 recipes=bg3Catalog.assets.recipes&&bg3Catalog.assets.recipes.recipes.length;
 return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-catalog-state="ready" data-user-items="'+total+'" aria-label="Сводка полной игровой базы предметов"><div class="bg3-release-head"><span class="bg3-release-title">Полный арсенал предметов</span>'
-+'<span class="bg3-release-sub">единый поиск по встроенному каталогу и предметам кампании · обычные правила</span></div>'
-+'<div class="bg3-release-metrics"><div class="bg3-release-metric"><b>'+bg3Count(total)+'</b>доступных предметов</div>'
-+'<div class="bg3-release-metric"><b>'+bg3Count(available)+'</b>предметов каталога</div>'
-+'<div class="bg3-release-metric"><b>'+bg3Count(campaign)+'</b>предметов кампании</div>'
++'<span class="bg3-release-sub">Все предметы вашей D&D-игры</span></div>'
++'<div class="bg3-release-metrics"><div class="bg3-release-metric"><b>'+bg3Count(total)+'</b>предметов в игре</div>'
 +(recipes?'<div class="bg3-release-metric"><b>'+bg3Count(recipes)+'</b>рецептов</div>':'')+'</div></section>';
 }
 function refreshBg3ReleaseLabels(){
@@ -26614,29 +26633,38 @@ function itemWorkspaceSetHero(id){itemWorkspace.heroId=getCh(id)?id:'';renderIte
 function itemWorkspaceSetQty(value){const qty=Math.max(1,Math.min(999,Math.floor(+value||1)));itemWorkspace.qty=qty;const input=document.getElementById('itemWorkspaceQty');if(input)input.value=String(qty);}
 function bg3ItemSourceInventoryBlock(it){
 const facts=it&&it.mechanics&&it.mechanics.sourceFacts&&it.mechanics.sourceFacts.facts||{},pickable=facts.pickable,movable=facts.movable;
-if(bg3SourceFactHasValue(pickable)&&pickable.value===false)return 'По правилам источника этот объект нельзя подобрать в инвентарь';
-if(bg3SourceFactHasValue(movable)&&movable.value===false)return 'По правилам источника этот объект нельзя перемещать в инвентарь';
+if(bg3SourceFactHasValue(pickable)&&pickable.value===false)return 'Этот объект нельзя подобрать в инвентарь';
+if(bg3SourceFactHasValue(movable)&&movable.value===false)return 'Этот объект нельзя перемещать в инвентарь';
 return '';
 }
-function itemWorkspaceReviewPortable(row){return !!(row&&row.source==='bg3'&&row.classification==='needs-review'&&row.sourceCategory&&row.sourceCategory!=='unclassified'&&row.item&&itemProfile(row.item).flags.portable===true);}
-function itemWorkspacePortable(row){return !!(row&&bg3ItemSourceAuditAllows(row,'inventory')&&!bg3ItemSourceInventoryBlock(row.item)&&(row.source==='campaign'||['playable','duplicate'].includes(row.classification)||itemWorkspaceReviewPortable(row)));}
+function itemInventoryBlock(it,checkMass=true){
+if(!it)return 'Предмет ещё не загружен';
+if(it.archived)return 'Предмет скрыт из списка выдачи';
+const audit=bg3ItemSourceAuditOverride(it),sourceBlock=bg3ItemSourceInventoryBlock(it);
+if(audit&&audit.inventory===false)return audit.reason;
+if(sourceBlock)return sourceBlock;
+if(itemProfile(it).flags.portable===false)return 'Этот объект мира нельзя перенести в инвентарь';
+if(checkMass&&itemMassKg(it)==null)return 'Вес предмета не определён; выдача в инвентарь недоступна';
+return '';
+}
+function itemWorkspacePortable(row){return !!(row&&(row.item?!itemInventoryBlock(row.item,false):bg3ItemSourceAuditAllows(row,'inventory')&&['playable','duplicate'].includes(row.classification)));}
 function itemWorkspaceHeroToolbarHTML(){const hero=itemWorkspaceHero();return '<div class="items-workspace-toolbar" aria-label="Получатель предмета">'
 +'<div><label for="itemWorkspaceHero">Герой-получатель</label><select id="itemWorkspaceHero" onchange="itemWorkspaceSetHero(this.value)"'+(chars.length?'':' disabled')+'>'+(chars.length?itemWorkspaceHeroOptionsHTML():'<option value="">Сначала создайте героя</option>')+'</select></div>'
 +'<div><label for="itemWorkspaceQty">Количество</label><input id="itemWorkspaceQty" type="number" min="1" max="999" step="1" value="'+itemWorkspace.qty+'" oninput="itemWorkspaceSetQty(this.value)"></div>'
 +'<div><span class="catalog-source '+(hero?'bg3':'')+'">'+(hero?'Выдача: '+esc(hero.name||hero.id):'Нет героя')+'</span></div></div>';}
 function itemWorkspaceGrantControlsHTML(row,compact){
 if(!row)return '';if(!itemWorkspacePortable(row))return '<span class="catalog-source" title="Этот объект нельзя выдать в инвентарь">'+esc(row.classification==='technical'?'служебная запись':'объект мира')+'</span>';
-const hero=itemWorkspaceHero(),heroName=hero&&hero.name||'герою',review=row.source==='bg3'&&row.classification!=='playable',disabled=!hero?' disabled title="Сначала создайте героя"':'';return '<div class="item-grant-controls"><button class="btn '+(review?'ghost':'rub')+' sm" aria-label="Выдать '+esc(row.name)+' в количестве '+itemWorkspace.qty+' герою '+esc(heroName)+'"'+disabled+' onclick="itemWorkspaceGive('+esc(JSON.stringify(row.id))+')">+ '+(compact?(review?'выдать вариант':'выдать'):'выдать '+esc(heroName))+'</button></div>';
+const hero=itemWorkspaceHero(),heroName=hero&&hero.name||'герою',disabled=!hero?' disabled title="Сначала создайте героя"':'';return '<div class="item-grant-controls"><button class="btn rub sm" aria-label="Выдать '+esc(row.name)+' в количестве '+itemWorkspace.qty+' герою '+esc(heroName)+'"'+disabled+' onclick="itemWorkspaceGive('+esc(JSON.stringify(row.id))+')">+ '+(compact?'выдать':'выдать '+esc(heroName))+'</button></div>';
 }
 function itemWorkspaceListRowHTML(row,selected){
-const icon=itemIconHTML(row,42),taxonomy=itemWorkspaceTaxonomyLabel(row),desc=String(row.description||'').trim(),p=row.presentation,actionable=row.source==='campaign'||p&&p.actionCount+p.interactionCount+p.lifecycleCount+p.effectCount>0;
+const icon=itemIconHTML(row,42),taxonomy=itemWorkspaceTaxonomyLabel(row),desc=String(row.description||'').trim(),p=row.presentation,actionable=!!(row.item||p);
 return '<div class="catalog-result-row'+(selected?' selected':'')+'" data-item-id="'+esc(row.id)+'">'+icon+'<button class="catalog-result-open" type="button" onclick="itemWorkspaceSelect('+esc(JSON.stringify(row.id))+')" aria-label="Открыть карточку '+esc(row.name)+'" aria-pressed="'+(selected?'true':'false')+'"><div class="catalog-result-name">'+esc(row.name)+'</div><div class="catalog-result-meta">'+esc(taxonomy+(row.rarity?' · '+row.rarity:'')+(actionable?' · готов к движку':''))+'</div>'+(desc?'<div class="catalog-result-desc">'+esc(desc)+'</div>':'')+'</button>'+itemWorkspaceGrantControlsHTML(row,true)+'</div>';
 }
 function itemWorkspaceSelectedRow(rows){
-let row=rows.find(value=>value.id===itemWorkspace.selectedId)||null;if(!row&&rows.length){row=rows[0];itemWorkspace.selectedId=row.id;itemWorkspace.presentationSelectedId=row.id;}if(row&&row.source==='bg3'&&row.row)row=itemWorkspaceRowFromBg3(row.row);else if(row&&row.source==='campaign'&&row.item)row=itemWorkspaceRowFromLocal(row.item);return row;
+let row=rows.find(value=>value.id===itemWorkspace.selectedId)||null;if(!row&&rows.length){row=rows[0];itemWorkspace.selectedId=row.id;itemWorkspace.presentationSelectedId=row.id;}if(row&&row.row)row=itemWorkspaceRowFromBg3(row.row);else if(row&&row.item)row=itemWorkspaceRowFromLocal(row.item);return row;
 }
 function itemWorkspaceEnsureHydrated(row){
-if(!row||row.source!=='bg3')return;const selectedId=row.id,epoch=bg3Catalog.epoch,explicit=itemWorkspace.presentationSelectedId===row.id,searchField=document.getElementById('bg3CatalogSearchInput'),searchFocused=!!(searchField&&document.activeElement===searchField),searchStart=searchFocused&&Number.isInteger(searchField.selectionStart)?searchField.selectionStart:null,searchEnd=searchFocused&&Number.isInteger(searchField.selectionEnd)?searchField.selectionEnd:null,refresh=()=>{renderItemsDB();if(searchFocused)bg3CatalogRestoreFilterFocus('bg3CatalogSearchInput',searchStart,searchEnd);else if(explicit)itemWorkspaceRevealDetail();},hasItem=!!(row.item||bg3Catalog.items.has(row.id)),presentationMeta=bg3ItemPresentation.byItem.get(row.id),needsDetail=explicit&&(!bg3ItemPresentation.root||presentationMeta&&presentationMeta.detailShard!=null&&!bg3ItemPresentation.details.has(row.id)&&!bg3ItemPresentation.detailErrors.has(presentationMeta.detailShard));if(hasItem&&!needsDetail)return;const key=bg3Catalog.epoch+'|'+row.id+'|'+(needsDetail?'detail':'item');if(itemWorkspace.hydrateKey===key&&itemWorkspace.hydratePromise)return;
+if(!row||!row.row)return;const selectedId=row.id,epoch=bg3Catalog.epoch,explicit=itemWorkspace.presentationSelectedId===row.id,searchField=document.getElementById('bg3CatalogSearchInput'),searchFocused=!!(searchField&&document.activeElement===searchField),searchStart=searchFocused&&Number.isInteger(searchField.selectionStart)?searchField.selectionStart:null,searchEnd=searchFocused&&Number.isInteger(searchField.selectionEnd)?searchField.selectionEnd:null,refresh=()=>{renderItemsDB();if(searchFocused)bg3CatalogRestoreFilterFocus('bg3CatalogSearchInput',searchStart,searchEnd);else if(explicit)itemWorkspaceRevealDetail();},hasItem=!!(row.item||bg3Catalog.items.has(row.id)),presentationMeta=bg3ItemPresentation.byItem.get(row.id),needsDetail=explicit&&(!bg3ItemPresentation.root||presentationMeta&&presentationMeta.detailShard!=null&&!bg3ItemPresentation.details.has(row.id)&&!bg3ItemPresentation.detailErrors.has(presentationMeta.detailShard));if(hasItem&&!needsDetail)return;const key=bg3Catalog.epoch+'|'+row.id+'|'+(needsDetail?'detail':'item');if(itemWorkspace.hydrateKey===key&&itemWorkspace.hydratePromise)return;
 itemWorkspace.hydrateKey=key;const tasks=[];if(!hasItem)tasks.push(bg3CatalogHydrate([row.id]));if(needsDetail)tasks.push(bg3ItemPresentationLoadDetail(row.id));const promise=Promise.all(tasks);itemWorkspace.hydratePromise=promise;
 promise.then(()=>{if(epoch===bg3Catalog.epoch&&itemWorkspace.selectedId===selectedId)refresh();}).catch(error=>{if(epoch===bg3Catalog.epoch&&error&&error.code!=='BG3_CATALOG_STALE'){setStatus('Карточка предмета не загрузилась: '+bg3FriendlyError(error,'попробуйте ещё раз'),true);refresh();}}).finally(()=>{if(itemWorkspace.hydratePromise===promise){itemWorkspace.hydratePromise=null;itemWorkspace.hydrateKey='';}});
 }
@@ -26645,33 +26673,33 @@ id=String(id||'');itemWorkspace.selectedId=id;itemWorkspace.presentationSelected
 }
 function itemWorkspaceDetailHTML(row){
 if(!row)return '<div class="catalog-state item-detail-placeholder"><div><b>Ничего не найдено</b><br>Измените запрос или сбросьте фильтры.</div></div>';
-if(row.source==='bg3')itemWorkspaceEnsureHydrated(row);if(row.source==='bg3'&&!row.item){const icon=itemIconHTML(row,64);return '<div class="entry-card item-detail-placeholder">'+icon+'<div><h4>'+esc(row.name)+'</h4><p>Загружаются описание, характеристики и доступные действия…</p></div></div>';}
+itemWorkspaceEnsureHydrated(row);if(!row.item){const icon=itemIconHTML(row,64);return '<div class="entry-card item-detail-placeholder">'+icon+'<div><h4>'+esc(row.name)+'</h4><p>Загружаются описание, характеристики и доступные действия…</p></div></div>';}
 if(!itemArsenalReadiness(row.item).ok)return '<div class="catalog-state" role="alert">Карточка не прошла проверку полноты. Выдача недоступна.</div>';
-const it=row.item,extra=itemWorkspaceGrantControlsHTML(row,false)+(row.source==='campaign'?'<button class="btn ghost sm" onclick="openItemEd('+esc(JSON.stringify(row.id))+')">✎ изменить</button><button class="del-x" onclick="delItemDB('+esc(JSON.stringify(row.id))+')">✕</button>':'');
+const it=row.item,extra=itemWorkspaceGrantControlsHTML(row,false)+'<button class="btn ghost sm" onclick="openItemEd('+esc(JSON.stringify(row.id))+')">✎ изменить</button><button class="btn ghost sm" onclick="delItemDB('+esc(JSON.stringify(row.id))+')">Скрыть из выдачи</button>';
 const actor=itemWorkspaceHero();return itemCardHTML(it,extra,{fullDescription:true,presentationDetail:true,actorId:actor&&actor.id||''});
 }
 async function bg3CatalogOpen(id){
 id=String(id||'');const epoch=bg3Catalog.epoch;
-try{const summary=bg3Catalog.summaries.get(id);bg3RuntimeView='items';dbFlt.it.q=summary?bg3UserItemName(summary,''):'';dbFlt.it.taxonomy='';dbFlt.it.rarity='';dbFlt.it.tag='';const index=itemWorkspaceSearch().findIndex(row=>row.id===id);bg3Catalog.page=index<0?0:Math.floor(index/ITEM_WORKSPACE_PAGE_SIZE);itemWorkspace.selectedId=id;itemWorkspace.presentationSelectedId=id;editing.it=null;renderItemsDB();await Promise.all([bg3CatalogHydrate([id]),bg3ItemPresentationLoadDetail(id)]);if(epoch!==bg3Catalog.epoch||itemWorkspace.selectedId!==id)return;renderItemsDB(id);itemWorkspaceRevealDetail();}
+try{const summary=bg3Catalog.summaries.get(id);bg3RuntimeView='items';dbFlt.it.q=itemOf(id)?userFacingItemName(itemOf(id),''):summary?bg3UserItemName(summary,''):'';dbFlt.it.taxonomy='';dbFlt.it.rarity='';dbFlt.it.tag='';const index=itemWorkspaceSearch().findIndex(row=>row.id===id);bg3Catalog.page=index<0?0:Math.floor(index/ITEM_WORKSPACE_PAGE_SIZE);itemWorkspace.selectedId=id;itemWorkspace.presentationSelectedId=id;editing.it=null;renderItemsDB();await Promise.all([bg3CatalogHydrate([id]),bg3ItemPresentationLoadDetail(id)]);if(epoch!==bg3Catalog.epoch||itemWorkspace.selectedId!==id)return;renderItemsDB(id);itemWorkspaceRevealDetail();}
 catch(error){if(epoch!==bg3Catalog.epoch||error&&error.code==='BG3_CATALOG_STALE')return;setStatus('Не удалось загрузить предмет каталога: '+bg3FriendlyError(error,'попробуйте ещё раз'),true);renderItemsDB();}
 }
 async function itemWorkspaceGrantPlanFor(actorId,itemId,qty,opts){
 opts=opts||{};const c=getCh(String(actorId||'')),amount=Number(qty);if(!c)return {ok:false,reason:'выбранный герой не найден'};if(!Number.isInteger(amount)||amount<1||amount>999)return {ok:false,reason:'количество должно быть целым числом от 1 до 999'};
 const epoch=bg3Catalog.epoch;let presentation=null;if(bg3CatalogIsId(itemId)){presentation=await bg3ItemPresentationEnsure();if(epoch!==bg3Catalog.epoch)return {ok:false,stale:true,reason:'профиль каталога изменился во время загрузки'};if(!presentation||!presentation.byItem.has(String(itemId)))return {ok:false,reason:'предмет не входит в проверенный строгий арсенал'};await bg3CatalogHydrate([itemId]);}if(epoch!==bg3Catalog.epoch)return {ok:false,stale:true,reason:'профиль каталога изменился во время загрузки'};
-const it=itemOf(itemId);if(!it)return {ok:false,reason:'предмет отсутствует в текущей базе'};if(!itemArsenalReadiness(it).ok)return {ok:false,reason:'предмет не прошёл проверку полноты; выдача недоступна'};const sourceAudit=bg3ItemSourceAuditOverride(it);if(bg3CatalogIsId(itemId)&&sourceAudit&&sourceAudit.inventory===false)return {ok:false,manual:true,reason:sourceAudit.reason};if(bg3CatalogIsId(itemId)){const source=it.source||{},classification=source.classification,profile=itemProfile(it),sourcePortableBlock=bg3ItemSourceInventoryBlock(it),inventoryClass=['playable','duplicate'].includes(classification)||(classification==='needs-review'&&source.category&&source.category!=='unclassified');if(sourcePortableBlock)return {ok:false,reason:sourcePortableBlock};if(!inventoryClass||profile.flags.portable!==true)return {ok:false,reason:'этот объект относится к миру или вспомогательным данным и не переносится в инвентарь'};if(itemMassKg(it)==null)return {ok:false,reason:'вес этого предмета неприменим или не определён; выдача в инвентарь заблокирована'};}
+const it=itemOf(itemId);if(!it)return {ok:false,reason:'предмет отсутствует в текущей базе'};if(!itemArsenalReadiness(it).ok)return {ok:false,reason:'предмет не прошёл проверку полноты; выдача недоступна'};const inventoryBlock=itemInventoryBlock(gameItemDefinition(itemId));if(inventoryBlock)return {ok:false,reason:inventoryBlock};
 let valueGp=null,valueCp=null;if(itemUsesInventoryValue(it)){const requestedValueGp=opts.valueGp;if(requestedValueGp==null)return {ok:false,needsValue:true,item:it,c,qty:amount,reason:'нужна оценочная стоимость экземпляра'};const valueCopper=exactCopperFromGp(requestedValueGp);if(valueCopper==null||valueCopper<=0)return {ok:false,reason:'стоимость должна быть положительной суммой с точностью до медной монеты'};valueCp=String(valueCopper);valueGp=valueCopper/100;}
 const transition=bg3InventoryMutationGuard(c,[],{context:'catalog-give',additions:[{itemId,qty:amount}]});if(!transition.ok)return transition;
-return {ok:true,kind:'catalog-give-plan',actorId:c.id,itemId:String(itemId),qty:amount,valueGp:valueGp==null?null:valueGp,valueCp,epoch,c,it,presentation,itemSnapshot:JSON.stringify(itemClone(it)),inventorySnapshot:JSON.stringify(itemClone(c.inventory||[])),equipmentSnapshot:JSON.stringify(itemClone(c.equipment||{})),catalogVersion:bg3Catalog.current&&bg3Catalog.current.catalogVersion||'',profile:bg3Catalog.preferredProfile||'',committed:false};
+return {ok:true,kind:'catalog-give-plan',actorId:c.id,itemId:String(itemId),qty:amount,valueGp:valueGp==null?null:valueGp,valueCp,epoch,c,it,presentation,itemSnapshot:JSON.stringify(itemClone(it)),inventorySnapshot:JSON.stringify(itemClone(c.inventory||[])),equipmentSnapshot:JSON.stringify(itemClone(c.equipment||{})),catalogVersion:bg3Catalog.current&&bg3Catalog.current.catalogVersion||'',profile:bg3Catalog.preferredProfile||'',definitionSnapshot:JSON.stringify(gameItemDefinition(itemId)),committed:false};
 }
 function itemWorkspaceFillContainerPreview(entry,it){if(!it||!Array.isArray(it.contents)||!it.contents.length||entry.filled)return;entry.filled=true;entry.inside=[];for(let index=0;index<it.contents.length;index++){const pair=it.contents[index],itemId=pair&&pair[0];if(!itemOf(itemId)||entry.inside.some(row=>row.itemId===itemId))continue;entry.inside.push({id:'catalog-grant-preflight-'+index,itemId,qty:+pair[1]||1,notes:''});}}
 async function itemWorkspaceGrantCommit(plan){
-if(!plan||!plan.ok||plan.kind!=='catalog-give-plan')return {ok:false,reason:'нужен подтверждённый план выдачи'};if(plan.committed)return {ok:false,replay:true,reason:'этот план выдачи уже применён'};const c=getCh(plan.actorId),it=itemOf(plan.itemId),strictReady=!bg3CatalogIsId(plan.itemId)||plan.presentation&&bg3ItemPresentation.root===plan.presentation&&plan.presentation.byItem.has(plan.itemId);if(!c||!it||!strictReady||c!==plan.c||it!==plan.it||plan.epoch!==bg3Catalog.epoch||plan.catalogVersion!==(bg3Catalog.current&&bg3Catalog.current.catalogVersion||'')||plan.profile!==(bg3Catalog.preferredProfile||'')||plan.itemSnapshot!==JSON.stringify(itemClone(it))||plan.inventorySnapshot!==JSON.stringify(itemClone(c.inventory||[]))||plan.equipmentSnapshot!==JSON.stringify(itemClone(c.equipment||{})))return {ok:false,stale:true,reason:'герой, предмет, инвентарь или каталог изменились до выдачи'};
+if(!plan||!plan.ok||plan.kind!=='catalog-give-plan')return {ok:false,reason:'нужен подтверждённый план выдачи'};if(plan.committed)return {ok:false,replay:true,reason:'этот план выдачи уже применён'};const c=getCh(plan.actorId),it=itemOf(plan.itemId),strictReady=!bg3CatalogIsId(plan.itemId)||plan.presentation&&bg3ItemPresentation.root===plan.presentation&&plan.presentation.byItem.has(plan.itemId);if(plan.definitionSnapshot!==JSON.stringify(gameItemDefinition(plan.itemId))||!c||!it||!strictReady||c!==plan.c||it!==plan.it||plan.epoch!==bg3Catalog.epoch||plan.catalogVersion!==(bg3Catalog.current&&bg3Catalog.current.catalogVersion||'')||plan.profile!==(bg3Catalog.preferredProfile||'')||plan.itemSnapshot!==JSON.stringify(itemClone(it))||plan.inventorySnapshot!==JSON.stringify(itemClone(c.inventory||[]))||plan.equipmentSnapshot!==JSON.stringify(itemClone(c.equipment||{})))return {ok:false,stale:true,reason:'герой, предмет, инвентарь или каталог изменились до выдачи'};
 if(itemWorkspace.grantCommits.has(plan.actorId))return {ok:false,busy:true,reason:'для этого героя уже выполняется другая выдача'};itemWorkspace.grantCommits.add(plan.actorId);
 try{let transition=bg3InventoryMutationGuard(c,[],{context:'catalog-give-commit',additions:[{itemId:plan.itemId,qty:plan.qty}]});if(!transition.ok)return transition;
 const draft=itemClone(c),draftIt=itemOf(plan.itemId);let draftEntry=bg3Array(draft.inventory).find(row=>row.itemId===plan.itemId&&(!itemUsesInventoryValue(draftIt)||itemEntryGoldValueMatches(row,plan.valueGp)));if(draftEntry)setInvQty(draftEntry,draftIt,(+draftEntry.qty||1)+plan.qty);else{draftEntry={id:'catalog-grant-preflight',itemId:plan.itemId,qty:plan.qty,notes:''};if(plan.valueGp!=null){draftEntry.valueCp=plan.valueCp;draftEntry.valueGp=plan.valueGp;}draft.inventory.push(draftEntry);}itemWorkspaceFillContainerPreview(draftEntry,draftIt);
 let lifecycle;try{lifecycle=await bg3LifecycleReconcile(draft);}catch(error){return {ok:false,rolledBack:true,reason:'выдача отменена до изменения мира: '+String(error&&error.message||error)};}finally{bg3LifecycleRuntime.byChar.delete(draft);}
 if(!lifecycle||lifecycle.ok!==true)return {ok:false,rolledBack:true,reason:'выдача отменена до изменения мира: '+String(lifecycle&&lifecycle.reason||'lifecycle предмета не подготовлен')};
-const live=getCh(plan.actorId),liveItem=itemOf(plan.itemId),liveStrict=!bg3CatalogIsId(plan.itemId)||bg3ItemPresentation.root===plan.presentation&&plan.presentation.byItem.has(plan.itemId);if(live!==c||liveItem!==it||!liveStrict||plan.epoch!==bg3Catalog.epoch||plan.itemSnapshot!==JSON.stringify(itemClone(liveItem))||plan.inventorySnapshot!==JSON.stringify(itemClone(c.inventory||[]))||plan.equipmentSnapshot!==JSON.stringify(itemClone(c.equipment||{})))return {ok:false,stale:true,reason:'герой, предмет или инвентарь изменились во время подготовки lifecycle'};
+const live=getCh(plan.actorId),liveItem=itemOf(plan.itemId),liveStrict=!bg3CatalogIsId(plan.itemId)||bg3ItemPresentation.root===plan.presentation&&plan.presentation.byItem.has(plan.itemId);if(plan.definitionSnapshot!==JSON.stringify(gameItemDefinition(plan.itemId))||live!==c||liveItem!==it||!liveStrict||plan.epoch!==bg3Catalog.epoch||plan.itemSnapshot!==JSON.stringify(itemClone(liveItem))||plan.inventorySnapshot!==JSON.stringify(itemClone(c.inventory||[]))||plan.equipmentSnapshot!==JSON.stringify(itemClone(c.equipment||{})))return {ok:false,stale:true,reason:'герой, предмет или инвентарь изменились во время подготовки lifecycle'};
 transition=bg3InventoryMutationGuard(c,[],{context:'catalog-give-commit-barrier',additions:[{itemId:plan.itemId,qty:plan.qty}]});if(!transition.ok)return transition;let entry=(c.inventory||[]).find(row=>row.itemId===plan.itemId&&(!itemUsesInventoryValue(it)||itemEntryGoldValueMatches(row,plan.valueGp)));if(entry){setInvQty(entry,it,(+entry.qty||1)+plan.qty);if(plan.valueCp!=null)entry.valueCp=plan.valueCp;}else{entry={id:'inv_'+uid(),itemId:plan.itemId,qty:plan.qty,notes:''};if(plan.valueGp!=null){entry.valueCp=plan.valueCp;entry.valueGp=plan.valueGp;}c.inventory.push(entry);}fillContainer(entry,it);plan.committed=true;
 let displayError='';try{bg3LifecycleScheduleForSurface(c,plan.itemId,false);scheduleSave();renderChars();if(activeWorldTab==='itemsdb')renderItemsDB(plan.itemId);}catch(error){displayError=String(error&&error.message||error);}
 return {ok:true,actorId:c.id,itemId:plan.itemId,qty:plan.qty,entryId:entry.id,stackQty:+entry.qty||1,displayError};
@@ -26679,7 +26707,7 @@ return {ok:true,actorId:c.id,itemId:plan.itemId,qty:plan.qty,entryId:entry.id,st
 }
 async function itemWorkspaceGiveTo(itemId,actorId,qty){
 const key=String(actorId||'');if(itemWorkspace.grantLocks.has(key))return false;itemWorkspace.grantLocks.add(key);
-try{let plan=await itemWorkspaceGrantPlanFor(actorId,itemId,qty);if(plan.needsValue){const suggested=(itemProfile(plan.item).value||{}).defaultGp||1,raw=window.prompt('Оценочная стоимость одного экземпляра «'+userFacingItemName(plan.item,'Предмет')+'» в золотых монетах:',String(suggested));if(raw==null)return false;plan=await itemWorkspaceGrantPlanFor(actorId,itemId,qty,{valueGp:String(raw).trim().replace(',','.')});}if(plan.ok&&bg3CatalogIsId(itemId)&&plan.it.source&&plan.it.source.classification!=='playable'&&!window.confirm('Это переносимый вариант из расширенного каталога. Выдать его герою?'))return false;
+try{let plan=await itemWorkspaceGrantPlanFor(actorId,itemId,qty);if(plan.needsValue){const suggested=(itemProfile(plan.item).value||{}).defaultGp||1,raw=window.prompt('Оценочная стоимость одного экземпляра «'+userFacingItemName(plan.item,'Предмет')+'» в золотых монетах:',String(suggested));if(raw==null)return false;plan=await itemWorkspaceGrantPlanFor(actorId,itemId,qty,{valueGp:String(raw).trim().replace(',','.')});}
 if(!plan.ok)throw new Error(plan.reason);const done=await itemWorkspaceGrantCommit(plan);if(!done.ok)throw new Error(done.reason);const c=getCh(actorId),grantedItem=itemOf(itemId);setStatus('✓ '+(c&&c.name||actorId)+': «'+userFacingItemName(grantedItem,'Предмет')+'» ×'+qty+' добавлено в инвентарь.');return true;
 }catch(error){if(error&&error.code==='BG3_CATALOG_STALE')return false;setStatus('Предмет не выдан: '+bg3FriendlyError(error,'попробуйте ещё раз'),true);return false;}finally{itemWorkspace.grantLocks.delete(key);}
 }
@@ -26687,7 +26715,7 @@ function itemWorkspaceGive(itemId){const c=itemWorkspaceHero();return itemWorksp
 async function addInvFromBG3(itemId,actorId){const explicit=String(actorId||''),c=explicit?getCh(explicit):itemWorkspaceHero();return itemWorkspaceGiveTo(itemId,c&&c.id||explicit,1);}
 function bg3UserFacingLabel(value,fallback){const raw=String(value||'').trim(),known={CONS_Potion_Necrotic_Resistance:'Зелье сопротивления некротическому урону',OBJ_Potion_Of_Necrotic_Resistance:'Зелье сопротивления некротическому урону',OBJ_BeerBarrelPoisoned:'Отравленная пивная бочка',OBJ_BeerBarrel:'Пивная бочка'};if(known[raw])return known[raw];if(!raw||/^bg3:/i.test(raw)||/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(raw)||raw.includes('_')||/[a-z][A-Z]/.test(raw)||/^(?:TT|OBJ|CONS|QUEST|ALCH|DEN|FOR|GOB|UND)[A-Z0-9]/.test(raw)||/^[A-Z0-9]{3,}$/.test(raw))return fallback||'';return raw;}
 function bg3UserItemName(row,fallback){const names=row&&row.names||{};for(const value of [names.ru,names.en,row&&row.statsId]){const label=bg3UserFacingLabel(value,'');if(label)return label;}return fallback===undefined?'Предмет':fallback;}
-function userFacingItemName(it,fallback){const safeFallback=publicItemText(fallback===undefined?'Предмет':String(fallback),'Предмет');if(!it)return safeFallback;if(bg3CatalogIsId(it.id))return bg3UserItemName(bg3Catalog.summaries.get(it.id),safeFallback);return publicItemText(it.n||safeFallback,safeFallback);}
+function userFacingItemName(it,fallback){it=it&&gameItemStored(it.id)?.gameDefinition===true?gameItemDefinition(it.id):it;const safeFallback=publicItemText(fallback===undefined?'Предмет':String(fallback),'Предмет');if(!it)return safeFallback;if(bg3CatalogIsId(it.id)&&!it.custom)return bg3UserItemName(bg3Catalog.summaries.get(it.id),safeFallback);return publicItemText(it.n||safeFallback,safeFallback);}
 function userFacingItemActionLabel(action,fallback){const raw=String(action&&action.label!==undefined?action.label:action||'').trim(),safe=bg3UserFacingLabel(raw,'');if(safe)return safe;const verb=bg3UserFacingLabel(raw.split(':')[0].trim(),'');return verb||String(fallback||'Применить');}
 function activeFxUserFacingLabel(a){const it=a&&itemOf(a.id);if(it&&bg3CatalogIsId(it.id))return userFacingItemName(it,'Эффект предмета');if(a&&a.k==='spell'){const sp=spellOf(a.id);if(sp)return sp.n;}if(a&&a.k==='ability'){const ab=abilityOf(a.id);if(ab)return ab.n;}if(/^bg3(?:-|$)/i.test(String(a&&a.k||'')))return String(a&&a.id||'')==='KNOCKED_OUT'?'Бессознательный':'Эффект предмета';return String(a&&a.label||'Эффект');}
 function bg3PublicRuntimeReason(value,fallback){const raw=String(value||'').trim(),neutral=String(fallback||'Правило предмета пока недоступно.');if(!raw)return neutral;if(/\b(?:BG3|UnlockSpell)\b|private(?:[- ]|$)|(?:^|\s)(?:sourceField|programId|spellId|interruptId)(?:\s|$)|[0-9a-f]{8}-[0-9a-f-]{27,}/i.test(raw)||/(?:^|\s)[A-Za-z][A-Za-z0-9.]+(?:[_-][A-Za-z0-9.]+)+(?:\s|$)/.test(raw))return neutral;return raw;}
@@ -26698,7 +26726,7 @@ const total=ids.length,visible=ids.slice(0,60);return '<div class="bg3-ref-icons
 icon=row&&row.icon&&row.icon.src?'<img class="item-icon sm" src="'+esc(row.icon.src)+'" width="38" height="38" loading="lazy" decoding="async" alt="">':'';
 return '<button type="button" class="bg3-ref" title="Открыть «'+esc(name)+'»" onclick="itemWorkspaceShow('+esc(JSON.stringify(id))+')">'+icon+'<span>'+esc(name)+'</span></button>';}).join('')+(total>visible.length?'<span class="bg3-ref">… ещё '+(total-visible.length)+'</span>':'')+'</div>';
 }
-function itemWorkspaceShow(id){id=String(id||'');const summary=bg3Catalog.summaries.get(id);bg3RuntimeView='items';dbFlt.it.q=summary?bg3UserItemName(summary,''):'';dbFlt.it.taxonomy='';dbFlt.it.rarity='';dbFlt.it.tag='';const index=itemWorkspaceSearch().findIndex(row=>row.id===id);bg3Catalog.page=index<0?0:Math.floor(index/ITEM_WORKSPACE_PAGE_SIZE);itemWorkspace.selectedId=id;itemWorkspace.presentationSelectedId=id;renderItemsDB();itemWorkspaceRevealDetail();itemWorkspaceEnsureHydrated(summary?itemWorkspaceRowFromBg3(summary):null);}
+function itemWorkspaceShow(id){id=String(id||'');const summary=bg3Catalog.summaries.get(id);bg3RuntimeView='items';dbFlt.it.q=itemOf(id)?userFacingItemName(itemOf(id),''):summary?bg3UserItemName(summary,''):'';dbFlt.it.taxonomy='';dbFlt.it.rarity='';dbFlt.it.tag='';const index=itemWorkspaceSearch().findIndex(row=>row.id===id);bg3Catalog.page=index<0?0:Math.floor(index/ITEM_WORKSPACE_PAGE_SIZE);itemWorkspace.selectedId=id;itemWorkspace.presentationSelectedId=id;renderItemsDB();itemWorkspaceRevealDetail();itemWorkspaceEnsureHydrated(summary?itemWorkspaceRowFromBg3(summary):null);}
 let bg3TreasureUserTableCountCache={asset:null,count:0};
 function bg3TreasureUserTableCount(asset){
 if(!asset)return 0;if(bg3TreasureUserTableCountCache.asset===asset)return bg3TreasureUserTableCountCache.count;
@@ -27329,9 +27357,12 @@ h+='</div><aside id="itemWorkspaceDetail" tabindex="-1" class="catalog-detail" a
 }
 box.innerHTML=h+'</section>';refreshBg3ReleaseLabels();
 }
-function openItemEd(id){
-if(bg3CatalogIsId(id)){ bg3CatalogOpen(id); return; }
-const edited=itemsDB.find(item=>item.id===id);editing.it=id;dbFlt.it.q=edited&&edited.n||'';dbFlt.it.taxonomy='';dbFlt.it.rarity='';dbFlt.it.tag='';bg3Catalog.page=0;itemWorkspace.selectedId=id||'';itemWorkspace.presentationSelectedId='';renderItemsDB();itemWorkspaceRevealDetail();
+let itemEditorBaseline=null;
+function itemEditorRulesState(){const fields=['edItT','edItSlot','edItW','edItDmg','edItDT','edItAC','edItFx','edItMode','edItManual','edItResourceKind','edItResourceMax','edItResourceWhen','edItTool','edItMaterial','edItCompileProfile'];return JSON.stringify(fields.map(id=>{const el=document.getElementById(id);return [id,el&&el.value,el&&el.checked];}).concat([...document.querySelectorAll('#edItUsesList input,#edItUsesList select,#edItUsesList textarea,#edItTags input')].map(el=>[el.className,el.value,el.checked])));}
+async function openItemEd(id){
+if(id&&!itemOf(id)){try{await bg3CatalogHydrate([id]);}catch(error){setStatus('Предмет не загружен: '+bg3FriendlyError(error,'попробуйте ещё раз'),true);return;}}
+const edited=id&&gameItemDefinition(id);editing.it=id;dbFlt.it.q=edited&&edited.n||'';dbFlt.it.taxonomy='';dbFlt.it.rarity='';dbFlt.it.tag='';bg3Catalog.page=0;itemWorkspace.selectedId=id||'';itemWorkspace.presentationSelectedId='';renderItemsDB();itemWorkspaceRevealDetail();
+itemEditorBaseline={id,rules:itemEditorRulesState(),snapshot:edited?JSON.stringify(edited):''};
 const editor=document.querySelector('#tab-itemsdb .editor');if(editor&&typeof editor.scrollIntoView==='function')editor.scrollIntoView({behavior:'smooth',block:'start'});else window.scrollTo({top:0,behavior:'smooth'});
 }
 function itemEditorDiceText(value){if(!value)return '';const cnt=Math.max(0,Math.floor(+value.cnt||0)),sides=Math.max(0,Math.floor(+value.sides||0)),mod=Number(value.mod)||0;if(sides)return cnt+'d'+sides+(mod?(mod>0?'+':'')+mod:'');return mod?String(mod):'';}
@@ -27357,7 +27388,7 @@ function itemEditorToolConfigure(){const field=document.getElementById('edItTool
 function itemEditorMaterialConfigure(){const field=document.getElementById('edItMaterial');if(!field)return;let material=null;try{material=JSON.parse(field.value||'null');}catch(_){material=null;}material=material&&typeof material==='object'?material:{};const category=window.prompt('Категория материала:',material.category||'ремесленный материал');if(category==null||!category.trim())return;const tier=Math.max(1,Math.min(5,Math.floor(+(window.prompt('Уровень материала (1–5):',String(material.tier||1))||1)))),source=window.prompt('Где его можно добыть?',material.source||'');if(source==null||!source.trim())return;material.category=category.trim();material.tier=tier;material.source=source.trim();if(!Array.isArray(material.uses))material.uses=[];field.value=JSON.stringify(material);document.getElementById('edItMaterialSummary').textContent='Материал: '+material.category+' · уровень '+tier+' · '+material.source;}
 function itemEditorClearOptional(kind){const field=document.getElementById(kind==='tool'?'edItTool':'edItMaterial'),summary=document.getElementById(kind==='tool'?'edItToolSummary':'edItMaterialSummary');if(field)field.value='null';if(summary)summary.textContent=kind==='tool'?'Инструмент не настроен.':'Материал не настроен.';}
 function itemEditorHTML(){
-const it=itemsDB.find(x=>x.id===editing.it)||{n:'',type:'equipment',rarity:'обычный',tags:[],slot:null,weight:'',cost:'',dmg:'',dmgType:'',ac:'',desc:'',props:''};
+const it=gameItemDefinition(editing.it)||{n:'',type:'equipment',rarity:'обычный',tags:[],slot:null,weight:'',cost:'',dmg:'',dmgType:'',ac:'',desc:'',props:''};
 const profile=itemProfile(it),resource=itemResourceOf(it),uses=itemUsesOf(it),priceModel=editing.it?itemEconomyOf(it):null,
 priceStatus=priceModel?(priceModel.status==='priced'?'цена подтверждена':(priceModel.status==='notForSale'?'не продаётся':'нужна ручная проверка')):'цена будет проверена при сохранении',
 modeLabels={structured:'действия по точным правилам',weapon:'обычная атака оружием',profile:'действие определяется типом предмета',passive:'только постоянный эффект',manual:'разыгрывает мастер'},resourceKind=resource&&resource.kind||'none',advancedOpen=!!(resource||uses.length||it.tool||it.material);
@@ -27392,14 +27423,16 @@ return '<div class="editor"><h3>'+(editing.it?'Правка предмета':'�
 +'<button class="btn ghost" onclick="editing.it=null;renderItemsDB()">Отменить</button></div>';
 }
 function saveItemEd(){
-const g=id=>document.getElementById(id);
+const g=id=>document.getElementById(id),edited=editing.it&&gameItemDefinition(editing.it),baseline=itemEditorBaseline&&itemEditorBaseline.id===editing.it?itemEditorBaseline:null;
+if(baseline&&edited&&baseline.snapshot!==JSON.stringify(edited)){alert('Предмет изменился во время правки. Откройте его заново, чтобы сохранить актуальные свойства.');return;}
+const preserveRules=!!(edited&&baseline&&baseline.rules===itemEditorRulesState());
 const n=g('edItN').value.trim(); if(!n){ alert('Предмету нужно имя.'); return; }
-const duplicate=itemsDB.find(x=>x.id!==editing.it&&itemIdentityKey(x.n)===itemIdentityKey(n));
-if(duplicate){ alert('Предмет «'+duplicate.n+'» уже существует. Добавьте новое применение или свойство в его запись вместо создания дубля.'); return; }
+const duplicate=gameItemDuplicate(n,editing.it);
+if(duplicate){ alert('Предмет «'+(duplicate.name||duplicate.n)+'» уже существует. Добавьте новое применение или свойство в его запись вместо создания дубля.'); return; }
 let uses,resource,profile,tool,material;
-try{ uses=itemEditorUsesFromControls(); if(!Array.isArray(uses)) throw new Error('не удалось собрать список действий'); }
+try{ uses=preserveRules?itemClone(itemUsesOf(edited)):itemEditorUsesFromControls(); if(!Array.isArray(uses)) throw new Error('не удалось собрать список действий'); }
 catch(e){ console.error(e);alert('Проверьте игровые действия предмета: '+e.message); return; }
-try{ resource=itemEditorResourceFromControls(); if(resource!=null&&(typeof resource!=='object'||Array.isArray(resource))) throw new Error('не удалось собрать запас применений'); }
+try{ resource=preserveRules?itemClone(itemResourceOf(edited)):itemEditorResourceFromControls(); if(resource!=null&&(typeof resource!=='object'||Array.isArray(resource))) throw new Error('не удалось собрать запас применений'); }
 catch(e){ console.error(e);alert('Проверьте запас применений предмета: '+e.message); return; }
 try{ profile=JSON.parse(g('edItProfile').value||'{}'); if(!profile||typeof profile!=='object'||Array.isArray(profile)) throw new Error('нужен JSON-объект'); }
 catch(e){ console.error(e);alert('Не удалось прочитать характеристики этого предмета.'); return; }
@@ -27407,22 +27440,22 @@ try{ tool=JSON.parse(g('edItTool').value||'null'); material=JSON.parse(g('edItMa
 catch(e){ console.error(e);alert('Не удалось прочитать свойства инструмента или материала.'); return; }
 if(!ITEM_KIND_RU[profile.kind]){ alert('Для предмета указана неизвестная категория.'); return; }
 const resourceErrors=itemResourceSchemaErrors(resource);
-if(resourceErrors.length){ console.error(resourceErrors);alert('Проверьте запас применений предмета.'); return; }
+if(!preserveRules&&resourceErrors.length){ console.error(resourceErrors);alert('Проверьте запас применений предмета.'); return; }
 const useErrors=itemUseSchemaErrors(uses,resource);
-if(useErrors.length){ console.error(useErrors);alert('Проверьте игровые действия предмета.'); return; }
+if(!preserveRules&&useErrors.length){ console.error(useErrors);alert('Проверьте игровые действия предмета.'); return; }
 const metaErrors=itemToolSchemaErrors(tool).concat(itemMaterialSchemaErrors(material));
 if(metaErrors.length){ console.error(metaErrors);alert('Проверьте свойства инструмента или материала.'); return; }
 const useMode=g('edItMode').value,manualNote=g('edItManual').value.trim();
-if(useMode==='structured'&&!uses.length){ alert('Для предмета не указано ни одного доступного действия.'); return; }
-if(useMode==='manual'&&!manualNote){ alert('Укажите, какое решение остаётся за мастером.'); return; }
+if(!preserveRules&&useMode==='structured'&&!uses.length){ alert('Для предмета не указано ни одного доступного действия.'); return; }
+if(!preserveRules&&useMode==='manual'&&!manualNote){ alert('Укажите, какое решение остаётся за мастером.'); return; }
 const tags=pickedTags('edItTags'),description=g('edItDesc').value.trim();if(!description){alert('Добавьте содержательное описание предмета.');return;}if(!tags.length){alert('Выберите хотя бы один ключевой признак предмета.');return;}
 const data={n, type:g('edItT').value, rarity:g('edItRar').value, slot:g('edItSlot').value||null,
 weight:g('edItW').value.trim(), cost:g('edItC').value.trim(), dmg:g('edItDmg').value.trim(),
 dmgType:g('edItDT').value.trim(), ac:g('edItAC').value.trim(), desc:description,
-text:(g('edItText')?g('edItText').value:(it.text||'')),
+text:(g('edItText')?g('edItText').value:(itemOf(editing.it)?.text||'')),
 props:g('edItProps').value, tags, fx:[], passiveFx:parseFxLines(g('edItFx').value),
 schemaVersion:ITEM_SCHEMA_VERSION,useMode,resource,uses,tool,material,manualNote};
-const existingPriceItem=editing.it?itemsDB.find(x=>x.id===editing.it):null,priceSave=economyPriceForItemSave(existingPriceItem,data);
+const existingPriceItem=editing.it?gameItemDefinition(editing.it):null,priceSave=economyPriceForItemSave(existingPriceItem,data);
 if(!priceSave.ok)return;
 if(priceSave.model)data.economy=priceSave.model;
 let savedId=editing.it||('it_'+uid());
@@ -27434,28 +27467,29 @@ const armorKind=finalProfile.kind==='shield'?'shield':(finalProfile.kind==='armo
 mechanics.equipment={slot:data.slot||null,armorKind,metal:!!flags.metal,proficiencyExempt:!!flags.proficiencyExempt};
 mechanics.actions=mechanicsClone(uses); mechanics.resource=mechanicsClone(resource); mechanics.effects=normalizeRuleEffects(data.passiveFx);
 const mechanicErrors=mechanicsErrors(mechanics,'item');
-if(mechanicErrors.length){ console.error(mechanicErrors);alert('Не удалось сохранить предмет: проверьте его характеристики и действия.'); return; }
-data.mechanics=mechanics;
-const existing=editing.it?itemsDB.find(x=>x.id===editing.it):null;if(editing.it&&!existing){alert('Редактировать можно только предметы кампании.');return;}
-const candidate=Object.assign({},existing||{id:savedId,custom:true},data);upgradeItem(candidate);const candidateContext=ITEM_DOMAIN_MODEL&&ITEM_DOMAIN_MODEL.createMigrationContext(itemsDB.filter(item=>item!==existing).concat(candidate,bg3Catalog&&bg3Catalog.index&&bg3Catalog.index.items||[])),readiness=itemArsenalReadiness(candidate,candidateContext);
+if(!preserveRules&&mechanicErrors.length){ console.error(mechanicErrors);alert('Не удалось сохранить предмет: проверьте его характеристики и действия.'); return; }
+data.mechanics=preserveRules?itemClone(edited.mechanics):mechanics;
+const existing=editing.it?gameItemDefinition(editing.it):null;if(editing.it&&!existing){alert('Предмет больше не доступен. Откройте его заново.');return;}
+const candidate=itemEditorCandidate(existing,Object.assign({id:savedId},data));upgradeItem(candidate);if(existing&&(existing.mechanics?.rulePrograms||existing.mechanics?.lifecyclePrograms?.length)&&!gameItemExecutionMatches(candidate,existing)){alert('Изменение затрагивает связанные игровые правила. Обычный редактор не может пересобрать эти правила; описание, название и цену можно сохранить отдельно.');return;}const candidateContext=ITEM_DOMAIN_MODEL&&ITEM_DOMAIN_MODEL.createMigrationContext(itemsDB.filter(item=>item!==existing).concat(candidate,bg3Catalog&&bg3Catalog.index&&bg3Catalog.index.items||[])),readiness=itemArsenalReadiness(candidate,candidateContext);
 if(!readiness.ok){console.error('item arsenal contract',readiness.issues);alert('Предмет не сохранён: полный контракт не прошёл проверку. Исправьте описание, вес, признаки, действия, цели, ограничения и обработчики движка.\n\n'+(readiness.issues||[]).slice(0,8).join('\n'));return;}
-if(existing){Object.assign(existing,candidate);if(priceSave.audit)economyState.priceAudit.push(itemClone(priceSave.audit));}else itemsDB.push(candidate);
+gameItemSave(candidate);if(priceSave.audit)economyState.priceAudit.push(itemClone(priceSave.audit));
 itemDomainContextCache={key:'',context:null};editing.it=null; itemAuditView=null; dbFlt.it.q=n;dbFlt.it.taxonomy='';dbFlt.it.rarity='';dbFlt.it.tag='';bg3Catalog.page=0; itemWorkspace.selectedId=savedId; itemWorkspace.presentationSelectedId=''; scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
 }
-function delItemDB(id){
-if(bg3CatalogIsId(id)) return;
-const it=itemsDB.find(x=>x.id===id); if(!it) return;
-if(!confirm('Убрать «'+it.n+'» из арсенала мира? Он исчезнет и из инвентарей персонажей.')) return;
-itemsDB=itemsDB.filter(x=>x.id!==id);
-chars.forEach(c=>{
-c.inventory=(c.inventory||[]).filter(e=>e.itemId!==id);
-Object.keys(c.equipment||{}).forEach(s=>{
-const inv=(c.inventory||[]).find(e=>e.id===c.equipment[s]);
-if(!inv) delete c.equipment[s];
-});
-});
-itemAuditView=null; scheduleSave(); renderItemsDB(); if(activeCharId) renderChars();
+function itemEditorCandidate(existing,data){
+const candidate=Object.assign(itemClone(existing||{}),itemClone(data),{custom:true});
+// Retain specialized actions, interactions, lifecycle rules and source facts
+// that the generic form does not own. The compiled form owns only its fields.
+if(existing&&existing.mechanics){candidate.mechanics=Object.assign(itemClone(existing.mechanics),candidate.mechanics);for(const key of ['interactions','lifecycle','lifecyclePrograms','rulePrograms','provenance','sourceFacts','engineCoverage'])if(existing.mechanics[key]!==undefined)candidate.mechanics[key]=itemClone(existing.mechanics[key]);}
+if(candidate.i18n&&candidate.i18n.ru){candidate.i18n.ru.name=candidate.n;candidate.i18n.ru.description=candidate.desc;}
+return candidate;
 }
+function delItemDB(id){
+const it=gameItemDefinition(id);if(!it)return;
+if(!confirm('Скрыть «'+userFacingItemName(it,'Предмет')+'» из списка выдачи? Существующие экземпляры у героев и в мире сохранятся.'))return;
+gameItemSave(Object.assign(itemClone(it),{custom:true,archived:true}));
+itemAuditView=null;scheduleSave();renderItemsDB();if(activeCharId)renderChars();
+}
+
 
 
 const abilityVariantSelection=new Map();
@@ -28156,9 +28190,10 @@ function worldDefinitionIdentity(value){if(!value||!['object','function'].includ
 function definitionCollectionSignature(kind,rows){return kind+':'+worldDefinitionIdentity(rows)+':'+rows.length+':'+rows.map(row=>worldDefinitionIdentity(row)+':'+String(row&&row.id||'')).join('|');}
 function worldDefinitionRepository(){
 if(!DEFINITION_CORE)return null;
-const groups=[['item',itemsDB],['spell',spellsDB],['ability',abilitiesDB],['race',racesDB],['class',classesDB],['rule',rulesDB],['foe',foesDB]],signature=groups.map(row=>definitionCollectionSignature(row[0],row[1])).join('||');
+const groups=[['item',itemsDB],['spell',spellsDB],['ability',abilitiesDB],['race',racesDB],['class',classesDB],['rule',rulesDB],['foe',foesDB]],signature=groups.map(row=>definitionCollectionSignature(row[0],row[1])).join('||')+'|'+worldDefinitionIdentity(bg3Catalog.items)+'|'+bg3Catalog.items.size+'|'+bg3Catalog.epoch;
 if(worldDefinitionRepo&&signature===worldDefinitionSignature)return worldDefinitionRepo;
 const repo=new DEFINITION_CORE.DefinitionRepository({rulesets:activeRulesetRegistry,activeRulesetRefs:rulesetActiveRefs()});
+repo.replaceLayer('game-item-assets',[...bg3Catalog.items.values()],{kind:'item',priority:0,defaultRulesetRef:LOCAL_RULESET_REF});
 for(const [kind,rows] of groups)repo.replaceLayer('world-'+kind,rows,{kind,priority:10,defaultRulesetRef:LOCAL_RULESET_REF});
 worldDefinitionRepo=repo;worldDefinitionSignature=signature;return repo;
 }
@@ -28168,7 +28203,22 @@ const repo=worldDefinitionRepository();if(!repo)return {ok:false,missing:[],code
 for(const c of chars||[]){for(const row of c.inventory||[])refs.push({owner:'character:'+c.id+'/inventory:'+row.id,kind:'item',id:row.itemId});for(const row of c.spellbook||[])refs.push({owner:'character:'+c.id+'/spellbook',kind:'spell',id:row.spellId});for(const row of c.abilities||[])refs.push({owner:'character:'+c.id+'/abilities',kind:'ability',id:row.abilityId});}
 return repo.auditReferences(refs);
 }
-const itemOf=id=>{const refs=bg3GithbornMindcrusherBoundWorldRefs;if(refs)return (Map.prototype.get.call(refs.catalogItems,id)||bg3GithbornMindcrusherBoundMember(refs.itemsMembers,'id',id));return bg3CatalogIsId(id)?(Map.prototype.get.call(bg3Catalog.items,id)||null):worldDefinitionOf('item',id,itemsDB);};
+let gameItemStoreCache={rows:null,length:-1,byId:new Map()};
+function gameItemStored(id){if(gameItemStoreCache.rows!==itemsDB||gameItemStoreCache.length!==itemsDB.length)gameItemStoreCache={rows:itemsDB,length:itemsDB.length,byId:new Map(itemsDB.map(it=>[it.id,it]))};return gameItemStoreCache.byId.get(id)||null;}
+function gameItemExecutionMatches(saved,compiled){
+if(!saved||!compiled||saved.id!==compiled.id)return false;
+return ['type','slot','weight','dmg','dmgType','ac','strReq','useMode'].every(key=>saved[key]===compiled[key])&&JSON.stringify(saved.mechanics)===JSON.stringify(compiled.mechanics);
+}
+function gameItemDefinition(id){const saved=gameItemStored(id),compiled=Map.prototype.get.call(bg3Catalog.items,id);return saved&&saved.gameDefinition===true?saved:compiled||saved||null;}
+function gameItemSave(candidate){
+candidate.gameDefinition=true;
+const existing=itemsDB.find(it=>it.id===candidate.id);
+if(existing)Object.assign(existing,candidate);else itemsDB.push(candidate);
+gameItemStoreCache.rows=null;worldDefinitionSignature='';itemDomainContextCache={key:'',context:null};itemWorkspaceSearchResultCache={key:'',rows:[]};fxInvalidate();
+return existing||candidate;
+}
+function gameItemDuplicate(name,exceptId){const key=itemIdentityKey(name),current=exceptId&&gameItemDefinition(exceptId);if(current&&itemIdentityKey(current.n)===key)return null;return itemWorkspaceCanonicalRows().find(row=>row.id!==exceptId&&itemIdentityKey(row.name)===key)||itemsDB.find(it=>it.id!==exceptId&&!it.archived&&itemIdentityKey(it.n)===key)||null;}
+const itemOf=id=>{const refs=bg3GithbornMindcrusherBoundWorldRefs;if(refs)return (Map.prototype.get.call(refs.catalogItems,id)||bg3GithbornMindcrusherBoundMember(refs.itemsMembers,'id',id));const stored=gameItemStored(id),compiled=Map.prototype.get.call(bg3Catalog.items,id);return stored&&stored.gameDefinition===true&&(!compiled||!gameItemExecutionMatches(stored,compiled))?stored:compiled||stored||null;};
 const spellOf=id=>{const refs=bg3GithbornMindcrusherBoundWorldRefs;if(refs)return bg3GithbornMindcrusherBoundMember(refs.spellsMembers,'id',id);const row=worldDefinitionOf('spell',id,spellsDB);return row?.grimoire?.canonicalId?worldDefinitionOf('spell',row.grimoire.canonicalId,spellsDB):row;};
 const abilityOf=id=>{const refs=bg3GithbornMindcrusherBoundWorldRefs;if(refs)return bg3GithbornMindcrusherBoundMember(refs.abilitiesMembers,'id',id);return worldDefinitionOf('ability',id,abilitiesDB);};
 
@@ -28603,30 +28653,12 @@ if(combat&&combat.active)return combatToggleEquipForActor('ally:'+c.id,entryId);
 return invEquipToggleForActor(c,entryId);
 }
 function invEquipToggle(entryId){return invEquipToggleForActor(cc(),entryId);}
-function addInvFromDB(itemId){
-const c=cc(),it=c&&itemOf(itemId); if(!c||!it) return;
-let valueGp=null,valueCp=null;
-if(itemUsesInventoryValue(it)){
-const suggested=(itemProfile(it).value||{}).defaultGp||1;
-const raw=window.prompt('Оценочная стоимость выдаваемого экземпляра «'+userFacingItemName(it,'Предмет')+'» в золотых монетах:',String(suggested));
-if(raw==null) return;
-const valueCopper=exactCopperFromGp(raw);
-if(valueCopper==null||valueCopper<=0){ alert('Укажите положительную оценочную стоимость с точностью до медной монеты.'); return; }
-valueCp=String(valueCopper);valueGp=valueCopper/100;
-}
-const ex=c.inventory.find(x=>x.itemId===itemId&&(!itemUsesInventoryValue(it)||itemEntryGoldValueMatches(x,valueGp)));
-let added=ex;
-if(ex){setInvQty(ex,it,(ex.qty||1)+1);if(valueCp!=null)ex.valueCp=valueCp;}
-else { added={id:'inv_'+uid(), itemId, qty:1, notes:''}; if(valueGp!=null){added.valueCp=valueCp;added.valueGp=valueGp;} c.inventory.push(added); }
-sheetSearch.inv=''; scheduleSave(); renderChars();
-(function(){ const t=added?itemOf(added.itemId):null;
-if(t&&Array.isArray(t.contents)&&t.contents.length&&typeof fillContainer==='function') fillContainer(added,t); })();
-}
+function addInvFromDB(itemId){const c=cc();return itemWorkspaceGiveTo(itemId,c&&c.id||'',1);}
 function quickAddItem(){
 const g=id=>document.getElementById(id);
 const n=g('qiN').value.trim(); if(!n){ alert('Предмету нужно имя.'); return; }
-const duplicate=itemsDB.find(x=>itemIdentityKey(x.n)===itemIdentityKey(n));
-if(duplicate){ alert('Предмет «'+duplicate.n+'» уже есть в арсенале. Выдайте существующую запись или дополните ее свойства.'); return; }
+const duplicate=gameItemDuplicate(n);
+if(duplicate){ alert('Предмет «'+(duplicate.name||duplicate.n)+'» уже есть в арсенале. Выдайте существующую запись или дополните ее свойства.'); return; }
 const it={id:'it_'+uid(), n, type:g('qiT').value, rarity:'обычный', custom:true, tags:[],
 slot:g('qiSlot').value||null, weight:'', cost:g('qiC').value.trim(), dmg:g('qiDmg').value.trim(),
 dmgType:'', desc:g('qiDesc').value, props:''};
@@ -28813,6 +28845,7 @@ const text=typeof bg3ItemRuleEffectText==='function'?bg3ItemRuleEffectText(effec
 }).filter(Boolean);
 }
 function bagItemTooltipHTML(c,e,it,options){
+it=it&&gameItemStored(it.id)?.gameDefinition===true?gameItemDefinition(it.id):it;
 options=options||{};const p=itemProfile(it),facts=equipmentItemFacts(it),hint=itemHintHTML(c,e,it),effects=bagItemEffectLines(it),charges=invCharges(e,it),requirements=options.requirements||[],desc=publicItemText(String(it.desc||'').trim()),props=publicItemText(String(it.props||'').trim()),tipId=bagTooltipId(options.key);
 let h='<aside class="item-tooltip" id="'+tipId+'" role="tooltip" aria-label="Сведения о предмете"><div class="item-tooltip-top">'+bagItemVisualHTML(it)+'<div><span class="item-tooltip-context">'+esc(options.context||'В сумке')+'</span><h4>'+esc(publicItemText(userFacingItemName(it,'Предмет')))+'</h4><p>'+esc(equipmentEntryMeta(it))+'</p></div><button type="button" class="item-tooltip-close" aria-label="Закрыть сведения" onclick="bagTooltipClose(event)">×</button></div>';
 h+='<div class="item-tooltip-status"><span>Количество <b>'+Math.max(0,+e.qty||0)+'</b></span>'+(isEquipped(c,e.id)?'<span class="active">Надето</span>':'<span>В сумке</span>')+(itemNeedsAttune(it)?'<span class="'+(e.att?'active':'warning')+'">'+(e.att?'Настроено':'Не настроено')+'</span>':'')+(charges?'<span>Заряды <b>'+charges.cur+' / '+charges.max+'</b></span>':'')+'</div>';
@@ -28873,8 +28906,8 @@ if(itemNeedsAttune(it))buttons.push('<button class="btn '+(e.att?'':'ghost ')+'s
 buttons.push('<span class="qty-box"><button class="mini-btn" type="button" aria-label="Уменьшить количество" onclick="'+stop+'invQty(\''+e.id+'\',-1)">−</button><b>'+(e.qty||1)+'</b><button class="mini-btn" type="button" aria-label="Увеличить количество" onclick="'+stop+'invQty(\''+e.id+'\',1)">+</button></span>');
 if(eq)buttons.push('<button class="btn rub sm" type="button" onclick="'+stop+'sheetEquipToggle(\''+c.id+'\',\''+e.id+'\')">Снять в сумку</button>');
 else slots.forEach(slotId=>{const slot=EQUIP_SLOTS.find(row=>row.id===slotId);buttons.push('<button class="btn rub sm" type="button" onclick="'+stop+'sheetEquipToSlot(\''+c.id+'\',\''+slotId+'\',\''+e.id+'\')">'+(profileItemKind(it)==='weapon'?'Взять':'Надеть')+' · '+esc(slot&&slot.n||slotId)+'</button>');});
-if(bg3CatalogIsId(it.id))buttons.push('<button class="btn ghost sm" type="button" onclick="'+stop+'switchTab(\'itemsdb\');bg3CatalogOpen(\''+it.id+'\')">Полная карточка ↗</button>');
-else buttons.push('<button class="btn ghost sm" type="button" onclick="'+stop+'jumpToItemEd(\''+it.id+'\')">Править ✎</button>');
+buttons.push('<button class="btn ghost sm" type="button" onclick="'+stop+'switchTab(\'itemsdb\');itemWorkspaceShow(\''+it.id+'\')">Полная карточка ↗</button>');
+buttons.push('<button class="btn ghost sm" type="button" onclick="'+stop+'jumpToItemEd(\''+it.id+'\')">Править ✎</button>');
 buttons.push('<button class="btn ghost sm danger" type="button" onclick="'+stop+'invDel(\''+e.id+'\')">Убрать из инвентаря</button>');
 return buttons.join('');
 }
@@ -28918,13 +28951,11 @@ h+='<div class="props-block" style="margin:8px 0"><b>Ремесленный пр
 h+='<div class="db-bar"><input type="text" placeholder="Найти предмет в арсенале мира и выдать герою…" value="'+esc(sheetSearch.inv)+'" oninput="sheetSearch.inv=this.value;renderChars();const f=document.querySelector(\'#tab-chars .db-bar input\');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}">'
 +'<button class="btn ghost sm" onclick="quickForm.inv=!quickForm.inv;renderChars()">✚ Свое</button></div>';
 if(sheetSearch.inv.trim().length>1){
-const q=sheetSearch.inv.toLowerCase();
-const hits=itemsDB.filter(it=>it.n.toLowerCase().includes(q)).slice(0,10);
-const bg3hits=bg3Catalog.index?bg3CatalogSearch(q,{}).filter(row=>bg3ItemSourceAuditAllows(row,'inventory')&&(['playable','duplicate'].includes(row.classification)||row.classification==='needs-review'&&row.category!=='unclassified')).slice(0,Math.max(0,10-hits.length)):[];
-h+=hits.map(it=>'<div class="spell-hit" onclick="addInvFromDB(\''+it.id+'\')"><span><b>'+esc(it.n)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+esc(ITEM_TYPES[it.type]||it.type)+(it.cost?', '+esc(it.cost):'')+'</span></span><span style="color:var(--gold)">+ выдать</span></div>').join('');
-h+=bg3hits.map(row=>'<div class="spell-hit" onclick="addInvFromBG3('+esc(JSON.stringify(row.id))+','+esc(JSON.stringify(c.id))+')"><span style="display:flex;align-items:center;gap:7px">'+(row.icon&&row.icon.src?'<img class="item-icon sm" src="'+esc(row.icon.src)+'" width="38" height="38" loading="lazy" decoding="async" alt="">':'')+'<span><b>'+esc(publicItemText(bg3UserItemName(row,'Предмет')))+'</b> <span style="font-size:13px;color:var(--ink-faint)">Каталог · '+esc(itemWorkspaceCategoryLabel(itemWorkspaceBg3Category(row)))+'</span></span></span><span style="color:var(--gold)">+ выдать</span></div>').join('');
-if(!hits.length&&!bg3hits.length) h+='<p class="note-ital" style="font-size:14px">В арсенале мира такого нет — создайте свое.</p>';
-if(!bg3Catalog.index&&!bg3Catalog.error) bg3CatalogEnsureIndex().then(()=>renderChars()).catch(()=>renderChars());
+const hits=itemWorkspaceSearch({q:sheetSearch.inv,sort:'name'}).filter(itemWorkspacePortable).slice(0,10);
+h+=hits.map(row=>'<div class="spell-hit" onclick="itemWorkspaceGiveTo('+esc(JSON.stringify(row.id))+','+esc(JSON.stringify(c.id))+',1)"><span style="display:flex;align-items:center;gap:7px">'+itemIconHTML(row,38)+'<span><b>'+esc(row.name)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+esc(itemWorkspaceTaxonomyLabel(row))+'</span></span></span><span style="color:var(--gold)">+ выдать</span></div>').join('');
+if(!hits.length)h+='<p class="note-ital" style="font-size:14px">'+(bg3ItemWorkspaceCatalogReady()?'В арсенале мира такого нет — создайте свое.':'Загружается база предметов вашей игры…')+'</p>';
+if(!bg3ItemWorkspaceCatalogReady()&&!bg3Catalog.error)bg3ItemPresentationEnsure().then(()=>renderChars()).catch(()=>renderChars());
+
 }
 if(quickForm.inv){
 h+='<div class="editor"><h3>Быстрое создание предмета</h3><div class="f-grid">'
@@ -29119,7 +29150,7 @@ const primary=plans[0],requirements=equipmentRequirementRows(c,e,it,cellId?prima
 let actions=plans.map(plan=>'<button class="btn rub sm" type="button" onclick="'+stop+'sheetEquipToSlot(\''+c.id+'\',\''+plan.cellId+'\',\''+e.id+'\')">'
 +(profileItemKind(it)==='weapon'?'Взять':'Надеть')+(cellId?'':' · '+esc(plan.slot.n))+'</button>').join('');
 if(itemNeedsAttune(it))actions+='<button class="btn ghost sm" type="button" onclick="'+stop+'toggleAttuneForActor(\''+c.id+'\',\''+e.id+'\')">'+(e.att?'Разорвать настройку':'Настроить')+'</button>';
-if(bg3CatalogIsId(it.id))actions+='<button class="btn ghost sm" type="button" onclick="'+stop+'switchTab(\'itemsdb\');bg3CatalogOpen(\''+it.id+'\')">Полная карточка ↗</button>';
+actions+='<button class="btn ghost sm" type="button" onclick="'+stop+'switchTab(\'itemsdb\');itemWorkspaceShow(\''+it.id+'\')">Полная карточка ↗</button>';
 return bagItemSlotHTML(c,e,it,{key:'equipment-option:'+c.id+':' +(cellId||'all')+':'+e.id,context:cellId?'Подходит: '+primary.slot.n:'Можно надеть из сумки',requirements,preview:cellId?equipmentPreviewHTML(c,cellId,e.id):'',actions});
 }
 function profileItemKind(it){return itemProfile(it).kind;}
@@ -29129,7 +29160,7 @@ const plan={usesBothHands:equipmentUsesBothHands(it),displaced:[]},requirements=
 const wornIn=actualSlotId||slot.id,occupiedLabel=plan.usesBothHands?'Обе руки':(occupied.join(' + ')||slot.n);
 let actions='<button class="btn rub sm" type="button" onclick="'+stop+'sheetUnequipSlot(\''+c.id+'\',\''+wornIn+'\')">Снять в сумку</button>';
 if(itemNeedsAttune(it))actions+='<button class="btn '+(e.att?'':'ghost ')+'sm" type="button" onclick="'+stop+'toggleAttuneForActor(\''+c.id+'\',\''+e.id+'\')">'+(e.att?'✵ Настроено — разорвать':'✵ Настроить')+'</button>';
-if(bg3CatalogIsId(it.id))actions+='<button class="btn ghost sm" type="button" onclick="'+stop+'switchTab(\'itemsdb\');bg3CatalogOpen(\''+it.id+'\')">Полная карточка ↗</button>';
+actions+='<button class="btn ghost sm" type="button" onclick="'+stop+'switchTab(\'itemsdb\');itemWorkspaceShow(\''+it.id+'\')">Полная карточка ↗</button>';
 return bagItemSlotHTML(c,e,it,{key:'equipment-current:'+c.id+':'+slot.id+':'+e.id,context:'Надето: '+occupiedLabel,caption:userFacingItemName(it,'Предмет'),requirements,actions,selected:selSlot===slot.id});
 }
 function equipmentSlotCompactText(it){

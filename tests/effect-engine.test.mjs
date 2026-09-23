@@ -166,6 +166,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       bg3RuleProgramApplyConsequences, bg3RuleProgramPrepare, bg3RuleProgramReport,bg3RuleArtifactPrograms,
       bg3WizardProfileBinding,bg3LearnCanonicalProfiles,bg3LearnSameProfile,bg3LearnSpellProgramAction,bg3LearnSpellActionContractCheck,bg3LearnSpellRootProgramCheck,
        bg3LearnSpellClassEvidence,bg3LearnSpellRuleReference,bg3LearnSpellPlanFor,bg3LearnSpellCommit,bg3LearnSpellCommitAudit,bg3LearnSpellTestInjectLateFailureOnce,
+       gameItemSave,itemEditorCandidate,gameItemDefinition,
        bg3LearnSpellTestCatalogItem(id){return bg3Catalog.items.get(id)||null;},bg3LearnSpellTestCatalogRebind(id,item){if(item===undefined)bg3Catalog.items.delete(id);else bg3Catalog.items.set(id,item);return bg3Catalog.items.get(id)||null;},
        bg3LearnSpellTestObjectKeysEquipmentPoison(entryId){const native=Object.keys;let calls=0;Object.keys=function(value){calls++;if(value&&value.MAIN_HAND===entryId)return [];return native(value);};return {calls:()=>calls,restore(){Object.keys=native;}};},
        bg3LearnSpellTestJsonPoison(){const parse=JSON.parse,stringify=JSON.stringify;let calls=0;JSON.parse=function(...args){calls++;return parse.apply(this,args);};JSON.stringify=function(...args){calls++;return stringify.apply(this,args);};return {calls:()=>calls,restore(){JSON.parse=parse;JSON.stringify=stringify;}};},
@@ -3048,7 +3049,7 @@ test('item economy runtime: every gp mutation rejects sub-copper values without 
   assert.equal(exactGrant.ok, true, exactGrant.reason);assert.equal(exactGrant.valueGp, 1.23);assert.deepEqual(plain(actor), before, 'an exact grant remains a preflight');
 
   e.setPromptResults(['1.001']);assert.equal(e.invValueEdit(entry.id), false);assert.deepEqual(plain(actor), before, 'instance edit rejects sub-copper input without mutation');
-  e.setPromptResults(['1.001']);e.addInvFromDB(item.id);assert.deepEqual(plain(actor), before, 'inventory add rejects sub-copper input without stacking or mutation');
+  e.setPromptResults(['1.001']);await e.addInvFromDB(item.id);assert.deepEqual(plain(actor), before, 'inventory add rejects sub-copper input without stacking or mutation');
 
   const exactSpend = e.coinSpendPlan(actor, '12,37');assert.equal(exactSpend.ok, true, exactSpend.reason);assert.equal(exactSpend.target, 1237);
   for (const invalid of ['0.009', NaN, -1]) {const plan=e.coinSpendPlan(actor, invalid);assert.equal(plan.ok, false);assert.match(plan.reason, /медной монеты/);}
@@ -3063,7 +3064,7 @@ test('item economy runtime: every gp mutation rejects sub-copper values without 
   assert.equal(malformedGrantActor.inventory.find(row=>row.id===grantDone.entryId).valueGp,100);
 
   const malformedAddActor=hero('malformed-add-owner',{inventory:[{id:'malformed-add',itemId:item.id,qty:1,valueGp:'1e2'}]});e.setState({chars:[malformedAddActor],items:[item],activeCharId:malformedAddActor.id});
-  e.setPromptResults(['100']);e.addInvFromDB(item.id);assert.equal(malformedAddActor.inventory.length,2);assert.equal(malformedAddActor.inventory[0].qty,1,'valid add never merges into a malformed exponent-priced stack');
+  e.setPromptResults(['100']);await e.addInvFromDB(item.id);assert.equal(malformedAddActor.inventory.length,2);assert.equal(malformedAddActor.inventory[0].qty,1,'valid add never merges into a malformed exponent-priced stack');
   assert.equal(malformedAddActor.inventory.find(row=>row.id!=='malformed-add').valueGp,100);
 
   const fixedMechanics=bg3TestMechanics({kind:'valuable'});fixedMechanics.profile.mass={state:'value',kg:0.1,display:'0.1 кг',unit:'kg'};fixedMechanics.profile.value={state:'value',gp:5,cp:500,display:'5 зм'};
@@ -11060,7 +11061,7 @@ test('арсенал не показывает кампанийный или с�
   assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile:'standard',manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);
 
   const beforeIndex=e.renderWorld().itemsdb;
-  assert.match(beforeIndex,/data-catalog-state="loading"/);assert.match(beforeIndex,/Загружается и проверяется полный Standard-каталог/);
+  assert.match(beforeIndex,/data-catalog-state="loading"/);assert.match(beforeIndex,/Загружается и проверяется база предметов вашей игры/);
   assert.doesNotMatch(beforeIndex,/data-user-items=/);assert.doesNotMatch(beforeIndex,/catalog-result-list|Поиск и фильтры предметов/);
 
   await e.bg3CatalogEnsureIndex();
@@ -11082,15 +11083,15 @@ test('единый каталог одновременно ищет строги
   assert.ok(localItems.length>0,'локальная база кампании не пуста');e.setState({chars:[recipient],items:localItems,activeCharId:recipient.id});
   assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);
   await e.bg3CatalogEnsureIndex();await e.bg3ItemPresentationEnsure();
-  const playable=e.bg3CatalogSearch('',{classification:'playable'}),combined=e.itemWorkspaceTestFilters(),campaignOnly=combined.filter(row=>row.source==='campaign'),swords=e.itemWorkspaceTestFilters({q:'меч'}),bg3Rows=combined.filter(row=>row.source==='bg3');
+  const playable=e.bg3CatalogSearch('',{classification:'playable'}),combined=e.itemWorkspaceTestFilters(),campaignOnly=combined.filter(row=>!row.row),swords=e.itemWorkspaceTestFilters({q:'меч'}),bg3Rows=combined.filter(row=>!!row.row);
   assert.ok(bg3Rows.filter(row=>row.classification==='playable').length<=playable.length);
   assert.equal(new Set(combined.map(row=>row.name.normalize('NFKC').trim().toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[«»„“”"']/g,'').replace(/\s*\+\s*(\d+)/g,'+$1'))).size,combined.length,'одна карточка на название, включая предметы кампании');
   assert.ok(bg3Rows.length<available,'вариации объединены в пользовательском списке');
   assert.ok(bg3Rows.every(row=>presentationIds.has(row.id)),'все карточки прошли проверку полноты');
   assert.deepEqual(plain(e.bg3CatalogSearch('',{}).map(row=>row.id).sort()),[...presentationIds].sort(),'точные определения сохранены для инвентарей и рецептов');
-  assert.ok(campaignOnly.every(row=>row.source==='campaign'));
-  if(campaignOnly.some(row=>/меч/i.test(row.name)))assert.ok(swords.some(row=>row.source==='campaign'),'одно поле поиска находит полный кампанийный меч');
-  assert.ok(swords.some(row=>row.source==='bg3'),'то же поле поиска находит мечи BG3');
+  assert.ok(campaignOnly.every(row=>!row.row));
+  if(campaignOnly.some(row=>/меч/i.test(row.name)))assert.ok(swords.some(row=>!row.row),'одно поле поиска находит полный кампанийный меч');
+  assert.ok(swords.some(row=>!!row.row),'то же поле поиска находит мечи BG3');
 
   e.itemWorkspaceTestFilters();const html=e.renderWorld().itemsdb,heroStart=html.indexOf('id="bg3CatalogPrimary"'),listStart=html.indexOf('class="catalog-result-list"'),listEnd=html.indexOf('id="itemWorkspaceDetail"',listStart),listHtml=html.slice(listStart,listEnd);
   assert.equal(e.engineVersion(),'5.0');assert.equal(e.engineLabel(),'Движок 5.0 · каталог предметов');
@@ -12867,4 +12868,21 @@ test('item action route validation blocks unknown handlers and the old undefined
   const actionsUi = source.slice(source.indexOf('function combatActionsHTML('), source.indexOf('function combatStageHTML('));
   assert.doesNotMatch(actionsUi, /onclick="combat(?:BasicAction|CunningAction|Weapon|CastSpell|UseAbility|RunItemAction|FoeAction)/,
     'no combat action family may bypass evaluation and bind a gameplay handler directly');
+});
+
+
+test('unified item presentation edits preserve Dethrone exact execution and reject changed rules',async()=>{
+  const world=await realBg3DethroneWorld(),{e,actor,entry,useId}=world,{item}=await realBg3DethronePrepare(world);
+  e.gameItemSave(e.itemEditorCandidate(item,{desc:'Заметка мастера для нашей игры'}));await realBg3DethroneQuiesce(world);
+  assert.equal(await e.bg3ItemProgramOpen(entry.id,actor.id,useId),true,'a description edit must not disable the scroll');
+  e.closeCastModal();assert.equal(entry.qty,2,'cancelling still consumes nothing');
+  const changed=e.itemEditorCandidate(e.gameItemDefinition(item.id),{});changed.mechanics.profile.mass.kg+=1;e.gameItemSave(changed);
+  assert.equal(await e.bg3ItemProgramOpen(entry.id,actor.id,useId),false,'a gameplay change cannot masquerade as presentation');assert.equal(entry.qty,2);
+});
+
+test('unified item presentation edits preserve the Arrow exact four-target boundary',async()=>{
+  const world=await realBg3ArrowPhaseOneWorld(),{e,actor,arrowEntry,useId}=world,{item}=await realBg3ArrowPrepareProgram(world);
+  e.gameItemSave(e.itemEditorCandidate(item,{desc:'Стрела из моей игры'}));await realBg3ArrowQuiesce(world);
+  const qty=arrowEntry.qty;assert.equal(await e.bg3ItemProgramOpen(arrowEntry.id,actor.id,useId),true,'a description edit must not disable the arrow');
+  e.closeCastModal();assert.equal(arrowEntry.qty,qty);
 });

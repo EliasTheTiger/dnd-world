@@ -31,16 +31,17 @@ test('the actual workspace has one card per normalized name across both catalogs
   for(const name of ['Кинжал','Боевой посох','Длинный меч']){
     const matches=rows.filter(row=>surface.itemNameKey(row.name)===surface.itemNameKey(name));
     assert.equal(matches.length,1,name);
-    assert.equal(matches[0].source,'bg3','source-backed card wins over a built-in copy');
+    assert.equal(matches[0].source,'game','all definitions belong to the game');
+    assert.ok(byId.has(matches[0].id),'retain the existing canonical identity');
     api.filters.q=name;
     assert.equal(api.search().filter(row=>surface.itemNameKey(row.name)===surface.itemNameKey(name))[0].id,matches[0].id);
   }
   assert.ok(rows.some(row=>surface.itemNameKey(row.name)==='кинжал+1'),'+1 is a different item');
   for(const row of rows){
-    const item=row.source==='bg3'?byId.get(row.id):row.item;
+    const item=!!row.row?byId.get(row.id):row.item;
     assert.equal(api.readiness(item).ok,true,row.name);
     assert.match(api.list(row,false),/<img[^>]+src="assets\//u,row.name);
-    if(row.source==='bg3'){
+    if(!!row.row){
       const bytes=fs.readFileSync(new URL(row.icon.src,root));
       assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),item.icon.sha256,row.name);
     }
@@ -50,22 +51,22 @@ test('the actual workspace has one card per normalized name across both catalogs
 
 test('canonical selection is deterministic, preserves upgrades and leaves custom definitions editable',()=>{
   const rows=[
-    {id:'legacy',name:' Копье ',source:'campaign',item:{}},
-    {id:'variant',name:'Копьё',source:'bg3',classification:'duplicate',statsId:'WPN_Spear_NPC'},
-    {id:'base',name:'Копьё',source:'bg3',classification:'playable',statsId:'WPN_Spear'},
-    {id:'upgrade',name:'Копьё +1',source:'bg3'},
+    {id:'legacy',name:' Копье ',source:'game',canonicalRank:2,item:{}},
+    {id:'variant',name:'Копьё',source:'game',canonicalRank:1,classification:'duplicate',statsId:'WPN_Spear_NPC'},
+    {id:'base',name:'Копьё',source:'game',canonicalRank:1,classification:'playable',statsId:'WPN_Spear'},
+    {id:'upgrade',name:'Копьё +1',source:'game',canonicalRank:1},
   ];
   const snapshot=JSON.stringify(rows),ids=values=>surface.canonicalItemRows(values).map(row=>row.id).sort();
   assert.deepEqual(ids(rows),['base','upgrade']);
   assert.deepEqual(ids([...rows].reverse()),ids(rows));
   assert.equal(JSON.stringify(rows),snapshot);
-  assert.deepEqual(ids([...rows,{id:'custom',name:'Копьё',source:'campaign',item:{custom:true}}]),['custom','upgrade']);
+  assert.deepEqual(ids([...rows,{id:'custom',name:'Копьё',source:'game',item:{custom:true}}]),['custom','upgrade']);
 });
 
 test('unverified, missing-icon and incomplete records never enter the workspace',()=>{
   const engine=world(),api=engine.itemsApi;
   api.install(index,null);
-  assert.equal(api.rows().some(row=>row.source==='bg3'),false);
+  assert.equal(api.rows().some(row=>!!row.row),false);
   const damaged=structuredClone(index),id=presentation.items[0][0];
   damaged.items.find(row=>row.id===id).icon=null;
   api.install(damaged,presentation);

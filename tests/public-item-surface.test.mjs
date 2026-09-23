@@ -78,3 +78,15 @@ test('checked-in HTML has a public surface guard and no catalog-origin branding 
   assert.match(html, /attachDomGuard\(document\)/);
   assert.match(html, /containsForbiddenBranding\(query\)\)return \[\]/);
 });
+
+test('the public DOM guard preserves serialized rules and user form values', () => {
+  const data={nodeValue:'{"bg3":"bg3:item:stable-id","handler":"bg3RuleProgram"}',parentElement:{tagName:'TEXTAREA'}},
+    text={nodeValue:'Каталог BG3',parentElement:{tagName:'SPAN'}};
+  let observerCallback;
+  const document={nodeType:9,defaultView:{MutationObserver:class {constructor(callback){observerCallback=callback;}observe(){}}},
+    createTreeWalker(_root,kind){const rows=kind===4?[data,text]:[];let index=0;return {currentNode:null,nextNode(){this.currentNode=rows[index++];return !!this.currentNode;}}}};
+  document.documentElement={nodeType:1,ownerDocument:document,getAttribute(){return null;}};
+  const before=data.nodeValue;surface.attachDomGuard(document);
+  assert.equal(data.nodeValue,before);assert.equal(text.nodeValue,'Каталог D&D World');
+  observerCallback([{type:'characterData',target:data}]);assert.equal(data.nodeValue,before);
+});

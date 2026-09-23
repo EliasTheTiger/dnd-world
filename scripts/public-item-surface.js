@@ -62,7 +62,7 @@
   }
 
   function publicSourceLabel() {
-    return 'Встроенный каталог D&D World · редакция 10';
+    return 'Моя D&D-игра';
   }
 
   function publicIconLabel(icon) {
@@ -81,7 +81,7 @@
   function canonicalItemRows(rows) {
     const groups = new Map();
     const priority = row => [
-      row.item && row.item.custom === true ? 0 : row.source === 'bg3' ? 1 : 2,
+      row.item && row.item.custom === true ? 0 : Number(row.canonicalRank) || 2,
       row.classification === 'duplicate' ? 1 : 0,
       String(row.statsId || '').length,
       String(row.id || ''),
@@ -112,6 +112,15 @@
     }
   }
 
+  // Form values and serialized mechanics are data, not rendered catalog copy.
+  // Rewriting a hidden JSON textarea would silently change handler keys/IDs.
+  function isDataText(node) {
+    for (let element = node && node.parentElement; element; element = element.parentElement) {
+      if (/^(?:TEXTAREA|SCRIPT|STYLE|CODE|PRE)$/u.test(String(element.tagName || '').toUpperCase())) return true;
+    }
+    return false;
+  }
+
   function sanitizeDom(rootNode) {
     if (!rootNode) return;
     const documentValue = rootNode.ownerDocument || (rootNode.nodeType === 9 ? rootNode : null);
@@ -122,6 +131,7 @@
     const textWalker = documentValue.createTreeWalker(rootNode, 4);
     while (textWalker.nextNode()) {
       const node = textWalker.currentNode;
+      if (isDataText(node)) continue;
       const after = sanitizePublicText(node.nodeValue);
       if (after !== node.nodeValue) node.nodeValue = after;
     }
@@ -135,6 +145,7 @@
     const observer = new ViewMutationObserver(records => {
       for (const record of records) {
         if (record.type === 'characterData') {
+          if (isDataText(record.target)) continue;
           const after = sanitizePublicText(record.target.nodeValue);
           if (after !== record.target.nodeValue) record.target.nodeValue = after;
         } else if (record.type === 'attributes') {

@@ -67,6 +67,13 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         list:itemWorkspaceListRowHTML, card:itemCardHTML, bag:bagItemVisualHTML,
         equipment:equipmentItemIconHTML, grant:itemWorkspaceGrantPlanFor,
         readiness:itemArsenalReadiness, summary:bg3ReleaseSummaryHTML,
+        resolve:gameItemDefinition, execution:itemOf, canonicalize:canonicalizeItemDatabase, save:gameItemSave, candidate:itemEditorCandidate, duplicate:gameItemDuplicate,
+        inventoryBlock:itemInventoryBlock, repository:worldDefinitionRepository, references:worldDefinitionReferenceAudit,
+        export:worldSnapshotPayload, upgrade:upgradeItem, inventoryHTML:stInventory,
+        controls:itemWorkspaceGrantControlsHTML, editor:itemEditorHTML,
+        selectEditor(id){editing.it=id;},
+        hydrate: bg3CatalogHydrate, prepare:bg3RuleProgramPrepare, plan:bg3RuleProgramPlanOf,
+        async load(){await bg3CatalogEnsureIndex();await bg3ItemPresentationEnsure();},
         install(index, presentation, loaded=[]) {
           bg3Catalog.epoch++;bg3Catalog.index=index;
           bg3Catalog.summaries=new Map(index.items.map(row=>[row.id,row]));
@@ -151,7 +158,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
     confirm: () => true,
     prompt: () => { throw new Error('PLAYER_ROLL_PROMPT_FORBIDDEN_DURING_CATALOG_CENSUS'); },
     alert() {},
-    fetch: async () => ({ok: true, json: async () => ({})}),
+    fetch: options.fetch || (async () => ({ok: true, json: async () => ({})})),
     EventSource: class {},
     document: {
       activeElement: null,

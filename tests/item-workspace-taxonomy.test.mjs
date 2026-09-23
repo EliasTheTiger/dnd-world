@@ -236,7 +236,7 @@ test('the unified taxonomy facet keeps campaign and BG3 potion and scroll rows t
   assert.ok(facets.some(option=>/Свит/.test(option.label)));
 
   const potions = plain(api.search({taxonomy: potionTaxonomy}));
-  assert.deepEqual(potions.map(row => row.source).sort(), ['bg3', 'campaign']);
+  assert.deepEqual(potions.map(row => row.source).sort(), ['game', 'game']);
   assert.ok(potions.every(row => row.category === 'consumable.potion'));
   assert.equal(plain(api.search({taxonomy: 'potion'})).length, 0);
 });
@@ -261,7 +261,7 @@ test('semantic property filters collapse duplicate campaign and BG3 tag labels',
       type: 'potion', kind: 'potion', tags: ['bg3', 'bg3-consumable-potion'],
     })],
   );
-  assert.deepEqual(plain(api.search({tag: potionKey})).map(row => row.source).sort(), ['bg3', 'campaign']);
+  assert.deepEqual(plain(api.search({tag: potionKey})).map(row => row.source).sort(), ['game', 'game']);
   assert.equal(plain(api.search({tag: scrollKey})).length, 0);
 });
 
