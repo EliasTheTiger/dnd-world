@@ -78,9 +78,9 @@ test('Sleep scales its shared pool and skips unconscious, undead, charm-immune a
  assert.equal((asleep.activeFx||[]).length,0);assert.equal(small.activeFx.find(f=>f.id===sp.id).castId,medium.activeFx.find(f=>f.id===sp.id).castId);
 });
 
-test('search recognizes aliases, English original and ё/е; cards do not claim official Russian translation',()=>{
+test('search recognizes aliases, English original and ё/е without exposing translation commentary on cards',()=>{
  const {g}=world(),sp=g.spellOf('sp_врата');assert.ok(g.rules.matches(sp,'Gate'));assert.ok(g.rules.matches(sp,'Ворота'));assert.ok(g.rules.matches(g.spellOf('sp_полет'),'полет'));
- assert.match(g.spellCardHTML(sp),/не сверен/);assert.doesNotMatch(g.spellCardHTML(sp),/ячейка более высокого круга выгоды не дает/);assert.ok(g.grimoireDuplicateName('Gate'));assert.ok(g.grimoireDuplicateName('Ворота'));
+ assert.doesNotMatch(g.spellCardHTML(sp),/не сверен|перевод проекта|SRD|Gate|ячейка более высокого круга выгоды не дает/);assert.ok(g.grimoireDuplicateName('Gate'));assert.ok(g.grimoireDuplicateName('Ворота'));
 });
 test('Magic Missile shares one d4, allocates every dart and applies resistance per dart; resources are paid once',async()=>{
  const {e,g,a}=world(),caster=Object.assign(e.buildBlank(),{id:'caster',cls:'Волшебник',level:3}),first=Object.assign(e.buildBlank(),{id:'first',hp:30,hpMax:30}),second=Object.assign(e.buildBlank(),{id:'second',hp:30,hpMax:30});

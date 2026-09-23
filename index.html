@@ -20235,14 +20235,8 @@ h+='<div class="meta-grid">'
 +'<div><b>Время:</b> '+esc(sp.t||'—')+'</div><div><b>Дистанция:</b> '+esc(sp.r||'—')+'</div>'
 +'<div><b>Компоненты:</b> '+esc(sp.cm||'—')+'</div><div><b>Длительность:</b> '+esc(sp.d||'—')+'</div>'
 +(sp.c?'<div><b>Классы:</b> '+esc(sp.c)+'</div>':'')+'</div>';
-if(sp.catalogSource)h+='<div class="stat-line"><b>Источник правил:</b> '+esc(sp.catalogSource.documentName)+' · CC-BY-4.0</div>';
-if(Number.isInteger(sp.grimoire?.sourcePage))h+='<div class="stat-line"><a href="https://media.dndbeyond.com/compendium-images/srd/5.1/SRD_CC_v5.1.pdf#page='+sp.grimoire.sourcePage+'" target="_blank" rel="noopener noreferrer">Оригинал SRD 5.1, стр. '+sp.grimoire.sourcePage+'</a> · '+esc(sp.grimoire.english||sp.open5e?.originalName||'')+'</div>';
-if(sp.grimoire)h+='<div class="stat-line"><b>Русский текст:</b> '+(sp.grimoire.translation==='custom'?'редакция мастера':sp.grimoire.translation==='reviewed-project'?'перевод проекта, сверен с SRD 5.1':'перевод проекта; полная сверка описания не завершена')+'. С официальным русским изданием не сверен.</div>';
-if(sp.mechanics&&sp.mechanics.mode==='manual')h+='<div class="props-block note-ital"><span class="pt">Движок:</span> справочная запись; автоисполнение без явного обработчика заблокировано.</div>';
-else if(sp.catalogSource)h+='<div class="stat-line"><b>Движок:</b> структурированные последствия</div>';
 h+=descBlock(sp.x);
 if(sp.hi) h+='<div class="props-block"><span class="pt">На больших уровнях:</span> '+esc(sp.hi)+'</div>';
-else if(sp.l>0) h+='<div class="props-block note-ital" style="font-size:13px"><span class="pt">Более высокий круг:</span> '+(sp.grimoire?.upcastVerified?'отдельное усиление в описании SRD 5.1 не предусмотрено.':'отдельное усиление не указано; проверьте описание правила.')+'</div>';
 return h+'</div>';
 }
 const ABILITY_TYPES={class:'Классовая',racial:'Расовая',feat:'Черта',background:'Предыстория',other:'Прочее'};
@@ -26934,7 +26928,7 @@ const grimoireOn=(name,...args)=>esc(name+'('+args.map(value=>JSON.stringify(val
 function grimoireSpellStatus(c,sp){
 const m=currentMechanics(sp,'spell'),rule=spellRuleOf(sp),errors=spellRuleErrors(rule);
 const engineReady=!!m&&m.mode!=='manual'&&!errors.length;
-const result={engineReady,engineReason:engineReady?'Последствия по структуре; цели и броски проверяются при наложении.':errors.length?'Правило требует исправления: '+errors.join('; '):'Справочное заклинание: последствия пока разрешает мастер.',code:'reference',label:'Справочник',canOpen:false};
+const result={engineReady,code:'reference',label:'Справочник',canOpen:false};
 if(!c)return result;
 const entry=(c.spellbook||[]).find(e=>e.spellId===sp.id),access=spellAccessCheck(c,sp,entry),paid=slotPlanFor(c,sp),ritual=spellRitualAllowed(c,sp,entry),classList=spellClassListHas(c,sp),ready=spellEntryReady(c,entry,sp);
 Object.assign(result,{classList,access:access.ok,ready,ritual,paid:paid.ok,cost:+sp.l===0?'0 · заговор':magicUsesMp()?MAGIC_RULES.costs[sp.l]+' MP (базовый круг)':paid.ok?paid.lv+' круг · 1 ячейка':'ячейка '+sp.l+' круга или выше'});
@@ -26954,7 +26948,7 @@ return result;
 function grimoireFavorite(id){const sp=spellOf(id);if(!sp||!grimoireActive(sp))return;sp.grimoire={...sp.grimoire,gmFavorite:!sp.grimoire?.gmFavorite};scheduleSave();renderSpellsDB();}
 function grimoireNote(id,value){const sp=spellOf(id);if(!sp)return false;sp.grimoire={...sp.grimoire,gmNote:String(value||'').slice(0,2000)};scheduleSave();return true;}
 function grimoireCompare(id){const at=grimoireDesk.compare.indexOf(id);if(at>=0)grimoireDesk.compare.splice(at,1);else if(grimoireDesk.compare.length<3)grimoireDesk.compare.push(id);else{setStatus('Для сравнения выберите до трёх заклинаний.',true);return;}renderSpellsDB();}
-function grimoireOpenCast(id){const c=getCh(grimoireDesk.actorId),sp=spellOf(id);if(!c||!sp)return false;const status=grimoireSpellStatus(c,sp);if(!status.canOpen){setStatus(status.reason||status.engineReason,true);return false;}castSpellFx(sp.id,c.id);return true;}
+function grimoireOpenCast(id){const c=getCh(grimoireDesk.actorId),sp=spellOf(id);if(!c||!sp)return false;const status=grimoireSpellStatus(c,sp);if(!status.canOpen){setStatus(status.engineReady&&status.reason||'Сейчас это заклинание нельзя наложить.',true);return false;}castSpellFx(sp.id,c.id);return true;}
 function grimoireHeroSheet(id){if(!getCh(id))return;activeCharId=id;sheetTab='spells';switchTab('chars');renderChars();}
 function grimoireLearn(id,loreSecret){const c=getCh(grimoireDesk.actorId);if(!c||combat.active||castCtx||rollSpec||magicSwitchBusy)return false;activeCharId=c.id;addSpellFromDB(id,{loreSecret:!!loreSecret});renderSpellsDB();return true;}
 function circleLandSet(id,value){
@@ -26986,10 +26980,10 @@ if(c.subcls&&!rules.length&&['Жрец','Паладин','Колдун'].include
 const recovery=MAGIC_RULES.recoveryFeature(c);if(recovery)h+='<p>'+esc(recovery.name)+': '+(c[recovery.key]?'использовано до долгого отдыха':magicUsesMp()?'до '+2*recovery.budget+' MP на коротком отдыхе (правило проекта)':'на коротком отдыхе выбрать ячейки 1–5 кругов с суммой до '+recovery.budget)+'.</p>';
 return h+'</details>';
 }
-function grimoireStatusHTML(status){return '<div class="grimoire-status" data-access="'+status.code+'"><b>'+esc(status.label)+'</b>'+(status.reason?'<span>'+esc(status.reason)+'</span>':'')+'<small>'+esc(status.engineReason)+'</small>'+(status.concentration?'<span class="grimoire-caution">'+esc(status.concentration)+'</span>':'')+'</div>';}
+function grimoireStatusHTML(status){return '<div class="grimoire-status" data-access="'+status.code+'"><b>'+esc(status.label)+'</b>'+(status.reason?'<span>'+esc(status.reason)+'</span>':'')+(status.concentration?'<span class="grimoire-caution">'+esc(status.concentration)+'</span>':'')+'</div>';}
 function grimoireComparisonHTML(c){
 const rows=grimoireDesk.compare.map(spellOf).filter(grimoireActive);if(!rows.length)return '';
-return '<section class="grimoire-comparison" aria-label="Сравнение заклинаний"><div class="row-line"><h3>Сравнение · '+rows.length+' / 3</h3><button class="btn ghost sm" onclick="grimoireDesk.compare=[];renderSpellsDB()">Очистить сравнение</button></div><div class="grimoire-compare-grid">'+rows.map(sp=>'<article><h4>'+esc(sp.n)+'</h4><dl>'+[['Круг',sp.l||'Заговор'],['Время',sp.t],['Дистанция',sp.r],['Длительность',sp.d],['Компоненты',sp.cm],['Концентрация',sp.conc?'Да':'Нет'],['Ритуал',sp.ritual?'Да':'Нет']].map(([key,value])=>'<dt>'+key+'</dt><dd>'+esc(String(value||'—'))+'</dd>').join('')+'</dl>'+grimoireStatusHTML(grimoireSpellStatus(c,sp))+'<p>'+esc(sp.hi||'Отдельное усиление не указано; проверьте правило.')+'</p><button class="btn ghost sm" onclick="'+grimoireOn('grimoireCompare',sp.id)+'">Убрать из сравнения</button></article>').join('')+'</div></section>';
+return '<section class="grimoire-comparison" aria-label="Сравнение заклинаний"><div class="row-line"><h3>Сравнение · '+rows.length+' / 3</h3><button class="btn ghost sm" onclick="grimoireDesk.compare=[];renderSpellsDB()">Очистить сравнение</button></div><div class="grimoire-compare-grid">'+rows.map(sp=>'<article><h4>'+esc(sp.n)+'</h4><dl>'+[['Круг',sp.l||'Заговор'],['Время',sp.t],['Дистанция',sp.r],['Длительность',sp.d],['Компоненты',sp.cm],['Концентрация',sp.conc?'Да':'Нет'],['Ритуал',sp.ritual?'Да':'Нет']].map(([key,value])=>'<dt>'+key+'</dt><dd>'+esc(String(value||'—'))+'</dd>').join('')+'</dl>'+grimoireStatusHTML(grimoireSpellStatus(c,sp))+(sp.hi?'<p>'+esc(sp.hi)+'</p>':'')+'<button class="btn ghost sm" onclick="'+grimoireOn('grimoireCompare',sp.id)+'">Убрать из сравнения</button></article>').join('')+'</div></section>';
 }
 function renderSpellsDB(){
 const box=document.getElementById('tab-spellsdb'),f=dbFlt.sp,focused=document.activeElement&&document.activeElement.id==='grimoire-search',caret=focused?document.activeElement.selectionStart:null;

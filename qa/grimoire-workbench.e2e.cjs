@@ -11,6 +11,21 @@ const server=http.createServer((req,res)=>{const relative=decodeURIComponent(new
  await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());await page.goto(baseUrl,{waitUntil:'domcontentloaded'});
  await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
  const release=await page.locator('meta[name="dnd-world-release"]').getAttribute('content');if(process.env.QA_EXPECTED_COMMIT)assert.equal(release,process.env.QA_EXPECTED_COMMIT,'the tested page must be the expected release');
+ // Read every rendered card across the complete catalog, including collapsed content.
+ await page.locator('.tab[data-tab="spellsdb"]').click();
+ const spellIds=new Set(),technicalCopy=/Источник правил|CC-BY|Оригинал SRD|SRD 5\.1|Русский текст|перевод проекта|сверен|Движок:|автоисполнение|обработчик|структурированные последствия|Последствия по структуре|Справочное заклинание:|Правило требует исправления|проверьте (?:описание )?правил/i;
+ for(;;){
+   const cards=page.locator('.grimoire-entry');
+   for(const card of await cards.all()){
+     const id=await card.getAttribute('data-spell-id');assert.ok(!spellIds.has(id),'one card per spell');spellIds.add(id);
+     assert.doesNotMatch(await card.textContent(),technicalCopy,id);
+     assert.equal(await card.locator('a[href^="http"]').count(),0,id+': no external source links');
+   }
+   const next=page.getByRole('navigation',{name:'Страницы гримуара'}).first().getByRole('button',{name:'Далее →',exact:true});
+   if(await next.isDisabled())break;await next.click();
+ }
+ assert.equal(spellIds.size,321,'all active spells checked');
+ await page.getByRole('button',{name:'Сбросить фильтры',exact:true}).click();
  // Isolated campaign fixture. Every behavior below uses actual controls.
  await page.evaluate(()=>{
    const c=Object.assign(buildBlank(),{id:'desk-wizard',name:'Мастерская · волшебник',cls:'Волшебник',level:5}),d=Object.assign(buildBlank(),{id:'desk-druid',name:'Мастерская · друид',cls:'Друид',subcls:'Круг Земли',level:5});
@@ -41,6 +56,6 @@ const server=http.createServer((req,res)=>{const relative=decodeURIComponent(new
  await page.locator('.tab[data-tab="spellsdb"]').click();await hero.selectOption('desk-druid');await page.locator('#tab-spellsdb .caster-guide summary').click();await page.getByRole('combobox',{name:'Местность Круга Земли'}).selectOption({label:'Побережье'});await search.fill('Misty Step');entry=page.locator('.grimoire-entry').first();await entry.locator('summary').click();assert.match(await entry.locator('.grimoire-status').innerText(),/Доступно по списку и ресурсу/);
  await page.evaluate(()=>runScheduledSave());await page.reload({waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
  await page.locator('.tab[data-tab="spellsdb"]').click();await search.fill('Magic Missile');await page.locator('.grimoire-entry summary').click();assert.equal(await page.getByRole('textbox',{name:/Заметка мастера/}).inputValue(),'Для сцены у ворот. <script>ошибка</script>');assert.equal(await page.locator('.grimoire-entry').getByRole('button',{name:'★ В избранном',exact:true}).count(),1);assert.equal(await page.evaluate(()=>getCh('desk-druid').circleLand),'Побережье');assert.deepEqual(errors,[]);
- fs.writeFileSync(path.join(output,'browser-result.json'),JSON.stringify({ok:true,url:baseUrl,release,checks:['hero availability and class guidance','search retains focus','favorites','inert escaped notes persist','comparison of two spells','390px layout','real cast cancellation','manual spell access independent of automation; complete filter reset','recovery selection, cancellation, stale context and over-budget rejection','Land spells reach actual character and MP-compatible access','reload'],errors},null,2));console.log('Grimoire workbench browser journey passed.');
+ fs.writeFileSync(path.join(output,'browser-result.json'),JSON.stringify({ok:true,url:baseUrl,release,spellCardsChecked:spellIds.size,checks:['all 321 cards have no technical commentary or source links','hero availability and class guidance','search retains focus','favorites','inert escaped notes persist','comparison of two spells','390px layout','real cast cancellation','manual spell access independent of automation; complete filter reset','recovery selection, cancellation, stale context and over-budget rejection','Land spells reach actual character and MP-compatible access','reload'],errors},null,2));console.log('Grimoire workbench browser journey passed.');
  }catch(error){if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true});throw error;}finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});
