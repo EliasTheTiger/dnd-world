@@ -46,3 +46,8 @@ test('clones, concurrent confirmations, missing duration and failed station chec
 });
 
 test('renaming an alternative method never splits one result into duplicate cards',()=>{const original=[{id:'a',name:'Зелье лечения',category:'alchemy'},{id:'b',name:'Зелье исцеления',category:'alchemy'}],state=rules.state({overrides:{b:{name:'Формула нашей мастерской'}}}),groups=rules.groups(original.map(r=>rules.applyState(r,state)));assert.equal(groups.length,1);assert.equal(groups[0].methods.length,2);assert.equal(groups[0].methods[1].name,'Формула нашей мастерской');});
+test('same-name recipes disclose different effects and a blocked output before anything is spent',async()=>{
+ const e=await world(),source=e.recipesApi.of('bg3:recipe:ALCH_Potion_Invisibility_ImpPatagium'),native=e.recipesApi.of('cr_potion_invisibility'),{actor,choices}=fixture(e,source);e.setState({items:e.catalogs.items,chars:[actor]});const before=JSON.stringify(actor.inventory),prepared=await e.recipesApi.prepare(source.id,actor.id,choices);
+ assert.equal(prepared.ok,true,prepared.reason);assert.equal(prepared.outputStatus.state,'blocked');assert.match(prepared.outputStatus.warning,/активное применение пока не поддерживается/);assert.equal(JSON.stringify(actor.inventory),before);
+ const sourceHTML=e.recipesApi.outputHTML(choices.resultId),nativeHTML=e.recipesApi.outputHTML(native.resultIds[0]);assert.match(sourceHTML,/1 минуту/);assert.match(sourceHTML,/применение будет заблокировано/);assert.match(nativeHTML,/1 час/);assert.doesNotMatch(nativeHTML,/применение будет заблокировано/);assert.equal(e.recipesApi.outputStatus(e.itemsApi.resolve(native.resultIds[0])).state,'ready');
+});

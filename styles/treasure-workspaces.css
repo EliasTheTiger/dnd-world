@@ -122,3 +122,4 @@
 .recipe-ready{border-left:3px solid #5c713b}.recipe-card .recipe-result-head h3{margin:0 0 8px}.recipe-card .recipe-result-head .type-tag{margin:0 5px 5px 0}
 @media(max-width:760px){.recipe-filters{grid-template-columns:1fr}.recipe-card .recipe-result-head{align-items:flex-start}.recipe-stock{font-size:12px}.recipe-form{padding:10px}.recipe-workbench .asset-master-detail{grid-template-columns:1fr}}
 .recipe-result-head{display:flex;align-items:center;gap:14px}.recipe-result-head>div{min-width:0}.recipe-card{overflow-wrap:anywhere}.recipe-card .editor label{display:grid;gap:5px;margin:10px 0}.recipe-card .editor input,.recipe-card .editor textarea{width:100%;box-sizing:border-box}.recipe-history{margin-top:20px}
+.recipe-output-warning{border-left:3px solid var(--rubric,#8d2114);padding:8px 12px;background:rgba(155,72,28,.08)}
