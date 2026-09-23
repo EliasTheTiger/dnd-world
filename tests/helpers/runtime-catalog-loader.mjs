@@ -64,7 +64,8 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
       itemsApi: {
         rows:itemWorkspaceCanonicalRows, search:itemWorkspaceSearch, filters:dbFlt.it,
         row:itemWorkspaceRowFromBg3, detail:itemWorkspaceDetailHTML, icon:itemIconHTML,
-        list:itemWorkspaceListRowHTML, card:itemCardHTML, grant:itemWorkspaceGrantPlanFor,
+        list:itemWorkspaceListRowHTML, card:itemCardHTML, bag:bagItemVisualHTML,
+        equipment:equipmentItemIconHTML, grant:itemWorkspaceGrantPlanFor,
         readiness:itemArsenalReadiness, summary:bg3ReleaseSummaryHTML,
         install(index, presentation, loaded=[]) {
           bg3Catalog.epoch++;bg3Catalog.index=index;

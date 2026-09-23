@@ -39,7 +39,7 @@ test('the actual workspace has one card per normalized name across both catalogs
   for(const row of rows){
     const item=row.source==='bg3'?byId.get(row.id):row.item;
     assert.equal(api.readiness(item).ok,true,row.name);
-    assert.match(api.list(row,false),/item-icon-fallback[^>]*>[^<]+</u,row.name);
+    assert.match(api.list(row,false),/<img[^>]+src="assets\//u,row.name);
     if(row.source==='bg3'){
       const bytes=fs.readFileSync(new URL(row.icon.src,root));
       assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),item.icon.sha256,row.name);
@@ -95,10 +95,10 @@ test('campaign edits invalidate readiness immediately and a failed grant leaves 
 
 test('list and full-card icons have a visible fallback even if an image fails',()=>{
   const api=world().itemsApi;
-  assert.match(api.icon({type:'weapon'},42),/item-icon-fallback[^>]*>⚔</);
+  assert.match(api.icon({type:'weapon'},42),/src="assets\/item-art\/v1\//);
   const html=api.icon({kind:'potion',icon:{src:'missing.webp'}},64);
-  assert.match(html,/item-icon-fallback[^>]*>⚗</);
-  assert.match(html,/onerror="this.hidden=true"/);
+  assert.match(html,/src="missing.webp"/);
+  assert.match(html,/onerror="this.onerror=null;this.src='data:image\/webp;base64,/);
   assert.match(html,/width="64" height="64"/);
 });
 

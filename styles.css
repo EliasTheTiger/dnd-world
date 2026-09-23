@@ -139,9 +139,7 @@
 #castMultiTargets{max-height:180px;overflow-y:auto;align-content:flex-start}
 @media(max-width:600px){.grimoire-entry>summary span{display:block;margin-left:16px}.grimoire-pages{gap:5px;font-size:12px}.grimoire-filters>*{max-width:100%;box-sizing:border-box}.grimoire-filters input{width:100%}}
 
-/* The fallback stays visible while an icon loads or when its request fails. */
+/* Original illustrations share a parchment frame in lists and full cards. */
 .item-icon.item-icon-frame{position:relative;display:inline-grid;place-items:center;flex-shrink:0;overflow:hidden;background:var(--parch-2);color:var(--rubric)}
-.item-icon-frame .item-icon-fallback{font-size:28px;line-height:1}
-.item-icon-frame.sm .item-icon-fallback{font-size:22px}
 .item-icon-frame>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--parch-2)}
-.item-icon-frame>img[hidden]{display:none}
+.bag-item-image[src^="assets/item-art/"],.equipment-item-icon[src^="assets/item-art/"]{background:#f2e8ca}

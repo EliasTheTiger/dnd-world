@@ -203,6 +203,7 @@
 </div>
 <script src="scripts/economy-core.js"></script>
 <script src="scripts/merchant-core.js"></script>
+<script src="scripts/campaign-item-art.js"></script>
 <script src="scripts/item-domain-model.js"></script>
 <script src="scripts/definition-repository.js"></script>
 <script src="scripts/ruleset-registry.js"></script>
@@ -20168,12 +20169,14 @@ const passiveParts=[];if((passive.effects||[]).length)passiveParts.push('эфф�
 const chargeText=charges.enabled?'запас '+charges.maximum+'; '+((charges.recovery||[]).length?'восстановление: '+charges.recovery.map(itemDomainStructuredText).join('; '):'восстановление не предусмотрено'):'заряды не используются',iconText=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicIconLabel(domain.icon):'встроенная иконка предмета',sourceText=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicSourceLabel():'Встроенный каталог D&D World',tags=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicTagValues(domain.tags):domain.tags,publicHandlers=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicHandlerValues(handlers):handlers;
 return '<details class="props-block"'+(open?' open':'')+'><summary class="toggle-link">Полный контракт предмета</summary><div style="margin-top:8px"><b>Идентификатор:</b> '+esc(publicItemIdentifier(domain.id))+'</div><div><b>Классификация:</b> '+esc(itemDomainCodeLabel(tax.category)+' / '+itemDomainCodeLabel(tax.subcategory)+' · '+itemDomainCodeLabel(tax.type)+' / '+itemDomainCodeLabel(tax.subtype))+'</div><div><b>Источник:</b> '+esc(sourceText)+'</div><div><b>Иконка:</b> '+esc(iconText)+'</div><div><b>Редкость:</b> '+esc(domain.rarity)+' · <b>Вес:</b> '+esc(domain.economy.weight.value+' '+domain.economy.weight.unit)+'</div><div><b>Требования:</b> '+esc(requirements.length?requirements.map(itemDomainStructuredText).join('; '):'особых требований нет')+' · <b>Настройка:</b> '+(attunement.required?'требуется':'не требуется')+'</div><div><b>Заряды:</b> '+esc(chargeText)+' · <b>Расходуемость:</b> '+(consumable.value?'расходуемый предмет':'не расходуется')+'</div><div style="margin-top:7px"><b>Допустимые действия, цели, ограничения и эффекты:</b>'+actionRows+'</div><div style="margin-top:7px"><b>Постоянные эффекты:</b> '+esc(passiveParts.join(' · ')||'отсутствуют')+'</div><div><b>Взаимодействие с окружением:</b> '+esc(environment.length?environment.map(itemDomainStructuredText).join('; '):'не изменяет окружение')+'</div><div><b>Теги:</b> '+esc(tags.join(', ')||'публичные теги не заданы')+'</div><div><b>Обработчики движка:</b> '+esc(publicHandlers.map(ref=>ref.id+' → '+ref.executor).join(', '))+'</div></details>';
 }
+function itemIllustration(it){
+const art=globalThis.DndWorldItemArt;if(art)return art.forItem(it);
+const raw=it&&it.item||it;return it&&it.icon&&it.icon.src?it.icon:raw&&raw.icon&&raw.icon.src?raw.icon:null;
+}
+function itemImageErrorHTML(){const art=globalThis.DndWorldItemArt;return art?' onerror="this.onerror=null;this.src=\''+esc(art.fallbackData)+'\'"':'';}
 function itemIconHTML(it,size){
-size=Number(size)||64;const raw=it&&it.item||it,domain=raw&&raw.n?itemDomainOf(raw):null,icon=it&&it.icon||domain&&domain.item&&domain.item.icon,
-kind=it&&it.kind||raw&&raw.mechanics&&raw.mechanics.profile&&raw.mechanics.profile.kind||raw&&raw.type,
-glyphs={weapon:'⚔',armor:'🛡',shield:'🛡',potion:'⚗',poison:'⚗',scroll:'📜',lore:'📖',material:'💎',tool:'🛠',container:'📦',food:'🍎',water:'💧',light:'🕯',instrument:'♫',magic:'✦'},
-glyph=icon&&icon.kind==='glyph'?icon.value:glyphs[kind]||'🎒',src=icon&&icon.src;
-return '<span class="item-icon item-icon-frame'+(size<64?' sm':'')+'" style="width:'+size+'px;height:'+size+'px" aria-hidden="true"><span class="item-icon-fallback">'+esc(glyph)+'</span>'+(src?'<img src="'+esc(src)+'" width="'+size+'" height="'+size+'" loading="lazy" decoding="async" alt="" onerror="this.hidden=true">':'')+'</span>';
+size=Number(size)||64;const icon=itemIllustration(it),art=globalThis.DndWorldItemArt;
+return '<span class="item-icon item-icon-frame'+(size<64?' sm':'')+'" style="width:'+size+'px;height:'+size+'px" aria-hidden="true">'+(icon&&icon.src?'<img src="'+esc(icon.src)+'" width="'+size+'" height="'+size+'" loading="lazy" decoding="async" alt=""'+itemImageErrorHTML()+'>':art?'<img src="'+esc(art.fallbackData)+'" width="'+size+'" height="'+size+'" alt="">':'')+'</span>';
 }
 function itemCardHTML(it, extra, options){
 upgradeItem(it);
@@ -28798,7 +28801,7 @@ const p=itemProfile(it),glyphs={weapon:'⚔',armor:'🛡',shield:'🛡',ammo:'�
 return glyphs[p.kind]||({ring:'◌',wondrous:'✦',equipment:'◇'}[it.type]||'◇');
 }
 function bagItemVisualHTML(it){
-if(it&&it.icon&&it.icon.src)return '<img class="bag-item-image" src="'+esc(it.icon.src)+'" width="58" height="58" loading="lazy" decoding="async" alt="">';
+const icon=itemIllustration(it);if(icon&&icon.src)return '<img class="bag-item-image" src="'+esc(icon.src)+'" width="58" height="58" loading="lazy" decoding="async" alt=""'+itemImageErrorHTML()+'>';
 return '<span class="bag-item-glyph" aria-hidden="true">'+esc(bagItemGlyph(it))+'</span>';
 }
 function bagItemRarityClass(it){
@@ -29099,7 +29102,7 @@ return '<details class="equipment-details"><summary>Описание и свой
 +itemProfileSummaryHTML(it)+'</details>';
 }
 function equipmentItemIconHTML(it,slotId){
-if(it&&it.icon&&it.icon.src)return '<img class="equipment-item-icon" src="'+esc(it.icon.src)+'" width="48" height="48" loading="lazy" decoding="async" alt="">';
+const icon=itemIllustration(it);if(icon&&icon.src)return '<img class="equipment-item-icon" src="'+esc(icon.src)+'" width="48" height="48" loading="lazy" decoding="async" alt=""'+itemImageErrorHTML()+'>';
 const slot=EQUIP_SLOTS.find(row=>row.id===slotId)||EQUIP_SLOTS.find(row=>slotAccepts(row.id,it&&it.slot,it));
 return '<span class="equipment-item-glyph" aria-hidden="true">'+(slot?slot.ic:'◇')+'</span>';
 }

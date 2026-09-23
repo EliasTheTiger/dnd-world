@@ -419,7 +419,8 @@
     document: '📜', container: '📦', quest: '🔑', 'world-object': '🪨'});
 
   function iconOf(item, taxonomy, isBg3) {
-    const icon = item && item.icon;
+    const explicit = item && item.icon;
+    const icon = explicit && text(explicit.src) ? explicit : !isBg3 && globalThis.DndWorldItemArt ? globalThis.DndWorldItemArt.forItem(item) : explicit;
     if (icon && text(icon.src)) return {kind: 'asset', src: text(icon.src), width: Number(icon.width) || 64, height: Number(icon.height) || 64,
       sha256: text(icon.sha256) || null, source: isBg3 ? 'source-artifact' : 'catalog-asset'};
     if (!isBg3) return {kind: 'glyph', value: CATEGORY_GLYPHS[taxonomy.category] || '🎒', source: 'engine-taxonomy'};
