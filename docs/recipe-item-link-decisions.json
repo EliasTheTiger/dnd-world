@@ -22040,8 +22040,8 @@
       ]
     },
     {
-      "id": "bg3:item:rt:7cca51a5-bfa6-4c65-b2d9-ef0167762a19:stats:TUFHX0JhcmJhcmlhbl9Cb25lU3Bpa2VfQXJtb3I",
-      "statsId": "MAG_Barbarian_BoneSpike_Armor",
+      "id": "bg3:item:rt:7cca51a5-bfa6-4c65-b2d9-ef0167762a19:stats:TUFHX0JhcmJNb25rX0Nsb3RoX0JfMQ",
+      "statsId": "MAG_BarbMonk_Cloth_B_1",
       "name": "Наряд костяных шипов",
       "roles": [
         "dye-target"
@@ -22092,8 +22092,8 @@
       ]
     },
     {
-      "id": "bg3:item:rt:7cca51a5-bfa6-4c65-b2d9-ef0167762a19:stats:TUFHX0JhcmJNb25rX0Nsb3RoX0JfMQ",
-      "statsId": "MAG_BarbMonk_Cloth_B_1",
+      "id": "bg3:item:rt:7cca51a5-bfa6-4c65-b2d9-ef0167762a19:stats:TUFHX0JhcmJhcmlhbl9Cb25lU3Bpa2VfQXJtb3I",
+      "statsId": "MAG_Barbarian_BoneSpike_Armor",
       "name": "Наряд костяных шипов",
       "roles": [
         "dye-target"
@@ -24788,8 +24788,8 @@
       ]
     },
     {
-      "id": "bg3:item:rt:8e34fd76-8b6d-48a5-89e3-942289bec31e:stats:QVJNX0dsb3Zlc19MZWF0aGVy",
-      "statsId": "ARM_Gloves_Leather",
+      "id": "bg3:item:rt:8e34fd76-8b6d-48a5-89e3-942289bec31e:stats:QVJNX0JyYWNlcnNfQmFyYmFyaWFu",
+      "statsId": "ARM_Bracers_Barbarian",
       "name": "Кожаные перчатки",
       "roles": [
         "dye-target"
@@ -24840,8 +24840,8 @@
       ]
     },
     {
-      "id": "bg3:item:rt:8e34fd76-8b6d-48a5-89e3-942289bec31e:stats:QVJNX0JyYWNlcnNfQmFyYmFyaWFu",
-      "statsId": "ARM_Bracers_Barbarian",
+      "id": "bg3:item:rt:8e34fd76-8b6d-48a5-89e3-942289bec31e:stats:QVJNX0dsb3Zlc19MZWF0aGVy",
+      "statsId": "ARM_Gloves_Leather",
       "name": "Кожаные перчатки",
       "roles": [
         "dye-target"
@@ -45532,50 +45532,6 @@
       ]
     },
     {
-      "id": "it_двуручный_меч",
-      "statsId": "",
-      "name": "Двуручный меч",
-      "roles": [
-        "ingredient"
-      ],
-      "recipes": [
-        "bg3:recipe:QUEST_FOR_SussurGreatsword"
-      ]
-    },
-    {
-      "id": "it_кинжал",
-      "statsId": "",
-      "name": "Кинжал",
-      "roles": [
-        "ingredient"
-      ],
-      "recipes": [
-        "bg3:recipe:QUEST_FOR_SussurDagger"
-      ]
-    },
-    {
-      "id": "it_противоядие",
-      "statsId": "",
-      "name": "Противоядие",
-      "roles": [
-        "result"
-      ],
-      "recipes": [
-        "bg3:recipe:ALCH_Potion_Antidote_Mugwort"
-      ]
-    },
-    {
-      "id": "it_серп",
-      "statsId": "",
-      "name": "Серп",
-      "roles": [
-        "ingredient"
-      ],
-      "recipes": [
-        "bg3:recipe:QUEST_FOR_SussurSickle"
-      ]
-    },
-    {
       "id": "it_basic_poison",
       "statsId": "",
       "name": "Базовый яд (флакон)",
@@ -46068,6 +46024,50 @@
       ],
       "recipes": [
         "bg3:recipe:ALCH_Poison_UNI_Brewer"
+      ]
+    },
+    {
+      "id": "it_двуручный_меч",
+      "statsId": "",
+      "name": "Двуручный меч",
+      "roles": [
+        "ingredient"
+      ],
+      "recipes": [
+        "bg3:recipe:QUEST_FOR_SussurGreatsword"
+      ]
+    },
+    {
+      "id": "it_кинжал",
+      "statsId": "",
+      "name": "Кинжал",
+      "roles": [
+        "ingredient"
+      ],
+      "recipes": [
+        "bg3:recipe:QUEST_FOR_SussurDagger"
+      ]
+    },
+    {
+      "id": "it_противоядие",
+      "statsId": "",
+      "name": "Противоядие",
+      "roles": [
+        "result"
+      ],
+      "recipes": [
+        "bg3:recipe:ALCH_Potion_Antidote_Mugwort"
+      ]
+    },
+    {
+      "id": "it_серп",
+      "statsId": "",
+      "name": "Серп",
+      "roles": [
+        "ingredient"
+      ],
+      "recipes": [
+        "bg3:recipe:QUEST_FOR_SussurSickle"
       ]
     }
   ],

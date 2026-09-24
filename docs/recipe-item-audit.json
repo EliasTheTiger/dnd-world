@@ -10513,109 +10513,6 @@
       "runtime": []
     },
     {
-      "id": "it_двуручный_меч",
-      "name": "Двуручный меч",
-      "statsId": "",
-      "publicItemId": "it_двуручный_меч",
-      "namesakeId": null,
-      "description": "Клинок длиной с человека, с длинной рукоятью и мощной гардой. Оружие тех, кто разрывает строй: один замах сносит древки копий вместе с руками. Не оставляет возможности держать щит.",
-      "icon": "assets/item-art/v1/5baeb1925916f275.webp",
-      "roles": [
-        "ingredient"
-      ],
-      "references": [
-        {
-          "recipeId": "bg3:recipe:QUEST_FOR_SussurGreatsword",
-          "recipeName": "Двуручный меч из суссура",
-          "role": "ingredient",
-          "quantity": 1,
-          "operation": "Consume"
-        }
-      ],
-      "schemaErrors": [],
-      "issues": [],
-      "runtime": []
-    },
-    {
-      "id": "it_кинжал",
-      "name": "Кинжал",
-      "statsId": "",
-      "publicItemId": "it_кинжал",
-      "namesakeId": null,
-      "description": "Короткий обоюдоострый клинок в ладонь длиной, легко прячется в сапоге, рукаве или за поясом. Годится и для удара, и для броска, и для тихой работы в темноте. Фехтовальное свойство позволяет полагаться на Ловкость вместо Силы.",
-      "icon": "assets/item-art/v1/5415162617039a41.webp",
-      "roles": [
-        "ingredient"
-      ],
-      "references": [
-        {
-          "recipeId": "bg3:recipe:QUEST_FOR_SussurDagger",
-          "recipeName": "Кинжал из суссура",
-          "role": "ingredient",
-          "quantity": 1,
-          "operation": "Consume"
-        }
-      ],
-      "schemaErrors": [],
-      "issues": [],
-      "runtime": []
-    },
-    {
-      "id": "it_противоядие",
-      "name": "Противоядие",
-      "statsId": "",
-      "publicItemId": "it_противоядие",
-      "namesakeId": null,
-      "description": "Мутноватая настойка на травах и толченом угле в запечатанном флаконе. На 1 час дает преимущество на спасброски от яда. Не снимает отравление и не восстанавливает потерянные хиты. Не действует на нежить и конструктов.",
-      "icon": "assets/item-art/v1/38468ab2a092b233.webp",
-      "roles": [
-        "result"
-      ],
-      "references": [
-        {
-          "recipeId": "cr_antitoxin",
-          "recipeName": "Противоядие",
-          "role": "result",
-          "quantity": 1,
-          "operation": "Create"
-        },
-        {
-          "recipeId": "bg3:recipe:ALCH_Potion_Antidote_Mugwort",
-          "recipeName": "Противоядие",
-          "role": "result",
-          "quantity": 1,
-          "operation": "Create"
-        }
-      ],
-      "schemaErrors": [],
-      "issues": [],
-      "runtime": []
-    },
-    {
-      "id": "it_серп",
-      "name": "Серп",
-      "statsId": "",
-      "publicItemId": "it_серп",
-      "namesakeId": null,
-      "description": "Изогнутый жатвенный клинок на короткой рукояти. Оружие крестьянских бунтов и лесных культов: незаметен среди утвари, но в умелой руке вспарывает жилы. Кривизна лезвия цепляет то, что прямой клинок пропустил бы.",
-      "icon": "assets/item-art/v1/dcac46e8fbb219ea.webp",
-      "roles": [
-        "ingredient"
-      ],
-      "references": [
-        {
-          "recipeId": "bg3:recipe:QUEST_FOR_SussurSickle",
-          "recipeName": "Серп из суссура",
-          "role": "ingredient",
-          "quantity": 1,
-          "operation": "Consume"
-        }
-      ],
-      "schemaErrors": [],
-      "issues": [],
-      "runtime": []
-    },
-    {
       "id": "it_acid_vial",
       "name": "Кислота (флакон)",
       "statsId": "",
@@ -13011,6 +12908,109 @@
           "role": "tool",
           "quantity": 1,
           "operation": "Keep"
+        }
+      ],
+      "schemaErrors": [],
+      "issues": [],
+      "runtime": []
+    },
+    {
+      "id": "it_двуручный_меч",
+      "name": "Двуручный меч",
+      "statsId": "",
+      "publicItemId": "it_двуручный_меч",
+      "namesakeId": null,
+      "description": "Клинок длиной с человека, с длинной рукоятью и мощной гардой. Оружие тех, кто разрывает строй: один замах сносит древки копий вместе с руками. Не оставляет возможности держать щит.",
+      "icon": "assets/item-art/v1/5baeb1925916f275.webp",
+      "roles": [
+        "ingredient"
+      ],
+      "references": [
+        {
+          "recipeId": "bg3:recipe:QUEST_FOR_SussurGreatsword",
+          "recipeName": "Двуручный меч из суссура",
+          "role": "ingredient",
+          "quantity": 1,
+          "operation": "Consume"
+        }
+      ],
+      "schemaErrors": [],
+      "issues": [],
+      "runtime": []
+    },
+    {
+      "id": "it_кинжал",
+      "name": "Кинжал",
+      "statsId": "",
+      "publicItemId": "it_кинжал",
+      "namesakeId": null,
+      "description": "Короткий обоюдоострый клинок в ладонь длиной, легко прячется в сапоге, рукаве или за поясом. Годится и для удара, и для броска, и для тихой работы в темноте. Фехтовальное свойство позволяет полагаться на Ловкость вместо Силы.",
+      "icon": "assets/item-art/v1/5415162617039a41.webp",
+      "roles": [
+        "ingredient"
+      ],
+      "references": [
+        {
+          "recipeId": "bg3:recipe:QUEST_FOR_SussurDagger",
+          "recipeName": "Кинжал из суссура",
+          "role": "ingredient",
+          "quantity": 1,
+          "operation": "Consume"
+        }
+      ],
+      "schemaErrors": [],
+      "issues": [],
+      "runtime": []
+    },
+    {
+      "id": "it_противоядие",
+      "name": "Противоядие",
+      "statsId": "",
+      "publicItemId": "it_противоядие",
+      "namesakeId": null,
+      "description": "Мутноватая настойка на травах и толченом угле в запечатанном флаконе. На 1 час дает преимущество на спасброски от яда. Не снимает отравление и не восстанавливает потерянные хиты. Не действует на нежить и конструктов.",
+      "icon": "assets/item-art/v1/38468ab2a092b233.webp",
+      "roles": [
+        "result"
+      ],
+      "references": [
+        {
+          "recipeId": "cr_antitoxin",
+          "recipeName": "Противоядие",
+          "role": "result",
+          "quantity": 1,
+          "operation": "Create"
+        },
+        {
+          "recipeId": "bg3:recipe:ALCH_Potion_Antidote_Mugwort",
+          "recipeName": "Противоядие",
+          "role": "result",
+          "quantity": 1,
+          "operation": "Create"
+        }
+      ],
+      "schemaErrors": [],
+      "issues": [],
+      "runtime": []
+    },
+    {
+      "id": "it_серп",
+      "name": "Серп",
+      "statsId": "",
+      "publicItemId": "it_серп",
+      "namesakeId": null,
+      "description": "Изогнутый жатвенный клинок на короткой рукояти. Оружие крестьянских бунтов и лесных культов: незаметен среди утвари, но в умелой руке вспарывает жилы. Кривизна лезвия цепляет то, что прямой клинок пропустил бы.",
+      "icon": "assets/item-art/v1/dcac46e8fbb219ea.webp",
+      "roles": [
+        "ingredient"
+      ],
+      "references": [
+        {
+          "recipeId": "bg3:recipe:QUEST_FOR_SussurSickle",
+          "recipeName": "Серп из суссура",
+          "role": "ingredient",
+          "quantity": 1,
+          "operation": "Consume"
         }
       ],
       "schemaErrors": [],

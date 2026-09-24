@@ -23,7 +23,9 @@ const partSignature=item=>JSON.stringify([item.n,item.desc,item.mechanics.profil
 const parts=items.filter(item=>partStats.has(item.source?.statsId)&&primary(item)&&portable(item));
 if(parts.length!==3||new Set(parts.map(partSignature)).size!==1)throw new Error('Construct part equivalence requires review.');
 const ingredientKey=item=>partStats.has(item.source.statsId)?'OBJ_AutomatonPart':item.source.statsId||'';
-const rank=(a,b)=>Number(primary(b))-Number(primary(a))||Number(a.source.classification==='duplicate')-Number(b.source.classification==='duplicate')||a.id.localeCompare(b.id);
+// Generated identities must not depend on the host's language or ICU version.
+const compareId=(a,b)=>a<b?-1:a>b?1:0;
+const rank=(a,b)=>Number(primary(b))-Number(primary(a))||Number(a.source.classification==='duplicate')-Number(b.source.classification==='duplicate')||compareId(a.id,b.id);
 const records={},itemRefs=new Map(),excluded=[];
 const add=(id,recipe,role)=>{if(!itemRefs.has(id))itemRefs.set(id,[]);itemRefs.get(id).push({recipe,role});};
 for(const recipe of asset.recipes){
@@ -58,7 +60,7 @@ for(const recipe of asset.recipes){
  }
  records[recipe.id]={inputs,resultIds};
 }
-const linkedItems=[...itemRefs].sort(([a],[b])=>a.localeCompare(b)).map(([id,refs])=>({id,statsId:byId.get(id).source?.statsId||'',name:byId.get(id).n.trim(),roles:[...new Set(refs.map(row=>row.role))].sort(),recipes:[...new Set(refs.map(row=>row.recipe))].sort()}));
+const linkedItems=[...itemRefs].sort(([a],[b])=>compareId(a,b)).map(([id,refs])=>({id,statsId:byId.get(id).source?.statsId||'',name:byId.get(id).n.trim(),roles:[...new Set(refs.map(row=>row.role))].sort(),recipes:[...new Set(refs.map(row=>row.recipe))].sort()}));
 const data={schemaVersion:1,sourceVersion:pointer.catalogVersion,recipes:records,items:linkedItems};
 // Armor choices and recipe membership repeat across many dye formulas. Store
 // each string list once in the download, then give each consumer its own copy.

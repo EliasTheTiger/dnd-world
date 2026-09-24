@@ -54,7 +54,8 @@ for(const [id,refs] of references){
   description:item?.desc||'',icon:icon||null,roles:[...new Set(refs.map(row=>row.role))],references:refs,
   schemaErrors,issues:[...new Set(issues)],runtime});
 }
-rows.sort((a,b)=>a.id.localeCompare(b.id));
+// Persist IDs in code-point order, independently of the host's locale.
+rows.sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
 const report={schemaVersion:1,catalogVersion:read('data/bg3/current.json').catalogVersion,
  checkScope:'Every canonical ingredient, reusable tool and created item. Dye targets retain their existing item identity; runtime checks are preflight, not proof of every gameplay consequence.',
  counts:{recipes:recipes.length,items:rows.length,missingDefinitions:rows.filter(row=>row.issues.includes('definition-missing')).length,
