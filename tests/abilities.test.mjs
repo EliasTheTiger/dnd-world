@@ -91,16 +91,17 @@ test('temporary ability buffs on heroes carry the declared duration and cast ide
  a.advanceFxRound(2);assert.equal(e.acTotal(c),ac);assert.equal(c.activeFx.some(f=>f.id===ab.id),false);
 });
 
-test('each logical ability appears once across every catalog page, with separate rule profiles',()=>{
+test('each logical ability appears once across every catalog page without a rule variant chooser',()=>{
  const {e,a}=world(),index=a.abilityCatalogIndex(true),names=[];
  assert.equal(index.groups.length,383);
  assert.equal(new Set(index.groups.map(g=>g.name)).size,index.groups.length);
  a.filters.edition='';a.renderAbilitiesDB();
- for(let page=0;page<Math.ceil(index.groups.length/40);page++){a.filters.page=page;a.renderAbilitiesDB();names.push(...[...a.html('tab-abilitiesdb').matchAll(/<h4>(.*?)<\/h4>/g)].map(m=>m[1]));}
+ for(let page=0;page<Math.ceil(index.groups.length/40);page++){a.filters.page=page;a.renderAbilitiesDB();const html=a.html('tab-abilitiesdb');assert.doesNotMatch(html,/Вариант правил|Удалить этот вариант правил|abilitySelectVariant/);names.push(...[...html.matchAll(/<h4>(.*?)<\/h4>/g)].map(m=>m[1]));}
  assert.equal(names.length,index.groups.length);assert.equal(new Set(names).size,names.length);
  const wind=source(e,'Second Wind'),group=index.byId.get(wind.id);
  assert.equal(group.variants.length,3);a.filters.q='Second Wind';a.renderAbilitiesDB();assert.equal((a.html('tab-abilitiesdb').match(/class="entry-card"/g)||[]).length,1);
- const newer=source(e,'Second Wind','srd-2024');a.abilitySelectVariant(newer.id);assert.match(a.html('tab-abilitiesdb'),/Бонусным действием восстановите/);assert.doesNotMatch(a.html('tab-abilitiesdb'),/справочная карточка/);
+ assert.match(a.html('tab-abilitiesdb'),/Бонусным действием восстановите/);assert.doesNotMatch(a.html('tab-abilitiesdb'),/справочная карточка/);
+ for(const ab of e.state().abilities)assert.doesNotMatch(a.abilityCardHTML(ab),/<select|Вариант правил/);
  const manual={id:'master-defense',n:'Защита хранителя',x:'Первый вариант мастера',type:'class',custom:true,open5e:{originalName:'Guardian Defense'}};
  e.state().abilities.push(manual,{...manual,id:'second-defense',x:'Особый вариант мастера'});
  a.filters.q='Особый вариант мастера';a.filters.edition='custom';a.renderAbilitiesDB();assert.match(a.html('tab-abilitiesdb'),/Особый вариант мастера/);assert.doesNotMatch(a.html('tab-abilitiesdb'),/Первый вариант мастера/);

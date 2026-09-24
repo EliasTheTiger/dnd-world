@@ -26,7 +26,9 @@ const server=http.createServer((req,res)=>{
   assert.equal(await catalog.locator('.entry-card').count(),40);
   const uniqueness=await page.evaluate(()=>{const groups=abilityCatalogIndex().groups;return {profiles:abilitiesDB.length,abilities:groups.length,names:groups.map(group=>group.name)};});
   assert.equal(new Set(uniqueness.names).size,uniqueness.abilities);assert.ok(uniqueness.abilities<uniqueness.profiles);
-  const allCards=await page.evaluate(()=>abilitiesDB.map(ab=>{const group=abilityCatalogIndex().byId.get(ab.id),box=document.createElement('div');box.innerHTML=abilityCardHTML(ab,'',{selector:abilityVariantSelectHTML(group?.variants||[ab],ab)});return {id:ab.id,mode:ab.mechanics?.mode,text:box.textContent};}));
+  const allCards=await page.evaluate(()=>abilitiesDB.map(ab=>{const box=document.createElement('div');box.innerHTML=abilityCardHTML(ab);return {id:ab.id,mode:ab.mechanics?.mode,text:box.textContent,selectors:box.querySelectorAll('select').length};}));
+  for(const card of allCards)assert.equal(card.selectors,0,card.id);
+  assert.equal(await catalog.locator('.entry-card select').count(),0);
   for(const card of allCards){assert.notEqual(card.mode,'manual',card.id);assert.doesNotMatch(card.text,/CC-BY|https?:|Open5e|SRD|Hobby World|schemaVersion|manualNote|enginePolicy|перевод проекта|сверено|справочная карточка|движ[ок]|автоисполн|формат последств/i,card.id);}
   fs.writeFileSync(path.join(output,'all-ability-cards.json'),JSON.stringify(allCards,null,2));
   await catalog.getByRole('button',{name:'Далее →',exact:true}).first().click();assert.match(await catalog.innerText(),/страница 2 из/);
@@ -38,8 +40,7 @@ const server=http.createServer((req,res)=>{
   // Search also finds descriptions mentioning darkvision; the ability's title occurs once.
   assert.equal(await catalog.getByRole('heading',{name:'Ночное зрение',exact:true}).count(),1);
   await search.fill('Second Wind');assert.equal(await catalog.locator('.entry-card').count(),1);
-  const newerWind=await page.evaluate(()=>abilitiesDB.find(ab=>ab.open5e?.originalName==='Second Wind'&&ab.catalogSource?.documentKey==='srd-2024').id);
-  await catalog.getByRole('combobox',{name:'Вариант правил',exact:true}).selectOption(newerWind);assert.match(await catalog.innerText(),/Бонусным действием восстановите/);assert.doesNotMatch(await catalog.innerText(),/справочная карточка/);
+  assert.equal(await catalog.locator('.entry-card select').count(),0);assert.match(await catalog.innerText(),/Бонусным действием восстановите/);assert.doesNotMatch(await catalog.innerText(),/справочная карточка|Вариант правил/);
   await page.screenshot({path:path.join(output,'01-catalog-desktop.png'),fullPage:false});
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'02-catalog-mobile.png'),fullPage:true});
   assert.equal(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth),true,'ability catalog fits a 390px viewport');
@@ -56,10 +57,12 @@ const server=http.createServer((req,res)=>{
   await heroSearch.fill('Second Wind');assert.equal(await page.locator('#tab-chars .spell-hit').count(),0,'owned source variants are absent from assignment search');
   await heroSearch.fill('Darkvision');assert.equal(await page.locator('#tab-chars .spell-hit').count(),1);
   await page.setViewportSize({width:390,height:844});
-  await page.locator('#tab-chars').getByRole('combobox',{name:'Вариант правил',exact:true}).selectOption('ab_darkvision');
-  assert.equal(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth),true,'hero source selector fits a 390px viewport');
+  assert.equal(await page.locator('#tab-chars .spell-hit select').count(),0,'assigning an ability requires no rule variant selection');
+  const darkvisionId=await page.locator('#tab-chars .spell-hit').getAttribute('data-ability-id');
+  assert.equal(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth),true,'hero ability search fits a 390px viewport');
   await page.locator('#tab-chars .spell-hit').getByText('+ вписать',{exact:true}).click();assert.equal(await page.evaluate(()=>getCh('abilities-qa-fighter').abilities.length),3);
-  await page.locator('#tab-chars button[onclick="delCharAbility(\'ab_darkvision\')"]').click();
+  assert.equal(await page.evaluate(id=>getCh('abilities-qa-fighter').abilities.some(entry=>entry.abilityId===id),darkvisionId),true);
+  await page.locator('#tab-chars button[onclick="delCharAbility(\''+darkvisionId+'\')"]').click();
   await page.setViewportSize({width:1440,height:1000});
   await heroSearch.fill('Grappler');await page.locator('#tab-chars .spell-hit').getByText('+ вписать',{exact:true}).click();
   assert.equal(await page.evaluate(()=>getCh('abilities-qa-fighter').abilities.length),2,'Strength prerequisite blocks assignment');await heroSearch.fill('');
@@ -93,7 +96,7 @@ const server=http.createServer((req,res)=>{
   await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
   assert.deepEqual(await page.evaluate(id=>{const c=getCh('abilities-qa-defense');return [c.abilities.find(e=>e.abilityId===id).choices.element,dmgAfterTraits(c,19,'холод').amount];},defenseIds.chosen),['холод',9]);
   assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'browser-result.json'),JSON.stringify({ok:true,url,release,uniqueness,checks:['catalog pagination','one card per ability across sources','playable variant selector','no alternative assignments for an owned ability','Russian names and Grappler contest','all 695 variant cards are playable and contain only game information','English and legacy search without lost focus','390px layout','fighter level-17 charge limit','Strength prerequisite','healing cancellation','player-entered d10 and one charge','no maximum-HP increase','legacy duplicates merge on reload without lost notes or charge refill','migration survives a second reload','no page errors'],errors},null,2));
+  fs.writeFileSync(path.join(output,'browser-result.json'),JSON.stringify({ok:true,url,release,uniqueness,checks:['catalog pagination','one card per ability across sources','no numbered rule variant selectors in catalog or assignment search','no alternative assignments for an owned ability','Russian names and Grappler contest','all 695 variant cards are playable and contain only game information','English and legacy search without lost focus','390px layout','fighter level-17 charge limit','Strength prerequisite','healing cancellation','player-entered d10 and one charge','no maximum-HP increase','legacy duplicates merge on reload without lost notes or charge refill','migration survives a second reload','no page errors'],errors},null,2));
   console.log('Abilities browser journey passed.');
  }catch(error){if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true});throw error;}
  finally{await browser.close();server.close();}
