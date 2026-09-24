@@ -179,7 +179,7 @@ function matches(ab,query){
  // Reference equality catches edited alias arrays; primitive fields catch in-place editor writes.
  const aliases=ab.abilityReview?.aliases,name=displayName([ab]),fields=[ab.n,ab.x,ab.source,name,identity(ab),aliases];let cached=searchCache.get(ab);
  if(!cached||fields.some((v,i)=>v!==cached.fields[i])){cached={fields,text:normalize([ab.n,name,ab.x,ab.source,identity(ab),...(aliases||[])].join(' '))};searchCache.set(ab,cached);}
- return cached.text.includes(q);
+ return q.split(' ').every(word=>cached.text.includes(word));
 }
 // One ability can have several source-specific rule profiles. Never combine
 // their mechanics: Unarmored Defense, for example, differs by class.
@@ -264,6 +264,71 @@ function catalogIndex(rows){
  const list=groups(rows),byId=new Map();for(const group of list)for(const ab of group.variants)byId.set(ab.id,group);
  return {groups:list,byId};
 }
+const catalogLabels={
+ type:{class:'Классовые',racial:'Расовые',feat:'Черты',background:'Предыстории',other:'Прочие'},
+ mode:{active:'Все активные',action:'Действие',bonus:'Бонусное действие',reaction:'Реакция',attack:'Часть атаки',free:'Без затрат действия',passive:'Постоянно',triggered:'По условию',resource:'Запас ресурса',manual:'По описанию'},
+ topic:{attack:'Атаки и урон',defense:'Защита и сопротивления',health:'Здоровье и исцеление',control:'Контроль',movement:'Перемещение',skills:'Навыки, владения и общение',senses:'Чувства и обнаружение',stealth:'Скрытность и облик',magic:'Заклинания',resources:'Запасы и их восстановление',tactics:'Инициатива и действия',character:'Особенности героя',other:'Прочее'},
+ recovery:{none:'Без расхода',short:'Короткий или долгий отдых',long:'Долгий отдых',daily:'Раз в день',encounter:'После боя',pool:'Общий запас',other:'Особое восстановление'},
+ sort:{name:'Название: А → Я','name-desc':'Название: Я → А',owner:'Класс или народ',type:'Вид способности',mode:'Способ применения'}
+};
+const subraceParents={'Высший эльф':'Эльф','Лесной эльф':'Эльф','Темный эльф':'Эльф','Холмовой дварф':'Дварф','Горный дварф':'Дварф','Скальный гном':'Гном','Лесной гном':'Гном','Легконогий полурослик':'Полурослик','Коренастый полурослик':'Полурослик'};
+function ownerFacets(ab){
+ const labels=ownerLabels(ab),result=new Map();
+ for(const label of labels){result.set(normalize(label),label);const parent=label.includes(' — ')?label.split(' — ')[0]:subraceParents[label];if(parent)result.set(normalize(parent),parent);}
+ return [...result].map(([value,label])=>({value,label}));
+}
+function classify(ab){
+ ab=ab||{};
+ const m=ab.mechanics||{},p=root.DND_ABILITY_GAMEPLAY?.profile(ab)||{},rules=m.passiveRules||{},effects=[...(m.effects||[]),...(p.effects||[])],resolution=m.resolution||{},profs=m.proficiencies||{};
+ const type=Object.hasOwn(catalogLabels.type,ab.type)?ab.type:'other';
+ const role=m.mode==='manual'?'manual':m.role||ab.mode||'manual',cost=m.combat?.cost||m.activation?.cost||ab.combatCost||'action';
+ const application=role==='active'?(cost==='turnfree'?'free':Object.hasOwn(catalogLabels.mode,cost)?cost:'action'):Object.hasOwn(catalogLabels.mode,role)?role:'manual';
+ const modes=[...new Set([role,application])],resource=m.resource||{},rest=normalize(resource.rest??ab.rest),uses=resource.uses??ab.uses;
+ // encounterEnd restores limited abilities with no rest requirement.
+ const recovery=uses!=null||rest?(!rest&&uses!=null?'encounter':rest.includes('корот')?'short':/длин|долг|продолжитель/.test(rest)?'long':/день|сутк/.test(rest)?'daily':/бой|боя/.test(rest)?'encounter':'other'):'none';
+ const recoveries=resource.pool?.spends?[...(recovery==='none'?[]:[recovery]),'pool']:[recovery];
+ const topics=new Set(),add=(condition,topic)=>{if(condition)topics.add(topic);},has=rx=>effects.some(f=>rx.test(f.stat));
+ add(resolution.attack||resolution.rolls?.some(r=>['dmg','damage'].includes(r.type))||m.combat?.requiresWeapon||has(/^(attack|weapon\.|unarmed\.)/ )||rules.attacksPerAction||rules.scaleAttacks||rules.critical||rules.criticalExtraDie||rules.rangedAttackBonus||rules.twoHandDamage||rules.twoWeaponFighting,'attack');
+ add(has(/^(ac|save\.|incoming\.|critical.immunity|condition.immunity)/)||effects.some(f=>f.stat==='damage.rule'&&['resist','immune'].includes(f.value?.mode))||rules.unarmoredDefense||rules.unarmoredBase||rules.magicalSleepImmune||rules.denyAttackAdvantage||rules.concentrationAdvantage||rules.saveProficiency||profs.armor&&Object.values(profs.armor).some(Boolean),'defense');
+ add(resolution.rolls?.some(r=>['heal','temp'].includes(r.type))||p.fixedHeal||p.cleanse||has(/^(hp|healing\.)/ )||rules.healingSpellBonus||rules.zeroHpReaction,'health');
+ add(resolution.contest||effects.some(f=>f.stat==='condition'&&m.target?.kind!=='self'),'control');
+ add(has(/^(speed|carry)/),'movement');
+ add(has(/^(skill\.|check|proficiency\.)/)||Object.keys(profs).length||rules.jackOfAllTrades||rules.reliableTalent||rules.naturalFloor,'skills');
+ add(has(/^vision\./),'senses');
+ add(has(/^(appearance|skill.Скрытность)/)||effects.some(f=>f.stat==='condition'&&f.value==='Невидимый'),'stealth');
+ add(has(/^spell\./)||['spellbook','cantrip'].includes(p.binding)||rules.healingSpellBonus||rules.concentrationAdvantage,'magic');
+ add(role==='resource'||resource.pool?.provides||p.restore||rules.rageExtraUses,'resources');
+ add(has(/^init$/)||m.combat?.grantAction,'tactics');
+ add(has(/^(ab\.|appearance)/)||['subclass','age','alignment','size'].includes(p.binding)||rules.selectedAbilityCap||rules.abilityCaps||rules.restHours,'character');
+ if(p.styleChoice){topics.add('attack');topics.add('defense');}if(p.orderChoice){topics.add('skills');topics.add('defense');}
+ if(profs.weapons?.simple||profs.weapons?.martial||profs.weapons?.names?.length||rules.weaponNames?.length)topics.add('attack');
+ if(!topics.size){for(const [topic,tags] of Object.entries({attack:['attack','extradamage'],defense:['defense','resistance','immunity'],health:['healing'],movement:['movement','mobility'],skills:['skillbonus','languages','social','knowledge','toolprof'],magic:['spellcasting'],stealth:['stealth']}))if((ab.tags||[]).some(tag=>tags.includes(tag)))topics.add(topic);}
+ if(!topics.size)topics.add('other');
+ return {type,role,application,modes,recovery,recoveries,topics:[...topics],owners:ownerFacets(ab)};
+}
+function catalogView(rows,filters={},preferredIds=new Map()){
+ const catalog=groups(rows),facets={type:new Map(),owner:new Map(),mode:new Map(),topic:new Map(),recovery:new Map()},keys=Object.keys(facets),result=[];
+ const query=normalize(filters.q),signatureKeys=['q',...keys,'sort'];
+ const fits=(entry,key)=>!filters[key]||(key==='type'?entry.info.type===filters[key]:key==='owner'?entry.info.owners.some(o=>o.value===filters[key]):key==='mode'?entry.info.modes.includes(filters[key]):key==='topic'?entry.info.topics.includes(filters[key]):entry.info.recoveries.includes(filters[key]));
+ for(const group of catalog){
+  const nameHit=query&&query.split(' ').every(word=>normalize(group.name).includes(word));
+  const entries=group.variants.map(ab=>({ab,info:classify(ab)})).filter(e=>!query||nameHit||matches(e.ab,query));
+  for(const key of keys){
+   const seen=new Map();for(const entry of entries.filter(e=>keys.every(k=>k===key||fits(e,k)))){
+    const i=entry.info,values=key==='owner'?i.owners:key==='type'?[i.type]:key==='mode'?i.modes:key==='topic'?i.topics:i.recoveries;
+    for(const value of values){const v=key==='owner'?value.value:value,label=key==='owner'?value.label:catalogLabels[key][value];if(label)seen.set(v,label);}
+   }
+   for(const [value,label] of seen){const prev=facets[key].get(value);facets[key].set(value,{value,label,count:(prev?.count||0)+1});}
+  }
+  const matching=entries.filter(e=>keys.every(k=>fits(e,k)));if(!matching.length)continue;
+  const variants=matching.map(e=>e.ab),ab=variants.find(ab=>ab.id===preferredIds.get(group.key))||choose(variants),info=matching.find(e=>e.ab===ab).info;
+  result.push({...group,variants,ab,info});
+ }
+ const nameCompare=(a,b)=>a.name.localeCompare(b.name,'ru',{numeric:true})||a.key.localeCompare(b.key),sort=filters.sort||'name';
+ const value=g=>sort==='owner'?(g.info.owners[0]?.label||'Я'):sort==='type'?catalogLabels.type[g.info.type]:catalogLabels.mode[g.info.application];
+ result.sort((a,b)=>sort==='name-desc'?-nameCompare(a,b):sort==='name'?nameCompare(a,b):value(a).localeCompare(value(b),'ru')||nameCompare(a,b));
+ return {groups:result,total:catalog.length,signature:JSON.stringify(signatureKeys.map(k=>filters[k]||'')),facets:Object.fromEntries(keys.map(key=>[key,[...facets[key].values()].sort((a,b)=>key==='owner'?a.label.localeCompare(b.label,'ru'):Object.keys(catalogLabels[key]).indexOf(a.value)-Object.keys(catalogLabels[key]).indexOf(b.value))]))};
+}
 function owned(c,ab,index){
  const key=index?.byId.get(ab?.id)?.key;
  return (c?.abilities||[]).some(e=>e.abilityId===ab?.id||key&&index.byId.get(e.abilityId)?.key===key);
@@ -299,7 +364,7 @@ function canAssign(c,ab,index){
  const duplicate=owned(c,ab,index);
  return duplicate?{ok:false,reason:'Эта способность уже есть у героя.'}:{ok:true};
 }
-const api={revision,normalize,identity,edition,reconcile,matches,canAssign,termFor,parserText,baseName,ownerLabels,displayName,groups,choose,catalogIndex,owned,uniqueEntries,mergeEntries,duplicateName};
+const api={revision,normalize,identity,edition,reconcile,matches,canAssign,termFor,parserText,baseName,ownerLabels,displayName,groups,choose,catalogIndex,catalogLabels,classify,catalogView,owned,uniqueEntries,mergeEntries,duplicateName};
 root.DND_ABILITY_RULES=api;
 if(typeof module==='object'&&module.exports)module.exports=api;
 })(globalThis);

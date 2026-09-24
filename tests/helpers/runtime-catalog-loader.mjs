@@ -89,6 +89,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         grimoireSpellStatus,grimoireFavorite,grimoireNote,grimoireCompare,grimoireOpenCast,grimoireComparisonHTML,casterGuideHTML,circleLandSet,desk:grimoireDesk},
       abilitiesApi:{rules:ABILITY_RULES,reconcile:reconcileAbilityRules,reconcileAssignments:reconcileAbilityAssignments,abilityCatalogIndex,abilityUniqueEntries,characterSyncFeatures,addRaceTraitsToChar,quickAddAbility,saveAbilityEd,abilityMaxUses,abilityOutcomePreflight,canUseAbilityCheck,abilityCardHTML,addAbilityFromDB,delCharAbility,stAbilities,renderAbilitiesDB,abilityCastFx,abilityOf,combatAbilityUsedThisTurn,combatAttackCount,filters:dbFlt.ab,
         gameplay:ABILITY_GAMEPLAY,abilityGameplayChoose,abilityGameplayBind,abilityGameplayBindingHTML,abilityGameplayResolve,abilityGameplayEntries,abilityGameplayPassiveFx,abilityGameplayCheckNatural,abilityGameplaySyncSpells,mechanicsErrors,charFxAll,eAb,abilityPoolOf,holderConditionImmune,weaponOptionsOf,
+        abilityCatalogFilter,abilityCatalogReset,heroFilters:abFlt,
         html(id){return document.getElementById(id).innerHTML;},
         quiet(){renderChars=()=>{};renderCombat=()=>{};renderFoes=()=>{};renderChests=()=>{};renderMerchants=()=>{};},
         setCast(ctx){castCtx=ctx;},roll(){return rollSpec;},advanceFxRound

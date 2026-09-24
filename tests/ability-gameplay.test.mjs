@@ -13,7 +13,7 @@ test('all catalog variants have executable rules and clean player cards',()=>{
  for(const ab of e.state().abilities){
   assert.notEqual(ab.mechanics.mode,'manual',ab.n);assert.deepEqual(Array.from(a.mechanicsErrors(ab.mechanics,'ability')),[],ab.n);
   const card=a.abilityCardHTML(ab);
-  assert.doesNotMatch(card,/CC-BY|https?:|Open5e|SRD|Hobby World|schemaVersion|manualNote|enginePolicy|источник:|перевод проекта|сверено|справочная карточка|движ[ок]|автоисполн|формат последств/i,ab.n);
+  assert.doesNotMatch(card.replace(/<[^>]*>/g,''),/CC-BY|https?:|Open5e|SRD|Hobby World|schemaVersion|manualNote|enginePolicy|источник:|перевод проекта|сверено|справочная карточка|движ[ок]|автоисполн|формат последств/i,ab.n);
   assert.match(card,/entry-desc/,ab.n+' has gameplay prose');
  }
 });

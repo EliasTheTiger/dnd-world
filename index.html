@@ -7128,11 +7128,11 @@ if(/(?:особенность|черта)[^.\n]{0,80},\s*пассивн[а-я]*\
 return !abilityIsActive(ab);
 }
 function abilityModeLabel(ab){
-const role=ab&&ab.mechanics&&ab.mechanics.mode!=='legacy'?ab.mechanics.role:ab&&ab.mode;
+const role=ABILITY_RULES.classify(ab).role;
 if(role==='resource') return 'запас сил для связанных приёмов';
 if(role==='triggered') return 'при наступлении указанного условия';
 if(role==='manual') return 'по условиям способности';
-return abilityIsActive(ab)?({action:'действие',bonus:'бонусное действие',reaction:'реакция',free:'свободное действие',turnfree:'в свой ход, без затрат действия'}[abilityCombatRules(ab).cost]||'действие'):'действует постоянно';
+return abilityIsActive(ab)?({action:'действие',bonus:'бонусное действие',reaction:'реакция',attack:'часть атаки',free:'свободное действие',turnfree:'в свой ход, без затрат действия'}[abilityCombatRules(ab).cost]||'действие'):'действует постоянно';
 }
 function abilityCombatRules(ab){
 if(ab&&ab.mechanics&&ab.mechanics.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&ab.mechanics.mode!=='legacy') return ab.mechanics.combat||{};
@@ -20512,11 +20512,16 @@ return h+'</div>';
 }
 const ABILITY_TYPES={class:'Классовая',racial:'Расовая',feat:'Черта',background:'Предыстория',other:'Прочее'};
 function abilityPlayerText(text){return String(text||'').split(/\n/).filter(line=>!/(?:формат(?:а|е)? последств|источник правил|тип лицензии|CC-BY|https?:\/\/|Open5e|SRD\s*20|перевод(?:а|е)? на рус|свер[екн].*(?:книг|глоссари)|(?:взаимодейств|интеграц|обработчик|автоисполн|автоматиз|движок|движк|mechanics|schemaVersion|manualNote|enginePolicy))/i.test(line)).join('\n').trim();}
+function abilityCategoryChipsHTML(ab){
+const info=ABILITY_RULES.classify(ab),labels=ABILITY_RULES.catalogLabels;
+const colors={attack:'#8e1b1b',defense:'#0d47a1',health:'#3f6b34',control:'#303f9f',movement:'#00838f',skills:'#00695c',senses:'#263238',stealth:'#37474f',magic:'#4a148c',resources:'#835016',tactics:'#835016',character:'#685035',other:'#685035'};
+return '<span class="tagrow">'+info.topics.map(key=>'<span class="wax-tag" style="background:'+colors[key]+'">'+esc(labels.topic[key])+'</span>').join('')+info.recoveries.filter(key=>key!=='none').map(key=>'<span class="wax-tag" style="background:#685035">'+esc(labels.recovery[key])+'</span>').join('')+'</span>';
+}
 function abilityCardHTML(ab, extra, view){
 extra=extra||'';
-let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(view?.name||ABILITY_RULES.displayName([ab]))+'</h4>'
+let h='<div class="entry-card" data-ability-id="'+esc(ab.id)+'"><div class="entry-head"><h4>'+esc(view?.name||ABILITY_RULES.displayName([ab]))+'</h4>'
 +'<span class="type-tag">'+esc(ABILITY_TYPES[ab.type]||ab.type)+'</span>'
-+tagChips(ab.tags,ABILITY_TAGS)
++abilityCategoryChipsHTML(ab)
 +'<span class="spacer"></span>'+extra+'</div>';
 h+=descBlock(abilityPlayerText(ab.x))+(view?.choices||'');
 h+='<div class="stat-line"><b>Применение:</b> '+abilityModeLabel(ab)+'</div>';
@@ -20525,7 +20530,7 @@ return h+'</div>';
 }
 
 
-const dbFlt={ sp:{q:'',l:'',s:''}, it:{q:'',taxonomy:'',rarity:'',tag:'',sort:'name'}, ab:{q:'',type:'',edition:'',mode:'',page:0} };
+const dbFlt={ sp:{q:'',l:'',s:''}, it:{q:'',taxonomy:'',rarity:'',tag:'',sort:'name'}, ab:{q:'',type:'',owner:'',mode:'',topic:'',recovery:'',sort:'name',page:0} };
 const localItemFlt={q:'',type:'',tag:''};
 let editing={sp:null,it:null,ab:null};
 let itemAuditView=null;
@@ -27762,38 +27767,51 @@ itemAuditView=null;scheduleSave();renderItemsDB();if(activeCharId)renderChars();
 
 
 const abilityEditedCards=new Map();
+function abilityCatalogFilter(key,value){
+if(!['q','type','owner','mode','topic','recovery','sort'].includes(key))return;
+dbFlt.ab[key]=value;dbFlt.ab.page=0;renderAbilitiesDB();
+}
+function abilityCatalogReset(){
+Object.assign(dbFlt.ab,{q:'',type:'',owner:'',mode:'',topic:'',recovery:'',sort:'name',page:0});delete dbFlt.ab.edition;renderAbilitiesDB();
+}
+function abilityFilterHTML(key,label,all,options){
+const value=dbFlt.ab[key]||'',rows=options.slice();
+if(value&&!rows.some(row=>row.value===value))rows.push({value,label:ABILITY_RULES.catalogLabels[key]?.[value]||value,count:0});
+return '<label>'+label+'<select id="abilityFilter-'+key+'" aria-label="'+esc(({type:'Вид способностей',owner:'Класс, народ или специализация',mode:'Применение способностей',topic:'Эффект способности',recovery:'Восстановление способности',sort:'Сортировка способностей'})[key])+'" onchange="abilityCatalogFilter(\''+key+'\',this.value)">'
++(all?'<option value=""'+(!value?' selected':'')+'>'+all+'</option>':'')
++rows.map(row=>'<option value="'+esc(row.value)+'"'+(value===row.value?' selected':'')+'>'+esc(row.label)+(row.count==null?'':' ('+row.count+')')+'</option>').join('')+'</select></label>';
+}
 function renderAbilitiesDB(){
 const box=document.getElementById('tab-abilitiesdb'); const f=dbFlt.ab;
-const search=document.activeElement,caret=search?.id==='abilityDbSearch'?[search.selectionStart,search.selectionEnd]:null;
-const signature=JSON.stringify([f.q,f.type,f.edition,f.mode]);if(f.signature!==signature){f.page=0;f.signature=signature;}
+const focused=document.activeElement,focusId=focused?.id,caret=focusId==='abilityDbSearch'?[focused.selectionStart,focused.selectionEnd]:null;
+const view=ABILITY_RULES.catalogView(abilitiesDB,f,abilityEditedCards);if(f.signature!==view.signature){f.page=0;f.signature=view.signature;}
 let h='<h2 class="rubric">Свод способностей мира</h2>'
 +'<div class="db-bar">'
-+'<input id="abilityDbSearch" type="search" aria-label="Поиск способностей" placeholder="Название или описание способности…" value="'+esc(f.q)+'" oninput="dbFlt.ab.q=this.value;renderAbilitiesDB()">'
-+'<select onchange="dbFlt.ab.type=this.value;renderAbilitiesDB()"><option value="">Все виды</option>'
-+Object.keys(ABILITY_TYPES).map(t=>'<option value="'+t+'"'+(f.type===t?' selected':'')+'>'+ABILITY_TYPES[t]+'</option>').join('')+'</select>'
-+'<select aria-label="Применение способностей" onchange="dbFlt.ab.mode=this.value;renderAbilitiesDB()">'+[['','Любое применение'],['active','Активные'],['passive','Пассивные'],['resource','Ресурсы'],['triggered','По условию'],['manual','Справочные']].map(([key,label])=>'<option value="'+key+'"'+(f.mode===key?' selected':'')+'>'+label+'</option>').join('')+'</select>'
++'<input id="abilityDbSearch" type="search" aria-label="Поиск способностей" placeholder="Название, класс, народ или описание…" value="'+esc(f.q)+'" oninput="abilityCatalogFilter(\'q\',this.value)">'
++'<button class="btn ghost sm" onclick="abilityCatalogReset()">Сбросить фильтры</button>'
 +'<button class="btn rub" onclick="openAbilityEd(\'\')">✚ Новая способность</button></div>';
+h+='<div class="ability-catalog-controls">'
++abilityFilterHTML('type','Вид','Все виды',view.facets.type)
++abilityFilterHTML('owner','Класс / народ','Все классы и народы',view.facets.owner)
++abilityFilterHTML('mode','Применение','Любое применение',view.facets.mode)
++abilityFilterHTML('topic','Эффект','Любой эффект',view.facets.topic)
++abilityFilterHTML('recovery','Восстановление','Любое восстановление',view.facets.recovery)
++abilityFilterHTML('sort','Порядок','',Object.entries(ABILITY_RULES.catalogLabels.sort).map(([value,label])=>({value,label})))+'</div>';
 if(editing.ab!==null) h+=abilityEditorHTML();
-const catalog=abilityCatalogIndex(true);
-const arr=catalog.groups.map(group=>({...group,variants:group.variants.filter(ab=>
-(!f.type || ab.type===f.type)
-&& (!f.edition || (f.edition==='campaign'?['2014','custom'].includes(ABILITY_RULES.edition(ab)):ABILITY_RULES.edition(ab)===f.edition))
-&& (!f.mode || (ab.mechanics?.mode==='manual'?'manual':ab.mechanics?.role||ab.mode)===f.mode)
-)})).filter(group=>group.variants.length&&(ABILITY_RULES.normalize(group.name).includes(ABILITY_RULES.normalize(f.q))||group.variants.some(ab=>ABILITY_RULES.matches(ab,f.q))))
-.sort((a,b)=>a.name.localeCompare(b.name,'ru'));
+const arr=view.groups;
 const pages=Math.max(1,Math.ceil(arr.length/40));f.page=Math.min(Math.max(0,f.page||0),pages-1);const shown=arr.slice(f.page*40,(f.page+1)*40);
-h+='<p class="note-ital" style="font-size:14px">Способностей и черт: '+arr.length+' из '+catalog.groups.length+' · страница '+(f.page+1)+' из '+pages+'.</p>';
+h+='<p class="note-ital" role="status" style="font-size:14px">Способностей и черт: '+arr.length+' из '+view.total+' · страница '+(f.page+1)+' из '+pages+'.</p>';
 const pager=pages>1?'<div class="db-bar"><button class="btn ghost sm" '+(f.page===0?'disabled':'')+' onclick="dbFlt.ab.page--;renderAbilitiesDB()">← Назад</button><button class="btn ghost sm" '+(f.page===pages-1?'disabled':'')+' onclick="dbFlt.ab.page++;renderAbilitiesDB()">Далее →</button></div>':'';
 h+=pager;
 shown.forEach(group=>{
-const matching=group.variants.filter(ab=>ABILITY_RULES.matches(ab,f.q));
-const ab=group.variants.find(ab=>ab.id===abilityEditedCards.get(group.key))||ABILITY_RULES.choose(matching.length?matching:group.variants);
+const ab=group.ab;
 h+=abilityCardHTML(ab,
 '<button class="btn ghost sm" onclick="openAbilityEd(\''+ab.id+'\')">✎</button>'
 +'<button class="del-x" title="Удалить способность" onclick="delAbilityDB(\''+ab.id+'\')">✕</button>',{name:group.name});
 });
+if(!arr.length)h+='<div class="empty-scroll">Способности не найдены. Измените условия поиска или сбросьте фильтры.</div>';
 box.innerHTML=h+pager;
-if(caret){const next=document.getElementById('abilityDbSearch');next?.focus();next?.setSelectionRange(caret[0],caret[1]);}
+if(caret||focusId?.startsWith('abilityFilter-')){const next=document.getElementById(focusId);next?.focus();if(caret)next?.setSelectionRange(caret[0],caret[1]);}
 }
 function openAbilityEd(id){ editing.ab=id; renderAbilitiesDB(); window.scrollTo({top:0,behavior:'smooth'}); }
 function abilityEditorHTML(){
@@ -27849,7 +27867,7 @@ alert('MediumArmorMaster можно подтвердить только для �
 if(current){Object.assign(current,target);if(!bg3Id)delete current.bg3Id;}else abilitiesDB.push(target);
 reconcileAbilityAssignments();
 const group=abilityCatalogIndex().byId.get(target.id);if(group)abilityEditedCards.set(group.key,target.id);
-Object.assign(dbFlt.ab,{q:target.n,type:'',edition:ABILITY_RULES.edition(target),mode:'',page:0});
+Object.assign(dbFlt.ab,{q:target.n,type:'',owner:'',mode:'',topic:'',recovery:'',sort:'name',page:0});
 editing.ab=null; scheduleSave(); renderAbilitiesDB(); if(activeCharId) renderChars();
 }
 function delAbilityDB(id){
@@ -29976,7 +29994,7 @@ return '<div class="spell-dash"><div class="sd-line">Способностей с
 }
 function stAbilities(c){
 let h='<div class="panel">';
-const cats=[['all','Все способности'],['class','Классовые'],['racial','Расовые'],['feat','Черты'],['other','Прочие']];
+const cats=[['all','Все способности'],['class','Классовые'],['racial','Расовые'],['feat','Черты'],['background','Предыстории'],['other','Прочие']];
 h+='<div class="subtabs" style="margin-top:0">'+cats.map(x=>'<button class="subtab'+(abFlt.cat===x[0]?' active':'')+'" onclick="abFlt.cat=\''+x[0]+'\';renderChars()">'+x[1]+'</button>').join('')+'</div>';
 h+='<div class="row-line" style="margin:4px 0"><span class="grow"></span><button class="btn ghost sm" title="Восстановить способности с ограничением «раз за бой» у всех героев" onclick="encounterEnd()">⚔ Бой окончен</button></div>'+abilityDashHTML(c);
 h+='<div class="db-bar"><input type="text" placeholder="Найти способность в своде мира и вписать герою…" value="'+esc(sheetSearch.ab)+'" oninput="sheetSearch.ab=this.value;renderChars();const f=document.querySelector(\'#tab-chars .db-bar input\');if(f){f.focus();f.setSelectionRange(f.value.length,f.value.length)}">'
@@ -30003,7 +30021,7 @@ const groups=[['racial','Расовые черты'],['class','Классовы�
 let shown=0;
 groups.forEach(gr=>{
 if(abFlt.cat!=='all'&&abFlt.cat!==gr[0]) return;
-const list=abilityUniqueEntries(c).map(e=>({e, ab:abilityOf(e.abilityId)})).filter(x=>x.ab&&x.ab.type===gr[0])
+const list=abilityUniqueEntries(c).map(e=>({e, ab:abilityOf(e.abilityId)})).filter(x=>x.ab&&ABILITY_RULES.classify(x.ab).type===gr[0])
 .sort((a,b)=>a.ab.n.localeCompare(b.ab.n,'ru'));
 if(!list.length) return;
 h+='<h3 class="rubric" style="font-size:22px;margin-top:12px">'+gr[1]+'</h3>';

@@ -31,6 +31,34 @@ const server=http.createServer((req,res)=>{
   assert.equal(await catalog.locator('.entry-card select').count(),0);
   for(const card of allCards){assert.notEqual(card.mode,'manual',card.id);assert.doesNotMatch(card.text,/CC-BY|https?:|Open5e|SRD|Hobby World|schemaVersion|manualNote|enginePolicy|перевод проекта|сверено|справочная карточка|движ[ок]|автоисполн|формат последств/i,card.id);}
   fs.writeFileSync(path.join(output,'all-ability-cards.json'),JSON.stringify(allCards,null,2));
+  const reset=catalog.getByRole('button',{name:'Сбросить фильтры',exact:true}),filterChecks=[];
+  // Exercise every visible menu option, including its count, selection and actual returned profiles.
+  for(const key of ['type','owner','mode','topic','recovery']){
+   await reset.click();const select=catalog.locator('#abilityFilter-'+key);
+   const options=await select.locator('option').evaluateAll(nodes=>nodes.filter(n=>n.value).map(n=>({value:n.value,count:Number(n.textContent.match(/\((\d+)\)$/)[1])})));
+   for(const option of options){
+    await select.focus();await select.selectOption(option.value);assert.equal(await select.inputValue(),option.value);
+    assert.equal(await select.evaluate(el=>el===document.activeElement),true,'keyboard focus remains in '+key);
+    assert.equal(await catalog.locator('.entry-card').count(),Math.min(40,option.count),key+':'+option.value);
+    assert.match(await catalog.getByRole('status').innerText(),new RegExp('Способностей и черт: '+option.count+' из'));
+    assert.equal(await catalog.locator('.entry-card').evaluateAll((cards,{key,value})=>cards.every(card=>{const ab=abilitiesDB.find(a=>a.id===card.dataset.abilityId),i=ABILITY_RULES.classify(ab);return key==='type'?i.type===value:key==='owner'?i.owners.some(o=>o.value===value):key==='mode'?i.modes.includes(value):key==='topic'?i.topics.includes(value):i.recoveries.includes(value);}),{key,value:option.value}),true,key+':'+option.value);
+    filterChecks.push(key+':'+option.value);
+   }
+  }
+  await reset.click();
+  for(const sort of ['name','name-desc','owner','type','mode']){await catalog.locator('#abilityFilter-sort').selectOption(sort);assert.equal(await catalog.locator('#abilityFilter-sort').inputValue(),sort);assert.equal(await catalog.locator('.entry-card').count(),40);}
+  await reset.click();await catalog.getByRole('button',{name:'Далее →',exact:true}).first().click();
+  await catalog.locator('#abilityFilter-mode').selectOption('bonus');assert.match(await catalog.getByRole('status').innerText(),/страница 1 из/);
+  await catalog.locator('#abilityFilter-sort').selectOption('name-desc');assert.equal(await catalog.locator('#abilityFilter-mode').inputValue(),'bonus');
+  await reset.click();await catalog.locator('#abilityFilter-owner').selectOption('монах');await catalog.locator('#abilityFilter-topic').selectOption('attack');
+  assert.ok(await catalog.locator('.entry-card').count()>0);assert.equal(await catalog.locator('#abilityFilter-owner').inputValue(),'монах');
+  await page.screenshot({path:path.join(output,'00-filtered-catalog-desktop.png'),fullPage:false});
+  await page.setViewportSize({width:390,height:844});await catalog.screenshot({path:path.join(output,'00-filtered-catalog-mobile.png')});
+  assert.equal(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth),true,'filter menus fit a 390px viewport');
+  await page.setViewportSize({width:1440,height:1000});await search.fill('несуществующая способность проверка');
+  assert.equal(await catalog.locator('.entry-card').count(),0);assert.equal(await catalog.locator('#abilityFilter-owner').inputValue(),'монах');assert.match(await catalog.innerText(),/Способности не найдены/);
+  await reset.click();assert.equal(await search.inputValue(),'');assert.equal(await catalog.locator('.entry-card').count(),40);
+  await search.fill('Тифлинг устойчивость');assert.equal(await catalog.getByRole('heading',{name:'Адская устойчивость (Тифлинг)',exact:true}).count(),1);await reset.click();
   await catalog.getByRole('button',{name:'Далее →',exact:true}).first().click();assert.match(await catalog.innerText(),/страница 2 из/);
   await search.pressSequentially('Grappler');assert.equal(await search.inputValue(),'Grappler');assert.equal(await search.evaluate(el=>el===document.activeElement),true);
   assert.equal(await catalog.locator('.entry-card').count(),1);assert.match(await catalog.innerText(),/Рукопашный борец/);assert.match(await catalog.innerText(),/Атлетика против Атлетики/);
@@ -103,8 +131,12 @@ const server=http.createServer((req,res)=>{
   await page.evaluate(()=>runScheduledSave());await page.reload({waitUntil:'domcontentloaded'});
   await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
   assert.deepEqual(await page.evaluate(id=>{const c=getCh('abilities-qa-defense');return [c.abilities.find(e=>e.abilityId===id).choices.element,dmgAfterTraits(c,19,'холод').amount];},defenseIds.chosen),['холод',9]);
+  await page.evaluate(()=>{const c=getCh('abilities-qa-defense'),ab=abilitiesDB.find(a=>a.type==='background');c.abilities.push({abilityId:ab.id,cur:null,notes:''});activeCharId=c.id;sheetTab='abilities';switchTab('chars');renderChars();});
+  await page.locator('#tab-chars').getByRole('button',{name:'Предыстории',exact:true}).click();
+  assert.match(await page.locator('#tab-chars').innerText(),/Особенности предыстории/);
+  assert.equal(await page.locator('#tab-chars .entry-card').count(),1);
   assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'browser-result.json'),JSON.stringify({ok:true,url,release,uniqueness,checks:['catalog pagination','one card per ability across sources','race, subrace, class and subclass suffixes in catalog, search and hero cards','no numbered rule variant selectors in catalog or assignment search','no alternative assignments for an owned ability','Russian names and Grappler contest','all 695 variant cards are playable and contain only game information','English and legacy search without lost focus','390px layout','fighter level-17 charge limit','Strength prerequisite','healing cancellation','player-entered d10 and one charge','no maximum-HP increase','legacy duplicates merge on reload without lost notes or charge refill','migration survives a second reload','no page errors'],errors},null,2));
+  fs.writeFileSync(path.join(output,'browser-result.json'),JSON.stringify({ok:true,url,release,uniqueness,filterChecks,checks:['every filter option matches its count and displayed profiles','filter selection and keyboard focus survive rerender','all five sort options','combined owner and effect filters','pagination resets on filtering','empty state and reset','multiword owner-first search','hero background category','catalog pagination','one card per ability across sources','race, subrace, class and subclass suffixes in catalog, search and hero cards','no numbered rule variant selectors in catalog or assignment search','no alternative assignments for an owned ability','Russian names and Grappler contest','all variant cards are playable and contain only game information','English and legacy search without lost focus','390px layout','fighter level-17 charge limit','Strength prerequisite','healing cancellation','player-entered d10 and one charge','no maximum-HP increase','legacy duplicates merge on reload without lost notes or charge refill','migration survives a second reload','no page errors'],errors},null,2));
   console.log('Abilities browser journey passed.');
  }catch(error){if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true});throw error;}
  finally{await browser.close();server.close();}

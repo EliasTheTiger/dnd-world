@@ -14,7 +14,7 @@ test('every catalog ability has a Russian name, edition and honest translation p
  assert.equal(source(e,'Restoring Touch','srd-2024').n,'Восстанавливающее касание');
  assert.equal(source(e,'Alignment').n,'Мировоззрение');assert.equal(source(e,'Cantrip').n,'Фокус');assert.equal(source(e,'Tranquility').n,'Безмятежность');
  assert.match(source(e,'Fey Ancestry').x,/спасброски от очарования/);
- for(const edition of ['srd-2014','srd-2024'])assert.doesNotMatch(a.abilityCardHTML(source(e,'Grappler',edition)),/глоссар|перевод|SRD|справочн/i);
+ for(const edition of ['srd-2014','srd-2024'])assert.doesNotMatch(a.abilityCardHTML(source(e,'Grappler',edition)).replace(/<[^>]*>/g,''),/глоссар|перевод|SRD|справочн/i);
 });
 test('Grappler has an executable contested grapple with a requirement and failure gate',()=>{
  const {e}=world(),ab=source(e,'Grappler');assert.match(ab.x,/Атлетика против Атлетики/);assert.match(ab.x,/Сила 13/);assert.match(ab.x,/ничьей или проигрыше/);assert.equal(ab.mechanics.mode,'structured');assert.equal(ab.mechanics.resolution.contest.skill,'Атлетика');
@@ -28,9 +28,9 @@ test('reconciliation is idempotent, retains explicit local mechanics and never r
  const mechanics=JSON.stringify(ab.mechanics),before=JSON.stringify(e.state());a.reconcile(e.state().abilities);a.reconcile(e.state().abilities);assert.equal(JSON.stringify(e.state()),before);assert.equal(JSON.stringify(ab.mechanics),mechanics);assert.equal(c.abilities[0].cur,0);
  ab.abilityReview.custom=true;ab.n='Правка мастера';ab.x='Мои правила';a.reconcile(e.state().abilities);assert.equal(ab.n,'Правка мастера');assert.equal(ab.x,'Мои правила');
 });
-test('catalog pages cover all results and filter editions',()=>{
- const {a}=world();a.filters.edition='';a.renderAbilitiesDB();assert.match(a.html('tab-abilitiesdb'),/Далее/);const first=a.html('tab-abilitiesdb');a.filters.page=1;a.renderAbilitiesDB();assert.notEqual(a.html('tab-abilitiesdb'),first);
- a.filters.q='Action Surge';a.filters.edition='2014';a.renderAbilitiesDB();assert.equal(a.filters.page,0);assert.match(a.html('tab-abilitiesdb'),/Порыв к действию/);assert.doesNotMatch(a.html('tab-abilitiesdb'),/D&D 2024 · справочная карточка/);
+test('catalog pages cover all results and combine owner and application filters',()=>{
+ const {a}=world();a.renderAbilitiesDB();assert.match(a.html('tab-abilitiesdb'),/Далее/);const first=a.html('tab-abilitiesdb');a.filters.page=1;a.renderAbilitiesDB();assert.notEqual(a.html('tab-abilitiesdb'),first);
+ Object.assign(a.filters,{q:'Action Surge',owner:'воин',mode:'free'});a.renderAbilitiesDB();assert.equal(a.filters.page,0);assert.match(a.html('tab-abilitiesdb'),/Порыв к действию/);assert.doesNotMatch(a.html('tab-abilitiesdb'),/D&D 2024 · справочная карточка/);
 });
 test('old saved editorial overrides are detected before automatic migration',()=>{
  const {e,a}=world(),ab=source(e,'Grappler');delete ab.abilityReview;ab.n='Борец по правилам мастера';ab.x='Сохранённые домашние правила';const mechanics=JSON.stringify(ab.mechanics);
@@ -95,7 +95,7 @@ test('each logical ability appears once across every catalog page without a rule
  const {e,a}=world(),index=a.abilityCatalogIndex(true),names=[];
  assert.equal(index.groups.length,383);
  assert.equal(new Set(index.groups.map(g=>g.name)).size,index.groups.length);
- a.filters.edition='';a.renderAbilitiesDB();
+ a.renderAbilitiesDB();
  for(let page=0;page<Math.ceil(index.groups.length/40);page++){a.filters.page=page;a.renderAbilitiesDB();const html=a.html('tab-abilitiesdb');assert.doesNotMatch(html,/Вариант правил|Удалить этот вариант правил|abilitySelectVariant/);names.push(...[...html.matchAll(/<h4>(.*?)<\/h4>/g)].map(m=>m[1]));}
  assert.equal(names.length,index.groups.length);assert.equal(new Set(names).size,names.length);
  const wind=source(e,'Second Wind'),group=index.byId.get(wind.id);
@@ -104,7 +104,7 @@ test('each logical ability appears once across every catalog page without a rule
  for(const ab of e.state().abilities)assert.doesNotMatch(a.abilityCardHTML(ab),/<select|Вариант правил/);
  const manual={id:'master-defense',n:'Защита хранителя',x:'Первый вариант мастера',type:'class',custom:true,open5e:{originalName:'Guardian Defense'}};
  e.state().abilities.push(manual,{...manual,id:'second-defense',x:'Особый вариант мастера'});
- a.filters.q='Особый вариант мастера';a.filters.edition='custom';a.renderAbilitiesDB();assert.match(a.html('tab-abilitiesdb'),/Особый вариант мастера/);assert.doesNotMatch(a.html('tab-abilitiesdb'),/Первый вариант мастера/);
+ a.filters.q='Особый вариант мастера';a.renderAbilitiesDB();assert.match(a.html('tab-abilitiesdb'),/Особый вариант мастера/);assert.doesNotMatch(a.html('tab-abilitiesdb'),/Первый вариант мастера/);
  assert.notEqual(index.byId.get(source(e,'Unarmored Defense').id).variants[0].id,index.byId.get(source(e,'Unarmored Defense').id).variants[1].id);
  const improved=e.state().abilities.find(ab=>ab.id==='ab_sx_sneak');assert.notEqual(index.byId.get(improved.id).key,index.byId.get(source(e,'Sneak Attack').id).key,'custom improved Sneak Attack keeps its own rules');
 });

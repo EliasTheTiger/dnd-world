@@ -143,3 +143,6 @@
 .item-icon.item-icon-frame{position:relative;display:inline-grid;place-items:center;flex-shrink:0;overflow:hidden;background:var(--parch-2);color:var(--rubric)}
 .item-icon-frame>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:var(--parch-2)}
 .bag-item-image[src^="assets/item-art/"],.equipment-item-icon[src^="assets/item-art/"]{background:#f2e8ca}
+
+.ability-catalog-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;margin:10px 0 14px}.ability-catalog-controls label{min-width:0;font-size:14px;color:var(--ink-soft)}.ability-catalog-controls select{display:block;width:100%;min-width:0;margin-top:3px}@media(max-width:640px){.ability-catalog-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:420px){.ability-catalog-controls{grid-template-columns:minmax(0,1fr)}}
+#abilityDbSearch{flex:1 1 260px;min-width:0}
