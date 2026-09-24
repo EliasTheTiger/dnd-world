@@ -32,7 +32,8 @@ test('the actual workspace has one card per normalized name across both catalogs
     const matches=rows.filter(row=>surface.itemNameKey(row.name)===surface.itemNameKey(name));
     assert.equal(matches.length,1,name);
     assert.equal(matches[0].source,'game','all definitions belong to the game');
-    assert.ok(byId.has(matches[0].id),'retain the existing canonical identity');
+    if(name==='Кинжал')assert.equal(matches[0].id,'it_кинжал','ordinary crafting ingredients use the existing tabletop definition');
+    else assert.ok(byId.has(matches[0].id),'retain the existing canonical identity');
     api.filters.q=name;
     assert.equal(api.search().filter(row=>surface.itemNameKey(row.name)===surface.itemNameKey(name))[0].id,matches[0].id);
   }

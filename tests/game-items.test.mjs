@@ -19,7 +19,7 @@ async function world(){
 
 test('every item belongs to one game collection and the summary has one item total',async()=>{
   const e=await world(),api=e.itemsApi,rows=api.rows();
-  assert.equal(rows.length,2001,'unification must not discard or multiply the existing playable items');
+  assert.equal(rows.length,2125,'the unified collection includes restored recipe materials and verified item effects');
   assert.ok(rows.every(row=>row.source==='game'));
   const html=api.summary();
   assert.match(html,/предметов в игре/);
@@ -37,7 +37,7 @@ test('every item belongs to one game collection and the summary has one item tot
 
 test('saved definitions override every origin by ID and survive a save/reload without losing rules or references',async()=>{
   const e=await world(),api=e.itemsApi;
-  const row=api.rows().find(row=>row.name==='Кинжал');await api.hydrate([row.id]);
+  const row=api.rows().find(row=>row.name==='Длинный меч');await api.hydrate([row.id]);
   const imported=api.resolve(row.id),original=plain(imported),soap=api.resolve('it_мыло');
   const actor={id:'owner',name:'Владелец',inventory:[{id:'dagger',itemId:row.id,qty:2},{id:'soap',itemId:soap.id,qty:1}],equipment:{MAIN_HAND:'dagger'}};
   e.setState({items:e.state().items,chars:[actor]});const inventory=JSON.stringify(actor);
@@ -60,7 +60,7 @@ test('saved definitions override every origin by ID and survive a save/reload wi
   assert.ok(saved.items.some(it=>it.id===row.id),'legacy name folding cannot remove a saved game definition');
   assert.deepEqual(saved.chars,beforeMigration.chars,'legacy cleanup cannot remap owned item IDs');
   const restored=loadRuntimeIntegrationEngine(root,{fetch:fileFetch});restored.setState(saved);await restored.itemsApi.load();await restored.itemsApi.hydrate([row.id]);
-  assert.equal(restored.itemsApi.resolve(row.id).desc,'Уникальная заметка владельца Кинжал');
+  assert.equal(restored.itemsApi.resolve(row.id).desc,'Уникальная заметка владельца '+row.name);
   assert.deepEqual(plain(restored.itemsApi.resolve(row.id).mechanics),plain(original.mechanics));
   assert.equal(JSON.stringify(restored.state().chars[0]),inventory);
   assert.equal(restored.itemsApi.references().ok,true);

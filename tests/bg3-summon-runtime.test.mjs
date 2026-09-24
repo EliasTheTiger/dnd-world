@@ -877,6 +877,9 @@ function loadEngine(random = () => 0, fetchImpl = null) {
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/hobbyworld-ability-terms.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/ability-rules.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/ability-gameplay.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/recipe-tabletop-rules.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/recipe-tabletop-items.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/recipe-tabletop-runtime.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/recipe-rules.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/recipe-workbench.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'data/dnd5e/srd51-spell-facts.js'), 'utf8'), context);

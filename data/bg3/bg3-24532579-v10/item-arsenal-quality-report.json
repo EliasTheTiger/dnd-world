@@ -16,25 +16,23 @@
   "counts": {
     "examined": 10282,
     "catalogItems": 10282,
-    "retained": 2378,
-    "removed": 7904,
+    "retained": 2494,
+    "removed": 7788,
     "removalReasons": {
-      "runtime-not-ready": 7135,
-      "blocked-capability": 2848,
-      "description-not-source-backed": 4576,
-      "domain:description must be localized and non-empty": 4576,
-      "engine-affordance-missing": 5004,
-      "engine-handler-missing": 5004,
-      "runtime-blocked-or-incomplete": 6970,
+      "runtime-not-ready": 7119,
+      "blocked-capability": 2840,
+      "description-not-source-backed": 4572,
+      "domain:description must be localized and non-empty": 4572,
+      "engine-affordance-missing": 4991,
+      "engine-handler-missing": 4991,
+      "runtime-blocked-or-incomplete": 6953,
       "non-arsenal-classification": 594,
       "taxonomy-unclassified": 134,
       "weight-not-source-backed": 84,
-      "recipe-handler-target-missing": 50,
-      "strict-recipe-closure-excluded": 48,
-      "canonical-item-excluded": 49
+      "canonical-item-excluded": 48
     }
   },
-  "retainedItemIdsSha256": "573b63d30c6c5f865c6592e21664e04b785b1f8e62cdc129393aaa7976bbf4d6",
+  "retainedItemIdsSha256": "6e220eeae407240743646e8cb5c20838ccd4e638e85a8e4fee0f6c14e27c07c7",
   "removed": [
     {
       "itemId": "bg3:item:rt:0469f558-e4f0-4eb5-b4b2-bf00b8e0aa15:stats:QVJNX1Zhbml0eV9Cb2R5X1JpY2hfQg",
@@ -936,12 +934,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:8037a20b-a2bf-41c9-b509-bb6b455c778c:stats:T0JKX0NyeXN0YWxfVmlyaWRpYW4",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:95d75278-023a-41b0-b26d-8a797558d308:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "description-not-source-backed",
@@ -1381,12 +1373,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:17f6e66e-1c23-41d2-9370-3bd9a5a90b4a:stats:T0JKX0R5ZV9Sb3lhbEJsdWU",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:22ef638a-206f-4874-8f68-e2a378df1158:stats:T0JKX1Njcm9sbF9SYXlPZlNpY2tuZXNz",
       "reasons": [
         "blocked-capability",
@@ -1419,12 +1405,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:63a8a0ba-82fe-4f5d-9224-1330dd15c042:stats:QUxDSF9JbmdyZWRpZW50X1BhcnRfU2NyeWluZ0V5ZQ",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -2947,12 +2927,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:44bb4707-398c-4a38-9959-eb3052ebabc2:stats:VU5JX01hZ2ljU3RhZmZfUGFydF9IZWx2ZQ",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:4677925e-fb7e-4534-bfd4-48638857cd4c:stats:T0JKX1BhaW50aW5nX0xhbmRzY2FwZV9B",
       "reasons": [
         "engine-affordance-missing",
@@ -2980,12 +2954,6 @@
         "blocked-capability",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:79eba88f-c3a8-481a-84e3-304354b6725c:stats:QUxDSF9FeHRyYWN0X1ZpcmlkaWFuQ3J5c3RhbA",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -3901,12 +3869,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:a94ac1cd-96c9-4775-8dcd-c2b581bfeb50:stats:T0JKX0R5ZV9CbHVl",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:bc1c2a84-27f5-46e4-b4b4-0f5ca534469c:stats:V1BOX0dsYWl2ZV8y",
       "reasons": [
         "runtime-blocked-or-incomplete",
@@ -3931,12 +3893,6 @@
         "description-not-source-backed",
         "domain:description must be localized and non-empty",
         "runtime-blocked-or-incomplete"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:d166bccb-5613-40e4-b611-c350b7e129c5:stats:QUxDSF9JbmdyZWRpZW50X0xvb3RfTm90aGlj",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -4907,12 +4863,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:e922193d-916c-4f70-9ec6-15e29e6f5314:stats:QUxDSF9FeHRyYWN0X0ljZU1lcGhpdEhlYXJ0",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:ec356217-3004-44b4-80fb-abd9251e5ba7:stats:QVJNX0luc3RydW1lbnRfTHV0ZV9C",
       "reasons": [
         "runtime-blocked-or-incomplete",
@@ -5344,12 +5294,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:5f98a738-6249-418f-b50a-e478477962a0:stats:QUxDSF9FeHRyYWN0X0dhdXRoRXll",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:6b2f444e-7e0c-49e1-b1cd-d40bda0d6930:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "description-not-source-backed",
@@ -5630,12 +5574,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:3336e3a5-0be1-407d-9c37-01536bb2e6c5:stats:T0JKX0R5ZV9XaGl0ZUJyb3du",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:3d434f0d-f040-45b6-9fb4-6fe5bead7fbf:stats:T0JKX0NhbXBmaXJl",
       "reasons": [
         "description-not-source-backed",
@@ -5660,12 +5598,6 @@
       "reasons": [
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:48a27277-7c18-49fe-9124-899919e162bc:stats:T0JKX0R5ZV9QaW5r",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -5880,12 +5812,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:f3f194fc-7a13-4e01-89fd-cf1cafb17297:stats:QUxDSF9FeHRyYWN0X0JlaGlyU2NhbGVz",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -6277,13 +6203,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:6b95bb45-41c3-4954-ac2f-ef1aa169b0b6:stats:Rk9SX0luY29tcGxldGVNYXN0ZXJ3b3JrX1N1c3N1clNpY2tsZQ",
-      "reasons": [
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:71aba569-24ae-4534-90e6-b5c3e35cd4d7:stats:Q09OU19HZW5lcmljRm9vZEl0ZW0",
       "reasons": [
         "description-not-source-backed",
@@ -6644,12 +6563,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:b2730900-61b4-4ffe-9fbe-c77f128d7f17:stats:QUxDSF9FeHRyYWN0X05vdGhpY0V5ZQ",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:b5de2260-8e6b-4c2f-91eb-6f3133682a2f:stats:T0JKX0ltbXV0YWJsZUNvbnRhaW5lcg",
       "reasons": [
         "blocked-capability",
@@ -6704,12 +6617,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:db32d957-c708-4694-a863-271e6a9a4676:stats:VU5JX01hZ2ljU3RhZmZfUGFydF9Ub3A",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -7069,12 +6976,6 @@
       "itemId": "bg3:item:rt:1856414d-8a47-4e41-8aee-55991b18f494:stats:QVJNX0NhbXBfU2hvZXM",
       "reasons": [
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:19c7bbb1-29f5-4ec9-a72c-74a73318f8da:stats:T0JKX0R5ZV9SZW1vdmVy",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -10425,12 +10326,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:43da55c8-55b7-41c6-9a44-3dd6843875f8:stats:T0JKX0R5ZV9JY2VDcmVhbV8wNA",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:4aba304f-d786-431b-b4d0-e4814b21950e:stats:VU5EX0FyY2FuZVBvd2VyR2VuZXJhdG9y",
       "reasons": [
         "description-not-source-backed",
@@ -10717,15 +10612,6 @@
     },
     {
       "itemId": "bg3:item:rt:847fd03a-4e1d-4477-98db-5186d83157fa:stats:T0JKX0RyZXNzaW5nUGFuZWw",
-      "reasons": [
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:90b745f4-5166-49a5-9225-1234dde533ae:stats:UVVFU1RfV1lSX0dlbWxlc3NSaW5n",
       "reasons": [
         "engine-affordance-missing",
         "engine-handler-missing",
@@ -11032,16 +10918,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:a7fd3f38-c9dc-4866-a686-30f056c125b5:stats:T0JKX0F1dG9tYXRvblBhcnRfQg",
-      "reasons": [
-        "blocked-capability",
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:af7dedd1-346f-46f2-9147-7f1d77d8ba05:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "description-not-source-backed",
@@ -11175,12 +11051,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:fecebc29-385d-4bef-a18a-79705fb0ecf3:stats:T0JKX0R5ZV9QdXJwbGVfMDI",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -11819,12 +11689,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:ad60be55-7a95-4dcb-ae55-908a97f9955a:stats:T0JKX0R5ZV9HcmVlblNhZ2U",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -12931,16 +12795,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:9c943199-0b97-45b4-8915-a8aa9399125b:stats:T0JKX0F1dG9tYXRvblBhcnQ",
-      "reasons": [
-        "blocked-capability",
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:ad3f4f70-9184-49be-9fbb-94a83ef66b77:stats:T0JKX1NhY2s",
       "reasons": [
         "blocked-capability",
@@ -13704,12 +13558,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:02bb51c0-00e5-408c-8e11-8de7b9580c04:stats:T0JKX0R5ZV9CbGFja0JsdWU",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:0ab7398d-701b-4ba5-9e03-16ddeceb9ccd:stats:VFdOX0Zpc2hlcm1hbnNIdXRfQmFycmljYWRl",
       "reasons": [
         "description-not-source-backed",
@@ -13765,12 +13613,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:1d0d3883-6196-4ccd-8a49-8e4fb84f6c6b:stats:T0JKX0R5ZV9XaGl0ZVJlZA",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -14362,12 +14204,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:1dec170b-101f-457b-b22d-8d38c45168c7:stats:T0JKX0R5ZV9CbHVlWWVsbG93XzAy",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:264bd21d-b4bc-4e0e-aa4d-1365c9d94844:stats:T0JKX0xhZGRlcl9JbmRlc3RydWN0aWJsZQ",
       "reasons": [
         "blocked-capability",
@@ -14613,12 +14449,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:fc04bc03-be3e-4cdb-901a-f6d33a537967:stats:QUxDSF9FeHRyYWN0X0RhZ2dlcm9vdA",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -15859,12 +15689,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:a4c2594e-33a6-49b2-ab6f-e992a3e0257e:stats:T0JKX0R5ZV9CbHVlWWVsbG93",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:b11a9df5-b896-4315-a06f-ec4266d8f37f:stats:T0JKX0NvYWxCYXNrZXQ",
       "reasons": [
         "description-not-source-backed",
@@ -16819,16 +16643,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:0f2ccca6-3ce8-4271-aec0-820f6581c551:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfRGFya3Zpc2lvbg",
-      "reasons": [
-        "blocked-capability",
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:1cc211fd-26b7-4e90-b4f2-b16ffb28b4f8:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "blocked-capability",
@@ -16964,13 +16778,6 @@
       "reasons": [
         "description-not-source-backed",
         "domain:description must be localized and non-empty",
-        "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:8733edb7-f04e-4b6d-ad48-7d49fb782bef:stats:Rk9SX0luY29tcGxldGVNYXN0ZXJ3b3JrX1N1c3N1ckRhZ2dlcg",
-      "reasons": [
-        "runtime-blocked-or-incomplete",
         "runtime-not-ready"
       ]
     },
@@ -18600,12 +18407,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:0c356479-9f2c-413c-8fed-cab3a6fae19b:stats:T0JKX0Jvb2s",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:0ca0e540-dabe-4bf4-9e23-c006f03ffae2:stats:V1BOX0hhcnB5X0NsdWI",
       "reasons": [
         "runtime-blocked-or-incomplete",
@@ -19904,12 +19705,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:b0f6b7b9-1b7a-4027-99a8-8dba41d715a2:stats:QUxDSF9FeHRyYWN0X0Zyb3N0U2FsYW1hbmRlcg",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:baa09ca2-0ef0-4049-9b38-c19439798323:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "description-not-source-backed",
@@ -19972,16 +19767,6 @@
       "reasons": [
         "description-not-source-backed",
         "domain:description must be localized and non-empty"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:179cfdd4-40ef-4f5c-ba6e-8c13f20aadc9:stats:QUxDSF9Tb2x1dGlvbl9Qb3Rpb25fRmVhdGhlckZhbGw",
-      "reasons": [
-        "blocked-capability",
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
       ]
     },
     {
@@ -21415,12 +21200,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:d78bb918-7cd2-4507-ab0d-e1b817f4bc4c:stats:QUxDSF9JbmdyZWRpZW50X1BhcnRfR3JlbWlzaGthVGFpbA",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:e08b2a75-424d-4827-a9c8-adf00a314f2b:stats:T0JKX0NoZXN0X0hlYXZ5X1NtYWxs",
       "reasons": [
         "blocked-capability",
@@ -22792,12 +22571,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:dfb0bd5d-e4ed-4bd3-bcfe-45195260e7dc:stats:RExDX09CSl9EeWVfTGFyaWFu",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:e0dd88fa-b057-499a-b2fd-fe8e92a856df:stats:VU5JX0xPT1RfQWRhbWFudGluZUZvcmdlX1NjYWxlTW9sZA",
       "reasons": [
         "engine-affordance-missing",
@@ -22814,12 +22587,6 @@
         "domain:description must be localized and non-empty",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:ecf4a8a4-7859-4a82-8c08-0c9526f29500:stats:UVVFU1RfV1lSX1Jlc3RvcmVkTWFnaWNSaW5n",
-      "reasons": [
-        "canonical-item-excluded"
       ]
     },
     {
@@ -23972,12 +23739,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:bb108620-186f-4a00-b7de-af9329d5497b:stats:T0JKX0R5ZV9CbGFja1JlZA",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:beb4fa70-6b2b-4e7b-b0c5-3fb67bb48210:stats:V1BOX01hdWxfUkVG",
       "reasons": [
         "runtime-blocked-or-incomplete",
@@ -24230,12 +23991,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:a9297f74-af38-4442-8702-8cbb9af6af72:stats:QUxDSF9JbmdyZWRpZW50X0xvb3RfR2F1dGhFeWU",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:ad1b1b83-6883-4202-b97e-09337d7ba4de:stats:T0JKX1BvdGlvblNoZWxm",
       "reasons": [
         "blocked-capability",
@@ -24289,12 +24044,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:cecf2e17-8922-45b7-8841-f49415b9a688:stats:QUxDSF9FeHRyYWN0X1VuaWNvcm5Ib3Ju",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -24649,12 +24398,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:f42e3c96-e622-4d3a-97da-ce5a939feb3c:stats:T0JKX0R5ZV9SZWRXaGl0ZQ",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:f577ad66-b4dd-48d8-a3ae-da740ca77831:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "description-not-source-backed",
@@ -24714,12 +24457,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:2292d37f-7cb2-4458-83c6-1f2e48ffa23e:stats:T0JKX0R5ZV9QdXJwbGVSZWQ",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -25365,16 +25102,6 @@
       "reasons": [
         "description-not-source-backed",
         "domain:description must be localized and non-empty",
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:e6913649-f9b7-4102-ad40-c3576a44410f:stats:T0JKX0F1dG9tYXRvblBhcnRfQw",
-      "reasons": [
-        "blocked-capability",
         "engine-affordance-missing",
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
@@ -26425,12 +26152,6 @@
       "reasons": [
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:290c1dbc-08e8-45dc-bfb0-f45dc5bb87e2:stats:QUxDSF9FeHRyYWN0X0ZpcmVBbWJlcg",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -27745,12 +27466,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:54cd5913-5226-4143-9186-6c1a8499de1c:stats:T0JKX0R5ZV9PY2Vhbg",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:67b27dcc-62d9-439b-9dee-de5942fb5b0a:stats:T0JKX0JvZHlQYXJ0X0dlbmVyaWNfSGVhZA",
       "reasons": [
         "engine-affordance-missing",
@@ -28100,16 +27815,6 @@
       "reasons": [
         "description-not-source-backed",
         "domain:description must be localized and non-empty",
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:955d3880-3d10-4fb5-845b-96b6b52aef9a:stats:QUxDSF9Tb2x1dGlvbl9PaWxfRGFtYWdlQXR0YWNrQnVmZg",
-      "reasons": [
-        "blocked-capability",
         "engine-affordance-missing",
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
@@ -28579,12 +28284,6 @@
         "domain:description must be localized and non-empty",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:6d90deb8-8df3-4a6f-b31f-f13cf2eb68f9:stats:T0JKX0R5ZV9UZWFs",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -29083,12 +28782,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:51cd678b-6a27-490d-b4d1-17cc89a32e40:stats:T0JKX0R5ZV9SaWNoUmVk",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:686a3c43-b494-4fcd-bda7-acb399cdee5a:stats:QVJNX1JvYmVfQm9keQ",
       "reasons": [
         "description-not-source-backed",
@@ -29502,12 +29195,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:1bb2ba7b-1ac3-4c2e-bcd3-85886d294204:stats:T0JKX0R5ZV9PcmFuZ2U",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:207c669e-8591-431e-bc13-4f41d6ab2cba:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3RIZWF2eQ",
       "reasons": [
         "blocked-capability",
@@ -29692,12 +29379,6 @@
         "description-not-source-backed",
         "domain:description must be localized and non-empty",
         "runtime-blocked-or-incomplete"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:e03b8342-3c50-4cec-b34c-c50ce1968bc3:stats:Q09OU19IZXJic19NdWd3b3J0",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -30153,12 +29834,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:83cde47b-9e15-4ea5-98f4-4efd9ce93861:stats:T0JKX0R5ZV9CbHVlUHVycGxl",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:86e3d864-309c-4c17-ba38-877ce487d481:stats:V1BOX0dub2xsX0Jvdw",
       "reasons": [
         "runtime-blocked-or-incomplete",
@@ -30426,12 +30101,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:8fc068d8-7a56-42a6-8a48-91f0b9fbf303:stats:QUxDSF9FeHRyYWN0X0NoYXNtQ3JlZXBlcg",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -30763,12 +30432,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:b356d53e-d713-44a1-a5cf-a0262f998856:stats:Qk9PS19HTE9fQWxjaGVteV9MZXNzZXJPaWxTaGFycG5lc3M",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:b6f62fe7-7ea4-4f56-ab10-e3d0947a3327:stats:T0JKX0xhZGRlcg",
       "reasons": [
         "blocked-capability",
@@ -30940,12 +30603,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:25940d8a-110b-4f0e-82df-af8c6b15fb34:stats:QUxDSF9JbmdyZWRpZW50X0xvb3RfRnJvc3RTYWxhbWFuZGVy",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -32197,12 +31854,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:81860473-8735-42a1-9d27-063c917404dc:stats:QUxDSF9JbmdyZWRpZW50X0xvb3RfRnJvc3RTYWxhbWFuZGVy",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:8334129a-e52e-4c8b-bf9b-b1b9aa4e7794:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "blocked-capability",
@@ -32393,12 +32044,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:08c6df14-d97a-4a83-9c76-ddde8b3716b9:stats:QUxDSF9FeHRyYWN0X05vdGhpY0V5ZQ",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -32678,12 +32323,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:09e48b43-f567-4acc-b98d-0c86c1396084:stats:T0JKX0R5ZV9Hb2xkZW4",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:0a1ab3d1-63b9-4a27-90cc-b4c753981e18:stats:T0JKX0dlbmVyaWNfTWVkaXVt",
       "reasons": [
         "description-not-source-backed",
@@ -32810,12 +32449,6 @@
         "domain:description must be localized and non-empty",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:62b7589c-3daf-4141-bbec-6c17b7f427d9:stats:QUxDSF9JbmdyZWRpZW50X0xvb3RfVW5pY29ybkhvcm4",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -34185,12 +33818,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:ea8bc956-7834-4618-af70-0ea0c8f9ea37:stats:QUxDSF9FeHRyYWN0X0NvbnN0cnVjdFBhcnQ",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:edca6656-dc8c-410b-9f16-fcc02d5ed803:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "description-not-source-backed",
@@ -34234,12 +33861,6 @@
       "reasons": [
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:0fc46120-a4fa-4787-8c70-5fdcd2308690:stats:QUxDSF9JbmdyZWRpZW50X1BhcnRfSW1wUGF0YWdpdW0",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -34317,12 +33938,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:5adba582-b552-4850-9be9-c6e28f656675:stats:T0JKX0R5ZV9QdXJwbGVfMDM",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -34679,12 +34294,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:808cd643-ac73-415c-8ed8-0a81b8b71dd8:stats:T0JKX0R5ZV9QdXJwbGU",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:8ee77184-38ee-4c47-bf12-1d20010a347a:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "blocked-capability",
@@ -34846,15 +34455,6 @@
         "description-not-source-backed",
         "domain:description must be localized and non-empty",
         "runtime-blocked-or-incomplete"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:219a9d40-41b3-4225-a187-64bbc8e96525:stats:UVVFU1RfV1lSX1JpbmdsZXNzR2Vtc3RvbmU",
-      "reasons": [
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
       ]
     },
     {
@@ -36754,12 +36354,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:06f3a0c4-af50-4a79-8c1a-1ace6d1282f2:stats:Q09OU19IZXJic19BdXR1bW5jcm9jdXM",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:0824fee4-3ea1-4e0e-873a-25338f0dc1a3:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "description-not-source-backed",
@@ -37177,12 +36771,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:c335c7b7-7495-48ec-b1cb-b2218e1dc6f3:stats:QUxDSF9FeHRyYWN0X1N5bHZhblN0b25l",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:c8fa7c2f-d34a-4b42-a4fa-c2476fab6c92:stats:T0JKX0dlbmVyaWNMb290SXRlbQ",
       "reasons": [
         "engine-affordance-missing",
@@ -37293,12 +36881,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:1b412f71-67a1-40f1-99db-b800067508bc:stats:QUxDSF9FeHRyYWN0X05vdGhpY0V5ZQ",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -38426,12 +38008,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:1524e46d-179d-4785-99ce-f515e1c52e32:stats:T0JKX0NyeXN0YWxfU3lsdmFuU3RvbmU",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:17e752a3-8321-46a1-a139-53f67209b749:stats:V1BOX0hlYXZ5Q3Jvc3Nib3dfMg",
       "reasons": [
         "runtime-blocked-or-incomplete",
@@ -38540,12 +38116,6 @@
         "domain:description must be localized and non-empty",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:84f7b0a1-8840-47a1-a27a-1ac79e383520:stats:T0JKX0R5ZV9PcmFuZ2VCbHVl",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -39796,12 +39366,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:6774f642-6aa3-4756-a07d-a6be51ad6f06:stats:UXVlc3RfRk9SX0Jyb2tlblNwZWFyX0hlYWQ",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:69ae9418-a4e8-49e1-950a-36bc203876ae:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "blocked-capability",
@@ -40553,24 +40117,12 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:6904ea3d-89b6-4db7-a0bc-d890423e9312:stats:T0JKX0R5ZV9SZWRCcm93bg",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:6ce06d40-aef0-405d-9860-98c0df7cbe1b:stats:T0JKX0dlbmVyaWNMb290SXRlbQ",
       "reasons": [
         "engine-affordance-missing",
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:75f47914-f32c-4845-876d-e152ddfc3014:stats:QUxDSF9FeHRyYWN0X0dyZW1pc2hrYVRhaWw",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -40649,17 +40201,6 @@
       "itemId": "bg3:item:rt:d6b14418-583d-4d56-8ac8-1fdc839130a2:stats:VU5JX1dZUl9QYWludGluZ1B1enpsZV9Tb2x1dGlvblBhaW50aW5nMw",
       "reasons": [
         "blocked-capability",
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:f6d1950c-8823-4c90-bcea-466de1a8f336:stats:T0JKX0RlYWRfUGl4aWU",
-      "reasons": [
-        "description-not-source-backed",
-        "domain:description must be localized and non-empty",
         "engine-affordance-missing",
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
@@ -41328,12 +40869,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:b702ddc5-f4fc-4976-adc4-18a8ddaab8d5:stats:T0JKX0R5ZV9CbHVlR3JlZW4",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:b9fb4061-f3a3-4a72-a629-d21683891d69:stats:UVVFU1RfVU5EX1JhZnRfRmFzdGVuZXI",
       "reasons": [
         "description-not-source-backed",
@@ -41446,12 +40981,6 @@
         "description-not-source-backed",
         "domain:description must be localized and non-empty",
         "runtime-blocked-or-incomplete"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:2cd56a6a-35bb-417c-9eb6-d78bbe73d3cc:stats:T0JKX0R5ZV9JY2VDcmVhbV8wMw",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -42839,12 +42368,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:7ac1bb07-e494-42d2-bb8d-6bf9e553a52a:stats:T0JKX0R5ZV9QdXJwbGVfMDQ",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:7cc7a0e1-d0b8-4569-afb2-d538e8941894:stats:V1BOX1NjaW1pdGFyXzE",
       "reasons": [
         "runtime-blocked-or-incomplete",
@@ -43430,12 +42953,6 @@
       "itemId": "bg3:item:rt:0004915f-4399-4ae1-beab-85a62c11b674:stats:QVJNX1Zhbml0eV9Cb2R5X1JpY2hfRF9HcmVlbg",
       "reasons": [
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:12126dc3-50ce-48cd-836f-c4d769a85134:stats:Q09OU19IZXJic19EYWdnZXJvb3Q",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -44341,12 +43858,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:42d363b3-9f66-45bd-a238-2ee48711b18c:stats:Qk9PS19HTE9fQWxjaGVteV9FbGl4aXJEYXJrdmlzaW9u",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -46315,12 +45826,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:81512e6c-dbe4-451c-b5cc-7268656444c1:stats:T0JKX0R5ZV9CbGFja0dyZWVu",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:83229d9c-7b31-4800-b6c6-cdb81279c378:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "blocked-capability",
@@ -47591,12 +47096,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:35308cf1-3480-4a22-be9c-c0f41c3eb14c:stats:VU5JX01hZ2ljU3RhZmZfUGFydF9DcnlzdGFs",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:35e6b78b-c687-4880-b8bb-0d759478f0d5:stats:T0JKX0luZGVzdHJ1Y3RpYmxlX01lZGl1bQ",
       "reasons": [
         "description-not-source-backed",
@@ -47920,12 +47419,6 @@
       "reasons": [
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:78f41a7b-4742-419d-a0ac-b9a90a9e198e:stats:T0JKX0R5ZV9HcmVlblBpbms",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -48610,12 +48103,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:001f36eb-a95b-455c-9fb7-ed6ae5f071b8:stats:QUxDSF9JbmdyZWRpZW50X0xvb3RfRmlyZUFtYmVy",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -49957,12 +49444,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:8994ae94-f6a4-479f-9dbd-75b6913a3a0e:stats:QUxDSF9FeHRyYWN0X1NjcnlpbmdFeWU",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:910f4e5c-cba9-43f1-a28a-664c52b53a3c:stats:RExDX0REX1BhZWxsYQ",
       "reasons": [
         "engine-affordance-missing",
@@ -50039,22 +49520,6 @@
     {
       "itemId": "bg3:item:rt:d2253fa1-a5a3-4c19-9d7e-5a1e436b9fae:stats:QVJNX1JpbmdfQV9TaW1wbGVfR29sZA",
       "reasons": [
-        "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:db4761b2-cce8-4d6d-86ec-5cf0924a5f4c:stats:T0JKX0R5ZV9CbGFja1Bpbms",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:e4f7cb7f-1cb3-411b-b078-f4ac25b750a8:stats:QUxDSF9Tb2x1dGlvbl9PaWxfV2l6YXJkc2JhbmU",
-      "reasons": [
-        "blocked-capability",
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
         "runtime-not-ready"
       ]
     },
@@ -52675,12 +52140,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:714a8375-9eb4-438d-a191-f5b4b1e86cc3:stats:Q09OU19NdXNocm9vbXNfVG9uZ3VlT2ZNYWRuZXNz",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:76e025e0-dbfb-42d9-93fe-fd0fc7d8cb53:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "blocked-capability",
@@ -52723,12 +52182,6 @@
       "itemId": "bg3:item:rt:88417607-71f0-4bdc-9c7b-ca5a18ba6b59:stats:QVJNX0tlZXBzYWtlTG9ja2V0X0E",
       "reasons": [
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:95119b16-2001-4f9e-9cd6-5e422e8b73c6:stats:QUxDSF9JbmdyZWRpZW50X1BhcnRfSWNlTWVwaGl0SGVhcnQ",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -54272,17 +53725,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:521dc931-55e6-4927-9230-7678c33161e2:stats:VU5JX0xPV19TdGVlbFdhdGNodEZvdW5kcnlfV2F0Y2hlclRhcmdldGluZ01vZHVsZQ",
-      "reasons": [
-        "description-not-source-backed",
-        "domain:description must be localized and non-empty",
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:5961d027-75fd-4ad7-964c-8b786b5839fb:stats:TUFHX1RoZUNyaW1zb25fU2hvcnRzd29yZA",
       "reasons": [
         "runtime-blocked-or-incomplete",
@@ -55541,13 +54983,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:a2f4c951-7db4-4d60-9888-f2ad50af7110:stats:Rk9SX1RydWVTb3VsX1NwZWFy",
-      "reasons": [
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:b8a15765-649f-4b17-8746-c2c36c93b3ce:stats:T0JKXyBTYXJjb3BoYWd1c19MaWQ",
       "reasons": [
         "description-not-source-backed",
@@ -56224,12 +55659,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:9a35caa4-86f4-4542-b46d-9550e815618d:stats:QUxDSF9FeHRyYWN0X0F1dHVtbkNyb2N1cw",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -56998,12 +56427,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:50b5475a-7f63-45d5-8158-6cdc8c6de31c:stats:QUxDSF9FeHRyYWN0X1Rvbmd1ZU9mTWFkbmVzcw",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:5b753291-e7f0-47f4-ad39-9e7273943fdc:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3RIZWF2eQ",
       "reasons": [
         "description-not-source-backed",
@@ -57344,12 +56767,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:a0776643-f25b-4aef-a025-bff959d8dd0f:stats:Q09OU19IZXJic19NdWd3b3J0",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -58998,17 +58415,6 @@
       "itemId": "bg3:item:rt:4cdd79b2-b06b-48a0-b948-eb0ec55d5ab5:stats:QVJNX0hhdF9XaXphcmRfRA",
       "reasons": [
         "canonical-item-excluded"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:57db18bf-89dc-4eb4-950a-2598f5a06595:stats:VU5JX0xPV19TdGVlbFdhdGNoRm91bmRyeV9XYXRjaGVyQXJt",
-      "reasons": [
-        "description-not-source-backed",
-        "domain:description must be localized and non-empty",
-        "engine-affordance-missing",
-        "engine-handler-missing",
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
       ]
     },
     {
@@ -61675,12 +61081,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:ffdb4490-cbaf-4eac-97f8-893564d7ead9:stats:T0JKX0R5ZV9XaGl0ZUJsYWNr",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:05e58ebb-563c-4a32-bc0d-881ed6fe18fb:stats:T0JKX0luY2Vuc2U",
       "reasons": [
         "engine-affordance-missing",
@@ -61699,14 +61099,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:11f6de17-4682-419c-808f-8a328d2cce15:stats:QUxDSF9JbmdyZWRpZW50X0hlcmJfTmlnaHRPcmNoaWQ",
-      "reasons": [
-        "description-not-source-backed",
-        "domain:description must be localized and non-empty",
-        "runtime-blocked-or-incomplete"
       ]
     },
     {
@@ -61856,12 +61248,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:809f228e-8d2b-46b8-8a33-51181505bc61:stats:T0JKX0R5ZV9SZWQ",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -63955,12 +63341,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:3bb0fa56-00e5-4a22-b6d5-641d7fd811d3:stats:QUxDSF9FeHRyYWN0X0ltcFBhdGFnaXVt",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:41e87646-aec7-4411-9e2b-14a17d3ffe31:stats:T0JKX0JlZGxpbmVu",
       "reasons": [
         "engine-affordance-missing",
@@ -64514,12 +63894,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:691da3f8-0fca-4aa9-b5cd-89bc96e3cc74:stats:Q09OU19IZXJic19BdXR1bW5jcm9jdXM",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:69b232d9-5711-41ff-826b-36d9a897f424:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "description-not-source-backed",
@@ -64972,12 +64346,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:e6f417bd-9d84-416f-8c96-5a6917977b77:stats:T0JKX0R5ZV9HcmVlbg",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -66001,12 +65369,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:ee2faf6e-2af2-4eb9-aee4-94aedab7e81b:stats:QUxDSF9JbmdyZWRpZW50X0xvb3RfUGxhbmV0YXJGZWF0aGVy",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:f73bb86b-6091-4b5e-b5d5-ccf730971fd9:stats:T0JKX1BvdGlvbl9TbGVlcA",
       "reasons": [
         "blocked-capability",
@@ -66055,16 +65417,6 @@
     {
       "itemId": "bg3:item:rt:1f5cbcc5-5ba7-4273-ab53-7a12a40cc438:stats:V1BOX0hhbmRDcm9zc2Jvdw",
       "reasons": [
-        "runtime-blocked-or-incomplete",
-        "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:3383e241-4d1c-41ad-bc81-fc548fa9062d:stats:QUxDSF9Tb2x1dGlvbl9PaWxfQXR0YWNrQnVmZg",
-      "reasons": [
-        "blocked-capability",
-        "engine-affordance-missing",
-        "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
       ]
@@ -66318,12 +65670,6 @@
         "domain:description must be localized and non-empty",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:0970e30e-f26a-4050-9f48-13923163d7b9:stats:QUxDSF9JbmdyZWRpZW50X0xvb3RfQmVoaXJTY2FsZXM",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -66744,12 +66090,6 @@
       "itemId": "bg3:item:rt:37990e69-4de5-4c3c-b720-878fb4b0ffbd:stats:QVJNX1JpbmdfRV9Hb2xkX0E",
       "reasons": [
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:3b31efae-7361-4ccc-a9e3-bf8b82e9f36d:stats:QUxDSF9FeHRyYWN0X1JlZ2VuZXJhdGlvblByZXZlbnRpb25HcmVuYWRl",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -67251,12 +66591,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:ea46200e-001b-45a1-b1d9-20920e747ba2:stats:T0JKX0R5ZV9HcmVlbl8wMg",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -69030,12 +68364,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:374c2898-cea4-43c9-9687-6d99a0c92ad7:stats:Q09OU19IZXJic19EYWdnZXJvb3Q",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:4911de84-7b94-4767-8a24-e0b6f232f0d0:stats:T0JKX0Jvb2s",
       "reasons": [
         "description-not-source-backed",
@@ -69958,12 +69286,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:94ef7170-1c1d-489a-9c18-55209d864e3a:stats:T0JKX0R5ZV9CbGFja1RlYWw",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:9e024c54-c549-4736-aa8d-5e094a06d4bd:stats:T0JKX1BvdGlvblNoZWxm",
       "reasons": [
         "description-not-source-backed",
@@ -70141,12 +69463,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:30d66533-b41f-47cd-a317-c901bcb092b5:stats:Qk9PS19HTE9fQWxjaGVteV9XaXphcmRzYmFuZU9pbA",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:33d7a08e-83ed-41c5-801d-0699ee68e516:stats:T0JKX1RyaXB3aXJl",
       "reasons": [
         "blocked-capability",
@@ -70156,12 +69472,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:4416dcc3-c469-4e59-90db-ba9a3ac05846:stats:QUxDSF9FeHRyYWN0X05pZ2h0T3JjaGlk",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -70347,12 +69657,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:eedbd9cc-5072-47fd-90a6-36a24c435620:stats:T0JKX0R5ZV9BenVyZQ",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -71036,12 +70340,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:b964697f-1f1d-48d5-8772-d5edfdd0ed39:stats:T0JKX0NyeXN0YWxfQ2hhc21DcmVlcGVy",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -72386,12 +71684,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:10e79bfb-c448-4af4-a153-bf3d19f83c62:stats:T0JKX0R5ZV9NYXJvb24",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:1931bae5-28d1-426e-acd2-42c6d450bbe2:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "blocked-capability",
@@ -72535,12 +71827,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:a13f6fad-bca8-40c0-b5b1-592832c73050:stats:T0JKX0R5ZV9HcmVlblN3YW1w",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:b5dfd01a-b1d5-4756-94ab-c85bb2607b14:stats:T0JKX0Rvb3I",
       "reasons": [
         "blocked-capability",
@@ -72570,12 +71856,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:c220fbb7-3d0b-4109-a39a-7549a9ae91ab:stats:T0JKX0Jvb2s",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -73075,12 +72355,6 @@
         "engine-handler-missing",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:23899dcd-8f27-4144-b29d-ae61eaacd8c3:stats:T0JKX0R5ZV9JY2VDcmVhbQ",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {
@@ -74619,12 +73893,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:0e339e21-df58-4e46-a263-e91d4ed19dc9:stats:T0JKX0R5ZV9JY2VDcmVhbV8wMg",
-      "reasons": [
-        "strict-recipe-closure-excluded"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:13739f15-7366-4d7f-9926-991e98b9e964:stats:U0NMX1NwaWRlcnNMeXJl",
       "reasons": [
         "runtime-blocked-or-incomplete",
@@ -74664,12 +73932,6 @@
         "blocked-capability",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:36e1bfca-e983-458c-8eb7-597af32f7644:stats:QUxDSF9FeHRyYWN0X1BsYW5ldGFyRmVhdGhlcg",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -75035,12 +74297,6 @@
         "description-not-source-backed",
         "domain:description must be localized and non-empty",
         "runtime-blocked-or-incomplete"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:414956be-4aa5-447f-99c0-fb6382881ff5:stats:UXVlc3RfRk9SX0Jyb2tlblNwZWFyX1NoYWZ0",
-      "reasons": [
-        "recipe-handler-target-missing"
       ]
     },
     {
@@ -75849,12 +75105,6 @@
       ]
     },
     {
-      "itemId": "bg3:item:rt:b00e1d1b-4421-4711-8de3-6ef15d0117b5:stats:QUxDSF9FeHRyYWN0X0Zyb3N0U2FsYW1hbmRlcg",
-      "reasons": [
-        "recipe-handler-target-missing"
-      ]
-    },
-    {
       "itemId": "bg3:item:rt:b4004d83-7ae2-4800-9213-687d12ed97db:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q",
       "reasons": [
         "blocked-capability",
@@ -76545,12 +75795,6 @@
         "blocked-capability",
         "runtime-blocked-or-incomplete",
         "runtime-not-ready"
-      ]
-    },
-    {
-      "itemId": "bg3:item:rt:b707f039-af1d-456d-a606-1604f1d776c1:stats:QUxDSF9FeHRyYWN0X011Z3dvcnQ",
-      "reasons": [
-        "strict-recipe-closure-excluded"
       ]
     },
     {

@@ -80,6 +80,9 @@ function loadLocalItemsFromEngine() {
   vm.runInContext(fs.readFileSync(path.join(repositoryRoot, 'scripts', 'hobbyworld-ability-terms.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repositoryRoot, 'scripts', 'ability-rules.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repositoryRoot, 'scripts', 'ability-gameplay.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repositoryRoot, 'scripts', 'recipe-tabletop-rules.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repositoryRoot, 'scripts', 'recipe-tabletop-items.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repositoryRoot, 'scripts', 'recipe-tabletop-runtime.js'), 'utf8'), context);
   vm.runInContext(source, context);
   return JSON.parse(JSON.stringify(context.__itemDomainLocalItems));
 }
@@ -237,7 +240,7 @@ test('all built-in campaign items use the same strict model', () => {
   const items = loadLocalItemsFromEngine();
   const context = model.createMigrationContext(items);
   const domains = items.map(item => model.migrateItemToDomainV7(item, {context}));
-  assert.equal(domains.length, 193, 'startup must not silently prune any built-in item');
+  assert.equal(domains.length, 231, 'startup must not silently prune any built-in item');
   const installedIds = new Set(domains.map(item => item.id));
   for (const itemId of COMPLETED_BUILTIN_ITEM_IDS) assert.equal(installedIds.has(itemId), true, `${itemId}: missing after strict startup gate`);
   assert.deepEqual(model.validateDomainCatalog(domains), []);

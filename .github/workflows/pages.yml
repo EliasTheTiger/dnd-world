@@ -77,8 +77,12 @@ jobs:
         env:
           QA_SITE_ROOT: _site
         run: |
+          node scripts/build-recipe-tabletop-items.mjs --check
+          node scripts/build-recipe-item-links.mjs --check
+          node scripts/audit-recipe-items.mjs --check
           node scripts/audit-game-recipes.mjs --check
           node qa/game-recipes.e2e.cjs
+          node qa/recipe-tabletop.e2e.cjs
       - name: Upload final integration evidence
         if: always()
         uses: actions/upload-artifact@v4

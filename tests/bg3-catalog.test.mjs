@@ -125,7 +125,7 @@ test('полный каталог сохраняет все Standard-вариа�
   assert.equal(arsenalQuality.counts.examined, items.length);
   assert.equal(arsenalQuality.counts.catalogItems, items.length);
   assert.equal(strictItems.length, arsenalQuality.counts.retained);
-  assert.equal(strictItems.length, 2_378);
+  assert.equal(strictItems.length, 2_494);
 
   const duplicateNames = new Map();
   for (const item of items) {

@@ -7,7 +7,7 @@
     "manual": 526
   },
   "profileKinds": {
-    "misc": 5758,
+    "misc": 5750,
     "container": 482,
     "weapon": 813,
     "lore": 1409,
@@ -20,12 +20,12 @@
     "shield": 88,
     "trap": 81,
     "armor": 219,
-    "material": 106,
+    "material": 114,
     "ammo": 36,
     "water": 58,
     "poison": 10
   },
-  "interactionBacked": 3451,
+  "interactionBacked": 3460,
   "equipmentStructured": 2188,
   "ruleGraphLinked": 9282,
   "directEffectMapped": 275,

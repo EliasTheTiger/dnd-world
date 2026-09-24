@@ -78,10 +78,14 @@
   // One card per public name. This is a view, never an ID migration: inventory,
   // recipe, book-content and world references keep their exact source records.
   // Select before filtering so searches cannot change the item being granted.
-  function canonicalItemRows(rows) {
+  function canonicalItemRows(rows, preferredIds) {
     const groups = new Map();
+    const preferred = new Map();
+    for (const id of preferredIds || []) if (!preferred.has(id)) preferred.set(id, preferred.size);
     const priority = row => [
-      row.item && row.item.custom === true ? 0 : Number(row.canonicalRank) || 2,
+      row.item && row.item.custom === true ? 0 : preferred.has(row.id) ? 1 : 2,
+      preferred.get(row.id) ?? Number.MAX_SAFE_INTEGER,
+      Number(row.canonicalRank) || 2,
       row.classification === 'duplicate' ? 1 : 0,
       String(row.statsId || '').length,
       String(row.id || ''),

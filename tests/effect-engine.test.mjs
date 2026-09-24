@@ -470,6 +470,9 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
   vm.runInContext(fs.readFileSync(new URL('../scripts/hobbyworld-ability-terms.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/ability-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/ability-gameplay.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-tabletop-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-tabletop-items.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-tabletop-runtime.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-workbench.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);
@@ -1265,16 +1268,16 @@ test('контракт проверяет всю мировую базу, пре
 
   const expectedSpells = 121 + dnd5eOpenCatalogManifest.counts.importedSpells;
   const expectedAbilities = 77 + dnd5eOpenCatalogManifest.counts.importedAbilities;
-  assert.deepEqual(plain(audit.counts), {spells: expectedSpells, abilities: expectedAbilities, items: 193, foes: 30, total: expectedSpells + expectedAbilities + 223});
+  assert.deepEqual(plain(audit.counts), {spells: expectedSpells, abilities: expectedAbilities, items: 231, foes: 30, total: expectedSpells + expectedAbilities + 261});
   assert.ok(audit.counts.spells >= 500);
   assert.ok(audit.counts.abilities >= 500);
   assert.ok(audit.variants > 5000, `audited variants: ${audit.variants}`);
   assert.deepEqual(plain(audit.errors), []);
   assert.equal(Object.values(audit.modes.spell).reduce((a, b) => a + b, 0), expectedSpells);
   assert.equal(Object.values(audit.modes.ability).reduce((a, b) => a + b, 0), expectedAbilities);
-  assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 193);
+  assert.equal(Object.values(audit.modes.item).reduce((a, b) => a + b, 0), 231);
   assert.equal(audit.modes.foe.structured, 30);
-  assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 193);
+  assert.equal(audit.itemActions.automatic + audit.itemActions.manual, 231);
   assert.equal(new Set(audit.itemActions.manualNames).size, audit.itemActions.manual);
 });
 
@@ -1420,7 +1423,7 @@ test('встроенный аудит 4.6 исполняет каждый нов
   assert.equal(report.failed, 0, report.failures.map(f => `${f.category}/${f.label}: ${f.message}`).join('\n'));
   assert.equal(report.passed, report.total);
   assert.ok(report.total > 1000, `слишком мало проверок: ${report.total}`);
-  assert.equal(report.items, 193);
+  assert.equal(report.items, 231);
   assert.equal(report.uses, 24);
   assert.equal(report.toolTasks, 38);
   assert.equal(report.harvests, 16);
@@ -10685,7 +10688,7 @@ async function productionBg3SceneBrowserWorld(observed=productionBg3SceneObserve
 }
 
 const PRODUCTION_BG3_ITEM_PRESENTATION=Object.freeze({
-  manifestSha256:'f0075079b2eca6d0f4513718130d54e843b358b26df25d32a27f4bf5f234089a',
+  manifestSha256:'d6cda0d7926c313fae086aa449017ca6b70d38cc62df0a9ba017e470323a9886',
   safeMarkupItemId:'bg3:item:rt:001376e1-2f21-4306-b510-0be29fa4941d:stats:Rm9vZF9Sb2FzdF9CZWVm',safeMarkupShard:'0000',
   profileItemId:'bg3:item:rt:001376e1-2f21-4306-b510-0be29fa4941d:stats:Rm9vZF9Sb2FzdF9CZWVm',profileShard:'0000',
   emptyItemId:'bg3:item:rt:000ae223-f71c-4749-ba28-e778f9165181',
@@ -10886,7 +10889,7 @@ test('real Greater Health effects follow the NECK equipment lifecycle and fully 
 });
 
 test('production material inspection uses the safe item name and hides its source Stats record',async()=>{
-  const {e,actor}=await productionBg3ItemPresentationWorld();await e.bg3CatalogHydrate([BG3_HASTENING_SPORES]);const material=e.bg3LearnSpellTestCatalogItem(BG3_HASTENING_SPORES),entry={id:'hastening-spores-inspect-entry',itemId:BG3_HASTENING_SPORES,qty:1};assert.ok(material);assert.equal(e.itemMaterialMeta(material).sourceStats,'ALCH_Ingredient_Part_MyconidSpore_Haste','production fixture carries the private source Stats value');actor.inventory=[entry];assert.equal(e.materialInspect(entry.id),true);assert.equal(e.elementText('showTitle'),'⌁ Споры ускорения');const body=e.elementText('showBody');assert.match(body,/Категория: алхимический ингредиент/);assert.doesNotMatch(body,/alchemy\.ingredient|BG3|ALCH_Ingredient_Part_MyconidSpore_Haste|Stats-запись|sourceStats|statsId/i);
+  const {e,actor}=await productionBg3ItemPresentationWorld();await e.bg3CatalogHydrate([BG3_HASTENING_SPORES]);const material=e.bg3LearnSpellTestCatalogItem(BG3_HASTENING_SPORES),entry={id:'hastening-spores-inspect-entry',itemId:BG3_HASTENING_SPORES,qty:1};assert.ok(material);assert.equal(e.itemMaterialMeta(material).sourceStats,'ALCH_Ingredient_Part_MyconidSpore_Haste','production fixture carries the private source Stats value');actor.inventory=[entry];assert.equal(await e.materialInspect(entry.id),true);assert.equal(e.elementText('showTitle'),'⌁ Споры ускорения');const body=e.elementText('showBody');assert.match(body,/Категория: алхимический ингредиент/);assert.doesNotMatch(body,/alchemy\.ingredient|BG3|ALCH_Ingredient_Part_MyconidSpore_Haste|Stats-запись|sourceStats|statsId/i);
 });
 
 test('effects panel keeps mechanics and campaign notes while hiding BG3 item and lifecycle provenance',async()=>{
@@ -11355,21 +11358,21 @@ test('BG3 A23 proof rejects raw, deep, shallow, proxy, cross bindings and plan a
   const done=await e.bg3RecipeProgramCommit(plan);assert.equal(done.ok,true,done.reason);assert.equal(e.bg3RecipeProgramCommitAudit().resourceTransactions,1);
 });
 
-test('BG3 A23 active-v10 census exposes 199 Standard routes and all 205 siblings resolve without dangling refs',async()=>{
-  const handlers=realBg3RecipeHandlerRows(),rows=realBg3RecipeManifestRows();assert.equal(handlers.length,199);assert.equal(handlers.filter(row=>row.kind==='bg3Recipe').length,199);assert.equal(handlers.filter(row=>row.kind==='bg3RecipeUnlock').length,0);assert.equal(rows.length,199);assert.deepEqual(Object.fromEntries(['standard'].map(profile=>[profile,rows.filter(row=>row.profile===profile).length])),{standard:199});assert.equal(rows.reduce((sum,row)=>sum+row.recipeIds.length,0),205);assert.equal(rows.reduce((sum,row)=>sum+row.validRecipeIds.length,0),205);assert.equal(rows.reduce((sum,row)=>sum+row.invalidRecipeIds.length,0),0);assert.equal(rows.filter(row=>row.invalidRecipeIds.includes(row.recipeIds[0])).length,0);assert.deepEqual(Object.fromEntries(['standard'].map(profile=>{const profileRows=rows.filter(row=>row.profile===profile),invalid=profileRows.filter(row=>row.invalidRecipeIds.length),invalidFirst=profileRows.filter(row=>row.invalidRecipeIds.includes(row.recipeIds[0]));return [profile,{invalidActions:new Set(invalid.map(row=>row.itemId+'\0'+row.useId)).size,invalidFirstActions:new Set(invalidFirst.map(row=>row.itemId+'\0'+row.useId)).size}];})),{standard:{invalidActions:0,invalidFirstActions:0}});
+test('BG3 A23 active-v10 census exposes 202 Standard routes and all 208 siblings resolve without dangling refs',async()=>{
+  const handlers=realBg3RecipeHandlerRows(),rows=realBg3RecipeManifestRows();assert.equal(handlers.length,202);assert.equal(handlers.filter(row=>row.kind==='bg3Recipe').length,202);assert.equal(handlers.filter(row=>row.kind==='bg3RecipeUnlock').length,0);assert.equal(rows.length,202);assert.deepEqual(Object.fromEntries(['standard'].map(profile=>[profile,rows.filter(row=>row.profile===profile).length])),{standard:202});assert.equal(rows.reduce((sum,row)=>sum+row.recipeIds.length,0),208);assert.equal(rows.reduce((sum,row)=>sum+row.validRecipeIds.length,0),208);assert.equal(rows.reduce((sum,row)=>sum+row.invalidRecipeIds.length,0),0);assert.equal(rows.filter(row=>row.invalidRecipeIds.includes(row.recipeIds[0])).length,0);assert.deepEqual(Object.fromEntries(['standard'].map(profile=>{const profileRows=rows.filter(row=>row.profile===profile),invalid=profileRows.filter(row=>row.invalidRecipeIds.length),invalidFirst=profileRows.filter(row=>row.invalidRecipeIds.includes(row.recipeIds[0]));return [profile,{invalidActions:new Set(invalid.map(row=>row.itemId+'\0'+row.useId)).size,invalidFirstActions:new Set(invalidFirst.map(row=>row.itemId+'\0'+row.useId)).size}];})),{standard:{invalidActions:0,invalidFirstActions:0}});
   for(const profile of ['standard']){let randomCalls=0;const profileRows=rows.filter(row=>row.profile===profile),e=loadEngine(()=>{randomCalls++;return .5;},selectedBg3FileFetch()),actor=hero('recipe-route-matrix-'+profile,{knownRecipes:[],inventory:profileRows.map((row,index)=>({id:'recipe-route-source-'+index,itemId:row.itemId,qty:1})),equipment:{}}),inventoryRef=actor.inventory,entryRefs=actor.inventory.slice();e.setState({chars:[actor],activeCharId:actor.id});assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();await e.bg3CatalogHydrate([...new Set(profileRows.map(row=>row.itemId))]);await e.bg3CatalogEnsureAsset('recipes');randomCalls=0;
     for(let index=0;index<profileRows.length;index++){const row=profileRows[index],label=profile+'/'+row.itemId+'/'+row.useId,entryId='recipe-route-source-'+index,choice=await e.bg3RecipeProgramPlanFor(actor,entryId,row.useId,{});assert.equal(choice.ok,false,label);assert.equal(choice.needsRecipeChoice,true,label);assert.deepEqual(plain(choice.recipeIds),row.validRecipeIds,label+' valid refs');assert.deepEqual(plain(choice.invalidRecipeIds),row.invalidRecipeIds,label+' invalid diagnostics');for(const invalid of row.invalidRecipeIds){const rejected=await e.bg3RecipeProgramPlanFor(actor,entryId,row.useId,{recipeId:invalid,selections:{}});assert.equal(rejected.ok,false,label+' '+invalid);assert.match(rejected.reason,/not linked|не связан|отсутствует|pinned recipes\.byId/i,label+' '+invalid);}}
     assert.equal(actor.inventory,inventoryRef,profile+' inventory array identity');assert.deepEqual(actor.inventory,entryRefs,profile+' source entry identities');assert.equal(randomCalls,0,profile+' route resolution never rolls');}
 });
 
-test('BG3 A23 all 205 active-v10 Standard valid edges commit once across Consume, Dye, Transform and None families',async()=>{
+test('BG3 A23 all 208 active-v10 Standard valid edges commit once across Consume, Dye, Transform and None families',async()=>{
   const rows=realBg3RecipeManifestRows(),families={};let committedEdges=0;
   const familyOf=recipe=>{const counts={};for(const input of recipe.inputs)counts[input.transform]=(counts[input.transform]||0)+1;if(counts.Dye)return 'Consume+Dye';if(counts.Transform)return 'Transform+Consume'+(counts.Consume>1?'×'+counts.Consume:'');if(counts.None)return 'None+Consume';return 'Consume×'+(counts.Consume||0);};
   for(const profile of ['standard']){let randomCalls=0;const profileRows=rows.filter(row=>row.profile===profile),e=loadEngine(()=>{randomCalls++;return .5;},selectedBg3FileFetch()),actor=hero('recipe-edge-matrix-'+profile,{knownRecipes:[],inventory:[],equipment:{}});e.setState({chars:[actor],activeCharId:actor.id});assert.equal(e.bg3CatalogUseRefs([{id:'bg3',version:selectedBg3Catalog.current.catalogVersion,profile,manifestSha256:selectedBg3Catalog.current.manifestSha256}]),true);await e.bg3CatalogEnsureIndex();await e.bg3CatalogHydrate([...new Set(profileRows.map(row=>row.itemId))]);const asset=await e.bg3CatalogEnsureAsset('recipes'),edges=[];
     for(const row of profileRows)for(const recipeId of row.validRecipeIds){const recipe=asset.byId.get(recipeId);assert.ok(recipe,profile+'/'+recipeId);const fixture=realBg3RecipeSelections(e,recipe);edges.push({row,recipe,fixture});}const hydrated=new Set(profileRows.map(row=>row.itemId));for(const edge of edges)for(const id of edge.fixture.ids)hydrated.add(id);await e.bg3CatalogHydrate([...hydrated]);actor.knownRecipes=[...new Set(edges.map(edge=>edge.recipe.id))];randomCalls=0;
     for(let index=0;index<edges.length;index++){const {row,recipe,fixture}=edges[index],label=profile+'/'+row.itemId+'/'+row.useId+'/'+recipe.id,sourceEntryId='recipe-edge-source-'+index,inventory=[],byItem=new Map();for(const [itemId,qty] of fixture.counts){const entry={id:itemId===row.itemId?sourceEntryId:'recipe-edge-input-'+index+'-'+inventory.length,itemId,qty};inventory.push(entry);byItem.set(itemId,entry);}if(!byItem.has(row.itemId)){const entry={id:sourceEntryId,itemId:row.itemId,qty:1};inventory.unshift(entry);byItem.set(row.itemId,entry);}const unrelated={id:'recipe-edge-unrelated-'+index,itemId:'rope',qty:1,notes:'identity sentinel'};inventory.push(unrelated);actor.inventory=inventory;actor.equipment={};const selections=plain(fixture.selections);for(const input of recipe.inputs)if(input.transform==='Transform'||input.transform==='Dye')selections.entries[input.slot]=byItem.get(fixture.pickedBySlot.get(input.slot)).id;const initial=plain({inventory:actor.inventory,equipment:actor.equipment}),refs=new Map(actor.inventory.map(entry=>[entry.id,entry])),plan=await e.bg3RecipeProgramPlanFor(actor,sourceEntryId,row.useId,{recipeId:recipe.id,selections});assert.equal(plan.ok,true,label+': '+plan.reason);const clone=Object.assign({},plan);assert.equal((await e.bg3RecipeProgramCommit(clone)).ok,false,label+' clone');assert.deepEqual(plain({inventory:actor.inventory,equipment:actor.equipment}),initial,label+' clone mutation');const done=await e.bg3RecipeProgramCommit(plan);assert.equal(done.ok,true,label+': '+done.reason);assert.equal(e.bg3RecipeProgramCommitAudit().resourceTransactions,1,label);for(const entry of actor.inventory){const before=refs.get(entry.id);if(before)assert.equal(entry,before,label+' surviving entry '+entry.id);}assert.equal(actor.inventory.find(entry=>entry.id===unrelated.id),unrelated,label+' unrelated identity');const selected=recipe.inputs.find(input=>input.transform==='Dye'||input.transform==='Transform');if(selected){const target=refs.get(selections.entries[selected.slot]);assert.ok(actor.inventory.includes(target),label+' selected target membership');assert.equal(recipe.dye?done.dyeTarget:done.transformTarget,target,label+' selected target identity');}const committed=plain({inventory:actor.inventory,equipment:actor.equipment});const replay=await e.bg3RecipeProgramCommit(plan);assert.equal(replay.replay,true,label+' replay');assert.deepEqual(plain({inventory:actor.inventory,equipment:actor.equipment}),committed,label+' replay mutation');families[familyOf(recipe)]=(families[familyOf(recipe)]||0)+1;committedEdges++;}
     assert.equal(randomCalls,0,profile+' recipe edges never roll');}
-  assert.equal(committedEdges,205);assert.deepEqual(families,{'Consume×3':80,'Consume×2':67,'Consume+Dye':42,'None+Consume':9,'Transform+Consume':4,'Transform+Consume×2':3});
+  assert.equal(committedEdges,208);assert.deepEqual(families,{'Consume×3':83,'Consume×2':67,'Consume+Dye':42,'None+Consume':9,'Transform+Consume':4,'Transform+Consume×2':3});
 });
 }
 

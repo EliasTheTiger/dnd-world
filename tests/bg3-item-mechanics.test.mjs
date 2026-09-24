@@ -12,7 +12,7 @@ const revision = Number(/^bg3-24532579-v(\d+)$/.exec(current.catalogVersion)?.[1
 const requiresMechanics = {skip: revision < 10 ? 'requires a selected v10+ catalog' : false};
 const COVERAGE_SCHEMA = 'bg3-item-engine-coverage/1';
 const SOURCE_FACTS_SCHEMA = 'bg3-item-source-facts/1';
-const DESCRIPTION_STATES = new Set(['source-localized', 'source-absent', 'unresolved-handle']);
+const DESCRIPTION_STATES = new Set(['source-localized', 'game-authored', 'source-absent', 'unresolved-handle']);
 const RUNTIME_STATES = new Set(['ready', 'partial', 'blocked', 'inert', 'manual-review']);
 const EFFECT_STATES = new Set([
   'runtime-ready',
@@ -114,6 +114,7 @@ function materializationsFor(item) {
 const materializations = items.flatMap(materializationsFor);
 
 function expectedDescriptionStatus(item) {
+  if(item.mechanics?.provenance?.gameDescription){assert.ok(item.mechanics.provenance.gameDescription.source);assert.equal(typeof item.mechanics.provenance.gameDescription.original,'string');return 'game-authored';}
   if (item.i18n?.ru?.description || item.i18n?.en?.description) return 'source-localized';
   if (item.source?.localizationHandles?.description?.id) return 'unresolved-handle';
   return 'source-absent';
@@ -206,10 +207,10 @@ test('all retained Standard items expose explicit mechanics coverage and source 
   }
 
   assert.equal(strictItems.length, arsenalQuality.counts.retained);
-  assert.deepEqual(Object.fromEntries(['source-localized', 'source-absent', 'unresolved-handle'].map(state => [
+  assert.deepEqual(Object.fromEntries(['source-localized', 'game-authored', 'source-absent', 'unresolved-handle'].map(state => [
     state,
     strictItems.filter(item => expectedDescriptionStatus(item) === state).length,
-  ])), {'source-localized': strictItems.length, 'source-absent': 0, 'unresolved-handle': 0});
+  ])), {'source-localized': strictItems.length-7, 'game-authored': 7, 'source-absent': 0, 'unresolved-handle': 0});
 });
 
 test('coverage retains exact ready totals and explicitly blocks every high-confidence unbound source gap', requiresMechanics, () => {

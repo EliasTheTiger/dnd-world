@@ -11,19 +11,19 @@
   },
   "counts": {
     "readyActions": {
-      "standard": 2305
+      "standard": 2313
     },
     "blockedActions": {
-      "standard": 2873
+      "standard": 2865
     },
     "readyLifecycle": {
-      "standard": 1496
+      "standard": 1500
     },
     "blockedLifecycle": {
-      "standard": 1002
+      "standard": 998
     },
     "genericInteractions": {
-      "standard": 3608
+      "standard": 3617
     },
     "directEffects": {
       "standard": 291
@@ -32,9 +32,10 @@
       "standard": 127
     },
     "descriptionStatus": {
-      "source-localized": 5706,
-      "source-absent": 4503,
-      "unresolved-handle": 73
+      "source-localized": 5703,
+      "source-absent": 4500,
+      "unresolved-handle": 72,
+      "game-authored": 7
     },
     "scrollProfiles": 118,
     "armorTypeNoneProfiles": 69
@@ -42,37 +43,37 @@
   "profiles": {
     "standard": {
       "materializations": 10282,
-      "readyActions": 2305,
-      "blockedActions": 2873,
-      "readyLifecycle": 1496,
-      "blockedLifecycle": 1002,
-      "genericInteractions": 3608,
+      "readyActions": 2313,
+      "blockedActions": 2865,
+      "readyLifecycle": 1500,
+      "blockedLifecycle": 998,
+      "genericInteractions": 3617,
       "directEffects": 291,
       "highConfidenceUnboundGaps": 127,
       "propsComplete": 10282,
       "runtimeStates": {
         "inert": 648,
-        "blocked": 2385,
-        "partial": 1361,
-        "ready": 3147,
-        "manual-review": 2741
+        "blocked": 2377,
+        "partial": 1358,
+        "ready": 3163,
+        "manual-review": 2736
       },
       "effectStates": {
         "source-inert": 588,
-        "runtime-blocked": 2278,
-        "runtime-partial": 1361,
-        "runtime-ready": 3073,
-        "manual-review": 2741,
+        "runtime-blocked": 2270,
+        "runtime-partial": 1358,
+        "runtime-ready": 3090,
+        "manual-review": 2736,
         "inherited-inert": 60,
         "script-declared-blocked": 107,
-        "destruction-only": 74
+        "destruction-only": 73
       },
       "characteristicIssues": {
         "container-capacity-unknown": 481,
         "light-photometry-unknown": 319,
         "shield-ac-not-applicable": 2,
         "weapon-damage-not-applicable": 15,
-        "description-handle-unresolved": 73,
+        "description-handle-unresolved": 72,
         "ammo-compatibility-unknown": 36,
         "armor-type-none-explicit": 69,
         "instrument-classification-review": 6,

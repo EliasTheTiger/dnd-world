@@ -1,0 +1,1768 @@
+[
+  {
+    "id": "bg3:item:rt:01985597-fceb-47d1-93ae-9cc9928ed9e7:stats:QUxDSF9Tb2x1dGlvbl9PaWxfUmVkdWNl",
+    "name": "Масло миниатюрности",
+    "statsId": "ALCH_Solution_Oil_Reduce",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "При взгляде через стеклянную бутылку всё кажется маленьким и сморщенным.",
+    "icon": "assets/bg3/icons/dd/dded2461a2fa81176afac7c2b8a74ebff413013efea01d02dde83db941b7f45d.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Oil_Reduce_SylvanStone",
+        "recipeName": "Масло миниатюрности",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-23f17584d555888e3d1d",
+        "issues": [
+          {
+            "where": "projection",
+            "reason": "incomplete-action-projection",
+            "op": ""
+          },
+          {
+            "where": "projection[3]",
+            "reason": "invalid-projection-reference",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-ea09b316d7a61cb2ce13",
+            "reason": "status-passive-OnDamage-adapter-requires-pure-event-fields",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:08789f74-3f63-4e7c-8288-b8d873542c15:stats:QUxDSF9Tb2x1dGlvbl9PaWxfQmFuZQ",
+    "name": "Масло порчи",
+    "statsId": "ALCH_Solution_Oil_Bane",
+    "publicItemId": "bg3:item:rt:08789f74-3f63-4e7c-8288-b8d873542c15:stats:QUxDSF9Tb2x1dGlvbl9PaWxfQmFuZQ",
+    "namesakeId": null,
+    "description": "Одурманивающий аромат масла заставляет чувствовать себя глупым, неподготовленным, недостойным.",
+    "icon": "assets/bg3/icons/29/29030f784af932b829aff55296fba2f360649080460259cccaedfec5f55650a1.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Oil_Bane_Shadowcursed",
+        "recipeName": "Масло порчи",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-f39f68316c5d6a46897f",
+        "issues": [
+          {
+            "where": "bg3:rule:status:QUxDSF9PSUxfQkFORV9DT05ESVRJT04:program:standard",
+            "reason": "status-lifecycle-unsupported-property-flag-BringIntoCombat",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-60d980fd327438a40359",
+            "reason": "status-passive-applied-status-lifecycle-incomplete-ALCH_OIL_BANE_CONDITION",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:0aacb1f9-116a-45ec-9b0c-cb436301d4b2:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfRW5sYXJnZQ",
+    "name": "Эликсир колосса ",
+    "statsId": "ALCH_Solution_Elixir_Enlarge",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Сразу же после вдыхания этого эликсира ваш пресс, кажется, раздается в размерах, а мышцы спины будто превращаются в полосы кованой стали. ",
+    "icon": "assets/bg3/icons/26/26cb3b145a7a65356b1a689be6f67d29fdf8325ac4271545fc9f8ef1744e6f81.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_Enlarge_ChasmCreeper",
+        "recipeName": "Эликсир колосса",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-b8a366b712dfeb8a2256",
+        "issues": [
+          {
+            "where": "projection[0]",
+            "reason": "invalid-projection-reference",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-5aa0a92b0b33ad90eafe",
+            "reason": "status-passive-source-blocked-EnlargeWeightMedium",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-32a31f71e6e594e4e595",
+            "reason": "status-passive-source-blocked-EnlargeWeightLarge",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfRU5MQVJHRQ:program:standard",
+            "reason": "referenced-rule-program-not-typed",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfRU5MQVJHRQ:program:standard",
+            "reason": "referenced-rule-program-not-typed",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-5aa0a92b0b33ad90eafe",
+            "reason": "status-passive-source-lifecycle-descriptor-missing",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-32a31f71e6e594e4e595",
+            "reason": "status-passive-source-lifecycle-descriptor-missing",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:0b1aa718-fe45-4e4c-8811-ced51c581075:stats:T0JKX0ZpcmVCb3R0bGU",
+    "name": "Огонь алхимика",
+    "statsId": "OBJ_FireBottle",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Янтарная жидкость в этом флаконе постоянно движется, складываясь в причудливые узоры.",
+    "icon": "assets/bg3/icons/09/0940e1f8496695a4bb33292a7d7aae80bf7ac5acc40726ff930e83b3a1a4879d.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Grenade_Fire_FireAmber",
+        "recipeName": "Огонь алхимика",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-d452eff7186c47c7f3e3",
+        "issues": [
+          {
+            "where": "projection",
+            "reason": "incomplete-action-projection",
+            "op": ""
+          },
+          {
+            "where": "projection[1]",
+            "reason": "invalid-projection-reference",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:28645376-e6e8-436a-8e9a-c62877fae07d:stats:T0JKX0Jhc2ljUG9pc29u",
+    "name": "Обычный яд",
+    "statsId": "OBJ_BasicPoison",
+    "publicItemId": "bg3:item:rt:28645376-e6e8-436a-8e9a-c62877fae07d:stats:T0JKX0Jhc2ljUG9pc29u",
+    "namesakeId": null,
+    "description": "Даже из-под плотно закрытой пробки пробивается едкий, удушливый запах.",
+    "icon": "assets/bg3/icons/81/81b7912e697af648d317cac7554078da72da7a27f615321b401d24ef5dc1ff70.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Poison_Simple_Bonecap",
+        "recipeName": "Обычный яд",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-cc2bca46be043d1d2eae",
+        "issues": [
+          {
+            "where": "bg3:rule:status:UE9JU09OX1NJTVBMRV9URUNITklDQUxfQVBQTElFUg:program:standard",
+            "reason": "status-lifecycle-unsupported-property-flag-ExcludeFromPortraitRendering",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-10930dc7919045e659b2",
+            "reason": "status-passive-applied-status-lifecycle-incomplete-POISON_SIMPLE_TECHNICAL_APPLIER",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:2c99f1f1-776b-45dd-a9d7-06e6a8e14b3f:stats:UXVlc3RfVU5EX01vb25sYW50ZXJuX0Jyb2tlbg",
+    "name": "Сломанный лунный фонарь",
+    "statsId": "Quest_UND_Moonlantern_Broken",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Дно фонаря покрыто толстым слоем пыли. Стекло треснуло, металлические части испорчены безвозвратно.",
+    "icon": "assets/bg3/icons/0f/0ff9dade003946f92ae95a4c918a8e7e6fc2ac9072ed89c93048f6bb19fbe679.webp",
+    "roles": [
+      "ingredient"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:MOO_BalthazarLab_Circle",
+        "recipeName": "Фонарь теней",
+        "role": "ingredient",
+        "quantity": 1,
+        "operation": "Transform"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete"
+    ],
+    "runtime": []
+  },
+  {
+    "id": "bg3:item:rt:3e4ce3e8-fbae-4e78-9198-e4c15485a928:stats:QUxDSF9Tb2x1dGlvbl9PaWxfRnJvc3Q",
+    "name": "Масло замерзания",
+    "statsId": "ALCH_Solution_Oil_Frost",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Морозные разводы закручиваются в спираль на стеклянной стенке флакона. В тишине можно даже услышать, как они потрескивают. ",
+    "icon": "assets/bg3/icons/d7/d7e788c19b5b023c469cafe5b634576521b1618c3acd38070f9ec365246c270b.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Oil_Frost",
+        "recipeName": "Масло замерзания",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-626cf0cd92a6178ed03d",
+        "issues": [
+          {
+            "where": "bg3-status-passive-52bcf5f87d58d74dd807",
+            "reason": "status-passive-source-blocked-MAG_Frost_Passive",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:TUFHX0ZST1NU:program:standard",
+            "reason": "status-lifecycle-unsupported-stack-type-Additive",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-fc774ed94a1925df9bc4",
+            "reason": "status-passive-applied-status-lifecycle-incomplete-MAG_FROST",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:447ee8a9-9319-4758-9dc7-2d8ba94e45b5:stats:T0JKX1BvdGlvbl9PZl9BbmltYWxfU3BlYWtpbmc",
+    "name": "Зелье общения с животными",
+    "statsId": "OBJ_Potion_Of_Animal_Speaking",
+    "publicItemId": "bg3:item:rt:447ee8a9-9319-4758-9dc7-2d8ba94e45b5:stats:T0JKX1BvdGlvbl9PZl9BbmltYWxfU3BlYWtpbmc",
+    "namesakeId": null,
+    "description": "Из открытого флакона в нос бьют пьянящие запахи сена, мускуса и навоза.",
+    "icon": "assets/bg3/icons/30/3083df522a98be52b648fc1e553f9327f06b6cfad0c27cd88a8f70af1de1ce97.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Potion_AnimalSpeaking_AcornTruffle",
+        "recipeName": "Зелье общения с животными",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-0a2bc935dbe147608a74",
+        "issues": [
+          {
+            "where": "bg3:rule:status:UE9USU9OX09GX0FOSU1BTF9TUEVBS0lORw:program:standard",
+            "reason": "unsupported-static-opcode-modifyTag",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:44dedec0-df82-4ed3-b9ca-147bd830e312:stats:Rk9SX0luY29tcGxldGVNYXN0ZXJ3b3JrX1N1c3N1ckdyZWF0c3dvcmQ",
+    "name": "Двуручный меч из суссура",
+    "statsId": "FOR_IncompleteMasterwork_SussurGreatsword",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Корни суссура переходят из рукояти меча в клинок. Меч жаждет магии и накладывает чары молчания на всякого, кого поражает.",
+    "icon": "assets/bg3/icons/89/896dafd83b168c5565d1de0f98bbb4f6dfcf679c87f94251d1d9048146c4eb03.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:QUEST_FOR_SussurGreatsword",
+        "recipeName": "Двуручный меч из суссура",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "equipped-main-hand",
+        "rule": "Target_PommelStrike",
+        "reason": "granted-rule-projection-runtime-required"
+      },
+      {
+        "kind": "equipped-main-hand",
+        "rule": "Target_Slash_New",
+        "reason": "granted-action-ground-target-runtime-required"
+      },
+      {
+        "kind": "equipped-main-hand",
+        "rule": "Zone_Cleave",
+        "reason": "granted-action-ground-target-runtime-required"
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:45a775f8-2cf9-440d-b9eb-4ee5f17efca8:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfQmxvb2RsdXN0",
+    "name": "Эликсир кровожадности",
+    "statsId": "ALCH_Solution_Elixir_Bloodlust",
+    "publicItemId": "bg3:item:rt:45a775f8-2cf9-440d-b9eb-4ee5f17efca8:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfQmxvb2RsdXN0",
+    "namesakeId": null,
+    "description": "Те, кто готов отдаться бешеной свирепости, часто пожинают кроваво-красную награду. ",
+    "icon": "assets/bg3/icons/5a/5a4225571e53d3bad686237726642d94702e5be448d8768b310950c4044aeb2d.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_Bloodlust_WorgFang",
+        "recipeName": "Эликсир кровожадности",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-eb334d02d7b44315807e",
+        "issues": [
+          {
+            "where": "bg3-status-passive-4553d95987374856ce4f",
+            "reason": "status-passive-OnDamage-guard-signature-runtime-required",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfQkxPT0RMVVNUX1RFTVBIUA:program:standard",
+            "reason": "status-lifecycle-stack-priority-runtime-required",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:45cdcf69-bfd2-4311-a883-3f3631ab3959:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfQ29uY2VudHJhdGlvbg",
+    "name": "Эликсир бесподобного сосредоточения",
+    "statsId": "ALCH_Solution_Elixir_Concentration",
+    "publicItemId": "bg3:item:rt:45cdcf69-bfd2-4311-a883-3f3631ab3959:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfQ29uY2VudHJhdGlvbg",
+    "namesakeId": null,
+    "description": "От заклинателя, не умеющего поддерживать заклинания, толку, как от шоколадного чайника. ",
+    "icon": "assets/bg3/icons/ea/ea27cf1b24c9e15be05fcb5b0133e8f37f17248b79edc6444dd6e13093f3c609.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_Concentration_Belladonna",
+        "recipeName": "Эликсир бесподобного сосредоточения",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-3833b7b6a5ec174b4c7e",
+        "issues": [
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfQ09OQ0VOVFJBVElPTg:program:standard",
+            "reason": "unsupported-static-opcode-modifyTag",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:4d801c1a-691e-47c8-88e7-78367b4e2c8e:stats:QUxDSF9Tb2x1dGlvbl9Qb3Rpb25fUmVzdF9HcmVhdGVy",
+    "name": "Зелье ангельского сна",
+    "statsId": "ALCH_Solution_Potion_Rest_Greater",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Один из немногих доступных эльфам способов узнать, что такое сон. Среди других способов – прием наркотических средств и сильный удар стулом по башке.",
+    "icon": "assets/bg3/icons/77/77c876c8e17ab844f6661e9c9dd6783696e0a90cd33adc77924933a35805322d.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Potion_RestGreater_PlanetarFeather",
+        "recipeName": "Зелье ангельского сна",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-24e3764767aa471a24b1",
+        "issues": [
+          {
+            "where": "projection",
+            "reason": "incomplete-action-projection",
+            "op": ""
+          },
+          {
+            "where": "projection[0]",
+            "reason": "invalid-projection-reference",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9QT1RJT05fUkVTVF9TTEVFUF9HUkVBVEVS:program:standard",
+            "reason": "referenced-rule-program-not-typed",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9QT1RJT05fUkVTVF9TTEVFUF9HUkVBVEVS:program:standard",
+            "reason": "referenced-rule-program-not-typed",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9QT1RJT05fUkVTVF9TTEVFUF9HUkVBVEVSX1JFU1RPUkFUSU9O:program:standard",
+            "reason": "status-lifecycle-unsupported-event-opcode-resetCooldowns",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:4f17f210-9cde-4dad-80b5-fc4f9ddb1e1f:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfTWVkaXRhdGlvbl9TdXByZW1l",
+    "name": "Высший эликсир магического развития",
+    "statsId": "ALCH_Solution_Elixir_Meditation_Supreme",
+    "publicItemId": "bg3:item:rt:4f17f210-9cde-4dad-80b5-fc4f9ddb1e1f:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfTWVkaXRhdGlvbl9TdXByZW1l",
+    "namesakeId": null,
+    "description": "Говорят, что мерцание этого эликсира – отражение света на самом Плетении.",
+    "icon": "assets/bg3/icons/0d/0d33da5de704f31dcf657a9bb48566ebe41ab092dfa45947e3443da7dceb5dc2.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_Meditation_Supreme_BeholderEye",
+        "recipeName": "Высший эликсир магического развития",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-ae3c1a2c31b14e0d6c7f",
+        "issues": [
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfTUVESVRBVElPTl9TVVBSRU1F:program:standard",
+            "reason": "unsupported-resource-capacity",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:5865caed-4a5d-45b7-b365-1113334a8e7b:stats:T0JKX0NyYXdsZXJNdWN1cw",
+    "name": "Слизь гусеницы",
+    "statsId": "OBJ_CrawlerMucus",
+    "publicItemId": "bg3:item:rt:5865caed-4a5d-45b7-b365-1113334a8e7b:stats:T0JKX0NyYXdsZXJNdWN1cw",
+    "namesakeId": null,
+    "description": "Основу этого слизеподобного яда соскребли с панциря гусеницы-падальщицы.",
+    "icon": "assets/bg3/icons/0f/0f94ba0449c94d5e54b410e345eb426005892c654166d9372baf2ceb02e06e76.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Poison_Paralyze_CarrionCrawler",
+        "recipeName": "Слизь гусеницы",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-3296573ee6733242dfab",
+        "issues": [
+          {
+            "where": "bg3:rule:status:UE9JU09OX0NSQVdMRVJfTVVDVVNfVEVDSE5JQ0FMX0FQUExJRVI:program:standard",
+            "reason": "status-lifecycle-unsupported-property-flag-ExcludeFromPortraitRendering",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-5135f5cbb6ab24fd6848",
+            "reason": "status-passive-applied-status-lifecycle-incomplete-POISON_CRAWLER_MUCUS_TECHNICAL_APPLIER",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:5e282d02-6a10-44cb-9737-9d52aab0701c:stats:T0JKX0JvbWJfU3VuZmxhc2g",
+    "name": "Слепящая вспышка",
+    "statsId": "OBJ_Bomb_Sunflash",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "От устройства исходит гироскопический шепот – гномий механизм говорит на металлическом языке. ",
+    "icon": "assets/bg3/icons/a0/a03f2028978c56a42f0fb3fef0e5417dd356d8f51efecf0095d650b35afece9f.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Grenade_Sunflash_BehirScales",
+        "recipeName": "Слепящая вспышка",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-730bd20c0a04a13a85d1",
+        "issues": [
+          {
+            "where": "projection",
+            "reason": "incomplete-action-projection",
+            "op": ""
+          },
+          {
+            "where": "projection[2]",
+            "reason": "invalid-projection-reference",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:U1VORkxBU0hFRA:program:standard",
+            "reason": "status-lifecycle-unsupported-property-flag-IsInvulnerableVisible",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:U1VORkxBU0hfREFNQUdFRE9QVElDUw:program:standard",
+            "reason": "unsupported-roll-modifier",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:6008231b-9f5a-44f6-8050-14586b7626fd:stats:QUxDSF9Tb2x1dGlvbl9HcmVuYWRlX1Nwb3Jlc0hhc3Rl",
+    "name": "Граната спор ускорения",
+    "statsId": "ALCH_Solution_Grenade_SporesHaste",
+    "publicItemId": "bg3:item:rt:6008231b-9f5a-44f6-8050-14586b7626fd:stats:QUxDSF9Tb2x1dGlvbl9HcmVuYWRlX1Nwb3Jlc0hhc3Rl",
+    "namesakeId": null,
+    "description": "Алхимическое снадобье, которое буквально гудит от заключенной в нем энергии.",
+    "icon": "assets/bg3/icons/e5/e5099aa1fa9d1393b878fb6bb3520405b1a6463440a86ed82a1f9f29aeb2d3b7.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Grenade_SporesHaste",
+        "recipeName": "Граната спор ускорения",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-62c7b440c88ea7339cf5",
+        "issues": [
+          {
+            "where": "bg3:rule:status:SEFTVEVfU1VSRkFDRQ:program:standard",
+            "reason": "status-lifecycle-stack-priority-runtime-required",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:6b95bb45-41c3-4954-ac2f-ef1aa169b0b6:stats:Rk9SX0luY29tcGxldGVNYXN0ZXJ3b3JrX1N1c3N1clNpY2tsZQ",
+    "name": "Серп из суссура",
+    "statsId": "FOR_IncompleteMasterwork_SussurSickle",
+    "publicItemId": "bg3:item:rt:6b95bb45-41c3-4954-ac2f-ef1aa169b0b6:stats:Rk9SX0luY29tcGxldGVNYXN0ZXJ3b3JrX1N1c3N1clNpY2tsZQ",
+    "namesakeId": null,
+    "description": "Этот серп закален в смоле суссура; на любое раненное им существо накладываются чары молчания.",
+    "icon": "assets/bg3/icons/86/86b54efbcd7ec8dd4ba8c9972b21d06a875596969e32aa8603c0aec92c53ad17.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:QUEST_FOR_SussurSickle",
+        "recipeName": "Серп из суссура",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "equipped-main-hand",
+        "rule": "Target_Slash_New",
+        "reason": "granted-action-ground-target-runtime-required"
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:6db9ed3d-2d72-43ad-a2b8-02365728f29f:stats:VU5JX1BvaXNvbl9CcmV3ZXI",
+    "name": "Яд-чревоточец Тисобальда",
+    "statsId": "UNI_Poison_Brewer",
+    "publicItemId": "bg3:item:rt:6db9ed3d-2d72-43ad-a2b8-02365728f29f:stats:VU5JX1BvaXNvbl9CcmV3ZXI",
+    "namesakeId": null,
+    "description": "Поистине отвратительный яд, созданный из свернувшихся трупных роз пытливым умом Тисобальда Торма. ",
+    "icon": "assets/bg3/icons/43/43fcc906e4290e0dcce388d7f8c3a3add8b0fc03bfd6edba3215d29764a1d798.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Poison_UNI_Brewer",
+        "recipeName": "Яд-чревоточец Тисобальда",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-085b96b0d9fa1cf3353e",
+        "issues": [
+          {
+            "where": "bg3:rule:status:VU5JX1BPSVNPTl9CUkVXRVJfVEVDSE5JQ0FMX0FQUExJRVI:program:standard",
+            "reason": "status-lifecycle-unsupported-property-flag-ExcludeFromPortraitRendering",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-77963dab52c7e366b837",
+            "reason": "status-passive-applied-status-lifecycle-incomplete-UNI_POISON_BREWER_TECHNICAL_APPLIER",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:6f328fc5-6f54-4aad-959d-0825290a2763:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfTWVkaXRhdGlvbg",
+    "name": "Эликсир магического развития",
+    "statsId": "ALCH_Solution_Elixir_Meditation",
+    "publicItemId": "bg3:item:rt:6f328fc5-6f54-4aad-959d-0825290a2763:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfTWVkaXRhdGlvbg",
+    "namesakeId": null,
+    "description": "Маленькая склянка, до краев наполненная волшебной энергией.",
+    "icon": "assets/bg3/icons/76/765cc91b85846b12c8003453316e87692de2d99e8d64430cb09fe239a937587b.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_Meditation_Weavemoss",
+        "recipeName": "Эликсир магического развития",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-cfb38b18f05be01a7552",
+        "issues": [
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfTUVESVRBVElPTg:program:standard",
+            "reason": "unsupported-resource-capacity",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:7406ffa4-930c-437f-b201-57b951e5165f:stats:QUxDSF9Tb2x1dGlvbl9Qb3Rpb25fSnVtcA",
+    "name": "Зелье выдающихся прыжков",
+    "statsId": "ALCH_Solution_Potion_Jump",
+    "publicItemId": "bg3:item:rt:7406ffa4-930c-437f-b201-57b951e5165f:stats:QUxDSF9Tb2x1dGlvbl9Qb3Rpb25fSnVtcA",
+    "namesakeId": null,
+    "description": "Рассказывали, будто гном по имени Луппердиддл Свайрс мог подпрыгнуть аж на шесть метров в воздух, а сам был росточком с курицу-бентамку. ",
+    "icon": "assets/bg3/icons/b9/b9be96eb07b5307a3fd9b8a603e306959a5d4a092cd72d0cf91ab43d380cbbae.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Potion_Jump_Wispweed",
+        "recipeName": "Зелье выдающихся прыжков",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-774343873076aeb11302",
+        "issues": [
+          {
+            "where": "bg3:rule:status:QUxDSF9QT1RJT05fSlVNUA:program:standard",
+            "reason": "unsupported-static-opcode-multiplyJumpDistance",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:7d1699d9-c3fa-4761-9718-28230f78420b:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfQXJjYW5lQWN1aXR5",
+    "name": "Эликсир силы боевого мага",
+    "statsId": "ALCH_Solution_Elixir_ArcaneAcuity",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Эликсир, изготовленный из глаза охотящегося на магов нотика, источает изнутри пронизывающий свет. ",
+    "icon": "assets/bg3/icons/c8/c8c0461ae06181c8317f765ce9c60c9b3cf59f92a874bac4d15e041ba1a59cba.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_ArcaneAcuity_GauthEye",
+        "recipeName": "Эликсир силы боевого мага",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-35a91e958c5db7da666b",
+        "issues": [
+          {
+            "where": "projection",
+            "reason": "incomplete-action-projection",
+            "op": ""
+          },
+          {
+            "where": "projection[2]",
+            "reason": "invalid-projection-reference",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-28bfcd5f6708d00445b6",
+            "reason": "status-passive-context-runtime-required-OnStatusRemoved",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-d998b9f364c8fff552cc",
+            "reason": "status-passive-source-lifecycle-descriptor-missing",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfQVJDQU5FX0FDVUlUWQ:program:standard",
+            "reason": "status-lifecycle-unsupported-tick-type-StartTurn",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:8733edb7-f04e-4b6d-ad48-7d49fb782bef:stats:Rk9SX0luY29tcGxldGVNYXN0ZXJ3b3JrX1N1c3N1ckRhZ2dlcg",
+    "name": "Кинжал из суссура",
+    "statsId": "FOR_IncompleteMasterwork_SussurDagger",
+    "publicItemId": "bg3:item:rt:8733edb7-f04e-4b6d-ad48-7d49fb782bef:stats:Rk9SX0luY29tcGxldGVNYXN0ZXJ3b3JrX1N1c3N1ckRhZ2dlcg",
+    "namesakeId": null,
+    "description": "Клинок кинжала потемнел от разводов похожей на дым смолы суссура. Его удар накладывает на жертву чары молчания.",
+    "icon": "assets/bg3/icons/4e/4efa01737b228098a5e04568b9ba07f7ca40b17024a775d5c965630db2724715.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:QUEST_FOR_SussurDagger",
+        "recipeName": "Кинжал из суссура",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "equipped-main-hand",
+        "rule": "Target_PiercingThrust",
+        "reason": "granted-action-ground-target-runtime-required"
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:8c7656f5-507a-4cee-8e15-320c968539f0:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfTWVkaXRhdGlvbl9HcmVhdGVy",
+    "name": "Великий эликсир магического развития",
+    "statsId": "ALCH_Solution_Elixir_Meditation_Greater",
+    "publicItemId": "bg3:item:rt:8c7656f5-507a-4cee-8e15-320c968539f0:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfTWVkaXRhdGlvbl9HcmVhdGVy",
+    "namesakeId": null,
+    "description": "Такие эликсиры стремятся заполучить заклинатели всех сортов – от бродячих волшебников до верховных жрецов.",
+    "icon": "assets/bg3/icons/18/18fda8563b2701490a3260acbd41ffa0599f2c6d84e4a6d451f24ccd50b0e33a.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_Meditation_Greater_Laculite",
+        "recipeName": "Великий эликсир магического развития",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-3646d01c924e810371b7",
+        "issues": [
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfTUVESVRBVElPTl9HUkVBVEVS:program:standard",
+            "reason": "unsupported-resource-capacity",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:91da7fe8-a5f7-4132-9096-e8da4916a42e:stats:QUxDSF9Tb2x1dGlvbl9Qb3Rpb25fRGV0ZWN0VGhvdWdodHM",
+    "name": "Зелье чтения мыслей",
+    "statsId": "ALCH_Solution_Potion_DetectThoughts",
+    "publicItemId": "bg3:item:rt:91da7fe8-a5f7-4132-9096-e8da4916a42e:stats:QUxDSF9Tb2x1dGlvbl9Qb3Rpb25fRGV0ZWN0VGhvdWdodHM",
+    "namesakeId": null,
+    "description": "В этой жидкости взвесь из фрагментов памяти и восприятия – грубое созвездие мыслей. ",
+    "icon": "assets/bg3/icons/a4/a403a70b295c1b079bf32dde636e9dbd7b1346443f39262ab9c0e051e344e47b.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Potion_DetectThoughts_Mergrass",
+        "recipeName": "Зелье чтения мыслей",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-7b8024db2325025b8b4d",
+        "issues": [
+          {
+            "where": "bg3:rule:status:REVURUNUX1RIT1VHSFRT:program:standard",
+            "reason": "unsupported-static-opcode-modifyTag",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:a2f4c951-7db4-4d60-9888-f2ad50af7110:stats:Rk9SX1RydWVTb3VsX1NwZWFy",
+    "name": "Видение Абсолют",
+    "statsId": "FOR_TrueSoul_Spear",
+    "publicItemId": "bg3:item:rt:a2f4c951-7db4-4d60-9888-f2ad50af7110:stats:Rk9SX1RydWVTb3VsX1NwZWFy",
+    "namesakeId": null,
+    "description": "Острие этого копья бьет врага в глаз без промаха.",
+    "icon": "assets/bg3/icons/ac/ac85b4de1fbb564b65fa04b994836842bd3716d62af603efa4c7a02f35a6ee18.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:QUEST_FOR_CultistsRepairedSpear",
+        "recipeName": "Видение Абсолют",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "equipped-main-hand",
+        "rule": "Rush_SpringAttack",
+        "reason": "granted-action-runtime-compile-failed: unsupported-if-condition"
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:b0ff8d30-5825-49d4-8cd4-ebf3a3d0a024:stats:QUxDSF9Tb2x1dGlvbl9Qb3Rpb25fUmVzdF9MZXNzZXI",
+    "name": "Зелье ангельской передышки",
+    "statsId": "ALCH_Solution_Potion_Rest_Lesser",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "От наблюдения за движением жидкости, переливающейся во флаконе вперед и назад, клонит в сон. Вы знаете, что, выпив ее, вы почувствуете себя словно под теплым обволакивающим одеялом. ",
+    "icon": "assets/bg3/icons/b9/b98b2dc160d518b12992465d9908ad420a27a606df8de3bc7110a4e8e283bb5a.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Potion_RestLesser_UnicornHorn",
+        "recipeName": "Зелье ангельской передышки",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-d63e4298e355eef23c46",
+        "issues": [
+          {
+            "where": "projection",
+            "reason": "incomplete-action-projection",
+            "op": ""
+          },
+          {
+            "where": "projection[0]",
+            "reason": "invalid-projection-reference",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9QT1RJT05fUkVTVF9TTEVFUF9MRVNTRVI:program:standard",
+            "reason": "referenced-rule-program-not-typed",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9QT1RJT05fUkVTVF9TTEVFUF9MRVNTRVI:program:standard",
+            "reason": "referenced-rule-program-not-typed",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9QT1RJT05fUkVTVF9TTEVFUF9MRVNTRVJfUkVTVE9SQVRJT04:program:standard",
+            "reason": "status-lifecycle-unsupported-if-condition",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:b8a2f9e4-3b5e-4418-af05-5ca3cd40dd71:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfRnJlZWRvbQ",
+    "name": "Эликсир пронырливости",
+    "statsId": "ALCH_Solution_Elixir_Freedom",
+    "publicItemId": "bg3:item:rt:b8a2f9e4-3b5e-4418-af05-5ca3cd40dd71:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfRnJlZWRvbQ",
+    "namesakeId": null,
+    "description": "По консистенции эта жидкость напоминает полузастывший мед, но течет так же легко, как ртуть. ",
+    "icon": "assets/bg3/icons/30/302e4dc88c3c39eedd3ad08355520494a37d1979612f9909738b0bb9be9eb1ce.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_Freedom_OchreJellySlime",
+        "recipeName": "Эликсир пронырливости",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-e198a559f026bdee5d88",
+        "issues": [
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfRlJFRURPTQ:program:standard",
+            "reason": "unsupported-static-opcode-preventResourceReduction",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:bb27cc17-5af9-4d53-818b-3e620f3f59f2:stats:T0JKX1BvdGlvbl9PZl9IZXJvaXNt",
+    "name": "Эликсир героизма",
+    "statsId": "OBJ_Potion_Of_Heroism",
+    "publicItemId": "bg3:item:rt:bb27cc17-5af9-4d53-818b-3e620f3f59f2:stats:T0JKX1BvdGlvbl9PZl9IZXJvaXNt",
+    "namesakeId": null,
+    "description": "Фляжки с этим зельем часто пускают по кругу солдаты на рассвете перед битвой.",
+    "icon": "assets/bg3/icons/0c/0ce7aa8d7b4e92d00d1a35637cff9cbaa49933ece60fc63e7c55b53eab3b6543.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_Heroism_PegasusFeather",
+        "recipeName": "Эликсир героизма",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-82004279b97c913cdbb7",
+        "issues": [
+          {
+            "where": "bg3:rule:status:UE9USU9OX09GX0hFUk9JU01fVEVNUEhQ:program:standard",
+            "reason": "status-lifecycle-stack-priority-runtime-required",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:bb750807-895b-468d-81e1-4378797d11ca:stats:QUxDSF9Tb2x1dGlvbl9PaWxfQ29tYnVzdGlvbg",
+    "name": "Масло воспламенения",
+    "statsId": "ALCH_Solution_Oil_Combustion",
+    "publicItemId": "bg3:item:rt:bb750807-895b-468d-81e1-4378797d11ca:stats:QUxDSF9Tb2x1dGlvbl9PaWxfQ29tYnVzdGlvbg",
+    "namesakeId": null,
+    "description": "«Гляди, всё очень просто. Сперва ты просто обливаешь кого-то маслом, вот так. Потом чиркаешь спичкой, вот... ох, проклятье!» – незадачливый Бьюфорт Игглз. ",
+    "icon": "assets/bg3/icons/c9/c9806fe89a6311db997eaa72bd5607a1ec6facddd3d65805e6a63885097d2558.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Oil_Combustion_MagmaMephitHeart",
+        "recipeName": "Масло воспламенения",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-cad9f92aca600b7e660a",
+        "issues": [
+          {
+            "where": "bg3-status-passive-bb9d25f59944bc01d602",
+            "reason": "status-passive-context-runtime-required-OnDamaged",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9PSUxfQ09NQlVTVElPTl9DT05ESVRJT04:program:standard",
+            "reason": "status-lifecycle-stack-priority-runtime-required",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9PSUxfQ09NQlVTVElPTl9FWFBMT1NJT04:program:standard",
+            "reason": "status-lifecycle-stack-priority-runtime-required",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-5538f8db49c3f011af79",
+            "reason": "status-passive-applied-status-lifecycle-incomplete-ALCH_OIL_COMBUSTION_CONDITION",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:bd118cc0-eb90-412d-8229-6749f42df5c6:stats:QUxDSF9Tb2x1dGlvbl9PaWxfUmVtb3ZlUmVzaXN0YW5jZUZpcmU",
+    "name": "Масло поджога",
+    "statsId": "ALCH_Solution_Oil_RemoveResistanceFire",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "«Тогда Свайрс швырнул масло. Оно забрызгало камбиона, и в тот же миг его блестящая карминовая кожа потускнела и стала темной, красной, как дешевое вино. Камбион издал такой звук страдания, что я почти что пожалел его, ведь его связь с огнем была разорвана навсегда».",
+    "icon": "assets/bg3/icons/8f/8f1a9db3d283245faed38f7ef81e6ff26c216bda63377d0c8c766beaca6bfe6f.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Oil_RemoveResistanceFire_IceMephitEar",
+        "recipeName": "Масло поджога",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-f862a4bea733d93e43c8",
+        "issues": [
+          {
+            "where": "bg3-status-passive-c7997f84a855649f063f",
+            "reason": "status-passive-source-blocked-ALCH_Oil_RemoveResistanceFire_Passive",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:bd2b33f4-c7ea-4c39-a151-8b9bb2a7ea1e:stats:VU5JX0xPV19CYWxkdXJzTW91dGhfRmluaXNoZWRCbG9jaw",
+    "name": "Оттиснутый печатный блок",
+    "statsId": "UNI_LOW_BaldursMouth_FinishedBlock",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Набранный печатный блок.",
+    "icon": "assets/bg3/icons/84/842a825c4b919f6c8df96e46814b2e0eb3b5b6b3e4eaa4d3a9f135fba45cb137.webp",
+    "roles": [
+      "ingredient"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:UNI_LOW_BaldursMouth_LoadPrinter",
+        "recipeName": "Набор газетной статьи",
+        "role": "ingredient",
+        "quantity": 1,
+        "operation": "Consume"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete"
+    ],
+    "runtime": []
+  },
+  {
+    "id": "bg3:item:rt:c9ebcfae-8c9a-4acc-8a30-da7830b32121:stats:UXVlc3RfR0xPX01vb25sYW50ZXJuX0dhbGU",
+    "name": "Фонарь теней",
+    "statsId": "Quest_GLO_Moonlantern_Gale",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Искалеченная пикси, заключенная в кокон из теней внутри фонаря, лежит, как какая-то деформированная куколка. Ее рот раскрыт, и те же тени ползают по ее сереющему языку.",
+    "icon": "assets/bg3/icons/cb/cb66ff11cf1683d6fddccbddba374f13214be886e54ef6b62039e9569d100704.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:MOO_BalthazarLab_Circle",
+        "recipeName": "Фонарь теней",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "equipped",
+        "rule": "Target_ORI_Gale_ShadowSummon",
+        "reason": "granted-rule-projection-runtime-required"
+      },
+      {
+        "kind": "on-hit",
+        "rule": "BURNING",
+        "reason": "invalid-or-incomplete-lifecycle-projection"
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:cab10a42-8c85-459a-9d68-b4836388c022:stats:TUFHX0NvbGRfSW5jcmVhc2VDb2xkRGFtYWdlT25DYXN0X1N0YWZm",
+    "name": "Скорбный хлад",
+    "statsId": "MAG_Cold_IncreaseColdDamageOnCast_Staff",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Воздух вокруг посоха волнуется от колючего ледяного ветра – так проявляет себя слишком долго сдерживаемая сила, которая жаждет вырваться на свободу.",
+    "icon": "assets/bg3/icons/db/dbcbb127d724874fed8bba05308d94ce13ac4b9f525081b3759af9929ba78351.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:UNI_ThreeDrow_Sraff",
+        "recipeName": "Скорбный хлад",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "equipment",
+        "reason": "Активное свойство предмета не удалось проверить целиком, поэтому действие заблокировано: «Скорбный хлад» · Пассивное свойство «Скорбный хлад»; «Скорбный хлад» · Пассивное свойство «Скорбный хлад»."
+      },
+      {
+        "kind": "equipped",
+        "rule": "MAG_Cold_ChilledOnSpellDamage_Passive",
+        "reason": "event-field-cannot-become-static-effect"
+      },
+      {
+        "kind": "equipped",
+        "rule": "MAG_Cold_IncreaseColdDamageOnCast_Passive",
+        "reason": "unsupported-static-if-predicate"
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:d106106a-3905-4acb-a24a-764940b61d9c:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfU2VlSW52aXNpYmxl",
+    "name": "Эликсир видения невидимого",
+    "statsId": "ALCH_Solution_Elixir_SeeInvisible",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Жидкость в стеклянном флаконе наливается цветом, потом становится полупрозрачной и снова приобретает цвет. Красивые переливы.",
+    "icon": "assets/bg3/icons/a8/a8adbeb2996d5f6b421f88476dae25fb28a26f6893d6648b69c594aed608bfee.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_SeeInvisible_NothicEye",
+        "recipeName": "Эликсир видения невидимого",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-0ef0473119261c3f3472",
+        "issues": [
+          {
+            "where": "projection",
+            "reason": "incomplete-action-projection",
+            "op": ""
+          },
+          {
+            "where": "projection[0]",
+            "reason": "invalid-projection-reference",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfU0VFX0lOVklTSUJJTElUWQ:program:standard",
+            "reason": "referenced-rule-program-not-typed",
+            "op": ""
+          },
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfU0VFX0lOVklTSUJJTElUWQ:program:standard",
+            "reason": "referenced-rule-program-not-typed",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:d44a454c-3a09-4b93-b982-79f7ee019703:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfVGFkcG9sZQ",
+    "name": "Эликсир личинки ",
+    "statsId": "ALCH_Solution_Elixir_Tadpole",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "Стимулирует шишковидную железу в мозгу и выпускает на свободу злую силу.",
+    "icon": "assets/bg3/icons/01/0182e5b47923cc695c6ecc33687d5f7355a865adc4d7416f23399c07d7f551db.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_Tadpole_TongueOfMadness",
+        "recipeName": "Эликсир личинки",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "blocked-capability",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-670c5dc2a2924a9e542d",
+        "issues": [
+          {
+            "where": "bg3-status-passive-f72803b46046b0a2291a",
+            "reason": "status-passive-source-blocked-ALCH_Elixir_Tadpole_Passive",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:d990fefe-e0f3-46ba-915e-35aebc6c6599:stats:T0JKX01hbGljZQ",
+    "name": "Злоба",
+    "statsId": "OBJ_Malice",
+    "publicItemId": "bg3:item:rt:d990fefe-e0f3-46ba-915e-35aebc6c6599:stats:T0JKX01hbGljZQ",
+    "namesakeId": null,
+    "description": "Флакон наполнен тончайшим порошком. Если его встряхнуть или бросить в глаза врагу, он становится дымом.",
+    "icon": "assets/bg3/icons/69/69ed1a66a19d3f17bf217ec063db98a81f833a12751c1d6e4b8d1fdec09ff2d4.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Poison_Blind_LolthsCandle",
+        "recipeName": "Злоба",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-54f596f520e81f4d60f9",
+        "issues": [
+          {
+            "where": "bg3:rule:status:UE9JU09OX01BTElDRV9URUNITklDQUxfQVBQTElFUg:program:standard",
+            "reason": "status-lifecycle-unsupported-property-flag-ExcludeFromPortraitRendering",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-64acd3e9bfe4bb5563b6",
+            "reason": "status-passive-applied-status-lifecycle-incomplete-POISON_MALICE_TECHNICAL_APPLIER",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:df5f8cbf-42c5-4c0d-a0ec-ce5046474d8e:stats:TE9XX1JlZ2VuZXJhdGlvblByZXZlbnRpb25fR3JlbmFkZQ",
+    "name": "Погибель карги",
+    "statsId": "LOW_RegenerationPrevention_Grenade",
+    "publicItemId": null,
+    "namesakeId": "bg3:item:rt:c220fbb7-3d0b-4109-a39a-7549a9ae91ab:stats:T0JKX0Jvb2s",
+    "description": "В Присмеере, где правит светлокудрая Зибильна, когда-то случились проблемы с каргами, ох какие проблемы. Так враз и не решишь.<br><br>Карги питают особую склонность к детям и ценят силу, которую дает невинность. И если помешать карге завладеть этой силой, для нее это может стать катастрофой. ",
+    "icon": "assets/bg3/icons/5a/5a00830a490b5ffd266c81c21126cdecb65f7c17e833328835ca71ad4d3a3578.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_LOW_RegenerationPrevention_Grenade",
+        "recipeName": "Погибель карги",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "different-public-definition",
+      "engine-handler-missing",
+      "engine-affordance-missing",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete"
+    ],
+    "runtime": []
+  },
+  {
+    "id": "bg3:item:rt:f528a334-bdb3-4cf1-b74c-0e08942daeb1:stats:T0JKX0Ryb3dQb2lzb24",
+    "name": "Яд дроу",
+    "statsId": "OBJ_DrowPoison",
+    "publicItemId": "bg3:item:rt:f528a334-bdb3-4cf1-b74c-0e08942daeb1:stats:T0JKX0Ryb3dQb2lzb24",
+    "namesakeId": null,
+    "description": "Многие дроу изготовляют яды с религиозным рвением: в конце концов, чтобы ублажить Ллос, нужны воистину смертоносные зелья.",
+    "icon": "assets/bg3/icons/d5/d5fb2f88e3910089cfc9f953802c77f4ae9a0d68544063a3e0377162fd91eb58.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Poison_Sleep_SwarmingToadstool",
+        "recipeName": "Яд дроу",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-29afe5cf5cdc2fa1e6f4",
+        "issues": [
+          {
+            "where": "bg3:rule:status:UE9JU09OX0RST1dfVEVDSE5JQ0FMX0FQUExJRVI:program:standard",
+            "reason": "status-lifecycle-unsupported-property-flag-ExcludeFromPortraitRendering",
+            "op": ""
+          },
+          {
+            "where": "bg3-status-passive-59f4ffec2c097870f19d",
+            "reason": "status-passive-applied-status-lifecycle-incomplete-POISON_DROW_TECHNICAL_APPLIER",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:f746397f-c489-4121-8499-40017981e290:stats:TUFHX1dBVENIRVJfSHVtYW5fQ3Jvc3Nib3c",
+    "name": "Адский самовзводный арбалет",
+    "statsId": "MAG_WATCHER_Human_Crossbow",
+    "publicItemId": null,
+    "namesakeId": null,
+    "description": "«Скручивание, размалывание, измельчение, дробление, растирание, взрыв, кусание! Услышьте их рокот, рев пламени, их щелчки и жужжание, металлическую мелодию, и знайте, что машины адского огня Аверно уже в пути!» – Эдикт в Элтуриэле ",
+    "icon": "assets/bg3/icons/5c/5cb2e531b7f1e5d659718f0b0d6603fdce9f1b3dbc492e84a6392645fd05c0bf.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:UNI_LOW_SteelWatchFoundry_WatcherHarpoonCrossbow",
+        "recipeName": "Адский самовзводный арбалет",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "public-definition-missing",
+      "runtime-not-ready",
+      "runtime-blocked-or-incomplete",
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "equipped",
+        "rule": "Projectile_MAG_LightningArrow_Shot",
+        "reason": "granted-action-runtime-compile-failed: virtual-grant-cost-branch-not-pure-consumeResource"
+      },
+      {
+        "kind": "equipped-main-hand",
+        "rule": "Shout_SteadyRangedCrossbow",
+        "reason": "granted-rule-projection-runtime-required"
+      },
+      {
+        "kind": "equipped-main-hand",
+        "rule": "Projectile_PiercingShot",
+        "reason": "granted-action-ground-target-runtime-required"
+      },
+      {
+        "kind": "equipped-main-hand",
+        "rule": "Target_MAG_RetrievingShot",
+        "reason": "granted-rule-projection-runtime-required"
+      }
+    ]
+  },
+  {
+    "id": "bg3:item:rt:fb16d5a8-866f-4c17-9591-0df1372b49c9:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfTWVkaXRhdGlvbl9TdXBlcmlvcg",
+    "name": "Превосходный эликсир магического развития",
+    "statsId": "ALCH_Solution_Elixir_Meditation_Superior",
+    "publicItemId": "bg3:item:rt:fb16d5a8-866f-4c17-9591-0df1372b49c9:stats:QUxDSF9Tb2x1dGlvbl9FbGl4aXJfTWVkaXRhdGlvbl9TdXBlcmlvcg",
+    "namesakeId": null,
+    "description": "Даже сквозь толстое стекло волшебная энергия, содержащаяся в этой бутылке, вызывает покалывание у тебя в пальцах.",
+    "icon": "assets/bg3/icons/f1/f13d9fd4eb396a4446c32bd346b29b3b5b7b647c8fddafc2792680d2caf19ec5.webp",
+    "roles": [
+      "result"
+    ],
+    "references": [
+      {
+        "recipeId": "bg3:recipe:ALCH_Elixir_Meditation_Superior_NightOrchid",
+        "recipeName": "Превосходный эликсир магического развития",
+        "role": "result",
+        "quantity": 1,
+        "operation": "Create"
+      }
+    ],
+    "schemaErrors": [],
+    "issues": [
+      "runtime-preflight-incomplete"
+    ],
+    "runtime": [
+      {
+        "kind": "use",
+        "action": "bg3-use-958280b4697eb80e8374",
+        "issues": [
+          {
+            "where": "bg3:rule:status:QUxDSF9FTElYSVJfTUVESVRBVElPTl9TVVBFUklPUg:program:standard",
+            "reason": "unsupported-resource-capacity",
+            "op": ""
+          }
+        ]
+      }
+    ]
+  }
+]

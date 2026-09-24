@@ -753,9 +753,9 @@
     "rootTemplateNodes": 9330,
     "itemStatsNodes": 3139,
     "classifications": {
-      "playable": 5858,
+      "playable": 5859,
       "world-object": 3265,
-      "duplicate": 565,
+      "duplicate": 564,
       "technical": 418,
       "needs-review": 176
     },
@@ -794,7 +794,7 @@
       "manual": 526
     },
     "mechanicsKinds": {
-      "misc": 5758,
+      "misc": 5750,
       "container": 482,
       "weapon": 813,
       "lore": 1409,
@@ -807,7 +807,7 @@
       "shield": 88,
       "trap": 81,
       "armor": 219,
-      "material": 106,
+      "material": 114,
       "ammo": 36,
       "water": 58,
       "poison": 10
@@ -1396,37 +1396,37 @@
     "itemMechanics": {
       "standard": {
         "materializations": 10282,
-        "readyActions": 2305,
-        "blockedActions": 2873,
-        "readyLifecycle": 1496,
-        "blockedLifecycle": 1002,
-        "genericInteractions": 3608,
+        "readyActions": 2313,
+        "blockedActions": 2865,
+        "readyLifecycle": 1500,
+        "blockedLifecycle": 998,
+        "genericInteractions": 3617,
         "directEffects": 291,
         "highConfidenceUnboundGaps": 127,
         "propsComplete": 10282,
         "runtimeStates": {
           "inert": 648,
-          "blocked": 2385,
-          "partial": 1361,
-          "ready": 3147,
-          "manual-review": 2741
+          "blocked": 2377,
+          "partial": 1358,
+          "ready": 3163,
+          "manual-review": 2736
         },
         "effectStates": {
           "source-inert": 588,
-          "runtime-blocked": 2278,
-          "runtime-partial": 1361,
-          "runtime-ready": 3073,
-          "manual-review": 2741,
+          "runtime-blocked": 2270,
+          "runtime-partial": 1358,
+          "runtime-ready": 3090,
+          "manual-review": 2736,
           "inherited-inert": 60,
           "script-declared-blocked": 107,
-          "destruction-only": 74
+          "destruction-only": 73
         },
         "characteristicIssues": {
           "container-capacity-unknown": 481,
           "light-photometry-unknown": 319,
           "shield-ac-not-applicable": 2,
           "weapon-damage-not-applicable": 15,
-          "description-handle-unresolved": 73,
+          "description-handle-unresolved": 72,
           "ammo-compatibility-unknown": 36,
           "armor-type-none-explicit": 69,
           "instrument-classification-review": 6,
@@ -1554,22 +1554,20 @@
     "itemArsenalQuality": {
       "examined": 10282,
       "catalogItems": 10282,
-      "retained": 2378,
-      "removed": 7904,
+      "retained": 2494,
+      "removed": 7788,
       "removalReasons": {
-        "runtime-not-ready": 7135,
-        "blocked-capability": 2848,
-        "description-not-source-backed": 4576,
-        "domain:description must be localized and non-empty": 4576,
-        "engine-affordance-missing": 5004,
-        "engine-handler-missing": 5004,
-        "runtime-blocked-or-incomplete": 6970,
+        "runtime-not-ready": 7119,
+        "blocked-capability": 2840,
+        "description-not-source-backed": 4572,
+        "domain:description must be localized and non-empty": 4572,
+        "engine-affordance-missing": 4991,
+        "engine-handler-missing": 4991,
+        "runtime-blocked-or-incomplete": 6953,
         "non-arsenal-classification": 594,
         "taxonomy-unclassified": 134,
         "weight-not-source-backed": 84,
-        "recipe-handler-target-missing": 50,
-        "strict-recipe-closure-excluded": 48,
-        "canonical-item-excluded": 49
+        "canonical-item-excluded": 48
       }
     }
   },
@@ -1758,8 +1756,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/03-0001.json",
         "shard": "03-0001",
         "count": 9,
-        "bytes": 104613,
-        "sha256": "ae9f189b57898150d5dd285c254ae39374348d1e50e505a35c30865009971a2c"
+        "bytes": 104845,
+        "sha256": "53027e96788fc717fbf4dff0a2a580fdd26f2a90d7eb5d0d264119008cd570b2"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/03-0002.json",
@@ -2297,8 +2295,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/15-0001.json",
         "shard": "15-0001",
         "count": 10,
-        "bytes": 117054,
-        "sha256": "33d9abb3c24b7ce5a7cd69e71eb131e40b976fd1b3b70c1abbba592faedfc822"
+        "bytes": 117201,
+        "sha256": "af5d7afe1fe7d035502d0c4ef0a82f168f397d8b4f9aae5e5cf78d18e5332ae6"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/15-0002.json",
@@ -2745,8 +2743,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/24-0001.json",
         "shard": "24-0001",
         "count": 8,
-        "bytes": 114266,
-        "sha256": "813eb3b60bc3c75f926aeb14ed435243552eb7df1b99bf9168f856358a4d7ad6"
+        "bytes": 115532,
+        "sha256": "0b6d17a17690e402c626f92e934680d8f953a94ef312d554ed16d6c792e624dc"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/24-0002.json",
@@ -2780,8 +2778,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/25-0002.json",
         "shard": "25-0002",
         "count": 11,
-        "bytes": 115969,
-        "sha256": "2a338358443c62b6628b6fce9c000e4bac273ab4b0c11828cddddbccb4c17661"
+        "bytes": 116296,
+        "sha256": "1291a551f0a96610979596629a6a06d4dae95b746e6e693b8db7f190fdfac3b2"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/25-0003.json",
@@ -2955,8 +2953,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/2b-0002.json",
         "shard": "2b-0002",
         "count": 12,
-        "bytes": 107644,
-        "sha256": "8593fda4c973c2a4081e31a848df40bf338260e5e799549d8461b184d02f28f6"
+        "bytes": 107969,
+        "sha256": "1b53058cda043ba2c3d3bc9d1f6f3a135cdc5134842bcbd9b61b6b5c9ed31790"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/2b-0003.json",
@@ -3354,8 +3352,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/38-0000.json",
         "shard": "38-0000",
         "count": 8,
-        "bytes": 109435,
-        "sha256": "7ad286a1df25a5eed84a5bdf24a14f5927875b538383b406a256244d63ee90e7"
+        "bytes": 109405,
+        "sha256": "a44cbfaf2c87ec24c53f36e3a109a8932d12edacf90cb4cdedfeef1470b72617"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/38-0001.json",
@@ -3368,15 +3366,15 @@
         "path": "data/bg3/bg3-24532579-v10/items/38-0002.json",
         "shard": "38-0002",
         "count": 13,
-        "bytes": 122165,
-        "sha256": "6b1f9c4f59f5479882dc9304254625faa5ae9586349d8fdb573f51fce4758408"
+        "bytes": 122312,
+        "sha256": "221b1d66619efc584ddc9a1228de74d06e69d6d42b535dbe73fa41a0a953d9f0"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/38-0003.json",
         "shard": "38-0003",
         "count": 9,
-        "bytes": 97948,
-        "sha256": "b12d60d905a281765c30160d11b31211fc8b2559d0c4d1c19f6a978e30e7578e"
+        "bytes": 98125,
+        "sha256": "0f65bb29a8a8aa0133f2d0a32bf85c4480df15777a62afa2ec4769c8936a3388"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/39-0000.json",
@@ -3683,8 +3681,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/43-0000.json",
         "shard": "43-0000",
         "count": 14,
-        "bytes": 121070,
-        "sha256": "0456458bf2637e94e53c52effa5f84b4d3b8d6c3770ffe2d8564b25821ad48b5"
+        "bytes": 121040,
+        "sha256": "9c73d5a0f8727520a8d8773082b58a51ea3212a4ef944e69c30ba67fb941bd9d"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/43-0001.json",
@@ -3963,8 +3961,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/4c-0003.json",
         "shard": "4c-0003",
         "count": 12,
-        "bytes": 118676,
-        "sha256": "935a34565c1543ab055d9ca329f5aa605c907121ff832105bb0d5c290fc837d8"
+        "bytes": 120719,
+        "sha256": "8d12e994ec12a39f3dbf11992a853bb5d7d85e1bdd574dcb2c39f3957586a101"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/4c-0004.json",
@@ -4201,8 +4199,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/54-0003.json",
         "shard": "54-0003",
         "count": 13,
-        "bytes": 117609,
-        "sha256": "cda52b1eee11c8f50de195110cc9e4a9dc538452511afa423a5c8d6c15ba80e2"
+        "bytes": 117936,
+        "sha256": "3654b1e0c4ba76ee53feaea71a3c37f773a1fb0230c07492acfa2ba77fa07f39"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/54-0004.json",
@@ -4481,8 +4479,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/5d-0001.json",
         "shard": "5d-0001",
         "count": 12,
-        "bytes": 115013,
-        "sha256": "609a37fd02ebbadb61adb19e7093834f12c359545f4768aca65a60875858776c"
+        "bytes": 114986,
+        "sha256": "b031c5fe120f14271cfd4ef77ff9cf25da62b0f060acc1f3fc1c579cc376928d"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/5d-0002.json",
@@ -5181,8 +5179,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/75-0000.json",
         "shard": "75-0000",
         "count": 10,
-        "bytes": 89200,
-        "sha256": "6c51987d0acd1d0565e05f27fe573676035622163d27d6efd8f4c2f5eb59a5d5"
+        "bytes": 90469,
+        "sha256": "2a62e4359f174caf14b07a7190eb660254868df82b7dd0a968d7293831d79019"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/75-0001.json",
@@ -5566,8 +5564,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/81-0005.json",
         "shard": "81-0005",
         "count": 8,
-        "bytes": 117936,
-        "sha256": "56d43705f9b778a9dec9668ca574b95dbebfe18dad437fb6987ae141632ac5e8"
+        "bytes": 118100,
+        "sha256": "4953b2f6ae456e4e6856665b65486e10cdaec3095c9076a997153ad5e17f0091"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/81-0006.json",
@@ -5776,8 +5774,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/88-0004.json",
         "shard": "88-0004",
         "count": 13,
-        "bytes": 117007,
-        "sha256": "a81e609b0247e8b114cfbcdd0b271e49baa69c05b45c093cfc18330549620461"
+        "bytes": 118513,
+        "sha256": "9ca17194bef403d896e47591a86e7537c46100cf053c3686d8d638bcc7a99d53"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/88-0005.json",
@@ -6707,8 +6705,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/a6-0002.json",
         "shard": "a6-0002",
         "count": 9,
-        "bytes": 112666,
-        "sha256": "adb67957c19b8d001e07b3848cc0a0bb97d2c34ca5de3befd9d33318d6ef58f5"
+        "bytes": 112640,
+        "sha256": "650f5c6bc1c3d0908e55eea62a27add73a5a8b57d3a7eee538711c40b9a9b7a2"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/a6-0003.json",
@@ -7134,8 +7132,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/b5-0001.json",
         "shard": "b5-0001",
         "count": 9,
-        "bytes": 87032,
-        "sha256": "9d1cd3feecf3ce251efc75b88496cb622462b9176a0041b9af39697ff3a53aca"
+        "bytes": 88814,
+        "sha256": "b8e2c88618495c416e4739ed8ead04eb7cff0cc897369097ea2ead2c23a27700"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/b5-0002.json",
@@ -7295,8 +7293,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/b9-0004.json",
         "shard": "b9-0004",
         "count": 10,
-        "bytes": 114481,
-        "sha256": "485097f4aa8cae1583a8eb0a925b5c1f189b5f76231320f2f8736648288d5732"
+        "bytes": 114453,
+        "sha256": "414ab59d08ebe6ea8a9e95f8bc98d212c1c2e7a1fb45c76c9707c31c87467662"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/b9-0005.json",
@@ -7645,8 +7643,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/c5-0000.json",
         "shard": "c5-0000",
         "count": 12,
-        "bytes": 119128,
-        "sha256": "236187d2724d21c3f45bcc5791b032298c7007b2e3788563b54cd4a9be8af63a"
+        "bytes": 120930,
+        "sha256": "bd18810463e9203cf69ba4aaace00917238ec2de9c64c86ce303bc2daf01e14a"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/c5-0001.json",
@@ -7855,8 +7853,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/cc-0001.json",
         "shard": "cc-0001",
         "count": 10,
-        "bytes": 112481,
-        "sha256": "ca7d60dd5f67ee7f1aae97b6b90fbe3b6b0641347937816cfe458bfb5af75b7a"
+        "bytes": 112660,
+        "sha256": "b73a2e9f75273575983bda3cd4df177fe7c480706c7a929a63738489a1b56e0f"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/cc-0002.json",
@@ -7925,8 +7923,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/ce-0000.json",
         "shard": "ce-0000",
         "count": 9,
-        "bytes": 97254,
-        "sha256": "d3c328128e2d0b0583774c726b75cacd8277ce2467e8c659d9f5cc9b7f171d0f"
+        "bytes": 98667,
+        "sha256": "1bdccdc813a57ce72b6ca71e08d41d66e3edcfb2c6d4207c581f3f07488ed650"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/ce-0001.json",
@@ -8373,8 +8371,8 @@
         "path": "data/bg3/bg3-24532579-v10/items/dc-0000.json",
         "shard": "dc-0000",
         "count": 8,
-        "bytes": 112746,
-        "sha256": "38c44bbe2756ead27d7b91c239995a81b74fbc3d66a78296d8429cb182f25ee7"
+        "bytes": 112706,
+        "sha256": "9dcccbf2afc289cc64b1fb1a8ee39a736d106525dd13f53822891bd1574a79f7"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/items/dc-0001.json",
@@ -18009,8 +18007,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/rules/statuses/80.json",
-        "bytes": 27559,
-        "sha256": "49fa4010d805fb1dd554679a7bd0868dcb35c93ce59a69a89be1028e7459c63a",
+        "bytes": 27348,
+        "sha256": "c192fcf4755d6f419a4930150e21a1ac0be407c30565dfb2ae68e030860eeaf6",
         "kind": "statuses",
         "shard": "80",
         "count": 6
@@ -18057,8 +18055,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/rules/statuses/86.json",
-        "bytes": 31262,
-        "sha256": "fdedb988f021c5943686e944320f1d7769109bcd68a7e35db9022574574c1095",
+        "bytes": 30922,
+        "sha256": "301b12f880033fd67ceea393264180c90dfff8932422f1a3f3b13816d4512a57",
         "kind": "statuses",
         "shard": "86",
         "count": 8
@@ -18369,8 +18367,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/rules/statuses/ad.json",
-        "bytes": 29826,
-        "sha256": "3f7a2bd7019a817f5b4858706d1dd7e939aeecb686e651ed75ada529c5e9f05e",
+        "bytes": 29730,
+        "sha256": "7795a689c43ed034f145da416916bb19e842fe80ce9655f5b9b78e94e8fb8daf",
         "kind": "statuses",
         "shard": "ad",
         "count": 8
@@ -18553,8 +18551,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/rules/statuses/c4.json",
-        "bytes": 15901,
-        "sha256": "409307cf5f0deff531d6e2e9c2d72abf30c7dcdd9fbcca2c3515847d1eec7678",
+        "bytes": 15854,
+        "sha256": "fb5d574448fa8365531eaf5cef10cc620d384e259b6cc3bb0b346ab1234e6b65",
         "kind": "statuses",
         "shard": "c4",
         "count": 5
@@ -18801,8 +18799,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/rules/statuses/e3.json",
-        "bytes": 27907,
-        "sha256": "d348c6a1330b50478221d29e8156aa00771ecf15b9bf0f13ca2e755393332e3f",
+        "bytes": 27860,
+        "sha256": "0a52697385e0ff9a30751da471192e8dc8a0f9b8a82f7f9bc370b6d88195ffb8",
         "kind": "statuses",
         "shard": "e3",
         "count": 8
@@ -18945,8 +18943,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/rules/statuses/f5.json",
-        "bytes": 29501,
-        "sha256": "0a3cdad98317fad39cc21777910639ee409e6a8bc9cf7df1d3a0b47f32f87db5",
+        "bytes": 29402,
+        "sha256": "eeed2b5bfc3926119b6fbc01d452c036a146698ba2d397d2b8f09e33678ca37a",
         "kind": "statuses",
         "shard": "f5",
         "count": 8
@@ -18961,8 +18959,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/rules/statuses/f7.json",
-        "bytes": 30059,
-        "sha256": "3cf2c3b075dfa857e35ead0d3fb54b393cc03c8f8faadb4049e477c164d2dd00",
+        "bytes": 29923,
+        "sha256": "cb65ce87a3a2701f2a9a463692a8f033e34957b92f5983299c08b6211703ce76",
         "kind": "statuses",
         "shard": "f7",
         "count": 7
@@ -19988,8 +19986,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/root-template-programs/25-0000.json",
-        "bytes": 105195,
-        "sha256": "46da6c5fb9750112c4d39b43bf04994506cff85085336da06107d032e0714b32",
+        "bytes": 105082,
+        "sha256": "e6124c947b121ea132ecc78c511713d45b8ab6eacfad56c891f1e74c30603aee",
         "shard": "25-0000",
         "count": 41
       },
@@ -20100,8 +20098,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/root-template-programs/2b-0001.json",
-        "bytes": 104342,
-        "sha256": "737b072ef366f5dfc2431102a7cf9efe09468336575b221250b223706c497155",
+        "bytes": 104229,
+        "sha256": "f3a4866066cb715431d3a92af1d17a478e122d5216feffc6cc39e231ae788928",
         "shard": "2b-0001",
         "count": 39
       },
@@ -20345,8 +20343,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/root-template-programs/38-0001.json",
-        "bytes": 104738,
-        "sha256": "f864fd49f36569f94d5ec899e0397a4e04c9fa5c0407880ad76b49d1db747660",
+        "bytes": 104733,
+        "sha256": "7384f56bb6bfbec11ccb369038fb6d65a584390a18a683c0985659afe25c73c5",
         "shard": "38-0001",
         "count": 39
       },
@@ -20534,8 +20532,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/root-template-programs/43-0000.json",
-        "bytes": 105048,
-        "sha256": "bc07502d7e48a2e0af1f710d6c704880e6f78f02ebfc1e6de519686becc71d3f",
+        "bytes": 105043,
+        "sha256": "95054a6118cf8c33b524bb7c3862e12b54bef2e71541beb4af1cbb91e8684750",
         "shard": "43-0000",
         "count": 37
       },
@@ -20821,8 +20819,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/root-template-programs/54-0001.json",
-        "bytes": 105129,
-        "sha256": "84e7925344e4f79a2c29ee9f9274dc12ec047b7f972620cdd4b8c72abf1f0d2e",
+        "bytes": 105016,
+        "sha256": "2749a84f1e312a9838fb25c10124fd68d59a91b319c180d66e8170adddc84fc6",
         "shard": "54-0001",
         "count": 39
       },
@@ -20968,8 +20966,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/root-template-programs/5d-0000.json",
-        "bytes": 104183,
-        "sha256": "b788ab6b41634dc69b8dcbd3329d6ce7b9190bd2b2fd12908b22be1f050c0af6",
+        "bytes": 104182,
+        "sha256": "0040ad92c3055bb797602afd9318aac344a30877226762439de786e1131d257e",
         "shard": "5d-0000",
         "count": 34
       },
@@ -22187,7 +22185,7 @@
       {
         "path": "data/bg3/bg3-24532579-v10/root-template-programs/a6-0000.json",
         "bytes": 104438,
-        "sha256": "62a8b67e0383576cb4fe44c5800b382b7d4a4d9f6f84810e15bd53e6fed1e5d0",
+        "sha256": "fddacdaffce004c0ca949aebc41da547cb0f1e7533421059bec449baeb18d118",
         "shard": "a6-0000",
         "count": 25
       },
@@ -23138,8 +23136,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/root-template-programs/dc-0000.json",
-        "bytes": 104313,
-        "sha256": "2da209b09aba20f3590c60ee95e1cf601ea8b33bad245d968471cf981dc28f53",
+        "bytes": 104299,
+        "sha256": "1419a6c1d7cd1363e804b3555f081e41b699fa2e6c3fbf0eb63dec9dbc55ab73",
         "shard": "dc-0000",
         "count": 30
       },
@@ -40138,8 +40136,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/item-mechanics-report.json",
-        "bytes": 3886,
-        "sha256": "abb1e2f5f6f312cbefded8c6a6c4509e7931cbffdfedbcbd59787e539bae8b24"
+        "bytes": 3910,
+        "sha256": "f0f8ef3a6954b01b34dc6ca3439c21ea00d2791f8f75c23df39d781f2f0710d0"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/item-mechanics-report.md",
@@ -40164,7 +40162,7 @@
       {
         "path": "data/bg3/bg3-24532579-v10/mechanics-coverage.json",
         "bytes": 1972,
-        "sha256": "3f9b2530f6c12c613e1f2d0daa668f90fe6fd2fd24286d3f9225b9932e289a59"
+        "sha256": "906e1cff551234cd99d3da7d4f722803585e728d935747339fe1c18e9860b9dc"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/recipes.json",
@@ -40183,8 +40181,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/search-index.json",
-        "bytes": 5263797,
-        "sha256": "cd4e61befc760661d85c97ae3f6790bd6e1ed1976352c78bbbfe4b469ee6f500"
+        "bytes": 5263936,
+        "sha256": "2fde69f344c545b188904df05ab27ba7a2c8ada1e076da72e2c754f59a8ad662"
       },
       {
         "path": "data/bg3/bg3-24532579-v10/source/gold-values.json",
@@ -40208,8 +40206,8 @@
       },
       {
         "path": "data/bg3/bg3-24532579-v10/item-arsenal-quality-report.json",
-        "bytes": 2554976,
-        "sha256": "3f95270d17b4cb972d1dca1db68609b92d1dbb3fa08ebfc47e37abd993806bdb"
+        "bytes": 2531270,
+        "sha256": "c4efdf9dc2cdd1e2eb00e1d786bd54cdae32be6921da6c3097862f4b6e031078"
       }
     ]
   },
@@ -40304,7 +40302,7 @@
     "fullArsenalComplete": true,
     "fullArsenalUnknownValues": 0,
     "fullArsenalBlockedCapabilities": 0,
-    "fullArsenalItems": 2378,
+    "fullArsenalItems": 2494,
     "standardCatalogComplete": true,
     "standardCatalogItems": 10282,
     "standardOnly": true,

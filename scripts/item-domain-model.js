@@ -21,7 +21,7 @@
   const DURATION_KINDS = Object.freeze(['instant', 'rounds', 'until-target-turn-start', 'until-target-turn-end', 'until-long-rest', 'source-program', 'while-requirements-hold', 'concentration']);
   const EFFECT_OPERATIONS = Object.freeze(['add', 'min', 'mul', 'set', 'grant', 'die', 'adv', 'dis']);
   const RESTRICTION_KINDS = Object.freeze(['resolution-gate', 'ends-on-event']);
-  const SPECIAL_OPERATIONS = Object.freeze(['stabilize', 'coatWeapon', 'oil', 'zone', 'teleport', 'cleanse', 'campaignContext', 'mentorGuard', 'stayAtOneSave', 'incomingMitigation', 'sealDocument', 'sealResolve', 'bg3Read', 'bg3LightToggle', 'bg3Story', 'bg3Tadpole', 'bg3Recipe', 'bg3RecipeUnlock', 'bg3LearnSpell']);
+  const SPECIAL_OPERATIONS = Object.freeze(['recipeTabletop', 'stabilize', 'coatWeapon', 'oil', 'zone', 'teleport', 'cleanse', 'campaignContext', 'mentorGuard', 'stayAtOneSave', 'incomingMitigation', 'sealDocument', 'sealResolve', 'bg3Read', 'bg3LightToggle', 'bg3Story', 'bg3Tadpole', 'bg3Recipe', 'bg3RecipeUnlock', 'bg3LearnSpell']);
   const REQUIREMENT_PREDICATES = Object.freeze([
     'equipped', 'attuned', 'held', 'unarmored', 'willing', 'downed', 'blocked-tags',
     'required-tags', 'damage-types', 'required-save-tags', 'any-save-tags',
@@ -411,7 +411,7 @@
 
   function descriptionOf(item, taxonomy) {
     const localized = text(item && item.i18n && item.i18n.ru && item.i18n.ru.description) || text(item && item.desc);
-    if (localized) return {text: localized, language: 'ru', source: item && item.source && item.source.game === 'bg3' ? 'source-localized' : 'catalog'};
+    if (localized) return {text: localized, language: 'ru', source: item?.mechanics?.provenance?.gameDescription ? 'catalog' : item && item.source && item.source.game === 'bg3' ? 'source-localized' : 'catalog'};
     return {text: '', language: 'ru', source: 'missing'};
   }
 

@@ -171,13 +171,13 @@ function auditedDefinitionRecord(definition, kind) {
 }
 
 function buildCatalogAudit(engine, gameAudit, itemAudit, rareAudit, spellPreparationAudit) {
-  assert.deepEqual(clone(gameAudit.counts),{spells:958,abilities:693,items:193,foes:30,total:1874});
-  assert.equal(gameAudit.variants,6410,'all production world formula variants are audited after correcting SRD spell circles');
+  assert.deepEqual(clone(gameAudit.counts),{spells:958,abilities:693,items:231,foes:30,total:1912});
+  assert.equal(gameAudit.variants,6483,'all production world formula variants are audited after correcting SRD spell circles');
   const activeSpells=engine.catalogs.spells.filter(row=>row.grimoire?.status==='active');
   assert.equal(activeSpells.length,321,'each campaign admits the same canonical 2014 catalog');
   assert.equal(new Set(activeSpells.map(row=>row.grimoire.key)).size,321,'aliases do not add spell identities');
   assert.equal(gameAudit.errors.length,0,gameAudit.errors[0] || 'production world audit');
-  assert.equal(itemAudit.total,1067);assert.equal(itemAudit.passed,1067);assert.equal(itemAudit.failed,0);
+  assert.equal(itemAudit.total,1257);assert.equal(itemAudit.passed,1257);assert.equal(itemAudit.failed,0);
   assert.equal(rareAudit.total,250);assert.equal(rareAudit.passed,250);assert.equal(rareAudit.failed,0);
   assert.equal(spellPreparationAudit.total,320);assert.equal(spellPreparationAudit.passed,320);assert.equal(spellPreparationAudit.failed,0);
 
@@ -188,7 +188,7 @@ function buildCatalogAudit(engine, gameAudit, itemAudit, rareAudit, spellPrepara
   const quality = JSON.parse(fs.readFileSync(path.join(catalogRoot,manifest.entrypoints.itemArsenalQualityReport),'utf8'));
   const removed = new Map(quality.removed.map(row => [row.itemId,row.reasons]));
   assert.equal(search.items.length,manifest.counts.items);assert.equal(search.items.length,10282);
-  assert.equal(quality.counts.retained,2378);assert.equal(quality.counts.removed,7904);
+  assert.equal(quality.counts.retained,2494);assert.equal(quality.counts.removed,7788);
 
   const localItems = engine.catalogs.items.map(definition => ({
     id:definition.id,definition,domain:'local',admission:'production-item-audit',executableClaim:false,
@@ -1305,7 +1305,7 @@ test('500 independent campaigns execute the production journey, audit/admit ever
     schemaVersion:'dnd-world-final-integration-matrix/1',campaigns:500,completed:aggregate.completed,
     distinctCampaignIds:aggregate.campaignIds.size,distinctConfigurations:aggregate.fingerprints.size,
     catalogAdmissionCoverage:{
-      items:aggregate.seen.item.size,localItems:193,bg3Items:10282,spells:aggregate.seen.spell.size,
+      items:aggregate.seen.item.size,localItems:231,bg3Items:10282,spells:aggregate.seen.spell.size,
       abilities:aggregate.seen.ability.size,foes:aggregate.foes.size,executionClaim:false,
     },
     productionExecutedIds,

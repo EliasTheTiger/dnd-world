@@ -67,12 +67,14 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         list:itemWorkspaceListRowHTML, card:itemCardHTML, bag:bagItemVisualHTML,
         equipment:equipmentItemIconHTML, grant:itemWorkspaceGrantPlanFor,
         readiness:itemArsenalReadiness, summary:bg3ReleaseSummaryHTML,
-        resolve:gameItemDefinition, execution:itemOf, canonicalize:canonicalizeItemDatabase, save:gameItemSave, candidate:itemEditorCandidate, duplicate:gameItemDuplicate,
+        resolve:gameItemDefinition, execution:itemOf, audit:ensureItemAudit, canonicalize:canonicalizeItemDatabase, save:gameItemSave, candidate:itemEditorCandidate, duplicate:gameItemDuplicate,
         inventoryBlock:itemInventoryBlock, repository:worldDefinitionRepository, references:worldDefinitionReferenceAudit,
         export:worldSnapshotPayload, upgrade:upgradeItem, inventoryHTML:stInventory,
         controls:itemWorkspaceGrantControlsHTML, editor:itemEditorHTML,
         selectEditor(id){editing.it=id;},
-        hydrate: bg3CatalogHydrate, prepare:bg3RuleProgramPrepare, plan:bg3RuleProgramPlanOf,
+        hydrate: bg3CatalogHydrate, prepare:bg3RuleProgramPrepare, plan:bg3RuleProgramPlanOf, open:bg3ItemProgramOpen,
+        damage:applyDamageTo, effects:holderFxEntries, fallDamage:characterFallDamage,
+        prepareActor:bg3LifecycleEnsureActionReady,
         async load(){await bg3CatalogEnsureIndex();await bg3ItemPresentationEnsure();},
         install(index, presentation, loaded=[]) {
           bg3Catalog.epoch++;bg3Catalog.index=index;
@@ -92,6 +94,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         setCast(ctx){castCtx=ctx;},roll(){return rollSpec;},advanceFxRound
       },
       gameDataAudit, itemActions, itemProfile, itemUsesOf, itemAuditRollValues,
+      tabletopApi:{surface:recipeTabletopSurface,contact:recipeTabletopContact,move:recipeTabletopMove,size:recipeTabletopSize,wake:recipeTabletopWake,cleanse:abilityGameplayCleanse,effectEnded:recipeTabletopEffectEnded,applyFx:applyFxTo,applyFxFoe:applyFxToFoe,condition:combatApplyConditionDirect,timeCheck:recipeTabletopTimeCheck,burstSave:recipeTabletopBurstSave,profile:recipeTabletopProfile,preflight:recipeTabletopPreflight,burstPlan:recipeTabletopBurstPlan,burstCommit:recipeTabletopBurstCommit,zoneMember:recipeTabletopZoneMember,tickResolve:recipeTabletopTickResolve,startTurn:recipeTabletopStartTurn,extinguish:recipeTabletopExtinguish,conversation:recipeTabletopConversation,jump:recipeTabletopJump,escape:recipeTabletopEscape,slot:recipeTabletopSlot,spellTrigger:recipeTabletopSpellTrigger,rollPreflight:recipeTabletopRollPreflight,controls:recipeTabletopControls,itemOpen:itemCastFx,weaponOpen:weaponAttackFx,formula:castFormulaRollsBuild,rest:recipeTabletopRest},
       itemUseOf, itemUseSpecOf, targetInfoOf, resolveOutcome, validateFormulaValues,
       useItemApply, castSpellApply, useAbilityApply, weaponSpecOf, weaponAttackApply,
       rollSpecOf, combatUseItem, combatUseAbility, combatCastSpell, combatWeapon,
@@ -115,7 +118,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         setDraft(c) {characterDraft=c;},draft(){return characterDraft;},
         withoutPresentation(){renderChars=()=>{};renderCombat=()=>{};renderChests=()=>{};renderMerchants=()=>{};renderCharacterCreator=()=>{};characterCreatorClose=()=>{characterDraft=null;};}
       },
-      blankCombat, combatStart, combatNextTurn, combatSpend, combatCanSpend,
+      blankCombat, combatStart, combatEnd, combatNextTurn, combatSpend, combatCanSpend,
       coinCopperTotal, acTotal, eHpMax, effectiveConditions,
       dndWorldExportPayload, dndWorldImportPayload, loadAll, runScheduledSave,
       saveWorldNow() { savePendWorld=true; return runScheduledSave(); },

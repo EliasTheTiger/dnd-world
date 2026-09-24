@@ -11,7 +11,7 @@ const SKIP_FULL_SUITE = process.env.CI === 'true' && process.env.DND_WORLD_SKIP_
 const BROWSER_SCHEMA_VERSION = 'dnd-world-player-agent-run/1';
 const CAMPAIGN_SCHEMA_VERSION = 'dnd-world-final-integration-matrix/1';
 const CAMPAIGN_COUNT = 500;
-const EXPECTED_FORMULA_VARIANTS = 6410; // SRD 2014 circle corrections add two valid upcast variants.
+const EXPECTED_FORMULA_VARIANTS = 6483; // Includes all 38 native recipe definitions and their action formulas.
 const EXPECTED_BROWSER_PHASES = Object.freeze(Array.from({ length: 15 }, (_, index) => `P${String(index + 1).padStart(2, '0')}`));
 const REQUIRED_CAMPAIGN_STAGES = Object.freeze([
   'campaign-start', 'starting-grants', 'merchant-visit', 'merchant-buy',
@@ -264,7 +264,7 @@ function readCampaignSummary(artifactDir) {
     else if (summary[key] !== CAMPAIGN_COUNT) issues.push(`${key} must equal ${CAMPAIGN_COUNT}`);
   }
   const coverage = summary && summary.catalogAdmissionCoverage;
-  const expectedCoverage = {items:10475,localItems:193,bg3Items:10282,spells:958,abilities:693,foes:30};
+  const expectedCoverage = {items:10513,localItems:231,bg3Items:10282,spells:958,abilities:693,foes:30};
   if (!coverage || typeof coverage !== 'object' || Array.isArray(coverage)) issues.push('catalogAdmissionCoverage object is missing');
   else for (const [key, expected] of Object.entries(expectedCoverage)) {
     if (coverage[key] !== expected) issues.push(`catalogAdmissionCoverage.${key} must equal ${expected}`);
@@ -296,7 +296,7 @@ function readCampaignSummary(artifactDir) {
     if (formulaValidation.auditFunction !== 'gameDataAudit' || formulaValidation.scope !== 'installed-local-runtime') issues.push('structuredFormulaValidation must identify the production local-runtime audit');
     if (formulaValidation.executionClaim !== false) issues.push('structuredFormulaValidation.executionClaim must be false');
     if (formulaValidation.variantsBuiltAndValidated !== EXPECTED_FORMULA_VARIANTS || formulaValidation.errors !== 0) issues.push(`structuredFormulaValidation must prove ${EXPECTED_FORMULA_VARIANTS} valid formula variants with zero errors`);
-    const expectedDefinitions={spells:958,abilities:693,items:193,foes:30,total:1874};
+    const expectedDefinitions={spells:958,abilities:693,items:231,foes:30,total:1912};
     if (!isRecord(formulaValidation.definitions)
       || Object.entries(expectedDefinitions).some(([key,value]) => formulaValidation.definitions[key] !== value)) {
       issues.push('structuredFormulaValidation.definitions does not match the installed local catalog');
@@ -319,9 +319,9 @@ function readCampaignSummary(artifactDir) {
   else {
     if (audit.worldErrors !== 0) issues.push('engineAudit.worldErrors must equal 0');
     if (audit.itemFailed !== 0) issues.push('engineAudit.itemFailed must equal 0');
-    if (audit.itemPassed !== 1067) issues.push('engineAudit.itemPassed must equal 1067');
+    if (audit.itemPassed !== 1257) issues.push('engineAudit.itemPassed must equal 1257');
     if (audit.worldVariants !== EXPECTED_FORMULA_VARIANTS) issues.push(`engineAudit.worldVariants must equal ${EXPECTED_FORMULA_VARIANTS}`);
-    const expectedWorldCounts = {spells:958,abilities:693,items:193,foes:30,total:1874};
+    const expectedWorldCounts = {spells:958,abilities:693,items:231,foes:30,total:1912};
     if (!isRecord(audit.worldCounts)) issues.push('engineAudit.worldCounts object is missing');
     else for (const [key, expected] of Object.entries(expectedWorldCounts)) if (audit.worldCounts[key] !== expected) issues.push(`engineAudit.worldCounts.${key} must equal ${expected}`);
     for (const [key, expected] of Object.entries({rareBattlePassed:250,rareBattleFailed:0,spellPreparationPassed:320,spellPreparationFailed:0})) {

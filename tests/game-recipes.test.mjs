@@ -67,12 +67,111 @@ test('all five alternative formulas manufacture and use the same tabletop item',
 test('a missing tabletop definition never falls back to a different source result',async()=>{
  const e=await world(),recipe=e.recipesApi.of('bg3:recipe:ALCH_Potion_Invisibility_ImpPatagium'),adapted=rules.imported(recipe.raw,id=>id==='it_potion_invisibility'?null:{id,n:'Исходный предмет'}),{actor,choices}=fixture(e,recipe);assert.deepEqual(adapted.resultIds,['it_potion_invisibility']);assert.equal(rules.plan(adapted,actor,choices).ok,true);assert.equal(rules.plan(adapted,actor,{...choices,resultId:recipe.raw.result.candidateIds[0]}).code,'RESULT_REQUIRED');
 });
-test('an unsupported unpaired result is still disclosed before anything is spent',async()=>{
- const e=await world(),source=e.recipesApi.of('bg3:recipe:ALCH_Potion_FeatherFall_AutumnCrocus'),{actor,choices}=fixture(e,source);e.setState({items:e.catalogs.items,chars:[actor]});const before=JSON.stringify(actor.inventory),prepared=await e.recipesApi.prepare(source.id,actor.id,choices);
- assert.equal(prepared.ok,true,prepared.reason);assert.equal(prepared.outputStatus.state,'blocked');assert.match(prepared.outputStatus.warning,/активное применение пока не поддерживается/);assert.equal(JSON.stringify(actor.inventory),before);
- assert.match(e.recipesApi.outputHTML(choices.resultId),/применение будет заблокировано/);
+test('crafted feather fall uses a sealed confirmation, consumes once and protects only until expiry',async()=>{
+ const e=await world(),source=e.recipesApi.of('bg3:recipe:ALCH_Potion_FeatherFall_AutumnCrocus'),{actor,choices}=fixture(e,source);e.setState({items:e.catalogs.items,chars:[actor],activeCharId:actor.id});const before=JSON.stringify(actor.inventory),prepared=await e.recipesApi.prepare(source.id,actor.id,choices);
+ assert.equal(prepared.ok,true,prepared.reason);assert.equal(prepared.outputStatus.state,'ready');assert.equal(JSON.stringify(actor.inventory),before);
+ assert.equal((await e.recipesApi.commitGame(prepared)).ok,true);const item=e.itemsApi.resolve(choices.resultId),use=e.itemUsesOf(item)[0],entry=actor.inventory.find(row=>row.itemId===item.id),target='ally:'+actor.id;
+ assert.equal(e.useItemApply(entry.id,actor.id,target,{},use.id),false,'a fabricated result cannot spend a dose');
+ const stock=JSON.stringify(actor.inventory);assert.equal(await e.itemsApi.open(entry.id,actor.id,use.id),true);e.closeCastModal();assert.equal(JSON.stringify(actor.inventory),stock,'opening and cancelling does not consume');
+ assert.equal(await e.itemsApi.open(entry.id,actor.id,use.id),true);e.setElementValue('castTarget',target);e.castConfirm();assert.equal(e.castState().ctx.spec.rows.length,0,'no fabricated dice requirement');assert.equal(e.castFormulaConfirm(),true);assert.equal(e.inventoryItemQty(actor,item.id),0);
+ assert.equal(e.useItemApply(entry.id,actor.id,target,{},use.id),false,'one dose cannot be replayed');const hp=actor.hp;
+ assert.equal(e.itemsApi.fallDamage(3),true);assert.equal(actor.hp,hp);
+ e.itemsApi.damage(target,3,'дробящий','Удар',{sourceKind:'weapon'});assert.equal(actor.hp,hp-3,'ordinary damage is unchanged');
+ e.abilitiesApi.advanceFxRound(10);assert.equal(e.itemsApi.fallDamage(3),true);assert.equal(actor.hp,hp-6,'fall protection expires after ten rounds');
+});
+test('a crafted darkvision elixir respects better sight, consumes once and ends on long rest',async()=>{
+ const e=await world(),recipe=e.recipesApi.rows().find(r=>r.resultIds.some(id=>e.recipesApi.summary(id)?.statsId==='ALCH_Solution_Elixir_Darkvision')),{actor,choices}=fixture(e,recipe);
+ actor.activeFx=[{uid:'natural-vision',id:'natural-vision',k:'custom',mechanicsVersion:1,durationKind:'manual',fx:[{stat:'vision.dark',mode:'min',value:24}]}];e.setState({items:e.catalogs.items,chars:[actor],activeCharId:actor.id});
+ const prepared=await e.recipesApi.prepare(recipe.id,actor.id,choices);assert.equal(prepared.ok,true,prepared.reason);assert.equal((await e.recipesApi.commitGame(prepared)).ok,true);
+ const item=e.itemsApi.resolve(choices.resultId),use=e.itemUsesOf(item)[0],entry=actor.inventory.find(row=>row.itemId===item.id);assert.equal(await e.itemsApi.open(entry.id,actor.id,use.id),true);e.setElementValue('castTarget','ally:'+actor.id);e.castConfirm();assert.equal(e.castFormulaConfirm(),true);
+ assert.equal(e.inventoryItemQty(actor,item.id),0);assert.ok(e.itemsApi.effects(actor).some(f=>f.stat==='vision.dark'&&f.value===12));assert.equal(Math.max(...e.itemsApi.effects(actor).filter(f=>f.stat==='vision.dark').map(f=>f.value)),24);
+ assert.equal(actor.activeFx.find(f=>f.bg3Status==='ALCH_ELIXIR_DARKVISION').durationKind,'longRest');e.charactersApi.longRest();assert.equal(actor.activeFx.some(f=>f.bg3Status==='ALCH_ELIXIR_DARKVISION'),false);assert.ok(actor.activeFx.some(f=>f.uid==='natural-vision'));
 });
 test('saved stock antitoxin descriptions are corrected without replacing master edits or mechanics',async()=>{
  const e=await world(),item=e.itemsApi.resolve('it_противоядие'),original='Мутноватая настойка на травах и толченом угле в запечатанном флаконе. Выпитая, дает преимущество на спасброски от яда на следующий час. Не снимает уже полученный урон, но останавливает дальнейшее отравление.',uses=JSON.stringify(item.uses);item.desc=original;item.gameDefinition=true;e.itemsApi.upgrade(item);assert.match(e.recipesApi.outputHTML(item.id),/Не снимает отравление/);assert.match(item.desc,/нежить и конструктов/);assert.equal(JSON.stringify(item.uses),uses);
  item.desc='Настойка нашей мастерской';e.itemsApi.upgrade(item);assert.equal(item.desc,'Настойка нашей мастерской');item.custom=true;item.desc=original;e.itemsApi.upgrade(item);assert.equal(item.desc,original);
+});
+
+test('crafted accuracy oil follows the coated weapon and expires without leaking to another weapon',async()=>{
+ const e=await world(),recipe=e.recipesApi.rows().find(r=>r.resultIds.some(id=>e.recipesApi.summary(id)?.statsId==='ALCH_Solution_Oil_AttackBuff')),{actor,choices}=fixture(e,recipe);
+ actor.inventory.push({id:'blade',itemId:'it_кинжал',qty:1},{id:'spare',itemId:'it_кинжал',qty:1});actor.equipment={MAIN_HAND:'blade'};
+ e.setState({items:e.catalogs.items,chars:[actor],activeCharId:actor.id});const made=await e.recipesApi.prepare(recipe.id,actor.id,choices);assert.equal(made.ok,true,made.reason);assert.equal((await e.recipesApi.commitGame(made)).ok,true);
+ const item=e.itemsApi.resolve(choices.resultId),use=e.itemUsesOf(item)[0],entry=actor.inventory.find(x=>x.itemId===item.id),weapon=e.itemsApi.resolve('it_кинжал'),attack=id=>e.weaponSpecOf(actor,weapon,e.targetInfoOf('ally:'+actor.id),{entryId:id}).rows.find(r=>r.key==='atk').mod,base=attack('blade');
+ assert.equal(await e.itemsApi.open(entry.id,actor.id,use.id),true);e.setElementValue('castTarget','ally:'+actor.id);e.castConfirm();assert.equal(e.castFormulaConfirm(),true);assert.equal(e.inventoryItemQty(actor,item.id),0);
+ assert.equal((await e.itemsApi.prepareActor(actor,'blade','weapon')).ok,true);assert.equal(attack('blade'),base+2);assert.equal(attack('spare'),base);
+ actor.equipment.MAIN_HAND='spare';assert.equal((await e.itemsApi.prepareActor(actor,'spare','weapon')).ok,true);assert.equal(attack('spare'),base,'changing weapons does not transfer the coating');
+ actor.equipment.MAIN_HAND='blade';assert.equal((await e.itemsApi.prepareActor(actor,'blade','weapon')).ok,true);assert.equal(attack('blade'),base+2);
+ e.abilitiesApi.advanceFxRound(10);assert.equal((await e.itemsApi.prepareActor(actor,'blade','weapon')).ok,true);assert.equal(attack('blade'),base);
+});
+
+test('crafted wizardsbane oil applies its penalties only after a hit with the coated weapon',async()=>{
+ const e=await world(),recipe=e.recipesApi.rows().find(r=>r.resultIds.some(id=>e.recipesApi.summary(id)?.statsId==='ALCH_Solution_Oil_Wizardsbane')),{actor,choices}=fixture(e,recipe),target=e.buildBlank();target.id='enemy';target.hp=40;target.hpMax=40;
+ actor.inventory.push({id:'blade',itemId:'it_кинжал',qty:1},{id:'spare',itemId:'it_кинжал',qty:1});actor.equipment={MAIN_HAND:'blade'};e.setState({items:e.catalogs.items,chars:[actor,target],activeCharId:actor.id});
+ const made=await e.recipesApi.prepare(recipe.id,actor.id,choices);assert.equal(made.ok,true,made.reason);assert.equal((await e.recipesApi.commitGame(made)).ok,true);const item=e.itemsApi.resolve(choices.resultId),use=e.itemUsesOf(item)[0],entry=actor.inventory.find(x=>x.itemId===item.id);
+ assert.equal(await e.itemsApi.open(entry.id,actor.id,use.id),true);e.setElementValue('castTarget','ally:'+actor.id);e.castConfirm();assert.equal(e.castFormulaConfirm(),true);assert.equal((await e.itemsApi.prepareActor(actor,'blade','weapon')).ok,true);
+ const key='ally:'+target.id,strike=(id,natural)=>{e.charactersApi.weaponAttackFx(id,actor.id,'melee');e.setElementValue('castTarget',key);e.castConfirm();assert.ok(e.castState().ctx?.spec,e.elementText('castErr'));e.setElementValue('cf_atk',natural);e.setElementValue('cf_dmg',natural===1?'':2);e.castFormulaConfirm();return e.castState().ctx===null;};
+ assert.equal(strike('blade',1),true);assert.equal((target.activeFx||[]).length,0,'a miss never poisons the target');
+ assert.equal(strike('blade',15),true);assert.ok(target.activeFx.some(f=>f.bg3Status==='ALCH_OIL_WIZARDSBANE_CONDITION'));
+ assert.equal(e.fxSum(target,'spell.dc'),-3);assert.equal(e.fxSum(target,'spell.atk'),-3);assert.ok(e.charactersApi.rollFxEntries(target,'save.concentration').some(f=>f.mode==='dis'));
+ e.abilitiesApi.advanceFxRound(2);assert.equal(e.fxSum(target,'spell.dc'),0);assert.equal(e.fxSum(target,'spell.atk'),0);
+});
+
+test('sharpness replaces the prior coating, binds both-handed equipment and makes only that weapon magical',async()=>{
+ const e=await world(),actor=e.buildBlank();actor.id='smith';actor.hp=20;actor.inventory=[{id:'blade',itemId:'it_кинжал',qty:1},{id:'spare',itemId:'it_кинжал',qty:1}];actor.equipment={TWO_HAND:'blade'};
+ e.setState({items:e.catalogs.items,chars:[actor],activeCharId:actor.id});const weapon=e.itemsApi.resolve('it_кинжал'),formula=id=>e.weaponSpecOf(actor,weapon,e.targetInfoOf('ally:'+actor.id),{entryId:id}),base=formula('blade').rows[0].mod;
+ for(const stats of ['ALCH_Solution_Oil_AttackBuff','ALCH_Solution_Oil_DamageAttackBuff']){
+  const recipe=e.recipesApi.rows().find(r=>r.resultIds.some(id=>(e.recipesApi.summary(id)?.statsId||e.itemsApi.resolve(id)?.rules?.sourceStats)===stats));await e.itemsApi.hydrate(recipe.resultIds);const item=e.itemsApi.resolve(recipe.resultIds[0]),use=e.itemUsesOf(item)[0];actor.inventory.push({id:'oil',itemId:item.id,qty:1});
+  assert.equal(await e.itemsApi.open('oil',actor.id,use.id),true);e.setElementValue('castTarget','ally:'+actor.id);e.castConfirm();assert.equal(e.castFormulaConfirm(),true,e.elementText('castErr'));assert.equal((await e.itemsApi.prepareActor(actor,'blade','weapon')).ok,true);
+ }
+ assert.equal(actor.activeFx.filter(f=>f.k==='bg3-equipment-status').length,1);const coated=formula('blade'),spare=formula('spare');assert.equal(coated.rows[0].mod,base+1);assert.equal(spare.rows[0].mod,base);
+ assert.equal(coated.meta.damageTags.magical,true);assert.equal(spare.meta.damageTags.magical,false);const fixed=Object.fromEntries(coated.rows.filter(r=>r.fixed).map(r=>[r.key,0]));assert.equal(e.resolveOutcome(coated,{...fixed,atk:15,dmg:2}).dmgTotal,e.resolveOutcome(spare,{atk:15,dmg:2}).dmgTotal+1);
+ e.abilitiesApi.advanceFxRound(10);assert.equal((await e.itemsApi.prepareActor(actor,'blade','weapon')).ok,true);assert.equal(formula('blade').meta.damageTags.magical,false);assert.equal(formula('blade').rows[0].mod,base);
+});
+
+test('crafted sussur weapons resolve their own hit and save before silencing the target',async t=>{
+ const e=await world();
+ for(const stats of ['FOR_IncompleteMasterwork_SussurDagger','FOR_IncompleteMasterwork_SussurSickle','FOR_IncompleteMasterwork_SussurGreatsword'])await t.test(stats,async()=>{
+  const recipe=e.recipesApi.rows().find(r=>r.resultIds.some(id=>(e.recipesApi.summary(id)?.statsId||e.itemsApi.resolve(id)?.rules?.sourceStats)===stats)),{actor,choices}=fixture(e,recipe),target=e.buildBlank();target.id='silence-target';target.hp=100;target.hpMax=100;
+  e.setState({items:e.catalogs.items,chars:[actor,target],activeCharId:actor.id});const made=await e.recipesApi.prepare(recipe.id,actor.id,choices);assert.equal(made.ok,true,made.reason);assert.equal((await e.recipesApi.commitGame(made)).ok,true);
+  const item=e.itemsApi.resolve(choices.resultId),entry=actor.inventory.find(x=>x.itemId===item.id);actor.equipment={MAIN_HAND:entry.id};assert.equal(e.itemProfile(item).weapon.bonus,1);
+  const ready=await e.itemsApi.prepareActor(actor,entry.id,'weapon');assert.equal(ready.ok,true,ready.reason);assert.ok(e.tabletopApi.profile(item)?.onHit);
+  const strike=(natural,save)=>{e.charactersApi.weaponAttackFx(entry.id,actor.id,'melee');e.setElementValue('castTarget','ally:'+target.id);e.castConfirm();const spec=e.castState().ctx?.spec;assert.ok(spec,e.elementText('castErr'));assert.equal(spec.rows.find(r=>r.key==='recipe_weapon_save').dc,12);assert.equal(spec.rows.find(r=>r.key==='dmg').mod,1);assert.equal(spec.rows.find(r=>r.key==='atk').mod,3);e.setElementValue('cf_atk',natural);e.setElementValue('cf_dmg',natural===1?'':4);e.setElementValue('cf_recipe_weapon_save',save??'');e.castFormulaConfirm();assert.equal(e.castState().ctx,null,e.elementText('castErr'));};
+  strike(1);assert.equal((target.activeFx||[]).length,0,'a miss does not apply silence');
+  strike(15,20);assert.equal((target.activeFx||[]).length,0,'a successful save does not apply silence');
+  strike(15,1);assert.ok(target.activeFx.some(f=>f.recipeHit?.startsWith('FOR_IncompleteMasterwork_Sussur')));assert.ok(e.itemsApi.effects(target).some(f=>f.stat==='casting.verbal'&&f.value===0));assert.equal(e.charactersApi.dmgAfterTraits(target,10,'звук').amount,0);
+  e.abilitiesApi.advanceFxRound(2);assert.equal(target.activeFx.some(f=>f.recipeHit?.startsWith('FOR_IncompleteMasterwork_Sussur')),false);assert.equal(e.charactersApi.dmgAfterTraits(target,10,'звук').amount,10);
+ });
+});
+
+test('the repaired Absolute spear applies blindness through a confirmed hit and Dexterity save',async()=>{
+ const e=await world(),recipe=e.recipesApi.of('bg3:recipe:QUEST_FOR_CultistsRepairedSpear'),{actor,choices}=fixture(e,recipe),target=plain(e.catalogs.foes[0]);target.id='blind-target';target.hp=100;target.hpMax=100;target.ac=10;
+ e.setState({items:e.catalogs.items,chars:[actor],foes:[target],activeCharId:actor.id});const made=await e.recipesApi.prepare(recipe.id,actor.id,choices);assert.equal(made.ok,true,made.reason);assert.equal((await e.recipesApi.commitGame(made)).ok,true);
+ const entry=actor.inventory.find(x=>x.itemId===choices.resultId);actor.equipment={MAIN_HAND:entry.id};assert.equal((await e.itemsApi.prepareActor(actor,entry.id,'weapon')).ok,true);
+ assert.equal(e.combatStart([{kind:'ally',id:actor.id,nat:20},{kind:'foe',id:target.id,nat:1}],'Проверка копья'),true);
+ e.charactersApi.weaponAttackFx(entry.id,actor.id,'melee');e.setElementValue('castTarget','foe:'+target.id);e.castConfirm();assert.equal(e.castState().ctx.spec.rows.find(r=>r.key==='recipe_weapon_save').dc,11);
+ e.setElementValue('cf_atk',19);e.setElementValue('cf_dmg',3);e.setElementValue('cf_recipe_weapon_save',1);e.castFormulaConfirm();assert.equal(e.castState().ctx,null,e.elementText('castErr'));assert.ok(target.activeFx.some(f=>f.recipeHit==='FOR_TrueSoul_Spear'));
+ e.abilitiesApi.advanceFxRound(2);assert.equal(target.activeFx.some(f=>f.recipeHit==='FOR_TrueSoul_Spear'),false);
+});
+
+test('ordinary weapon ingredients use existing game items and accept older inventory identities',async()=>{
+ const e=await world();
+ for(const [suffix,nativeId] of [['SussurGreatsword','it_двуручный_меч'],['SussurDagger','it_кинжал'],['SussurSickle','it_серп']]){
+  const recipe=e.recipesApi.of('bg3:recipe:QUEST_FOR_'+suffix),input=recipe.inputs.find(row=>row.canonicalIds?.includes(nativeId));assert.ok(input,suffix);assert.deepEqual(plain(input.canonicalIds),[nativeId]);assert.ok(input.aliases.length);assert.ok(e.itemsApi.rows().some(row=>row.id===nativeId));
+  const {actor,choices}=fixture(e,recipe),index=recipe.inputs.indexOf(input),entry=actor.inventory.find(row=>row.itemId===nativeId),oldId=input.aliases[0];entry.itemId=oldId;choices.inputs[index]=oldId;
+  e.setState({items:e.catalogs.items,chars:[actor],activeCharId:actor.id});const prepared=await e.recipesApi.prepare(recipe.id,actor.id,choices);assert.equal(prepared.ok,true,prepared.reason);assert.equal((await e.recipesApi.commitGame(prepared)).ok,true);assert.equal(e.inventoryItemQty(actor,oldId),0);assert.equal(e.inventoryItemQty(actor,choices.resultId),1);
+ }
+});
+
+test('greater healing and the restored ring point to their actual public game definitions',async()=>{
+ const e=await world(),potion=e.recipesApi.of('bg3:recipe:ALCH_Potion_HealingGreater_Balsam');assert.deepEqual(plain(potion.resultIds),['it_potion_great_heal']);assert.deepEqual(plain(e.itemUsesOf(e.itemsApi.resolve(potion.resultIds[0]))[0].heal),{cnt:4,sides:4,mod:4});
+ const ring=e.recipesApi.of('bg3:recipe:QUEST_WYR_SharranInformer_MagicRing');await e.itemsApi.hydrate(ring.resultIds);const item=e.itemsApi.resolve(ring.resultIds[0]);assert.ok(e.itemsApi.rows().some(row=>row.id===item.id));assert.equal(item.source.semanticAliasOf,null);assert.equal(e.itemsApi.readiness(item).ok,true);assert.equal(e.itemProfile(item).value.gp,40);assert.match(item.desc,/самоцвет/i);
+});
+
+test('equivalent construct parts have one recipe identity and older variants remain usable',async()=>{
+ const e=await world(),recipe=e.recipesApi.of('bg3:recipe:ALCH_Extract_ConstructPart'),input=recipe.inputs.find(row=>row.category==='ConstructPart');
+ assert.equal(input.canonicalIds.length,1);assert.ok(input.aliases.length>=2);assert.ok(e.itemsApi.rows().some(row=>row.id===input.canonicalIds[0]));
+ for(const id of input.ids){
+  const {actor,choices}=fixture(e,recipe),index=recipe.inputs.indexOf(input),entry=actor.inventory.find(row=>row.itemId===input.canonicalIds[0]);entry.itemId=id;choices.inputs[index]=id;
+  e.setState({items:e.catalogs.items,chars:[actor],activeCharId:actor.id});const prepared=await e.recipesApi.prepare(recipe.id,actor.id,choices);assert.equal(prepared.ok,true,prepared.reason);assert.equal((await e.recipesApi.commitGame(prepared)).ok,true);assert.equal(e.inventoryItemQty(actor,id),0);assert.equal(e.inventoryItemQty(actor,choices.resultId),1);
+ }
 });

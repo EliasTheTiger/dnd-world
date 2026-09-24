@@ -42,63 +42,6 @@ const REMOVED_ITEM_IDS = new Set([
   'bg3:item:rt:7a48ed48-8ae0-4258-9cb9-831b6c18912c:stats:T0JKX01vb25iZWFt',
   'bg3:item:rt:bf601b0f-ac97-4c29-838c-9b45a9d99485:stats:T0JKX0dlbmVyaWNJbW11dGFibGVPYmplY3Q',
 ]);
-// The previously approved strict Full Arsenal set is a presentation contract,
-// not the complete Standard source census. These recipe-carrier variants pass
-// the item-local readiness checks only after the full catalog is restored, but
-// were outside the fail-closed recipe closure that produced the pinned set.
-const STRICT_ARSENAL_BASELINE_COUNT = 2_378;
-const STRICT_ARSENAL_BASELINE_SHA256 = '573b63d30c6c5f865c6592e21664e04b785b1f8e62cdc129393aaa7976bbf4d6';
-const STRICT_RECIPE_CLOSURE_EXCLUSIONS = new Set([
-  'bg3:item:rt:02bb51c0-00e5-408c-8e11-8de7b9580c04:stats:T0JKX0R5ZV9CbGFja0JsdWU',
-  'bg3:item:rt:09e48b43-f567-4acc-b98d-0c86c1396084:stats:T0JKX0R5ZV9Hb2xkZW4',
-  'bg3:item:rt:0c356479-9f2c-413c-8fed-cab3a6fae19b:stats:T0JKX0Jvb2s',
-  'bg3:item:rt:0e339e21-df58-4e46-a263-e91d4ed19dc9:stats:T0JKX0R5ZV9JY2VDcmVhbV8wMg',
-  'bg3:item:rt:10e79bfb-c448-4af4-a153-bf3d19f83c62:stats:T0JKX0R5ZV9NYXJvb24',
-  'bg3:item:rt:17f6e66e-1c23-41d2-9370-3bd9a5a90b4a:stats:T0JKX0R5ZV9Sb3lhbEJsdWU',
-  'bg3:item:rt:19c7bbb1-29f5-4ec9-a72c-74a73318f8da:stats:T0JKX0R5ZV9SZW1vdmVy',
-  'bg3:item:rt:1bb2ba7b-1ac3-4c2e-bcd3-85886d294204:stats:T0JKX0R5ZV9PcmFuZ2U',
-  'bg3:item:rt:1d0d3883-6196-4ccd-8a49-8e4fb84f6c6b:stats:T0JKX0R5ZV9XaGl0ZVJlZA',
-  'bg3:item:rt:1dec170b-101f-457b-b22d-8d38c45168c7:stats:T0JKX0R5ZV9CbHVlWWVsbG93XzAy',
-  'bg3:item:rt:2292d37f-7cb2-4458-83c6-1f2e48ffa23e:stats:T0JKX0R5ZV9QdXJwbGVSZWQ',
-  'bg3:item:rt:23899dcd-8f27-4144-b29d-ae61eaacd8c3:stats:T0JKX0R5ZV9JY2VDcmVhbQ',
-  'bg3:item:rt:2cd56a6a-35bb-417c-9eb6-d78bbe73d3cc:stats:T0JKX0R5ZV9JY2VDcmVhbV8wMw',
-  'bg3:item:rt:3336e3a5-0be1-407d-9c37-01536bb2e6c5:stats:T0JKX0R5ZV9XaGl0ZUJyb3du',
-  'bg3:item:rt:43da55c8-55b7-41c6-9a44-3dd6843875f8:stats:T0JKX0R5ZV9JY2VDcmVhbV8wNA',
-  'bg3:item:rt:4416dcc3-c469-4e59-90db-ba9a3ac05846:stats:QUxDSF9FeHRyYWN0X05pZ2h0T3JjaGlk',
-  'bg3:item:rt:48a27277-7c18-49fe-9124-899919e162bc:stats:T0JKX0R5ZV9QaW5r',
-  'bg3:item:rt:51cd678b-6a27-490d-b4d1-17cc89a32e40:stats:T0JKX0R5ZV9SaWNoUmVk',
-  'bg3:item:rt:54cd5913-5226-4143-9186-6c1a8499de1c:stats:T0JKX0R5ZV9PY2Vhbg',
-  'bg3:item:rt:5adba582-b552-4850-9be9-c6e28f656675:stats:T0JKX0R5ZV9QdXJwbGVfMDM',
-  'bg3:item:rt:6904ea3d-89b6-4db7-a0bc-d890423e9312:stats:T0JKX0R5ZV9SZWRCcm93bg',
-  'bg3:item:rt:6d90deb8-8df3-4a6f-b31f-f13cf2eb68f9:stats:T0JKX0R5ZV9UZWFs',
-  'bg3:item:rt:78f41a7b-4742-419d-a0ac-b9a90a9e198e:stats:T0JKX0R5ZV9HcmVlblBpbms',
-  'bg3:item:rt:7ac1bb07-e494-42d2-bb8d-6bf9e553a52a:stats:T0JKX0R5ZV9QdXJwbGVfMDQ',
-  'bg3:item:rt:808cd643-ac73-415c-8ed8-0a81b8b71dd8:stats:T0JKX0R5ZV9QdXJwbGU',
-  'bg3:item:rt:809f228e-8d2b-46b8-8a33-51181505bc61:stats:T0JKX0R5ZV9SZWQ',
-  'bg3:item:rt:81512e6c-dbe4-451c-b5cc-7268656444c1:stats:T0JKX0R5ZV9CbGFja0dyZWVu',
-  'bg3:item:rt:83cde47b-9e15-4ea5-98f4-4efd9ce93861:stats:T0JKX0R5ZV9CbHVlUHVycGxl',
-  'bg3:item:rt:84f7b0a1-8840-47a1-a27a-1ac79e383520:stats:T0JKX0R5ZV9PcmFuZ2VCbHVl',
-  'bg3:item:rt:94ef7170-1c1d-489a-9c18-55209d864e3a:stats:T0JKX0R5ZV9CbGFja1RlYWw',
-  'bg3:item:rt:a0776643-f25b-4aef-a025-bff959d8dd0f:stats:Q09OU19IZXJic19NdWd3b3J0',
-  'bg3:item:rt:a13f6fad-bca8-40c0-b5b1-592832c73050:stats:T0JKX0R5ZV9HcmVlblN3YW1w',
-  'bg3:item:rt:a4c2594e-33a6-49b2-ab6f-e992a3e0257e:stats:T0JKX0R5ZV9CbHVlWWVsbG93',
-  'bg3:item:rt:a94ac1cd-96c9-4775-8dcd-c2b581bfeb50:stats:T0JKX0R5ZV9CbHVl',
-  'bg3:item:rt:ad60be55-7a95-4dcb-ae55-908a97f9955a:stats:T0JKX0R5ZV9HcmVlblNhZ2U',
-  'bg3:item:rt:b702ddc5-f4fc-4976-adc4-18a8ddaab8d5:stats:T0JKX0R5ZV9CbHVlR3JlZW4',
-  'bg3:item:rt:b707f039-af1d-456d-a606-1604f1d776c1:stats:QUxDSF9FeHRyYWN0X011Z3dvcnQ',
-  'bg3:item:rt:bb108620-186f-4a00-b7de-af9329d5497b:stats:T0JKX0R5ZV9CbGFja1JlZA',
-  'bg3:item:rt:db4761b2-cce8-4d6d-86ec-5cf0924a5f4c:stats:T0JKX0R5ZV9CbGFja1Bpbms',
-  'bg3:item:rt:dfb0bd5d-e4ed-4bd3-bcfe-45195260e7dc:stats:RExDX09CSl9EeWVfTGFyaWFu',
-  'bg3:item:rt:e03b8342-3c50-4cec-b34c-c50ce1968bc3:stats:Q09OU19IZXJic19NdWd3b3J0',
-  'bg3:item:rt:e6f417bd-9d84-416f-8c96-5a6917977b77:stats:T0JKX0R5ZV9HcmVlbg',
-  'bg3:item:rt:ea46200e-001b-45a1-b1d9-20920e747ba2:stats:T0JKX0R5ZV9HcmVlbl8wMg',
-  'bg3:item:rt:ea8bc956-7834-4618-af70-0ea0c8f9ea37:stats:QUxDSF9FeHRyYWN0X0NvbnN0cnVjdFBhcnQ',
-  'bg3:item:rt:eedbd9cc-5072-47fd-90a6-36a24c435620:stats:T0JKX0R5ZV9BenVyZQ',
-  'bg3:item:rt:f42e3c96-e622-4d3a-97da-ce5a939feb3c:stats:T0JKX0R5ZV9SZWRXaGl0ZQ',
-  'bg3:item:rt:fecebc29-385d-4bef-a18a-79705fb0ecf3:stats:T0JKX0R5ZV9QdXJwbGVfMDI',
-  'bg3:item:rt:ffdb4490-cbaf-4eac-97f8-893564d7ead9:stats:T0JKX0R5ZV9XaGl0ZUJsYWNr',
-]);
-
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
@@ -537,50 +480,16 @@ function pruneArsenalRuntime() {
   const context = ITEM_DOMAIN_MODEL.createMigrationContext(sourceItems);
   const assessments = new Map(sourceItems.map(item => [item.id, ITEM_DOMAIN_MODEL.arsenalReadiness(item, {context})]));
   const arsenal = new Set([...assessments].filter(([, result]) => result.ok).map(([id]) => id));
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const id of [...arsenal]) {
-      const aliasOf = assessments.get(id)?.item?.aliasOf;
-      if (aliasOf && !arsenal.has(aliasOf)) {
-        arsenal.delete(id);
-        assessments.get(id).issues.push('canonical-item-excluded');
-        changed = true;
-      }
+  // Item visibility follows the current executable item contract. Recipe
+  // components remain real game items even when another result has a separate
+  // use contract; a historical presentation census must not hide them.
+  let aliasesChanged=true;
+  while(aliasesChanged){
+    aliasesChanged=false;
+    for(const id of [...arsenal]){
+      const aliasOf=assessments.get(id)?.item?.aliasOf;
+      if(aliasOf&&!arsenal.has(aliasOf)){arsenal.delete(id);assessments.get(id).issues.push('canonical-item-excluded');aliasesChanged=true;}
     }
-    const arsenalRecipes = structuredClone(recipeSource);
-    filterVariantIds(arsenalRecipes, arsenal);
-    pruneRecipeIndex(arsenalRecipes, arsenal);
-    const arsenalRecipeIds = new Set((arsenalRecipes.records || [])
-      .filter(record => record?.recordType === 'ItemCombination')
-      .flatMap(record => [record.name, record.accessPolicy?.recipeId]).filter(Boolean));
-    for (const id of [...arsenal]) {
-      const item = sourceItemById.get(id);
-      let missingRecipeTarget = false;
-      for (const action of item?.mechanics?.actions || []) {
-        const special = action.special || action.program?.special || {};
-        const recipeTargets = [special.recipeId, ...(special.recipeIds || []), ...(special.matchingRecipeIds || [])].filter(Boolean);
-        const validTargets = recipeTargets.filter(recipeId => arsenalRecipeIds.has(recipeId));
-        if (!recipeTargets.some(recipeId => !arsenalRecipeIds.has(recipeId))) continue;
-        if (action.handler !== 'bg3RecipeProgram' || !validTargets.length) {
-          missingRecipeTarget = true;
-          break;
-        }
-      }
-      if (missingRecipeTarget) {
-        arsenal.delete(id);
-        assessments.get(id).issues.push('recipe-handler-target-missing');
-        changed = true;
-      }
-    }
-  }
-  for (const id of STRICT_RECIPE_CLOSURE_EXCLUSIONS) {
-    if (!arsenal.delete(id)) throw new Error(`Pinned strict recipe-closure exclusion is no longer a ready candidate: ${id}`);
-    assessments.get(id).issues.push('strict-recipe-closure-excluded');
-  }
-  const arsenalHash = sha256([...arsenal].sort().join('\n'));
-  if (arsenal.size !== STRICT_ARSENAL_BASELINE_COUNT || arsenalHash !== STRICT_ARSENAL_BASELINE_SHA256) {
-    throw new Error(`Strict Full Arsenal baseline changed: ${arsenal.size}/${arsenalHash}`);
   }
   const recipeProgramSpecials = new Map();
   for (const item of sourceItems) {
@@ -798,7 +707,8 @@ function reconcileDerivedIndexes() {
     const item = itemsById.get(row.id);
     const ru = String(item?.i18n?.ru?.name || item?.n || '');
     const en = String(item?.i18n?.en?.name || '');
-    return {...row, names: {...(ru.trim() ? {ru} : {}), ...(en.trim() ? {en} : {})}};
+    return {...row, type:item.type,kind:item.mechanics.profile.kind,category:item.source.category,classification:item.source.classification,
+      names: {...(ru.trim() ? {ru} : {}), ...(en.trim() ? {en} : {})}};
   });
   const searchIds = new Set(rows.map(row => row.id));
   const missing = items.filter(item => !searchIds.has(item.id));
@@ -1034,7 +944,8 @@ function reconcileStandardReports() {
   economy.priceFallbacks = (economy.priceFallbacks || []).filter(row => retained.has(row.itemId));
   economy.reviewedConflicts = reviewedConflicts;
   economy.directSourceFields = {weights: {values: itemCount - economy.weightFallbacks.length, missing: economy.weightFallbacks.length, invalid: 0, negative: 0},
-    prices: {values: itemCount - economy.priceFallbacks.length, missing: economy.priceFallbacks.length, invalid: 0, negative: 0, reviewedNonEconomicPartial: 0}};
+    prices: {values: itemCount - economy.priceFallbacks.length, missing: economy.priceFallbacks.length, invalid: 0, negative: 0,
+      reviewedNonEconomicPartial:economy.priceFallbacks.filter(row=>row.method==='reviewed-not-applicable'&&String(row.evidence).startsWith('abstract-stats:')).length}};
   economy.controlSets = {standard: {zeroMass: {count: zeroMassIds.length, sha256: idSetDigest(zeroMassIds)},
     notApplicableMass: {count: notApplicableMassIds.length, sha256: idSetDigest(notApplicableMassIds)},
     zeroPrice: {count: zeroPriceIds.length, sha256: idSetDigest(zeroPriceIds)},

@@ -12,7 +12,7 @@ const manifest=JSON.parse(readFileSync(new URL('assets/item-art/v1/manifest.json
 const engine=loadRuntimeIntegrationEngine(root);
 
 test('every built-in item has verified original artwork with explicit aliases',()=>{
-  const seeds=engine.catalogs.items;
+  const seeds=engine.catalogs.items.filter(item=>!item.recipeTabletop);
   assert.equal(seeds.length,193);
   assert.equal(manifest.items.length,seeds.length);
   assert.deepEqual(new Set(manifest.items.map(item=>item.id)),new Set(seeds.map(item=>item.id)));
@@ -35,7 +35,9 @@ test('every built-in item has verified original artwork with explicit aliases',(
 test('saved inventory copies gain artwork without changing their data or explicit source images',()=>{
   const saved=JSON.parse(JSON.stringify(engine.catalogs.items)),before=JSON.stringify(saved);
   for(const item of saved){
-    const expected=art.icons[item.id];
+    const expected=art.icons[item.id]||item.icon;
+    assert.ok(expected?.src,item.n);
+    const bytes=readFileSync(new URL(expected.src,root));assert.equal(bytes.toString("ascii",8,12),"WEBP",item.n);
     assert.equal(art.forItem(item).src,expected.src,item.n);
     for(const html of [engine.itemsApi.icon(item,42),engine.itemsApi.bag(item),engine.itemsApi.equipment(item,'main')]){
       assert.ok(html.includes('src="'+expected.src+'"'),item.n);

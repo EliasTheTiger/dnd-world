@@ -22,8 +22,8 @@ const PROFILES = Object.freeze(['standard']);
 
 const EXPECTED = Object.freeze({
   version: 'bg3-24532579-v10',
-  currentSha256: '6473d3b976e59a97c840b43556af173b39e349de83badfc370c6f2638334a32f',
-  manifestSha256: '43af74e955031ccbaa9ae2270aa3faa1208900735b3a2afbb5dae2f7ad788c59',
+  currentSha256: 'c93f445cde5f3916b1cf08e24fbf8978efc5ae6fb0006381d2a7e03ce60fb399',
+  manifestSha256: 'c2d280d522ea158640f9d6df6c2a98c9e8813313308298673d086c578de237bf',
   carrierRows: 1,
   carrierItems: 1,
   aggregateBytes: 501,
@@ -555,6 +555,9 @@ function loadDethroneRuntimeEngine(random) {
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'hobbyworld-ability-terms.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'ability-rules.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'ability-gameplay.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'recipe-tabletop-rules.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'recipe-tabletop-items.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'recipe-tabletop-runtime.js'), 'utf8'), context);
   vm.runInContext(source, context);
   const runtime = context.__bg3DethroneRuntime;
   runtime.setPromptResults = values => { promptResults = [...values]; };

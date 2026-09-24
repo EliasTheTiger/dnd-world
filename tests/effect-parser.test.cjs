@@ -66,6 +66,9 @@ function loadEngine() {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts/hobbyworld-ability-terms.js'), 'utf8'), sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts/ability-rules.js'), 'utf8'), sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts/ability-gameplay.js'), 'utf8'), sandbox);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts/recipe-tabletop-rules.js'), 'utf8'), sandbox);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts/recipe-tabletop-items.js'), 'utf8'), sandbox);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts/recipe-tabletop-runtime.js'), 'utf8'), sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'data/dnd5e/srd51-spell-facts.js'), 'utf8'), sandbox);
   vm.runInContext(source, sandbox);
   return sandbox.__engine;
