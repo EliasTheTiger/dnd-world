@@ -46,6 +46,11 @@ test('clones, concurrent confirmations, missing duration and failed station chec
 });
 
 test('renaming an alternative method never splits one result into duplicate cards',()=>{const original=[{id:'a',name:'Зелье лечения',category:'alchemy'},{id:'b',name:'Зелье исцеления',category:'alchemy'}],state=rules.state({overrides:{b:{name:'Формула нашей мастерской'}}}),groups=rules.groups(original.map(r=>rules.applyState(r,state)));assert.equal(groups.length,1);assert.equal(groups[0].methods.length,2);assert.equal(groups[0].methods[1].name,'Формула нашей мастерской');});
+test('renaming the shared result preserves its recipe card and unrelated same-name items stay separate',async()=>{
+ const e=await world(),before=e.recipesApi.groups(),sourceId='bg3:recipe:ALCH_Potion_Invisibility_ImpPatagium',groupId=before.find(g=>g.methods.some(r=>r.id===sourceId)).id,item=e.itemsApi.resolve('it_potion_invisibility');item.n='Невидимость нашей мастерской';
+ assert.equal(e.recipesApi.of(sourceId).name,'Невидимость нашей мастерской');const groups=e.recipesApi.groups(),shared=groups.find(g=>g.id===groupId);assert.equal(groups.length,before.length);assert.deepEqual(plain(shared.methods.map(r=>r.id)).sort(),['cr_potion_invisibility',sourceId].sort());
+ const namesakes=rules.groups([{id:'a',name:'Зелье',resultIds:['one']},{id:'b',name:'Зелье',resultIds:['two']}]);assert.equal(namesakes.length,2,'a name match alone cannot merge different game items');
+});
 test('all five alternative formulas manufacture and use the same tabletop item',async t=>{
  const e=await world(),pairs=[['ALCH_Potion_HealingSuperior_YellowMuskCreeper','cr_potion_superior','it_potion_healing_superior'],['ALCH_Potion_HealingSupreme_KiRinHair','cr_potion_supreme','it_potion_healing_supreme'],['ALCH_Potion_Invisibility_ImpPatagium','cr_potion_invisibility','it_potion_invisibility'],['ALCH_Potion_Flying_EagleFeather','cr_potion_flying','it_potion_flying'],['ALCH_Potion_Antidote_Mugwort','cr_antitoxin','it_противоядие']];
  for(const [sourceId,nativeId,resultId] of pairs)await t.test(sourceId,async()=>{
@@ -66,4 +71,8 @@ test('an unsupported unpaired result is still disclosed before anything is spent
  const e=await world(),source=e.recipesApi.of('bg3:recipe:ALCH_Potion_FeatherFall_AutumnCrocus'),{actor,choices}=fixture(e,source);e.setState({items:e.catalogs.items,chars:[actor]});const before=JSON.stringify(actor.inventory),prepared=await e.recipesApi.prepare(source.id,actor.id,choices);
  assert.equal(prepared.ok,true,prepared.reason);assert.equal(prepared.outputStatus.state,'blocked');assert.match(prepared.outputStatus.warning,/активное применение пока не поддерживается/);assert.equal(JSON.stringify(actor.inventory),before);
  assert.match(e.recipesApi.outputHTML(choices.resultId),/применение будет заблокировано/);
+});
+test('saved stock antitoxin descriptions are corrected without replacing master edits or mechanics',async()=>{
+ const e=await world(),item=e.itemsApi.resolve('it_противоядие'),original='Мутноватая настойка на травах и толченом угле в запечатанном флаконе. Выпитая, дает преимущество на спасброски от яда на следующий час. Не снимает уже полученный урон, но останавливает дальнейшее отравление.',uses=JSON.stringify(item.uses);item.desc=original;item.gameDefinition=true;e.itemsApi.upgrade(item);assert.match(e.recipesApi.outputHTML(item.id),/Не снимает отравление/);assert.match(item.desc,/нежить и конструктов/);assert.equal(JSON.stringify(item.uses),uses);
+ item.desc='Настойка нашей мастерской';e.itemsApi.upgrade(item);assert.equal(item.desc,'Настойка нашей мастерской');item.custom=true;item.desc=original;e.itemsApi.upgrade(item);assert.equal(item.desc,original);
 });

@@ -9975,6 +9975,8 @@ itemSpec:legacyItemSpec(it),provenance:itemClone(it.rules),manualNote:mode==='ma
 function upgradeItem(it){
 if(!it||typeof it!=='object') return it;
 if(it.__mechanicsUpgrading) return it;
+// Repair the unchanged legacy description in saved worlds without replacing GM edits.
+if(it.id==='it_противоядие'&&it.custom!==true&&it.desc==='Мутноватая настойка на травах и толченом угле в запечатанном флаконе. Выпитая, дает преимущество на спасброски от яда на следующий час. Не снимает уже полученный урон, но останавливает дальнейшее отравление.')it.desc='Мутноватая настойка на травах и толченом угле в запечатанном флаконе. На 1 час дает преимущество на спасброски от яда. Не снимает отравление и не восстанавливает потерянные хиты. Не действует на нежить и конструктов.';
 it.__mechanicsUpgrading=true;
 const previousSchema=+it.schemaVersion||0;
 applyHarvestToolContract(it);
