@@ -257,7 +257,7 @@ function duplicateName(rows,name,exceptId){
 }
 function canAssign(c,ab,index){
  if(!c||!ab)return {ok:false,reason:'Способность не найдена.'};
- if(edition(ab)==='2024')return {ok:false,reason:'Эта карточка относится к D&D 2024. В кампании D&D 2014 она доступна для справки.'};
+ if(edition(ab)==='2024'&&!ab.mechanics?.gameplayRevision)return {ok:false,reason:'Для этой способности ещё не заданы игровые правила.'};
  if(ab.type==='feat'&&identity(ab)==='Grappler'&&!(Number(c.ab?.str)>=13))return {ok:false,reason:'Для черты «Рукопашный борец» нужна Сила 13 или выше.'};
  const duplicate=owned(c,ab,index);
  return duplicate?{ok:false,reason:'Эта способность уже есть у героя.'}:{ok:true};

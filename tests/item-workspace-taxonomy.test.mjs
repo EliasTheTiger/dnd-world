@@ -102,6 +102,7 @@ function loadWorkspaceAudit() {
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'hobbyworld-ability-terms.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'ability-rules.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'ability-gameplay.js'), 'utf8'), context);
   vm.runInContext(source, context);
   return context.__itemWorkspaceTaxonomyAudit;
 }

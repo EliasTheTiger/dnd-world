@@ -369,7 +369,7 @@ function loadEngine(random) {
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
-  for (const dependency of ['scripts/hobbyworld-ability-terms.js', 'scripts/ability-rules.js']) {
+  for (const dependency of ['scripts/hobbyworld-ability-terms.js', 'scripts/ability-rules.js', 'scripts/ability-gameplay.js']) {
     vm.runInContext(fs.readFileSync(repoFile(dependency), 'utf8'), context, {filename: dependency});
   }
   vm.runInContext(source, context, {filename: 'index.html#bg3-learn-spell-readiness'});

@@ -469,6 +469,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
   vm.runInContext(fs.readFileSync(new URL('../scripts/grimoire-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/hobbyworld-ability-terms.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/ability-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/ability-gameplay.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-workbench.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);
@@ -1291,7 +1292,9 @@ test('открытый каталог D&D 5e исполняет только п�
   assert.ok(manualSpell);
   assert.match(e.spellExecutionPreflight(manualSpell, {}, 'enemy').reason, /не автоматизированы/);
 
-  const manualAbility = importedAbilities[0];
+  assert.equal(importedAbilities.some(row=>row.mechanics.mode==='manual'),false);
+  const manualAbility = {...importedAbilities[0],id:'test-unfinished-ability',mechanics:{...importedAbilities[0].mechanics,mode:'manual'}};
+  abilities.push(manualAbility);
   const caster = hero('open-caster', {abilities: [{abilityId: manualAbility.id, cur: 1}]});
   e.setState({chars: [caster], spells, abilities, activeCharId: caster.id});
   assert.equal(e.useAbilityApply(manualAbility.id, caster.id, `ally:${caster.id}`, null), false);
@@ -2122,15 +2125,16 @@ test('парсер различает два вида урона, формулу
   assert.equal(fixed.mod, 3); // 1 фиксированный + 2 Ловкости
 });
 
-test('пассивные черты не становятся действиями, а дыхание и стойкость имеют заряды', () => {
+test('удача и дыхание являются ограниченными действиями, а стойкость остаётся реакцией на нулевые хиты', () => {
   const e = loadEngine();
   const abilities = e.seedAbilitiesDB();
   const lucky = abilities.find(x => x.id === 'ab_полурослик_везучий');
   const breath = abilities.find(x => x.id === 'ab_драконорожденный_оружие_дыхания');
   const relentless = abilities.find(x => x.id === 'ab_полуорк_непоколебимая_стойкость');
 
-  assert.equal(e.abilityIsActive(lucky), false);
-  assert.equal(e.isPassiveAbility(lucky), true);
+  assert.equal(e.abilityIsActive(lucky), true);
+  assert.equal(e.isPassiveAbility(lucky), false);
+  assert.equal(lucky.uses,1);
   assert.deepEqual([breath.mode, breath.uses, breath.rest], ['active', 1, 'короткий отдых']);
   assert.deepEqual([relentless.mode, relentless.uses, relentless.rest], ['triggered', 1, 'длинный отдых']);
   assert.equal(e.abilityIsActive(relentless), false);
@@ -5917,10 +5921,10 @@ test('регрессия уникальных предметов: Вес име�
     {contextConfirmed: true, contextTags: ['soldier']}), true);
   const allowed = e.rollFxEntries(legerem, 'skill.Убеждение', ['soldier']);
   assert.equal(allowed.some(f => f.mode === 'add' && f.value === 1), true);
-  assert.equal(e.rollFxEntries(legerem, 'skill.Убеждение', ['merchant']).some(f => f.mode === 'add'), false);
-  assert.equal(e.rollFxEntries(legerem, 'skill.Убеждение', ['soldier', 'fanatic']).some(f => f.mode === 'add'), false);
+  assert.equal(e.rollFxEntries(legerem, 'skill.Убеждение', ['merchant']).some(f => f.mode === 'add'&&f.sourceUid), false);
+  assert.equal(e.rollFxEntries(legerem, 'skill.Убеждение', ['soldier', 'fanatic']).some(f => f.mode === 'add'&&f.sourceUid), false);
   e.consumeRollFx(legerem, allowed.map(f => f.sourceUid));
-  assert.equal(e.rollFxEntries(legerem, 'skill.Убеждение', ['soldier']).some(f => f.mode === 'add'), false);
+  assert.equal(e.rollFxEntries(legerem, 'skill.Убеждение', ['soldier']).some(f => f.mode === 'add'&&f.sourceUid), false);
   assert.equal(e.itemActions(legerem, seal, item).some(action => action.label === 'Продать'), false, 'уникальную печать без цены нельзя продать');
 });
 
@@ -5970,8 +5974,8 @@ test('регрессия уникальных предметов: проверк
   const formula = e.pendingRollSpec(); assert.ok(formula);
   assert.equal(formula.rows.filter(row => row.key === 'a' || row.key === 'b').length, 2,
     'документ дает преимущество, даже если первым активирован Вес имени');
-  assert.match(formula.compute({a: 7, b: 12}), /= 13$/,
-    'формула сочетает лучший d20 и структурированный +1');
+  assert.match(formula.compute({a: 7, b: 12}), /= 15$/,
+    'формула сочетает лучший d20, +1 печати и постоянные +2 от положения героя');
   formula.apply({a: 7, b: 12});
   assert.equal(legerem.activeFx.some(x => x.id === 'it_korlinn_seal'), false,
     'подтвержденный бросок расходует оба участвовавших одноразовых эффекта');
@@ -12015,7 +12019,7 @@ test('BG3 MediumArmorMaster GM identity survives world export/import and the edi
   assert.match(html,/<option value="MediumArmorMaster"/);assert.match(html,/>Мастер средних доспехов<\/option>/);assert.match(html,/«Не подтверждена», чтобы сбросить его/);
   assert.match(html,/if\(bg3Id\)target\.bg3Id=bg3Id;else delete target\.bg3Id/,'the friendly selector has exact set and reset persistence branches');
   assert.match(html,/эффекты самой черты задаются правилами способности отдельно/,'the editor does not imply ownership of the passive body');
-  assert.match(e.abilityCardHTML(ability),/Подтверждённая пассивная черта:<\/b> Мастер средних доспехов/);
+  assert.doesNotMatch(e.abilityCardHTML(ability),/Подтверждённая пассивная черта|MediumArmorMaster/);
 });
 
 test('BG3 production catalog keeps every retained Standard MediumArmorMaster predicate ref typed', () => {

@@ -95,7 +95,8 @@ test('HTML loads the pinned catalog before the engine and governance scopes both
   assert.ok(html.indexOf(catalogTag) >= 0);
   assert.ok(html.indexOf(catalogTag) < html.indexOf('<script>', html.indexOf(catalogTag)));
   assert.doesNotMatch(html, /язык: English/);
-  assert.match(html, /язык: русский/);
+  assert.match(html, /<html lang="ru">/);
+  assert.doesNotMatch(html, /язык: русский/);
   const sources = JSON.parse(fs.readFileSync('data/catalogs/source-manifest.json', 'utf8'));
   const rulesets = JSON.parse(fs.readFileSync('data/rulesets/manifest.json', 'utf8'));
   assert.equal(sources.catalogs.find(row => row.id === 'open5e-cc-2014-spells-v1').expected.count, 499);

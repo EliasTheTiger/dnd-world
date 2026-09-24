@@ -13,11 +13,11 @@ test('every catalog ability has a Russian name, edition and honest translation p
  for(const name of ['Action Surge','Second Wind']){const ab=source(e,name);assert.ok(ab.tags.includes('limited'));assert.ok(ab.tags.includes('shortrest'));assert.ok(!ab.tags.includes('atwill'));}
  assert.equal(source(e,'Restoring Touch','srd-2024').n,'Восстанавливающее касание');
  assert.equal(source(e,'Alignment').n,'Мировоззрение');assert.equal(source(e,'Cantrip').n,'Фокус');assert.equal(source(e,'Tranquility').n,'Безмятежность');
- assert.match(source(e,'Fey Ancestry').x,/испытания/);assert.doesNotMatch(source(e,'Fey Ancestry').x,/спасброс/);
- assert.match(a.abilityCardHTML(source(e,'Grappler')),/сверено с глоссарием Hobby World/);assert.doesNotMatch(a.abilityCardHTML(source(e,'Grappler','srd-2024')),/>сверено с глоссарием Hobby World/);
+ assert.match(source(e,'Fey Ancestry').x,/спасброски от очарования/);
+ for(const edition of ['srd-2014','srd-2024'])assert.doesNotMatch(a.abilityCardHTML(source(e,'Grappler',edition)),/глоссар|перевод|SRD|справочн/i);
 });
-test('Grappler 2014 uses a contested grapple, both restrained participants and a requirement',()=>{
- const {e}=world(),ab=source(e,'Grappler');assert.match(ab.x,/Сила \(Атлетика\).*Ловкости \(Акробатики\)/);assert.match(ab.x,/оба участника/);assert.match(ab.x,/ничьей или проигрыше/);assert.equal(ab.mechanics.mode,'manual');
+test('Grappler has an executable contested grapple with a requirement and failure gate',()=>{
+ const {e}=world(),ab=source(e,'Grappler');assert.match(ab.x,/Атлетика против Атлетики/);assert.match(ab.x,/Сила 13/);assert.match(ab.x,/ничьей или проигрыше/);assert.equal(ab.mechanics.mode,'structured');assert.equal(ab.mechanics.resolution.contest.skill,'Атлетика');
 });
 test('search supports old names, English identity, ё/е, owners and edits without stale cache',()=>{
  const {e,a}=world(),ab=source(e,'Action Surge');assert.ok(a.rules.matches(ab,'всплеск действий'));assert.ok(a.rules.matches(ab,'action surge'));assert.ok(a.rules.matches(ab,'воин'));assert.ok(a.rules.matches(source(e,'Danger Sense'),'чутьё'));
@@ -100,7 +100,7 @@ test('each logical ability appears once across every catalog page, with separate
  assert.equal(names.length,index.groups.length);assert.equal(new Set(names).size,names.length);
  const wind=source(e,'Second Wind'),group=index.byId.get(wind.id);
  assert.equal(group.variants.length,3);a.filters.q='Second Wind';a.renderAbilitiesDB();assert.equal((a.html('tab-abilitiesdb').match(/class="entry-card"/g)||[]).length,1);
- const newer=source(e,'Second Wind','srd-2024');a.abilitySelectVariant(newer.id);assert.match(a.html('tab-abilitiesdb'),/D&D 2024 · справочная карточка/);
+ const newer=source(e,'Second Wind','srd-2024');a.abilitySelectVariant(newer.id);assert.match(a.html('tab-abilitiesdb'),/Бонусным действием восстановите/);assert.doesNotMatch(a.html('tab-abilitiesdb'),/справочная карточка/);
  const manual={id:'master-defense',n:'Защита хранителя',x:'Первый вариант мастера',type:'class',custom:true,open5e:{originalName:'Guardian Defense'}};
  e.state().abilities.push(manual,{...manual,id:'second-defense',x:'Особый вариант мастера'});
  a.filters.q='Особый вариант мастера';a.filters.edition='custom';a.renderAbilitiesDB();assert.match(a.html('tab-abilitiesdb'),/Особый вариант мастера/);assert.doesNotMatch(a.html('tab-abilitiesdb'),/Первый вариант мастера/);

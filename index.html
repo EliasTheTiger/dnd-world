@@ -220,6 +220,7 @@
 <script src="scripts/grimoire-rules.js"></script>
 <script src="scripts/hobbyworld-ability-terms.js"></script>
 <script src="scripts/ability-rules.js"></script>
+<script src="scripts/ability-gameplay.js"></script>
 <script src="scripts/recipe-rules.js"></script>
 <script src="scripts/recipe-workbench.js"></script>
 <script src="data/dnd5e/srd51-spell-facts.js"></script>
@@ -3358,7 +3359,7 @@ if(styles) styles.fx=[{stat:'note',mode:'text',value:'Дуэлянт: +2 к ур
 
 chars.forEach(c=>(c.abilities||[]).forEach(e=>{
 const db=abilitiesDB.find(a=>a.id===e.abilityId);
-if(db&&db.uses!=null&&e.cur==null) e.cur=db.uses;
+if(db&&db.uses!=null&&e.cur==null) e.cur=abilityMaxUses(c,db);
 }));
 reconcileAbilityRules(abilitiesDB);
 if(installed<500){if(raceRefs.changed)scheduleSave();return;}
@@ -4072,8 +4073,8 @@ const out=document.getElementById('diceOut'); if(!out) return;
 out.textContent=text; out.style.color=color||'var(--ink)';
 }
 function rollFxContextAllowed(c,f,tags){
-if(!f||!f.sourceUid) return true;
-const src=(c.activeFx||[]).find(x=>x.uid===f.sourceUid),ctx=src&&src.triggerContext;
+if(!f)return true;
+const src=(c.activeFx||[]).find(x=>x.uid===f.sourceUid),ctx=f.context||(src&&src.triggerContext);
 if(!ctx) return true;
 tags=tags||[];
 if(ctx.sourceEntryId){
@@ -4160,11 +4161,11 @@ const why=(adv===1?' · преимущество':(adv===2?' · помеха':''
 +(dice.length?' · кости эффектов: '+dice.map(d=>d.label).join(', '):'');
 askRolls({title:'⚂ '+label, note:'Модификатор: '+(m>0?'+':'')+m+why,
 rows,
-compute:v=>{ const r=adv===1?Math.max(v.a,v.b):(adv===2?Math.min(v.a,v.b):v.a); const d=sumDice(v);
+compute:v=>{ const r=abilityGameplayCheckNatural(c,kind,adv===1?Math.max(v.a,v.b):(adv===2?Math.min(v.a,v.b):v.a)); const d=sumDice(v);
 return label+': d20 '+r+(m?(m>0?' + '+m:' − '+Math.abs(m)):'')+(d?(d>0?' + '+d:' − '+Math.abs(d)):'')+' = '+(r+m+d); },
 apply:v=>{
 if(!characterInspirationRollValid(c,fxList.filter(f=>f.consume==='roll').map(f=>f.sourceUid)))return false;
-const r=adv===1?Math.max(v.a,v.b):(adv===2?Math.min(v.a,v.b):v.a);
+const r=abilityGameplayCheckNatural(c,kind,adv===1?Math.max(v.a,v.b):(adv===2?Math.min(v.a,v.b):v.a));
 const d=sumDice(v);
 const note=adv===1?' ▲['+v.a+'|'+v.b+']':(adv===2?' ▼['+v.a+'|'+v.b+']':'');
 diceOutSet(label+': d20 '+r+(m?(m>0?' + '+m:' − '+Math.abs(m)):'')+(d?(d>0?' + '+d:' − '+Math.abs(d)):'')+' = '+(r+m+d)+note,
@@ -4793,13 +4794,13 @@ if(typeof bg3LifecycleFxSources==='function') out.push(...bg3LifecycleFxSources(
 abilityUniqueEntries(c).forEach(e=>{
 const ab=abilityOf(e.abilityId); if(!ab) return;
 if(isPassiveAbility(ab)){
-let fx=recFx(ab,'ability');
+let fx=abilityGameplayPassiveFx(c,ab,e);
 if(ab.id==='ab_lg_styles'){
 const chest=invEntry(c,(c.equipment||{}).CHEST), armor=chest&&itemOf(chest.itemId);
 if(armor&&itemProfile(armor).kind==='armor') fx=fx.concat({stat:'ac',mode:'add',value:1,note:'надет доспех'});
 }
 if(fx.length){
-const s={k:'ability', id:ab.id, label:ab.n, why:'пассивная', fx, canOff:true};
+const s={k:'ability', id:ab.id, label:ab.n, why:'пассивная', fx, canOff:true,hideTechnicalNotes:true};
 s.off=off.includes(fxSrcKey(s)); out.push(s);
 }
 }
@@ -4864,7 +4865,7 @@ charFxSources(c).forEach(s=>{ if(s.off||s.suppressed||s.stacked) return; s.fx.fo
 let v=f.value;
 if(v==='lvl') v=c.level;
 if(v==='prof') v=PROF[c.level]||0;
-list.push({stat:f.stat, mode:f.mode, value:v, unit:f.unit||'', note:f.note||'', label:s.label, k:s.k,hideTechnicalNote:s.hideTechnicalNotes===true,
+list.push({stat:f.stat, mode:f.mode, value:v, unit:f.unit||'', note:f.note||'', context:f.context,label:s.label, k:s.k,hideTechnicalNote:s.hideTechnicalNotes===true,
 consume:f.consume||'', sourceUid:s.uid||null});
 });});
 return list;
@@ -4906,7 +4907,7 @@ const raw=String(c.speed||'');
 const usesFeet=value=>/(?:фут|\bft\b|\bfeet\b|\bfoot\b)/i.test(String(value||''));
 if(conditionForcesZeroSpeed(effectiveConditions(c))) return '0 '+(usesFeet(raw)?'футов':'м');
 const load=(typeof carryWeightState==='function')?carryWeightState(c):{known:true,kg:(typeof carryWeight==='function'?carryWeight(c):0)},
-over=load.kg>Math.round(eAb(c,'str')*7.5);
+over=load.kg>Math.round(eAb(c,'str')*7.5*fxMul(c,'carry'));
 const m=raw.replace(',','.').match(/-?\d+(?:\.\d+)?/);
 if(!m) return raw;
 let v=+m[0], add=0, mul=1, setVal=null, unit=usesFeet(raw)?' футов':' м';
@@ -4925,6 +4926,7 @@ add+=d;
 }
 });
 v=setVal==null?(v+add)*mul:setVal;
+if(setVal==null){const minimum=fxMin(c,'speed');if(minimum!=null)v=Math.max(v,unit.includes('фут')?minimum*(10/3):minimum);}
 if(over) v-=unit.indexOf('фут')>=0?10:3;
 v=Math.max(0,Math.round(v*10)/10);
 let fastest=v,mode='';
@@ -4989,7 +4991,7 @@ function eMod(c,k){ return Math.floor((eAb(c,k)-10)/2); }
 
 
 function eHpMax(c){ return Math.max(0,Math.floor(((+c.hpMax||0)+fxSum(c,'hpmax'))*fxMul(c,'hpmax'))); }
-function fxSaveBonus(c,k){ return fxSum(c,'save.'+k)+fxSum(c,'save.all'); }
+function fxSaveBonus(c,k){ return fxSum(c,'save.'+k)+fxSum(c,'save.all')+(!c.saves?.[k]&&charAbilityRuleEntries(c).some(x=>x.rules?.saveProficiency?.includes(k))?(PROF[c.level]||2):0); }
 function fxSkillBonus(c,name){ return fxSum(c,'skill.'+name); }
 
 
@@ -5225,7 +5227,7 @@ if(!m||m.schemaVersion!==GAME_MECHANICS_SCHEMA_VERSION||m.mode==='legacy') retur
 out.found=true;
 const p=m.proficiencies;
 if(!p||!Object.keys(p).length) return;
-Object.assign(out.armor,p.armor||{});
+for(const [key,granted] of Object.entries(p.armor||{}))out.armor[key]=!!out.armor[key]||!!granted;
 if(p.weapons){out.weapons.simple=out.weapons.simple||!!p.weapons.simple;out.weapons.martial=out.weapons.martial||!!p.weapons.martial;
 (p.weapons.names||[]).forEach(n=>{if(out.weapons.names.indexOf(n)<0)out.weapons.names.push(n);});}
 if(p.materialBan) out.materialBan=p.materialBan;
@@ -5330,6 +5332,115 @@ return armorViolations(c).filter(v=>off.indexOf(v.key)<0);
 
 
 const ABILITY_RULES=globalThis.DND_ABILITY_RULES;
+const ABILITY_GAMEPLAY=globalThis.DND_ABILITY_GAMEPLAY;
+function abilityGameplayInstall(ab){
+const p=ABILITY_GAMEPLAY.profile(ab);if(!p){
+if(ab.id==='ab_lg_disarm'&&!ab.abilityReview?.custom){ab.x='При попадании оружием потратьте кость превосходства и добавьте её к урону. Цель совершает спасбросок Силы против Сл 8 + бонус мастерства + лучший модификатор Силы или Ловкости. При провале вы сбиваете хватку: следующая атака цели в течение 1 раунда совершается с помехой.';if(ab.mechanics)ab.mechanics.sourceHash=mechanicsSourceHash(ab,'ability');}
+return ab;}
+ab.x=p.text;ab.mode=p.role;ab.uses=p.uses==null?null:typeof p.uses==='number'?p.uses:1;ab.rest=p.rest||'';
+const cost=p.cost||(p.role==='active'?'action':'free'),target=p.target||'self';
+const resolution=normalizeResolutionContract({attack:p.attack||null,save:p.save||null,contest:p.contest||null,rolls:p.rolls||[]},'ability');
+if(p.weapon&&p.save)resolution.saveAffectsDamage=false;
+ab.mechanics={schemaVersion:GAME_MECHANICS_SCHEMA_VERSION,mode:'structured',origin:'explicit',sourceHash:mechanicsSourceHash(ab,'ability'),role:p.role,
+activation:{cost},target:{kind:target,base:1},resource:{uses:ab.uses,rest:ab.rest,pool:p.pool?{provides:p.pool,sides:p.poolSides||0}:p.spendPool?{spends:p.spendPool,amount:p.poolCost||1,points:true}:null},
+duration:{kind:p.rounds===0?'instant':p.rounds===-1?'longRest':p.role==='active'?'rounds':'instant',rounds:p.rounds>0?p.rounds:0,concentration:!!p.concentration,label:p.rounds===-1?'До продолжительного отдыха':p.rounds>0?p.rounds+' раундов':'Мгновенная'},
+resolution,effects:ABILITY_GAMEPLAY.effects(ab,{level:1,ab:{}},null),proficiencies:p.proficiencies||{},passiveRules:p.rules||{},
+combat:{cost,target,usable:p.role==='active',requiresWeapon:!!p.weapon,forceAttack:!!p.weapon,noRoll:!resolution.needsRoll&&!p.weapon,oncePerTurn:!!p.oncePerTurn,grantAction:p.grantAction||0},manualNote:'',gameplayRevision:ABILITY_GAMEPLAY.revision};
+if(ab.abilityReview){ab.abilityReview.descriptionStatus='campaign-gameplay';ab.abilityReview.gameplayRevision=ABILITY_GAMEPLAY.revision;}
+ab.tags=uniqTags(abilityEnrichTags(ab));
+return ab;
+}
+function abilityGameplayResolve(ab,c){
+const p=ab&&ABILITY_GAMEPLAY.profile(ab);if(!p||!c)return ab;
+const entry=(c.abilities||[]).find(e=>e.abilityId===ab.id),m=mechanicsClone(ab.mechanics),copy={...ab,mechanics:m};
+m.effects=ABILITY_GAMEPLAY.effects(ab,c,entry);
+if(p.scaleDice==='sneak')m.resolution.rolls[0].cnt=Math.ceil(c.level/2);
+if(p.fixedHeal)m.resolution.rolls[0].mod={source:'fixed',value:p.fixedHeal==='five-level'?5*c.level:p.fixedHeal==='three-level'?3*c.level:Math.max(1,5+eMod(c,'con'))};
+if(p.ancestryDamage){const ancestor=abilityGameplayEntries(c).find(x=>x.profile.choices?.some(choice=>choice.field==='element'));if(ancestor)m.resolution.rolls[0].damageType=ABILITY_GAMEPLAY.selections(ancestor.ab,ancestor.entry,c).element;}
+return copy;
+}
+function abilityGameplayEntries(c){return abilityUniqueEntries(c).map(entry=>{const ab=abilityOf(entry.abilityId),profile=ab&&ABILITY_GAMEPLAY.profile(ab);return {entry,ab,profile};}).filter(x=>x.profile&&!(c.fxOff||[]).includes('ability:'+x.ab.id));}
+function abilityGameplayPassiveFx(c,ab,entry){
+const p=ABILITY_GAMEPLAY.profile(ab);if(!p)return recFx(ab,'ability');
+const r=p.rules||{},chest=invEntry(c,c.equipment?.CHEST),armor=chest&&itemOf(chest.itemId),wearing=armor&&itemProfile(armor).kind==='armor',heavy=wearing&&itemProfile(armor).armor?.weight==='тяжелый',shield=!!c.equipment?.OFF_HAND&&itemProfile(itemOf(invEntry(c,c.equipment.OFF_HAND)?.itemId)||{}).kind==='shield';
+if(r.armorGate==='no-heavy'&&heavy||r.armorGate==='armored'&&!wearing||r.armorGate==='unarmored'&&(wearing||shield))return [];
+if(r.requiresActive&&!(c.activeFx||[]).some(a=>ABILITY_GAMEPLAY.keyOf(abilityOf(a.id)||{})===r.requiresActive))return [];
+let effects=ABILITY_GAMEPLAY.effects(ab,c,entry);
+if(c.characterBuild&&(p.key==='dwarven toughness'&&c.race==='Дварф'&&c.subrace==='Холмовой дварф'||p.key==='draconic resilience'&&c.cls==='Чародей'&&c.subcls==='Драконья кровь'))effects=effects.filter(f=>f.stat!=='hpmax');
+const conditions=normalizeConditions((c.cond||[]).concat((c.activeFx||[]).flatMap(a=>(a.fx||[]).filter(f=>f.stat==='condition').map(f=>f.value))));effects=effects.filter(f=>!(f.excludeConditions||[]).some(n=>conditions.includes(canonicalCondition(n))));
+if(r.unarmoredBase&&!wearing)effects.push({stat:'acbase',mode:'set',value:r.unarmoredBase});
+if(r.unarmoredDefense&&!wearing&&(c.cls==='Варвар'||!shield))effects.push({stat:'acbase',mode:'set',value:10+Math.floor(((+c.ab?.[c.cls==='Варвар'?'con':'wis']||10)-10)/2)});
+return effects;
+}
+function abilityGameplayChoiceHTML(c,ab,entry){
+const p=ABILITY_GAMEPLAY.profile(ab);if(!p)return '';if(p.binding)return abilityGameplayBindingHTML(c,ab,entry);
+if(!p.choices?.length)return '';
+const selected=ABILITY_GAMEPLAY.selections(ab,entry,c);
+return '<div class="ability-choices">'+p.choices.map(choice=>'<label class="stat-line">'+esc({skill:'Навык',language:'Язык',element:'Стихия',attribute:'Характеристика',style:'Боевой стиль'}[choice.field]||'Выбор')+' <select aria-label="'+esc('Выбор: '+ab.n)+'" onchange="abilityGameplayChoose(\''+c.id+'\',\''+ab.id+'\',\''+choice.field+'\',this.value)">'+choice.options.map(v=>'<option value="'+esc(v)+'"'+(v===selected[choice.field]?' selected':'')+'>'+esc(p.choiceLabels?.[v]||v)+'</option>').join('')+'</select></label>').join('')+'</div>';
+}
+function abilityGameplayChoose(charId,abilityId,field,value){
+const c=getCh(charId),ab=abilityOf(abilityId),p=ab&&ABILITY_GAMEPLAY.profile(ab),entry=c?.abilities?.find(e=>e.abilityId===abilityId),choice=p?.choices?.find(v=>v.field===field);
+if(!entry||!choice?.options.includes(value))return false;
+if(combat.active||castCtx||rollSpec){setStatus('Завершите действие и бой перед сменой выбора.',true);return false;}
+if(p.choices.some(other=>other.field!==field&&(/^(skill|language)/.test(other.field))&&ABILITY_GAMEPLAY.selections(ab,entry,c)[other.field]===value))return false;
+if(p.choiceRest&&entry.choiceLocked){setStatus('Выбор можно сменить после продолжительного отдыха.',true);return false;}
+entry.choices={...entry.choices,[field]:value};if(p.choiceRest)entry.choiceLocked=true;
+if(field==='element'&&c.characterBuild&&c.race==='Драконорожденный'&&['draconic ancestry','draconic ancestry table','id:ab_драконорожденный_сопротивление_урону_стихии_предка'].includes(p.key)){const ancestry=CHARACTER_RULES.ancestry.find(row=>row[1]===value);if(ancestry)c.ancestry=ancestry[0];}
+fxInvalidate();c.hp=Math.min(c.hp,eHpMax(c));scheduleSave();renderChars();return true;
+}
+function abilityGameplayBindingHTML(c,ab,entry){
+const p=ABILITY_GAMEPLAY.profile(ab),go='<button class="btn ghost sm" onclick="sheetTab=\'spells\';renderChars()">Открыть книгу заклинаний</button>';
+if(p.binding==='spellbook')return go;
+if(p.binding==='subclass')return '<label>Специализация <select aria-label="Специализация" onchange="characterSelectValue(\'subcls\',this.value)"><option value="">Выберите специализацию</option>'+CHARACTER_RULES.subclassOptions(classOf(c)).map(name=>'<option'+(c.subcls===name?' selected':'')+'>'+esc(name)+'</option>').join('')+'</select></label>';
+if(p.binding==='cantrip')return '<label>Дополнительный фокус <select aria-label="Дополнительный фокус" onchange="abilityGameplayBind(\''+c.id+'\',\''+ab.id+'\',this.value)"><option value="">Выберите фокус</option>'+spellsDB.filter(sp=>grimoireActive(sp)&&+sp.l===0).map(sp=>'<option value="'+esc(sp.id)+'"'+(entry.grantedSpell===sp.id?' selected':'')+'>'+esc(sp.n)+'</option>').join('')+'</select></label>'+go;
+if(p.binding==='age')return '<label>Возраст <input type="number" min="1" max="10000" value="'+esc(String(c.age||''))+'" onchange="abilityGameplayBind(\''+c.id+'\',\''+ab.id+'\',this.value)"></label>';
+const values=p.binding==='size'?['Маленький','Средний','Большой']:['Законопослушно-добрый','Нейтрально-добрый','Хаотично-добрый','Законопослушно-нейтральный','Нейтральный','Хаотично-нейтральный','Законопослушно-злой','Нейтрально-злой','Хаотично-злой'],current=p.binding==='size'?c.size:c.align;
+return '<label>'+esc(p.binding==='size'?'Размер':'Мировоззрение')+' <select onchange="abilityGameplayBind(\''+c.id+'\',\''+ab.id+'\',this.value)">'+values.map(v=>'<option'+(v===current?' selected':'')+'>'+esc(v)+'</option>').join('')+'</select></label>';
+}
+function abilityGameplayBind(charId,abilityId,value){
+const c=getCh(charId),ab=abilityOf(abilityId),p=ab&&ABILITY_GAMEPLAY.profile(ab),entry=c?.abilities?.find(e=>e.abilityId===abilityId);if(!entry||!p?.binding||combat.active||castCtx||rollSpec)return false;
+if(p.binding==='cantrip'){
+const sp=spellOf(value);if(!sp||+sp.l!==0||!grimoireActive(sp))return false;
+entry.grantedSpell=sp.id;abilityGameplaySyncSpells(c);
+}else if(p.binding==='age'){if(!Number.isSafeInteger(+value)||+value<1||+value>10000)return false;c.age=+value;}
+else if(p.binding==='size'){if(!['Маленький','Средний','Большой'].includes(value))return false;c.size=value;}
+else if(p.binding==='alignment'){if(!/^(?:Законопослушно|Хаотично|Нейтрально)-(?:добрый|злой)$|^(?:Законопослушно|Хаотично)-нейтральный$|^Нейтральный$/.test(value))return false;c.align=value;}
+else return false;
+fxInvalidate();scheduleSave();renderChars();return true;
+}
+function abilityGameplaySyncSpells(c){
+const grants=new Map();abilityGameplayEntries(c).filter(x=>x.profile.binding==='cantrip'&&x.entry.grantedSpell).forEach(x=>{const sp=spellOf(x.entry.grantedSpell);if(sp&&grimoireActive(sp)&&+sp.l===0)grants.set(sp.id,x.ab.id);});
+c.spellbook=(c.spellbook||[]).filter(e=>!e.abilityGameplayGrant||grants.has(e.spellId));
+for(const [spellId,abilityId] of grants)if(!c.spellbook.some(e=>e.spellId===spellId))c.spellbook.push({spellId,access:'feature',granted:true,alwaysPrepared:true,countsAgainstKnown:false,countsAgainstPreparation:false,prep:true,abilityGameplayGrant:abilityId});
+}
+function abilityGameplayPointPool(c,key){
+const providers=abilityGameplayEntries(c).filter(x=>x.profile.role==='resource'&&x.profile.pool===key);if(!providers.length)return null;
+const max=Math.min(...providers.map(x=>abilityMaxUses(c,x.ab))),cur=Math.min(max,...providers.map(x=>x.entry.cur??max));
+const entry=providers.length===1?providers[0].entry:{get cur(){return Math.min(...providers.map(x=>x.entry.cur??max));},set cur(value){providers.forEach(x=>x.entry.cur=value);}};
+return {ab:providers[0].ab,entry,max,cur};
+}
+function abilityGameplayRestorePlan(c,ab){
+const rule=ABILITY_GAMEPLAY.profile(ab)?.restore;if(!rule)return {ok:true,commit:()=>{}};
+if(rule.magic){
+if(magicUsesMp()){const pool=magicPool(c);return pool.spent>0?{ok:true,commit:()=>MAGIC_RULES.recover(c,2)}:{ok:false,reason:'Запас магии уже полон.'};}
+const slot=c.slots?.[rule.level];return slot&&slot.cur<slot.max?{ok:true,commit:()=>{slot.cur++;if(c.characterBuild?.slotSpent)c.characterBuild.slotSpent[rule.level]=Math.max(0,(c.characterBuild.slotSpent[rule.level]||0)-1);}}:{ok:false,reason:'Нет потраченной ячейки 1-го круга.'};
+}
+const provider=abilityGameplayPointPool(c,rule.pool)||abilityGameplayEntries(c).find(x=>x.profile.pool===rule.pool),max=provider&&abilityMaxUses(c,provider.ab),cur=provider&&(provider.entry.cur??max);
+return provider&&cur<max?{ok:true,commit:()=>{provider.entry.cur=Math.min(max,cur+rule.amount);}}:{ok:false,reason:'Нет потраченных использований связанного запаса сил.'};
+}
+function abilityGameplayCleanse(holder,names){
+const clear=new Set(names.map(canonicalCondition));holder.cond=(holder.cond||[]).filter(name=>!clear.has(canonicalCondition(name)));
+holder.activeFx=(holder.activeFx||[]).filter(entry=>{if(!Array.isArray(entry.fx))return true;const before=entry.fx.length;entry.fx=entry.fx.filter(f=>f.stat!=='condition'||!clear.has(canonicalCondition(f.value)));return entry.fx.length>0||before===0;});
+}
+function abilityGameplayCheckNatural(c,kind,natural){
+if(natural==null)return natural;
+const rules=charAbilityRuleEntries(c),skill=kind?.startsWith('skill.')?kind.slice(6):'',index=SKILLS.findIndex(x=>x[0]===skill);
+const attribute=index>=0?SKILLS[index][1]:kind?.startsWith('check.')?kind.slice(6):'',floor=Math.max(0,...rules.filter(x=>x.rules?.naturalFloor?.attribute===attribute).map(x=>x.rules.naturalFloor.value));
+return Math.max(natural,floor,index>=0&&rules.some(x=>x.rules?.reliableTalent)&&skillBonus(c,index).p?10:0);
+}
+function abilityGameplayLanguages(c){return [...new Set(charFxAll(c).filter(f=>f.stat==='proficiency.language').map(f=>String(f.value)))];}
+function abilityGameplaySight(c){const dark=fxMin(c,'vision.dark'),blind=fxMin(c,'vision.blind');return [dark?'Ночное зрение: '+dark+' м':'',blind?'Чувство невидимого: '+blind+' м':''].filter(Boolean).join(' · ');}
+function abilityGameplayElusive(ti){return ti?.kind==='ally'&&ti.obj&&!activeConditionRules(effectiveConditions(ti.obj)).some(c=>c.rules.incapacitated)&&charAbilityRuleEntries(ti.obj).some(x=>x.rules?.denyAttackAdvantage);}
 let abilityIndexCache=null;
 function abilityCatalogIndex(refresh=false){
 if(refresh||!abilityIndexCache||abilityIndexCache.rows!==abilitiesDB||abilityIndexCache.length!==abilitiesDB.length)abilityIndexCache={rows:abilitiesDB,length:abilitiesDB.length,index:ABILITY_RULES.catalogIndex(abilitiesDB)};
@@ -5341,6 +5452,8 @@ const index=abilityCatalogIndex(true);let changed=false;
 for(const c of holders){
 const merge=entries=>ABILITY_RULES.mergeEntries(entries,index,id=>abilityMaxUses(c,abilityOf(id)));
 const result=merge(c.abilities);if(result.changed){c.abilities=result.entries;changed=true;}
+for(const entry of c.abilities||[]){const max=abilityMaxUses(c,abilityOf(entry.abilityId));if(max!=null&&entry.cur!=null&&entry.cur>max){entry.cur=max;changed=true;}}
+for(const key of ['ki','sorcery']){const pool=abilityGameplayPointPool(c,key);if(pool&&abilityGameplayEntries(c).some(x=>x.profile.pool===key&&(x.entry.cur??pool.max)!==pool.cur)){pool.entry.cur=pool.cur;changed=true;}}
 if(c.characterBuild?.archivedAbilities){const archived=merge(c.characterBuild.archivedAbilities);if(archived.changed){c.characterBuild.archivedAbilities=archived.entries;changed=true;}}
 // A disabled passive remains disabled when its duplicate assignment is removed.
 for(const entry of c.abilities||[]){const group=index.byId.get(entry.abilityId);if(group&&(c.fxOff||[]).some(key=>group.variants.some(ab=>key==='ability:'+ab.id))&&!c.fxOff.includes('ability:'+entry.abilityId)){c.fxOff.push('ability:'+entry.abilityId);changed=true;}}
@@ -5367,10 +5480,12 @@ resolution:normalizeResolutionContract({attack:null,save:null,contest:null,rolls
 effects:[],proficiencies:{},passiveRules:{},combat:{cost,target:'self',usable:true,requiresWeapon:false,forceAttack:false,consumeOn:'',oncePerTurn:!healing,noRoll:!healing,grantAction:healing?0:1},manualNote:''};
 ab.enginePolicy={mode:'structured',handler:healing?'second-wind-2014':'action-surge-2014',reason:''};
 });
+rows.forEach(abilityGameplayInstall);
 return rows;
 }
 function abilityMaxUses(c,ab){
 if(!ab||ab.uses==null)return null;
+const p=ABILITY_GAMEPLAY.profile(ab);if(p?.uses&&typeof p.uses==='string')return Math.max(1,ABILITY_GAMEPLAY.value(p.uses,c,{}))+(p.key==='rage'?Math.max(0,...charAbilityRuleEntries(c).map(x=>x.rules?.rageExtraUses||0)):0);
 const rules=ab.mechanics?.resource?.scaling||[];
 return Math.max(ab.uses,...rules.filter(r=>r.cls===c?.cls&&c.level>=r.level).map(r=>r.uses));
 }
@@ -5379,6 +5494,9 @@ if(!caster||!ab)return {ok:false,reason:'Герой или способност�
 if(!(caster.abilities||[]).some(e=>e.abilityId===ab.id))return {ok:false,reason:'Эта способность отсутствует у героя.'};
 if(abilityUniqueEntries(caster).length!==(caster.abilities||[]).length)return {ok:false,reason:'У героя повторяются способности. Перезагрузите сохранение, чтобы объединить записи перед применением.'};
 if(ab.mechanics?.mode==='manual'||!abilityIsActive(ab))return {ok:false,reason:'Эта способность применяется по условию или служит справкой; самостоятельное действие недоступно.'};
+const gameplay=ABILITY_GAMEPLAY.profile(ab);
+if(gameplay?.requiresStrength&&eAb(caster,'str')<gameplay.requiresStrength)return {ok:false,reason:'Недостаточно Силы для этого приёма.'};
+if(gameplay?.healthGate==='half'&&(caster.hp<=0||caster.hp>eHpMax(caster)/2))return {ok:false,reason:'Применяется только при текущих хитах от 1 до половины максимума.'};
 if(combatAbilityUsedThisTurn(ab,'ally:'+caster.id))return {ok:false,reason:'Эта способность уже использована в текущем ходу.'};
 if(['second-wind-2014','action-surge-2014'].includes(ab.enginePolicy?.handler)&&
 (caster.cls!=='Воин'||caster.level<(ab.enginePolicy.handler==='action-surge-2014'?2:1)))return {ok:false,reason:'У героя нет требуемого уровня воина.'};
@@ -5410,7 +5528,7 @@ function deriveAbilityHeal(ab, caster){
 return deriveInstantHeal(ab,'ability',caster,null);
 }
 function useAbilityApply(abilityId, casterId, target, rolls){
-const ab=abilityOf(abilityId), caster=getCh(casterId);
+const caster=getCh(casterId),ab=abilityGameplayResolve(abilityOf(abilityId),caster);
 if(!ab||!caster||!target) return false;
 const mechanics=currentMechanics(ab,'ability');
 if(mechanics&&mechanics.mode==='manual'&&ab.catalogSource&&ab.catalogSource.provider==='Open5e'){
@@ -5423,6 +5541,7 @@ if(!lifecycleCheck.ok)return bg3LifecycleBlock(lifecycleCheck,'Способно�
 const combatRule=abilityCombatRules(ab);
 const targetPlan=targetInfoOf(target);
 if(!targetPlan.known||!targetPlan.obj){setStatus('✕ Выберите существующую цель способности.',true);return false;}
+if(combatRule.target==='ally'&&targetPlan.kind!=='ally'){setStatus('Выберите союзника.',true);return false;}
 if(combatRule.target==='self'&&(targetPlan.kind!=='ally'||targetPlan.id!==caster.id)){
 const msg='«'+ab.n+'» действует только на самого героя.'; setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false;
 }
@@ -5432,6 +5551,7 @@ const msg='Для «'+ab.n+'» выберите существующую отд�
 if(!combatCastPreflight()) return false;
 const chk=canUseAbilityCheck(caster, ab);
 if(!chk.ok){ setStatus('✕ '+chk.reason, true); castShowErr&&castShowErr(chk.reason); return false; }
+const restorePlan=abilityGameplayRestorePlan(caster,ab);if(!restorePlan.ok){setStatus(restorePlan.reason,true);return false;}
 const outcomeCheck=abilityOutcomePreflight(ab,rolls,caster);
 if(!outcomeCheck.ok){setStatus('✕ '+outcomeCheck.reason,true);castShowErr&&castShowErr(outcomeCheck.reason);return false;}
 rolls=rolls||(arguments.length>3?arguments[3]:null);
@@ -5443,10 +5563,10 @@ const resourceTriggered=combatRule.consumeOn!=='hit'||rolls?.hit===true;
 const requiredPool=abilityPoolOf(caster,ab);
 const poolRule=mechanics&&mechanics.resource&&mechanics.resource.pool;
 if(resourceTriggered&&poolRule&&poolRule.spends&&!requiredPool){
-const msg='Для «'+ab.n+'» у героя нет структурированного запаса «'+poolRule.spends+'».';
+const msg='Для «'+ab.n+'» нужен запас '+({ki:'ци',sorcery:'очков чар',bardic:'бардовского вдохновения','wild-shape':'звериных обликов',superiority:'костей превосходства'}[poolRule.spends]||'сил для этого приёма')+'.';
 setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false;
 }
-if(resourceTriggered&&requiredPool&&(!rolls||rolls.poolSpend!==requiredPool.ab.id)){
+if(resourceTriggered&&requiredPool&&!requiredPool.points&&(!rolls||rolls.poolSpend!==requiredPool.ab.id)){
 const msg='Для «'+ab.n+'» нужен подтвержденный бросок ресурсной кости.';
 setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false;
 }
@@ -5470,7 +5590,7 @@ poolDb=requiredPool.ab;
 poolEntry=requiredPool.entry;
 if(poolDb&&poolEntry){
 poolCur=poolEntry.cur==null?abilityMaxUses(caster,poolDb):poolEntry.cur;
-if(!Number.isSafeInteger(poolCur)||poolCur<=0||poolCur>abilityMaxUses(caster,poolDb)){
+if(!Number.isSafeInteger(poolCur)||poolCur<(requiredPool.amount||1)||poolCur>abilityMaxUses(caster,poolDb)){
 const msg='«'+poolDb.n+'» — запас исчерпан.';
 setStatus('✕ '+msg,true); castShowErr&&castShowErr(msg); return false;
 }
@@ -5499,7 +5619,7 @@ if(resourceTriggered&&ownEntry){
 ownEntry.cur=ownCur-1; chargeInfo=' · заряд −1 (осталось '+ownEntry.cur+' из '+ownMax+')';
 }
 if(resourceTriggered&&poolDb&&poolEntry){
-poolEntry.cur=poolCur-1; chargeInfo+=' · '+poolDb.n+' −1 (осталось '+poolEntry.cur+' из '+abilityMaxUses(caster,poolDb)+')';
+poolEntry.cur=poolCur-(requiredPool.amount||1); chargeInfo+=' · '+poolDb.n+' −'+(requiredPool.amount||1)+' (осталось '+poolEntry.cur+' из '+abilityMaxUses(caster,poolDb)+')';
 }
 if(!resourceTriggered&&(ownEntry||(rolls&&rolls.poolSpend))) chargeInfo+=' · ресурс не израсходован: попадание не подтверждено';
 if(weaponPlan.e) chargeInfo+=commitWeaponAttackResource(weaponPlan);
@@ -5508,6 +5628,8 @@ if(rolls&&rolls.attackMade) endTriggeredSpellEffects(caster,'attack');
 const tIsAlly=target.indexOf('ally:')===0;
 const tinfo=targetPlan;
 let info='';
+restorePlan.commit();
+const cleanse=ABILITY_GAMEPLAY.profile(ab)?.cleanse;if(cleanse)abilityGameplayCleanse(tinfo.obj,cleanse);
 
 if(rolls){
 info+=applyRollsToTarget(target, rolls, '✦ '+ab.n);
@@ -5553,8 +5675,8 @@ info+=' · провокация действует до конца следую�
 }
 if(combatRule.disarm&&tinfo.obj&&effectAllowed){
 const entry={k:'ability',id:ab.id,label:ab.n,from:caster.name,casterId:caster.id,castId:abilityCastId,
-stackKey:'ability:'+ab.id+':'+caster.id,power:0,why:'выбранный предмет упал к ногам цели',
-fx:[{stat:'note',mode:'text',value:'Разоружен: выбранный предмет лежит у ног цели'}]};
+stackKey:'ability:'+ab.id+':'+caster.id,power:0,why:'хватка сбита: помеха на следующую атаку',expiresAtRound:fxRound+1,
+fx:[{stat:'note',mode:'text',value:'Разоружен: хватка сбита'},{stat:'attack',mode:'dis',value:1,consume:'roll'}]};
 if(tinfo.kind==='ally') applyFxTo(tinfo.id,entry); else if(tinfo.kind==='foe') applyFxToFoe(tinfo.obj,entry);
 info+=' · цель разоружена (предмет у ее ног)';
 }
@@ -5569,8 +5691,9 @@ return true;
 }catch(error){return bg3SourceTransactionRollback(interruptPermit,transactionLabel,error);}
 }
 function abilityCastFx(abilityId, casterId){
-const ab=abilityOf(abilityId); if(!ab) return;
+let ab=abilityOf(abilityId); if(!ab) return;
 const caster=getCh(casterId||((cc()||{}).id)); if(!caster) return;
+ab=abilityGameplayResolve(ab,caster);
 const lifecycleCheck=bg3LifecycleActorActionPreflight(caster,'','ability',null,null);
 if(!lifecycleCheck.ok)return bg3LifecycleBlock(lifecycleCheck,'Способность «'+ab.n+'»');
 castCtx={kind:'ability', abilityId:ab.id, casterId:caster.id};
@@ -5580,7 +5703,6 @@ const back=document.getElementById('castBack'); if(!back) return;
 document.getElementById('castTitle').textContent='✦ «'+ab.n+'» — применяет: '+caster.name;
 const e=(caster.abilities||[]).find(x=>x.abilityId===ab.id);
 const info=[ABILITY_TYPES&&ABILITY_TYPES[ab.type]||ab.type];
-if(ab.source) info.push('источник: '+ab.source);
 if(ab.uses!=null) info.push('заряды: '+((e&&e.cur!=null)?e.cur:abilityMaxUses(caster,ab))+' из '+abilityMaxUses(caster,ab));
 if(ab.rest) info.push('восстановление: '+ab.rest);
 const chk=canUseAbilityCheck(caster, ab);
@@ -5598,7 +5720,8 @@ ww.style.display='block';
 } else { ww.style.display='none'; wsel.innerHTML=''; }
 }
 const pool=abilityPoolOf(caster, ab);
-if(pool) info.push(pool.label+': '+pool.cur+' из '+pool.max+' (1d'+pool.sides+')');
+if(pool) info.push(pool.label+': '+pool.cur+' из '+pool.max+(pool.points?'':' (1d'+pool.sides+')'));
+document.getElementById('castInfo').textContent=info.join(' · ');
 const sw=document.getElementById('castSlotWrap'); if(sw) sw.style.display='none';
 document.getElementById('castItemWrap').style.display='none';
 document.getElementById('castChoiceWrap').style.display='none';
@@ -5608,6 +5731,7 @@ back.style.display='flex';
 function abilityTargetOptionsHTML(caster,ab){
 const rule=abilityCombatRules(ab);
 if(ab&&rule.target==='self') return '<option value="ally:'+caster.id+'" selected>'+esc(caster.name)+' — сам герой</option>';
+if(rule.target==='ally')return chars.map(c=>'<option value="ally:'+esc(c.id)+'">'+esc(c.name)+'</option>').join('');
 if(ab&&rule.target==='enemy'){
 let h=foesDB.map(f=>{ const stats=foeStatsOf(f); return '<option value="foe:'+f.id+'">'+esc(f.n)+' — '+(f.kind==='npc'?'NPC':'монстр')+', КД '+(+stats.ac||10)+', хиты '+(+f.hp||0)+'/'+(+stats.hpMax||0)+'</option>'; }).join('');
 return h||'<option value="" disabled selected>Добавьте цель в бестиарий</option>';
@@ -5619,7 +5743,7 @@ function encounterEnd(){
 let n=0;
 chars.forEach(c=>(c.abilities||[]).forEach(e=>{
 const db=abilityOf(e.abilityId);
-if(db&&db.uses!=null&&!db.rest&&(e.cur==null||e.cur<db.uses)){ e.cur=db.uses; n++; }
+if(db&&db.uses!=null&&!db.rest&&(e.cur==null||e.cur<abilityMaxUses(c,db))){ e.cur=abilityMaxUses(c,db); n++; }
 }));
 fxInvalidate(); scheduleSave(); renderChars();
 setStatus('⚔ Бой окончен: восстановлены способности «раз за бой» ('+n+' шт.) у всех героев.');
@@ -5638,7 +5762,7 @@ if(c.magicResource)MAGIC_RULES.rest(c);
 c.activeFx=[]; c.fxOff=[]; c.cond=[]; c.hpTemp=0; c.deaths={s:0,f:0};
 c.exhaustion=0; c.hdUsed=0; c.spentRest=0; c.hpPend=false;
 Object.keys(c.slots||{}).forEach(k=>{ const s=c.slots[k]||{}; s.cur=Math.max(0,+s.max||0); });
-(c.abilities||[]).forEach(e=>{ const ab=abilityOf(e.abilityId); if(ab&&ab.uses!=null) e.cur=ab.uses; });
+(c.abilities||[]).forEach(e=>{ const ab=abilityOf(e.abilityId); if(ab&&ab.uses!=null) e.cur=abilityMaxUses(c,ab); });
 (c.inventory||[]).forEach(e=>{ e.ammoSpent=0; });
 c.hp=Math.max(1,eHpMax(c));
 return c;
@@ -6417,7 +6541,17 @@ const criticalReduction=holderFxRules(caster,'critical.threshold.reduce').filter
 .reduce((sum,f)=>sum+Math.max(0,+f.value||0),0);
 const baseCritical=Number.isFinite(+spec.meta.criticalThreshold)&&+spec.meta.criticalThreshold>=2?+spec.meta.criticalThreshold:20;
 const champion=caster.characterBuild&&caster.cls==='Воин'&&caster.subcls==='Чемпион'&&caster.level>=3&&spec.meta.kind==='weapon'?(caster.level>=15?18:19):20;
-spec.meta.criticalThreshold=Math.max(2,Math.min(baseCritical,champion)-criticalReduction);
+const abilityRules=charAbilityRuleEntries(caster),weaponAttack=spec.meta.kind==='weapon'||!!spec.meta.weapon;
+const abilityCritical=weaponAttack?Math.min(20,...abilityRules.map(x=>x.rules?.critical||20)):20;
+spec.meta.criticalThreshold=Math.max(2,Math.min(baseCritical,champion,abilityCritical)-criticalReduction);
+if(weaponAttack){
+const extra=Math.max(0,...abilityRules.map(x=>x.rules?.criticalExtraDie||0)),damage=spec.rows.find(r=>r.type==='dmg'&&r.cnt>0&&r.sides>0&&!r.sourceUid);
+if(extra&&damage){damage.criticalExtraDice=extra;damage.hint=(damage.hint||'')+' · при критическом попадании: '+(damage.cnt*2+extra)+'d'+damage.sides;}
+const attack=spec.rows.find(r=>r.type==='atk'),attackBonus=spec.meta.attackMode==='ranged'?Math.max(0,...abilityRules.map(x=>x.rules?.rangedAttackBonus||0))+fxSum(caster,'ability.ranged-attack'):0;
+if(attack&&(attackBonus||attack.abilityGameplayBonus)){attack.mod+=attackBonus-(attack.abilityGameplayBonus||0);attack.abilityGameplayBonus=attackBonus;}
+const weaponDamage=spec.rows.find(r=>r.type==='dmg'&&!r.sourceUid),two=spec.meta.twoHanded||spec.meta.weapon?.two,damageBonus=fxSum(caster,spec.meta.weapon?.unarmed?'unarmed.dmg':'weapon.dmg')+(two?Math.max(0,...abilityRules.map(x=>x.rules?.twoHandDamage||0)):0);
+if(weaponDamage&&(damageBonus||weaponDamage.abilityGameplayBonus)){weaponDamage.mod+=damageBonus-(weaponDamage.abilityGameplayBonus||0);weaponDamage.abilityGameplayBonus=damageBonus;}
+}
 const ignored=[...new Set(holderFxRules(caster,'damage.ignore-resistance').filter(f=>f.mode==='grant')
 .map(f=>dmgTypeCanon(f.value)).filter(Boolean))];
 if(ignored.length) spec.meta.damageTags=Object.assign({},spec.meta.damageTags||{},{ignoreResistance:ignored});
@@ -6432,6 +6566,7 @@ const hasAttack=spec.rows.some(r=>r&&r.type==='atk'),hasSave=spec.rows.some(r=>r
 spec.rows.forEach(r=>{
 if(!r) return;
 const owner=r.side==='target'?ti.obj:caster,armed=characterInspirationEffect(owner),inspiration=armed&&!(spec.meta.inspirationExcludedUids||[]).includes(armed.uid)?armed:null;
+if(owner&&['check','tcheck'].includes(r.type)&&chars.includes(owner)){const effects=rollFxEntries(owner,r.checkKind||'check',[]),hasAdv=r.adv===1||effects.some(f=>f.mode==='adv'),hasDis=r.adv===2||effects.some(f=>f.mode==='dis');r.adv=hasAdv===hasDis?0:hasAdv?1:2;}
 if(inspiration&&r.natural&&!r.autoFail&&['atk','save','check','tcheck'].includes(r.type)){
 if(r.type==='check'||r.type==='tcheck'){
 const effects=rollFxEntries(owner,r.checkKind||'check',[]),hasAdv=r.adv===1||effects.some(f=>f.mode==='adv'),hasDis=r.adv===2||effects.some(f=>f.mode==='dis');
@@ -6878,7 +7013,7 @@ if(['active','passive','resource','triggered','manual'].indexOf(m.role)<0) out.p
 if(!m.activation||ACTION_COSTS.indexOf(m.activation.cost)<0) out.push('нет допустимой стоимости активации');
 if(!m.resource||typeof m.resource!=='object') out.push('ресурс способности не структурирован');
 if(!m.combat||ACTION_COSTS.indexOf(m.combat.cost)<0) out.push('боевые правила способности не структурированы');
-if(m.combat&&['self','enemy'].indexOf(m.combat.target)<0) out.push('неверная боевая цель способности');
+if(m.combat&&['self','enemy','ally'].indexOf(m.combat.target)<0) out.push('неверная боевая цель способности');
 }
 if(kind==='item'){
 if(!m.profile||!ITEM_KIND_RU[m.profile.kind]) out.push('профиль предмета отсутствует или имеет неизвестный kind');
@@ -6959,10 +7094,10 @@ return !abilityIsActive(ab);
 }
 function abilityModeLabel(ab){
 const role=ab&&ab.mechanics&&ab.mechanics.mode!=='legacy'?ab.mechanics.role:ab&&ab.mode;
-if(role==='resource') return 'ресурсная — счетчик расходуется связанными приемами';
-if(role==='triggered') return 'триггерная — проверяется движком при наступлении условия';
-if(role==='manual') return 'справочная — автоисполнение заблокировано до появления явного обработчика';
-return abilityIsActive(ab)?'активная — кнопка «✦ Применить» в книге героя':'пассивная — действует постоянно';
+if(role==='resource') return 'запас сил для связанных приёмов';
+if(role==='triggered') return 'при наступлении указанного условия';
+if(role==='manual') return 'по условиям способности';
+return abilityIsActive(ab)?({action:'действие',bonus:'бонусное действие',reaction:'реакция',free:'свободное действие',turnfree:'в свой ход, без затрат действия'}[abilityCombatRules(ab).cost]||'действие'):'действует постоянно';
 }
 function abilityCombatRules(ab){
 if(ab&&ab.mechanics&&ab.mechanics.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&ab.mechanics.mode!=='legacy') return ab.mechanics.combat||{};
@@ -6972,9 +7107,11 @@ noRoll:!!(ab&&ab.combatNoRoll),inline:!!(ab&&ab.combatInline),grantAction:+(ab&&
 goad:!!(ab&&ab.combatGoad),disarm:!!(ab&&ab.combatDisarm),until:ab&&ab.combatUntil||'',contestBonus:ab&&ab.combatContestBonus||''};
 }
 function charAbilityRuleEntries(c){
-return (c&&c.abilities||[]).map(e=>{
+return abilityUniqueEntries(c).filter(e=>!(c.fxOff||[]).includes('ability:'+e.abilityId)).map(e=>{
 const ab=abilityOf(e.abilityId),m=ab&&currentMechanics(ab,'ability');
-return {e,ab,rules:m&&m.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&m.mode!=='legacy'?(m.passiveRules||{}):null};
+const rules=m&&m.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&m.mode!=='legacy'?{...(m.passiveRules||{})}:null;
+if(rules?.scaleAttacks)rules.attacksPerAction=c.cls==='Воин'&&c.level>=20?4:c.cls==='Воин'&&c.level>=11?3:2;
+return {e,ab,rules};
 }).filter(x=>x.ab);
 }
 
@@ -6989,11 +7126,12 @@ if(!caster||!ab) return null;
 const structured=ab.mechanics&&ab.mechanics.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&ab.mechanics.mode!=='legacy';
 const poolRule=structured&&ab.mechanics.resource&&ab.mechanics.resource.pool;
 if(poolRule&&poolRule.spends){
+const shared=poolRule.points&&abilityGameplayPointPool(caster,poolRule.spends);if(shared)return {...shared,label:shared.ab.n,sides:0,points:true,amount:poolRule.amount||1,addTo:poolRule.addTo||'dmg'};
 const hit=(caster.abilities||[]).map(e=>({e,db:abilityOf(e.abilityId)})).find(o=>o.db&&o.db.id!==ab.id&&o.db.mechanics
 &&o.db.mechanics.resource&&o.db.mechanics.resource.pool&&o.db.mechanics.resource.pool.provides===poolRule.spends);
 if(!hit) return null;
 const provider=hit.db.mechanics.resource.pool,max=abilityMaxUses(caster,hit.db),cur=hit.e.cur==null?max:hit.e.cur;
-return {label:provider.label||'Общий ресурс',sides:+provider.sides||8,ab:hit.db,entry:hit.e,cur,max,addTo:poolRule.addTo||'dmg'};
+return {label:provider.label||hit.db.n||'Общий ресурс',sides:poolRule.points?0:+provider.sides||8,points:!!poolRule.points,amount:poolRule.amount||1,ab:hit.db,entry:hit.e,cur,max,addTo:poolRule.addTo||'dmg'};
 }
 /* В структурной записи отсутствие spends — явное правило. Описание не
 должно незаметно превращать способность в потребителя общего ресурса. */
@@ -7197,6 +7335,8 @@ const casterIsFoe=!!caster&&foesDB.indexOf(caster)>=0;
 const mine=casterIsFoe?effectiveFoeConditions(caster):effectiveConditions(caster), theirs=ti&&ti.kind==='ally'&&ti.obj?effectiveConditions(ti.obj)
 :(ti&&ti.kind==='foe'&&ti.obj?effectiveFoeConditions(ti.obj):[]);
 const ownFx=!caster?[]:(casterIsFoe?foeFxAll(caster):charFxAll(caster));
+const measured=opts.distanceM!=null&&opts.distanceM!==''&&Number.isFinite(+opts.distanceM)?+opts.distanceM:opts.within5===true?1.5:null;
+const canSense=measured!=null&&measured>=0&&!mine.includes('Глухой')&&ownFx.some(f=>f.stat==='vision.blind'&&+f.value>=measured);
 const targetFx=ti&&ti.kind==='ally'&&ti.obj?charFxAll(ti.obj)
 :(ti&&ti.kind==='foe'&&ti.obj?foeFxAll(ti.obj):[]);
 const incoming=targetFx.filter(f=>f.stat==='incoming.attack');
@@ -7209,7 +7349,7 @@ if(c.rules.selfAttack==='dis') dis.push('атакующий: '+c.name);
 if(!casterIsFoe&&(+caster.exhaustion||0)>=3) dis.push('истощение 3 уровня');
 targetRules.forEach(c=>{
 if(c.rules.incomingAttack==='adv') adv.push('цель: '+c.name);
-if(c.rules.incomingAttack==='dis'&&!revealed) dis.push('цель: '+c.name);
+if(c.rules.incomingAttack==='dis'&&!revealed&&!(c.rules.visibility==='hidden'&&canSense)) dis.push('цель: '+c.name);
 });
 const targetIncapacitated=targetRules.some(c=>c.rules.incapacitated);
 const hostileTarget=!!ti&&((casterIsFoe&&ti.kind==='ally')||(!casterIsFoe&&ti.kind==='foe'));
@@ -7227,6 +7367,7 @@ const targetKey=ti&&ti.kind&&ti.id?ti.kind+':'+ti.id:'';
 ownFx.filter(f=>f.stat==='attack.targetExcept'&&f.mode==='dis'&&String(f.value||'')!==targetKey)
 .forEach(f=>dis.push(f.label||'провокация: атака не по защищаемой цели'));
 incoming.forEach(f=>(f.mode==='adv'?adv:dis).push(f.label||'действующий эффект цели'));
+if(ti?.kind==='ally'&&ti.obj&&!targetRules.some(c=>c.rules.incapacitated)&&charAbilityRuleEntries(ti.obj).some(x=>x.rules?.denyAttackAdvantage))adv.length=0;
 const autoCrit=opts.within5===true&&targetRules.some(c=>c.rules.autoCritWithin5);
 const requiresDistance=opts.within5==null&&(opts.mode==='ranged'
 ||targetRules.some(c=>c.rules.incomingAttackByDistance||c.rules.autoCritWithin5));
@@ -7340,11 +7481,11 @@ const within5=opts.within5!==undefined?opts.within5:(measured!=null?measured<=1.
 const rangeBands=attackRangeBands((weapon&&weapon.range)||opts.range||(isSpell&&rec.r)||''),rangeBand=opts.rangeBand||attackRangeBandAt(rangeBands,measured);
 const attackKey=isSpell&&caster?spellAbOf(caster):(weapon?(weapon.abKey||(/лов/i.test(String(weapon.abn||''))?'dex':'str')):
 (caster&&eMod(caster,'dex')>eMod(caster,'str')?'dex':'str'));
-const atkFx=caster?rollFxEntries(caster,'attack.'+attackKey).concat(isSpell?rollFxEntries(caster,'spell.attack'):(weapon?rollFxEntries(caster,'weapon.attack'):rollFxEntries(caster,'unarmed.attack'))):[], condMode=caster?attackConditionMode(caster,ti,{mode:attackMode,within5,rangeBand,threatenedWithin5:opts.threatenedWithin5}):{adv:[],dis:[],mode:0,consumeTargetFx:[]};
+const atkFx=caster?rollFxEntries(caster,'attack.'+attackKey).concat(isSpell?rollFxEntries(caster,'spell.attack'):(weapon?rollFxEntries(caster,'weapon.attack'):rollFxEntries(caster,'unarmed.attack'))):[], condMode=caster?attackConditionMode(caster,ti,{mode:attackMode,within5,rangeBand,distanceM:opts.distanceM,threatenedWithin5:opts.threatenedWithin5}):{adv:[],dis:[],mode:0,consumeTargetFx:[]};
 meta.attackMode=attackMode; meta.within5=within5; meta.rangeBands=rangeBands; meta.rangeBand=rangeBand; meta.threatenedWithin5=!!opts.threatenedWithin5;
 meta.spatialRequired=!!condMode.requiresDistance; meta.autoCritOnHit=!!condMode.autoCrit;
 meta.consumeTargetFx=condMode.consumeTargetFx||[];
-const aA=atkFx.some(f=>f.mode==='adv')||condMode.adv.length>0, aD=atkFx.some(f=>f.mode==='dis')||condMode.dis.length>0;
+const aA=!abilityGameplayElusive(ti)&&(atkFx.some(f=>f.mode==='adv')||condMode.adv.length>0), aD=atkFx.some(f=>f.mode==='dis')||condMode.dis.length>0;
 const atkAdv=(aA===aD)?0:(aA?1:2);
 rows.push({key:'atk', type:'atk', side:'caster', natural:true, mod, adv:atkAdv,
 label:'Бросок атаки: d20', hint:hint+(ti.known&&ti.ac!=null?' · КД цели '+(+ti.ac+cover.bonus)+(cover.bonus?' (укрытие +'+cover.bonus+')':''):' · цель без структурированной КД')
@@ -7532,6 +7673,7 @@ const caster=opts.caster,kind=opts.kind||'spell',isSpell=kind==='spell',m=rec.me
 const slotLvl=typeof opts.slotLvl==='number'?opts.slotLvl:lvl,extraLv=isSpell?Math.max(0,slotLvl-lvl):0;
 const ti=opts.target||{kind:'none',known:false,name:''},weapon=opts.weapon||null,pool=opts.pool||null,rows=[];
 const meta={half:!!(model.save&&model.save.half),dc:0,saveAb:'',saveKey:'',dmgType:'',target:ti,caster,weapon,pool,
+saveAffectsDamage:model.saveAffectsDamage!==false,
 autoHit:!!(model.attack&&model.attack.autoHit),afterHit:!!(model.attack&&model.attack.afterHit)&&!opts.forceAttack,kind,recName:rec.n||'',
 damageTags:Object.assign({magical:!!(isSpell||opts.magical),silvered:!!opts.silvered,adamantine:!!opts.adamantine},weapon&&weapon.damageTags||{}),
 contestBonus:m.combat&&m.combat.contestBonus||'',threshold:model.threshold||'',thresholdCondition:model.thresholdCondition||''};
@@ -7549,10 +7691,10 @@ const within5=opts.within5!==undefined?opts.within5:(measured!=null?measured<=1.
 const rangeBands=attackRangeBands((weapon&&weapon.range)||opts.range||(isSpell&&rec.r)||''),rangeBand=opts.rangeBand||attackRangeBandAt(rangeBands,measured);
 const attackKey=isSpell&&caster?spellAbOf(caster):(weapon?(weapon.abKey||(/лов/i.test(String(weapon.abn||''))?'dex':'str')):
 (caster&&eMod(caster,'dex')>eMod(caster,'str')?'dex':'str'));
-const atkFx=caster?rollFxEntries(caster,'attack.'+attackKey).concat(isSpell?rollFxEntries(caster,'spell.attack'):(weapon?rollFxEntries(caster,'weapon.attack'):rollFxEntries(caster,'unarmed.attack'))):[],cond=caster?attackConditionMode(caster,ti,{mode:attackMode,within5,rangeBand,threatenedWithin5:opts.threatenedWithin5}):{adv:[],dis:[],mode:0,consumeTargetFx:[]};
+const atkFx=caster?rollFxEntries(caster,'attack.'+attackKey).concat(isSpell?rollFxEntries(caster,'spell.attack'):(weapon?rollFxEntries(caster,'weapon.attack'):rollFxEntries(caster,'unarmed.attack'))):[],cond=caster?attackConditionMode(caster,ti,{mode:attackMode,within5,rangeBand,distanceM:opts.distanceM,threatenedWithin5:opts.threatenedWithin5}):{adv:[],dis:[],mode:0,consumeTargetFx:[]};
 meta.attackMode=attackMode;meta.within5=within5;meta.rangeBands=rangeBands;meta.rangeBand=rangeBand;meta.threatenedWithin5=!!opts.threatenedWithin5;
 meta.spatialRequired=!!cond.requiresDistance;meta.autoCritOnHit=!!cond.autoCrit;meta.consumeTargetFx=cond.consumeTargetFx||[];
-const hasAdv=atkFx.some(f=>f.mode==='adv')||cond.adv.length>0,hasDis=atkFx.some(f=>f.mode==='dis')||cond.dis.length>0,adv=(hasAdv===hasDis)?0:(hasAdv?1:2);
+const hasAdv=!abilityGameplayElusive(ti)&&(atkFx.some(f=>f.mode==='adv')||cond.adv.length>0),hasDis=atkFx.some(f=>f.mode==='dis')||cond.dis.length>0,adv=(hasAdv===hasDis)?0:(hasAdv?1:2);
 rows.push({key:'atk',type:'atk',side:'caster',natural:true,mod,adv,label:'Бросок атаки: d20',
 hint:hint+(ti.known&&ti.ac!=null?' · КД цели '+(+ti.ac+cover.bonus)+(cover.bonus?' (укрытие +'+cover.bonus+')':''):' · цель без структурированной КД')+(adv?(adv===1?' · преимущество':' · помеха'):'')});
 atkFx.filter(f=>f.mode==='die').forEach((f,i)=>{
@@ -7565,7 +7707,7 @@ if(meta.afterHit){
 rows.push({key:'atk',type:'atk',side:'caster',natural:true,mod:weapon?weapon.atk:(caster?PROF[caster.level]+Math.max(eMod(caster,'str'),eMod(caster,'dex')):0),adv:0,optional:true,
 label:'Бросок атаки оружием: d20 (если проводите атаку прямо сейчас)',hint:'прием применяется по уже состоявшемуся попаданию — поле можно оставить пустым'});
 }
-if(pool) rows.push({key:'res',type:'res',side:'caster',cnt:1,sides:pool.sides,mod:0,addTo:pool.addTo,required:true,
+if(pool&&!pool.points) rows.push({key:'res',type:'res',side:'caster',cnt:1,sides:pool.sides,mod:0,addTo:pool.addTo,required:true,
 requiredOnHit:(m.combat&&m.combat.consumeOn)==='hit',label:pool.label+': 1d'+pool.sides,hint:'в запасе '+pool.cur+' из '+pool.max});
 if(weapon&&!isSpell){
 const wd=weapon.damage;
@@ -7577,6 +7719,7 @@ if(save&&ti.kind!=='object'){
 meta.saveKey=save.key||'';meta.saveAb=AB_FULL[save.key]||save.key||'';
 if(save.dc&&save.dc.source==='fixed') meta.dc=+save.dc.value||0;
 else if(save.dc&&save.dc.source==='spell') meta.dc=caster?spellDC(caster):10;
+else if(save.dc?.source==='ability'&&save.dc.key)meta.dc=caster?8+PROF[caster.level]+eMod(caster,save.dc.key):10;
 else meta.dc=caster?8+PROF[caster.level]+Math.max(eMod(caster,'str'),eMod(caster,'dex'),eMod(caster,'con'),eMod(caster,'wis'),eMod(caster,'cha')):10;
 const known=!!save.key&&ti.known&&typeof ti.saveMod==='function',coverSave=save.key==='dex'?cover.bonus:0,
 activeSaveTags=[...new Set([].concat(save.tags||[],isSpell?['magical']:[]))];
@@ -7614,6 +7757,7 @@ let mod=d.mod&&+d.mod.value||0,modLabel='';
 if(d.mod&&d.mod.source==='spellAbility'&&caster){mod+=eMod(caster,spellAbOf(caster));modLabel='характеристика заклинателя';}
 else if(d.mod&&d.mod.source==='bestPhysical'&&caster){mod+=Math.max(eMod(caster,'str'),eMod(caster,'dex'),eMod(caster,'con'));modLabel='характеристика';}
 else if(d.mod&&d.mod.source==='level'&&caster){mod+=caster.level;modLabel='уровень';}
+else if(d.mod?.source==='ability'&&caster){mod+=eMod(caster,d.mod.key);modLabel=AB_FULL[d.mod.key]||'характеристика';}
 if(d.upcastFlat&&extraLv>0) mod+=extraLv*(+d.upcastFlat.perSlot||0);
 const type=d.type==='other'?'other':d.type,idx=typeIndex[type]||0;typeIndex[type]=idx+1;
 const key=type+(type==='other'?rows.length:idx),dt=dmgTypeCanon(d.damageType||'');if(type==='dmg'&&dt&&!meta.dmgType)meta.dmgType=dt;
@@ -7633,6 +7777,7 @@ else if(caster&&weapon&&!isSpell&&opts.forceAttack)bg3LifecycleAppendDamageExtra
 return finalizeRollSpec({rows,meta},{kind,id:rec&&rec.id||'',name:rec&&rec.n||''});
 }
 function rollSpecOf(rec,opts){
+if(opts?.kind==='ability')rec=abilityGameplayResolve(rec,opts.caster);
 const previous=rollInspirationExclusions;
 rollInspirationExclusions=new Set([...(opts&&opts.inspirationExcludedUids||previous)].filter(id=>String(id).startsWith('inspiration:')));
 try{
@@ -7733,7 +7878,7 @@ out.notes.push('проверка свитка '+total+' против СЛ '+(+ck
 }
 }
 if(ck&&tck){
-const a=pickNat(v,'chk',ck.adv), b=tck.natural?pickNat(v,'tchk',tck.adv):v.tchk;
+const a=abilityGameplayCheckNatural(meta.caster,ck.checkKind,pickNat(v,'chk',ck.adv)), b=tck.natural?abilityGameplayCheckNatural(ti.obj,tck.checkKind,pickNat(v,'tchk',tck.adv)):v.tchk;
 if(a!=null&&b!=null){
 const at=a+ck.mod, bt=tck.natural?(b+tck.mod):b;
 out.contestWin=(at>bt);
@@ -8122,7 +8267,7 @@ return {ok:false,plans:[],reason:'Защитная реакция предмет
 plans.push({kind:'item',u,actor,it,use,entry,ch,cur:ch.cur});
 }else{
 const pool=actor&&abilityOf(u.poolId),entry=actor&&pool&&(actor.abilities||[]).find(x=>x.abilityId===pool.id);
-const cur=entry&&pool.uses!=null?(entry.cur==null?pool.uses:entry.cur):0;
+const cur=entry&&pool.uses!=null?(entry.cur==null?abilityMaxUses(actor,pool):entry.cur):0;
 if(!actor||!entry||!(cur>0)||!canSpend('reaction',u.actorKey,true))
 return {ok:false,plans:[],reason:'Защитная реакция больше недоступна; пересчитайте итог атаки.'};
 plans.push({kind:'ability',u,actor,pool,entry,cur});
@@ -8230,8 +8375,14 @@ return virtual?{n:virtual.use.label,x:'',hi:'',l:0}:null;
 }
 return castCtx.kind==='ability'? abilityOf(castCtx.abilityId) : spellOf(castCtx.spellId);
 }
+function castSightDistanceSet(val){
+if(!castCtx)return;
+const distance=Number(String(val).replace(',','.'));if(val!==''&&Number.isFinite(distance)&&distance>=0){castCtx.abilityDistanceM=distance;castCtx.distanceExplicit=true;castCtx.within5=distance<=1.5;}else delete castCtx.abilityDistanceM;
+castFormulaShow();
+}
 function castDistanceSet(val){
 if(!castCtx) return;
+delete castCtx.abilityDistanceM;
 if(['near','far','long','out'].includes(val)){
 castCtx.distanceExplicit=true;
 castCtx.within5=(val==='near');
@@ -8279,6 +8430,7 @@ const pool=(castCtx.kind==='ability')?abilityPoolOf(caster, rec):null;
 const weapon=(!isSpell&&castCtx.weapon)?castCtx.weapon:null;
 const distanceOpts=castCtx.distanceExplicit?{within5:castCtx.within5,rangeBand:castCtx.rangeBand||'normal',threatenedWithin5:!!castCtx.threatenedWithin5,cover:castCtx.cover||'none'}
 :{threatenedWithin5:!!castCtx.threatenedWithin5,cover:castCtx.cover||'none'};
+if(castCtx.abilityDistanceM!=null)distanceOpts.distanceM=castCtx.abilityDistanceM;
 if(isSpell){distanceOpts.inspirationExcludedUids=characterPendingInspiration(castCtx.rollsByTarget);distanceOpts.projectileCount=castCtx.executionInput?.projectileAllocation?.[castCtx.target];}
 if(castCtx.kind==='item')distanceOpts.entryId=castCtx.entryId;
 const spec=isFoe
@@ -8322,6 +8474,7 @@ let h='<div class="cast-info" style="border:none;padding:0">Формула v'+RO
 +((castCtx.extraTargets||[]).length?' · цель: '+esc(ti.name):'')
 +' — впишите только объявленные результаты реальных бросков. КД, модификаторы, преимущество и последствия определяет движок.</div>';
 const hasAttack=spec.rows.some(r=>r.type==='atk'),hasRange=!!spec.meta.rangeBands;
+if(hasAttack&&caster&&fxMin(caster,'vision.blind')>0)h+='<div class="formula-row"><label>Дистанция до невидимой цели, м</label><input id="castSightDistance" type="number" min="0" step="0.1" value="'+(castCtx.abilityDistanceM??'')+'" onchange="castSightDistanceSet(this.value)"><span>Позволяет учесть чувство невидимого в пределах '+fxMin(caster,'vision.blind')+' м.</span></div>';
 if((hasAttack||hasRange)&&(spec.meta.within5==null||spec.meta.attackMode==='ranged'||castCtx.distanceExplicit||hasRange)){
 const distanceVal=castCtx.distanceExplicit?(castCtx.rangeBand==='long'?'long':(castCtx.rangeBand==='out'?'out':(castCtx.within5?'near':'far')))
 :(spec.meta.within5===true?'near':(spec.meta.within5===false?'far':''));
@@ -8424,8 +8577,8 @@ return;
 }
 if(val==null||r.fixed||!(r.cnt>0)||!(r.sides>0)) return;
 const mult=(r.type==='dmg'&&res&&res.crit)?2:1;
-const lo=r.cnt*mult, hi=r.cnt*r.sides*mult;
-if(!Number.isInteger(val)||val<lo||val>hi) errors.push(r.label+': сумма '+(r.cnt*mult)+'d'+r.sides+' должна быть целым числом от '+lo+' до '+hi+'.');
+const count=r.cnt*mult+(mult===2?(r.criticalExtraDice||0):0),lo=count,hi=count*r.sides;
+if(!Number.isInteger(val)||val<lo||val>hi) errors.push(r.label+': сумма '+count+'d'+r.sides+' должна быть целым числом от '+lo+' до '+hi+'.');
 });
 const reactionGroups={};
 (spec&&spec.rows||[]).forEach(r=>{ if(r.reactionGroup&&v[r.key]!=null) (reactionGroups[r.reactionGroup]||(reactionGroups[r.reactionGroup]=[])).push(r); });
@@ -8541,7 +8694,7 @@ castCtx.sharedCasterVals={}; sharedSpellRowKeys(spec).forEach(k=>{ if(v[k]!=null
 }
 if(!Array.isArray(castCtx.rollQueue)) castCtx.rollQueue=(castCtx.extraTargets||[]).slice();
 while(castCtx.rollQueue.length){
-castCtx.target=castCtx.rollQueue.shift(); castCtx.spec=null; castCtx.distanceExplicit=false; delete castCtx.within5;delete castCtx.rangeBand;delete castCtx.threatenedWithin5;delete castCtx.cover;
+castCtx.target=castCtx.rollQueue.shift(); castCtx.spec=null; castCtx.distanceExplicit=false; delete castCtx.abilityDistanceM;delete castCtx.within5;delete castCtx.rangeBand;delete castCtx.threatenedWithin5;delete castCtx.cover;
 if(castFormulaShow()) return;
 }
 const targets=[castCtx.primaryTarget||current].concat(castCtx.extraTargets||[]);
@@ -8560,7 +8713,7 @@ if(Number.isInteger(castCtx.bg3ExtraIndex))castCtx.bg3ExtraRolls[castCtx.bg3Extr
 else {castCtx.bg3PrimaryRolls=rolls;castCtx.bg3PrimarySpatial={rangeBand:castCtx.rangeBand||'',within5:castCtx.within5,
 distanceExplicit:!!castCtx.distanceExplicit,cover:castCtx.cover||'none'};castCtx.bg3ExtraQueue=bg3Array(extra.steps).map((_,i)=>i);}
 if(castCtx.bg3ExtraQueue&&castCtx.bg3ExtraQueue.length){castCtx.bg3ExtraIndex=castCtx.bg3ExtraQueue.shift();castCtx.target=castCtx.extraTargets[castCtx.bg3ExtraIndex];
-castCtx.spec=null;castCtx.distanceExplicit=false;delete castCtx.within5;delete castCtx.rangeBand;delete castCtx.threatenedWithin5;delete castCtx.cover;
+castCtx.spec=null;castCtx.distanceExplicit=false;delete castCtx.abilityDistanceM;delete castCtx.within5;delete castCtx.rangeBand;delete castCtx.threatenedWithin5;delete castCtx.cover;
 if(castFormulaShow())return;castShowErr('Не удалось построить формулу дополнительной стрелы.');return;}
 const primary=castCtx.bg3PrimaryRolls;primary.bg3ExtraProjectileTargets=castCtx.extraTargets.slice();
 primary.bg3ExtraProjectiles=castCtx.extraTargets.map((target,index)=>{const stored=castCtx.bg3ExtraRolls[index];return stored&&stored.rolls?{target,rolls:stored.rolls}:{target,rolls:null};});
@@ -8598,7 +8751,7 @@ castCtx.rollQueue=spellSpecNeedsPerTarget(spec)?(castCtx.extraTargets||[]).slice
 }
 while(castCtx.rollQueue.length){
 castCtx.target=castCtx.rollQueue.shift();
-castCtx.spec=null; castCtx.distanceExplicit=false; delete castCtx.within5;delete castCtx.rangeBand;delete castCtx.threatenedWithin5;delete castCtx.cover;
+castCtx.spec=null; castCtx.distanceExplicit=false; delete castCtx.abilityDistanceM;delete castCtx.within5;delete castCtx.rangeBand;delete castCtx.threatenedWithin5;delete castCtx.cover;
 if(castFormulaShow()) return;
 }
 const primary=castCtx.primaryTarget||current;
@@ -8611,7 +8764,7 @@ if(!castCtx) return;
 castCtx.target=castCtx.primaryTarget||castCtx.target;
 castCtx.rollsByTarget={}; castCtx.rollQueue=null; castCtx.sharedCasterVals=null;
 if(castCtx.kind==='item'){castCtx.bg3ExtraIndex=null;castCtx.bg3ExtraQueue=null;castCtx.bg3ExtraRolls=[];castCtx.bg3PrimaryRolls=null;castCtx.bg3PrimarySpatial=null;}
-castCtx.distanceExplicit=false; delete castCtx.within5;delete castCtx.rangeBand;delete castCtx.threatenedWithin5;delete castCtx.cover;
+castCtx.distanceExplicit=false; delete castCtx.abilityDistanceM;delete castCtx.within5;delete castCtx.rangeBand;delete castCtx.threatenedWithin5;delete castCtx.cover;
 document.getElementById('castStep3').style.display='none';
 document.getElementById('castStep1').style.display='block';
 }
@@ -14964,8 +15117,8 @@ if(ab.uses!=null&&(!Number.isInteger(+ab.uses)||+ab.uses<0)) errors.push(at+': �
 if(combatAbilityUsable(ab)){
 const cost=combatAbilityCost(ab),combatRule=abilityCombatRules(ab);
 if(['action','attack','bonus','reaction','turnfree','free','long'].indexOf(cost)<0) errors.push(at+': неизвестная стоимость боевого действия '+cost);
-if(combatRule.requiresWeapon&&(cost!=='attack'||!combatRule.forceAttack)) errors.push(at+': оружейный прием должен атомарно расходовать одну атаку');
-if(['self','enemy'].indexOf(combatRule.target)<0) errors.push(at+': активной боевой способности нужна явная цель self/enemy');
+if(combatRule.requiresWeapon&&!combatRule.forceAttack) errors.push(at+': оружейный прием должен иметь явную формулу атаки');
+if(['self','enemy','ally'].indexOf(combatRule.target)<0) errors.push(at+': активной боевой способности нужна явная цель self/enemy/ally');
 }
 if(role==='resource'&&ab.uses==null) errors.push(at+': боевой ресурс не имеет счетчика использований');
 });
@@ -15169,7 +15322,7 @@ opts=opts||{};
 const pr=itemProfile(it), w=pr.weapon||{},damage=weaponDamageOf(it),damageTraits=weaponDamageTraitsOf(it);
 const useDex=w.ranged||(w.finesse&&eMod(caster,'dex')>=eMod(caster,'str'));
 const abm=useDex?eMod(caster,'dex'):eMod(caster,'str');
-const dmgAb=opts.offhand?Math.min(0,abm):abm;
+const dmgAb=opts.offhand&&!charAbilityRuleEntries(caster).some(x=>x.rules?.twoWeaponFighting)?Math.min(0,abm):abm;
 const hasProf=(typeof weaponProfHas==='function')?weaponProfHas(caster,it):true;
 const legalTwo=!!(opts.two&&w.versatile&&(!opts.entryId||weaponCanUseTwoHands(caster,opts.entryId)));
 const wb=weaponBonusOf(it), duel=duelingBonusOf(caster,it,Object.assign({},opts,{two:legalTwo}));
@@ -15181,15 +15334,15 @@ const attackMode=(opts.mode==='throw'||w.ranged)?'ranged':'melee';
 const measured=Number.isFinite(+opts.distanceM)&&opts.distanceM!==''?+opts.distanceM:null;
 const within5=opts.within5!==undefined?opts.within5:(measured!=null?measured<=1.5:((attackMode==='ranged'||w.reach)?null:true));
 const rangeBands=attackRangeBands(w.range),rangeBand=opts.rangeBand||attackRangeBandAt(rangeBands,measured),cover=coverRuleOf(opts.cover);
-const rows=[], meta={target:ti,caster, kind:'weapon', dmgType:dmgTypeCanon(damage.type), half:false, dc:0, weapon:it.n,attackMode,within5,
+const rows=[], meta={target:ti,caster, kind:'weapon', dmgType:dmgTypeCanon(damage.type), half:false, dc:0, weapon:it.n,twoHanded:!!(legalTwo||w.two),attackMode,within5,
 rangeBands,rangeBand,threatenedWithin5:!!opts.threatenedWithin5,cover:cover.key,coverBonus:cover.bonus,totalCover:cover.total,damageTags:damageTraits};
-const atkFx=rollFxEntries(caster,'attack.'+(useDex?'dex':'str')).concat(rollFxEntries(caster,'weapon.attack')), condMode=attackConditionMode(caster,ti,{mode:attackMode,within5,rangeBand,threatenedWithin5:opts.threatenedWithin5});
+const atkFx=rollFxEntries(caster,'attack.'+(useDex?'dex':'str')).concat(rollFxEntries(caster,'weapon.attack')), condMode=attackConditionMode(caster,ti,{mode:attackMode,within5,rangeBand,distanceM:opts.distanceM,threatenedWithin5:opts.threatenedWithin5});
 meta.spatialRequired=!!condMode.requiresDistance;
 meta.autoCritOnHit=!!condMode.autoCrit;
 meta.consumeTargetFx=condMode.consumeTargetFx||[];
 const small=/Полурослик|Гном/i.test(String(caster.race||''))||/small|маленьк/i.test(String(caster.size||''));
 const heavyDis=!!(w.heavy&&small),lanceDis=!!(w.lance&&within5===true);
-const aA=atkFx.some(f=>f.mode==='adv')||condMode.adv.length>0, aD=atkFx.some(f=>f.mode==='dis')||condMode.dis.length>0||heavyDis||lanceDis;
+const aA=!abilityGameplayElusive(ti)&&(atkFx.some(f=>f.mode==='adv')||condMode.adv.length>0), aD=atkFx.some(f=>f.mode==='dis')||condMode.dis.length>0||heavyDis||lanceDis;
 rows.push({key:'atk', type:'atk', side:'caster', natural:true, mod:atk, adv:(aA===aD)?0:(aA?1:2),
 label:'Бросок атаки: d20', hint:'+ '+atk+' ('+(hasProf?'мастерство + ':'без владения, только ')+(useDex?'Ловкость':'Сила')+')'
 +(ti.known&&ti.ac!=null?' · КД цели '+(+ti.ac+cover.bonus)+(cover.bonus?' (укрытие +'+cover.bonus+')':''):' · цель без структурированной КД')
@@ -15514,6 +15667,7 @@ return {tool,task,ability,base,owns,mod,adv:tool.adv?1:0,dc:task.dc==null?null:+
 }
 function toolProficiencyHas(c,tool){
 const want=String(tool&&tool.prof||'').trim().toLowerCase(); if(!want) return false;
+if(c&&charFxAll(c).some(f=>f.stat==='proficiency.tool'&&String(f.value).toLowerCase()===want))return true;
 const explicit=(c&&Array.isArray(c.toolProficiencies)?c.toolProficiencies:[]).map(x=>String(x).trim().toLowerCase());
 if(explicit.indexOf(want)>=0) return true;
 const bg=(typeof BACKGROUNDS!=='undefined'&&c)?BACKGROUNDS.find(x=>x.n===c.bg):null,
@@ -15859,6 +16013,9 @@ if(bg3RuleProgramAction(use))bg3ItemProgramOpen(entryId,c.id,use.id);else itemCa
 function bg3FxPanelEffectHTML(f,c){
 const stat=String(f&&f.stat||''),mode=String(f&&f.mode||''),raw=f&&f.value,value=raw==='lvl'?c.level:raw,presented=bg3PresentationStatLabel(stat),label=presented===stat&&stat.includes('.')?'Игровое свойство':presented,safeText=typeof value==='string'?bg3UserFacingLabel(value,''):'';
 if(stat==='condition')return '<span class="fx-note">'+esc(safeText?'состояние: '+safeText:'изменяет состояние')+'</span>';
+if(stat==='proficiency.skill')return '<span class="fx-note">'+esc((value.rank===2?'мастерство: ':'владение: ')+value.name)+'</span>';
+if(stat==='proficiency.language'||stat==='proficiency.tool')return '<span class="fx-note">'+esc('владение: '+value)+'</span>';
+if(stat==='vision.dark'||stat==='vision.blind')return '<span class="fx-note">'+esc((stat==='vision.dark'?'ночное зрение':'чувство невидимого')+': '+value+' м')+'</span>';
 if(stat==='damage.rule'&&value&&typeof value==='object'){const kind={resist:'сопротивление урону',immune:'иммунитет к урону',vuln:'уязвимость к урону'}[value.mode]||'изменение входящего урона',types=bg3Array(value.types).map(type=>bg3UserFacingLabel(type,'')).filter(Boolean);return '<span class="fx-note">'+esc(kind+(types.length?': '+types.join(', '):''))+'</span>';}
 if(stat==='condition.immunity')return '<span class="fx-note">иммунитет к состоянию</span>';
 if(stat==='critical.immunity')return '<span class="fx-note">иммунитет к критическим попаданиям</span>';
@@ -17801,7 +17958,7 @@ snap.deaths=(+(o.deaths&&o.deaths.s)||0)+'/'+(+(o.deaths&&o.deaths.f)||0);
 snap.exhaustion=+o.exhaustion||0; snap.inspiration=!!o.inspiration;
 snap.slots={}; Object.keys(o.slots||{}).sort().forEach(k=>{ const s=o.slots[k]||{}; snap.slots[k]=(+s.cur||0)+'/'+(+s.max||0); });
 if(magicUsesMp())snap.magic={MP:magicPool(o).cur+'/'+magicPool(o).max};
-snap.abilities={}; (o.abilities||[]).forEach(x=>{ const a=abilityOf(x.abilityId); if(a&&a.uses!=null) snap.abilities[x.abilityId]=(x.cur==null?a.uses:x.cur)+'/'+a.uses; });
+snap.abilities={}; (o.abilities||[]).forEach(x=>{ const a=abilityOf(x.abilityId); if(a&&a.uses!=null) snap.abilities[x.abilityId]=(x.cur==null?abilityMaxUses(o,a):x.cur)+'/'+abilityMaxUses(o,a); });
 snap.inventory={}; (o.inventory||[]).forEach(x=>{ const it=itemOf(x.itemId); if(!it) return; const ch=invCharges(x,it); snap.inventory[x.id]=userFacingItemName(it,'Предмет')+' ×'+(+x.qty||0)+(x.ammoCur!=null?' · боеприпасы '+x.ammoCur:'')+(ch?' · заряды '+ch.cur+'/'+ch.max:'')+(x.kit!=null?' · набор '+x.kit:'')+(x.att?' · настроен':''); });
 snap.equipment={}; Object.keys(o.equipment||{}).sort().forEach(k=>{ const x=invEntryOf(o,o.equipment[k]),it=x&&itemOf(x.itemId); snap.equipment[k]=it?userFacingItemName(it,'Предмет'):''; });
 }
@@ -18785,7 +18942,7 @@ actorConditions=!entry?[]:(combatEntry?combatActorConditions(actorKey):(entry.ki
 characteristics=entry&&entry.kind==='ally'?Object.assign({},gameActionClone(actor&&actor.ab||{}),{armorClass:actorAc,speed:combatEntry?combatSpeedNumber(actorKey):parseFloat(String(effectiveSpeed(actor)||'0').replace(',','.'))||0}):
 Object.assign({},gameActionClone(actor&&foeStatsOf(actor).abilities||{}),{armorClass:actorAc,speed:combatEntry?combatSpeedNumber(actorKey):0}),
 abilityResources={};
-if(entry&&entry.kind==='ally')for(const row of actor.abilities||[]){const ab=abilityOf(row.abilityId);if(ab&&ab.uses!=null)abilityResources[row.abilityId]={current:row.cur==null?ab.uses:+row.cur||0,max:+ab.uses||0};}
+if(entry&&entry.kind==='ally')for(const row of actor.abilities||[]){const ab=abilityOf(row.abilityId);if(ab&&ab.uses!=null)abilityResources[row.abilityId]={current:row.cur==null?abilityMaxUses(actor,ab):+row.cur||0,max:abilityMaxUses(actor,ab)};}
 const resources={hitPoints:{current:+(actor&&actor.hp)||0,max:entry?(combatEntry?combatActorMaxHp(actorKey):(entry.kind==='ally'?eHpMax(actor):Math.max(1,+foeStatsOf(actor).hpMax||1))):0,temporary:+(actor&&actor.hpTemp)||0},
 action:{current:actorKey===combatCurrentKey()?Math.max(0,(+turn.actionMax||1)-(+turn.actionsUsed||0)):0,max:+turn.actionMax||1},
 attacks:{current:actorKey===combatCurrentKey()?Math.max(0,(+turn.attackMax||1)-(+turn.attacksUsed||0)):0,max:+turn.attackMax||1},
@@ -19023,7 +19180,7 @@ h+=combatActionButton('✦',row.label||row.spellId,'BG3 exact · '+(+row.level?r
 gameActionCommand('bg3-spell:'+row.id,()=>bg3LearnedSpellOpen(o.id,row.id),{source:{kind:'spell',id:row.id},possibleTargets:gameActionTargetPolicy(key,'any',1,Math.max(1,combat.order.length),true),requiredRolls:[{formula:'BG3 exact spell resolution',input:'players'}]}),cost,key,downReason||(!check.ok?(check.reason||'Контракт изученного заклинания поврежден.'):(!slotReady?(magicUsesMp()?magicPlan(o,slot).reason:'Нет доступной ячейки '+slot+' уровня.'):(!turnReady?'Ограничение заклинаний бонусным действием не позволяет сотворение.':(cast&&cast.requiresOutOfCombat?'Заклинание доступно только вне боя.':'')))));});
 bg3LifecycleOrphanGrantedActions(o).forEach(action=>{const match=String(action.combatFn||'').match(/^bg3LifecycleCombatGrantedOpen\('[^']*','([^']+)'/),useId=match&&match[1];h+=combatActionButton(action.icon||'✦',action.label,action.title+' · '+combatCostLabel(action.cost),gameActionCommand('granted:'+(useId||gameActionHash(action.label)),()=>useId?bg3LifecycleCombatGrantedOpen(o.id,useId,action.cost):false,{source:{kind:'active-effect',id:useId||''},possibleTargets:gameActionTargetPolicy(key,'any',0,Math.max(1,combat.order.length),true)}),action.cost,key,downReason||(!useId?'Маршрут предоставленного действия поврежден.':''));});
 } else if(g==='abilities'&&entry.kind==='ally'){
-(o.abilities||[]).forEach(x=>{ const ab=abilityOf(x.abilityId); if(!combatAbilityUsable(ab)) return; const cur=x.cur==null?ab.uses:x.cur,cost=combatAbilityCost(ab),uses=ab.uses!=null?' · '+cur+'/'+ab.uses:'',pool=abilityPoolOf(o,ab),poolInfo=pool?' · '+pool.label+' '+pool.cur+'/'+pool.max:'',
+(o.abilities||[]).forEach(x=>{ const ab=abilityOf(x.abilityId); if(!combatAbilityUsable(ab)) return; const max=abilityMaxUses(o,ab),cur=x.cur==null?max:x.cur,cost=combatAbilityCost(ab),uses=ab.uses!=null?' · '+cur+'/'+max:'',pool=abilityPoolOf(o,ab),poolInfo=pool?' · '+pool.label+' '+pool.cur+'/'+pool.max:'',
 blocked=downReason||(ab.uses!=null&&cur<=0?'Использования способности исчерпаны.':(pool&&pool.cur<=0?'Запас «'+pool.label+'» исчерпан.':(combatAbilityUsedThisTurn(ab,key)?'Способность уже использована в этот ход.':'')));
 h+=combatActionButton('✦',ab.n,combatCostLabel(cost)+uses+poolInfo,gameActionCommand('ability:'+ab.id,()=>combatUseAbility(ab.id),{source:{kind:'ability',id:ab.id},possibleTargets:gameActionTargetPolicy(key,'any',0,Math.max(1,combat.order.length),true),requiredRolls:[{formula:'ability resolution',input:'players'}]}),cost,key,blocked); });
 } else if(g==='items'&&entry.kind==='ally'){
@@ -19054,7 +19211,7 @@ if(current&&(+r.attackMax||1)>1) resources+='<span class="combat-resource '+(com
 if(entry.kind==='ally'&&magicUsesMp()){const p=magicPool(o);resources+='<span class="combat-resource '+(p.cur?'ready':'used')+'">✦ MP: '+p.cur+'/'+p.max+'</span>';}
 else if(entry.kind==='ally') Object.keys(o.slots||{}).sort().forEach(l=>{ const s=o.slots[l]; resources+='<span class="combat-resource '+((+s.cur||0)>0?'ready':'used')+'">✦ '+l+' кр.: '+(+s.cur||0)+'/'+(+s.max||0)+'</span>'; });
 if(entry.kind==='ally'&&o.inspiration)resources+='<button class="combat-resource ready" onclick="characterArmInspiration(\''+o.id+'\')">☀ '+(characterInspirationEffect(o)?'Вдохновение выбрано':'Выбрать вдохновение')+'</button>';
-if(entry.kind==='ally') (o.abilities||[]).forEach(x=>{ const a=abilityOf(x.abilityId); if(!a||!a.combatResource||a.uses==null) return; const cur=x.cur==null?a.uses:x.cur; resources+='<span class="combat-resource '+(cur>0?'ready':'used')+'">✦ '+esc(a.n)+': '+cur+'/'+a.uses+'</span>'; });
+if(entry.kind==='ally') (o.abilities||[]).forEach(x=>{ const a=abilityOf(x.abilityId); if(!a||!a.combatResource||a.uses==null) return; const max=abilityMaxUses(o,a),cur=x.cur==null?max:x.cur; resources+='<span class="combat-resource '+(cur>0?'ready':'used')+'">✦ '+esc(a.n)+': '+cur+'/'+max+'</span>'; });
 const opponents=combatOpponents(key),targetCtl=opponents.length?'<div class="combat-move"><span>◎ Быстрая цель</span><select id="combatQuickTarget">'+opponents.map(x=>{ const k=combatEntryKey(x); return '<option value="'+k+'">'+esc(combatActorName(k))+' · КД '+combatActorAc(k)+'</option>'; }).join('')+'</select><select id="combatContestDefense" title="Чем цель защищается от захвата/толчка"><option value="ath">Защита: Атлетика</option><option value="acr">Защита: Акробатика</option></select></div>':'';
 return '<div class="combat-stage-head"><div class="who">'+esc(o.name||o.n)+'</div><div class="subline">'+(current?'Текущий ход':'Фокус вне хода: доступны только реакции')+' · КД '+combatActorAc(key)+' · '+(+o.hp||0)+'/'+combatActorMaxHp(key)+' хитов</div></div><div class="combat-resources">'+resources+'</div>'
 +targetCtl
@@ -20242,29 +20399,21 @@ if(sp.hi) h+='<div class="props-block"><span class="pt">На больших ур
 return h+'</div>';
 }
 const ABILITY_TYPES={class:'Классовая',racial:'Расовая',feat:'Черта',background:'Предыстория',other:'Прочее'};
+function abilityPlayerText(text){return String(text||'').split(/\n/).filter(line=>!/(?:формат(?:а|е)? последств|источник правил|тип лицензии|CC-BY|https?:\/\/|Open5e|SRD\s*20|перевод(?:а|е)? на рус|свер[екн].*(?:книг|глоссари)|(?:взаимодейств|интеграц|обработчик|автоисполн|автоматиз|движок|движк|mechanics|schemaVersion|manualNote|enginePolicy))/i.test(line)).join('\n').trim();}
 function abilityCardHTML(ab, extra, view){
 extra=extra||'';
 let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(view?.name||ab.n)+'</h4>'
 +'<span class="type-tag">'+esc(ABILITY_TYPES[ab.type]||ab.type)+'</span>'
-+(ab.source?'<span class="type-tag">'+esc(ab.source)+'</span>':'')
 +tagChips(ab.tags,ABILITY_TAGS)
 +'<span class="spacer"></span>'+extra+'</div>';
-h+=(view?.selector||'')+descBlock(ab.x);
+h+=(view?.selector||'')+descBlock(abilityPlayerText(ab.x))+(view?.choices||'');
 h+='<div class="stat-line"><b>Применение:</b> '+abilityModeLabel(ab)+'</div>';
-if(ab.catalogSource)h+='<div class="stat-line"><b>Источник:</b> '+esc(ab.catalogSource.documentName)+' · '+esc(ab.catalogSource.gamesystem)+' · CC-BY-4.0 · язык: русский</div>';
-const review=ab.abilityReview;
-if(review){
-h+='<div class="stat-line"><b>Названия:</b> '+(review.custom?'редакция мастера':review.nameStatus==='hobbyworld-glossary'?'сверено с глоссарием Hobby World':review.nameStatus==='glossary-terminology'?'терминология глоссария Hobby World; другое издание правил':'перевод проекта')+'</div>';
-h+='<div class="stat-line"><b>Описание:</b> '+(review.custom?'редакция мастера':review.descriptionStatus==='srd-2014-reviewed'?'сверено с SRD 2014; пересказ проекта':'нуждается в полной сверке с книгой')+'</div>';
-if(review.edition==='2024')h+='<div class="note-ital">D&D 2024 · справочная карточка для сравнения редакций.</div>';
-}
-if(ab.bg3Id===BG3_MEDIUM_ARMOR_MASTER.bg3Id)h+='<div class="stat-line"><b>Подтверждённая пассивная черта:</b> Мастер средних доспехов</div>';
-if(ab.uses) h+='<div class="stat-line"><b>Использований:</b> '+esc(String(ab.uses))+(ab.rest?' / '+esc(ab.rest):'')+'</div>';
+if(ab.uses) h+='<div class="stat-line"><b>Использований:</b> '+esc(({level:'по уровню персонажа',prof:'по бонусу мастерства','cha-min1':'по модификатору Харизмы, минимум одно'})[ABILITY_GAMEPLAY.profile(ab)?.uses]||String(ab.uses))+(ab.rest?' / '+esc(ab.rest):'')+'</div>';
 return h+'</div>';
 }
 
 
-const dbFlt={ sp:{q:'',l:'',s:''}, it:{q:'',taxonomy:'',rarity:'',tag:'',sort:'name'}, ab:{q:'',type:'',edition:'campaign',mode:'',page:0} };
+const dbFlt={ sp:{q:'',l:'',s:''}, it:{q:'',taxonomy:'',rarity:'',tag:'',sort:'name'}, ab:{q:'',type:'',edition:'',mode:'',page:0} };
 const localItemFlt={q:'',type:'',tag:''};
 let editing={sp:null,it:null,ab:null};
 let itemAuditView=null;
@@ -24233,7 +24382,7 @@ if(resource==='BonusActionPoint')return amount===1&&combatCanSpend('bonus','ally
 if(resource==='Movement'){const current=combat&&combat.active&&combatCurrentKey()==='ally:'+c.id,available=current?Math.max(0,combatMoveMax()-(+combat.turn.movementUsed||0)):0;return amount>0&&available>=amount?{ok:true,kind:'movement'}:{ok:false,reason:'movement-resource-unavailable'};}
 if(resource==='SpellSlotsGroup')return {ok:false,reason:'qualified-spell-slot-cost-runtime-required'};
 const status=(c.activeFx||[]).find(x=>x&&x.bg3Status===resource),ability=(c.abilities||[]).map(entry=>({entry,db:abilityOf(entry.abilityId)})).find(x=>x.db&&(x.db.id===resource||x.db.bg3Id===resource||x.db.mechanics&&x.db.mechanics.bg3ResourceId===resource));
-if(status)return amount===1?{ok:true,kind:'status',statusUid:status.uid}:{ok:false,reason:'status-resource-amount-not-supported'};if(ability){const cur=ability.entry.cur==null?+ability.db.uses||0:+ability.entry.cur||0;return cur>=amount?{ok:true,kind:'ability',entry:ability.entry}:{ok:false,reason:'special-resource-exhausted-'+resource};}
+if(status)return amount===1?{ok:true,kind:'status',statusUid:status.uid}:{ok:false,reason:'status-resource-amount-not-supported'};if(ability){const cur=ability.entry.cur==null?abilityMaxUses(c,ability.db)||0:+ability.entry.cur||0;return cur>=amount?{ok:true,kind:'ability',entry:ability.entry}:{ok:false,reason:'special-resource-exhausted-'+resource};}
 if(e&&e.bg3Resources&&Number.isFinite(+e.bg3Resources[resource]))return +e.bg3Resources[resource]>=amount?{ok:true,kind:'item',resource}:{ok:false,reason:'item-resource-exhausted-'+resource};
 return {ok:false,reason:'unmapped-interrupt-resource-'+resource};
 }
@@ -27460,10 +27609,10 @@ itemAuditView=null;scheduleSave();renderItemsDB();if(activeCharId)renderChars();
 
 
 const abilityVariantSelection=new Map();
-function abilityVariantLabel(ab){return (ab.open5e?.ownerNameRu||ab.source||'Авторские правила')+' · '+({'2014':'D&D 2014','2024':'D&D 2024','custom':'авторский вариант','third-party':'сторонние правила'}[ABILITY_RULES.edition(ab)])+(ab.custom?' · '+ab.n:'');}
+function abilityVariantLabel(ab){return ab.open5e?.ownerNameRu||(/^[А-Яа-яЁё ,()–—-]+$/.test(ab.source||'')?ab.source:'Особенность персонажа');}
 function abilityVariantSelectHTML(variants,selected,hero=false){
 if(variants.length<2)return '';
-return '<label class="stat-line">Вариант правил <select aria-label="Вариант правил" style="max-width:100%" onclick="event.stopPropagation()" onchange="'+(hero?'this.closest(\'.spell-hit\').dataset.abilityId=this.value':'abilitySelectVariant(this.value)')+'">'+variants.map(ab=>'<option value="'+esc(ab.id)+'"'+(ab.id===selected.id?' selected':'')+'>'+esc(abilityVariantLabel(ab))+'</option>').join('')+'</select></label>';
+return '<label class="stat-line">Вариант <select aria-label="Вариант правил" style="max-width:100%" onclick="event.stopPropagation()" onchange="'+(hero?'this.closest(\'.spell-hit\').dataset.abilityId=this.value':'abilitySelectVariant(this.value)')+'">'+variants.map((ab,i)=>'<option value="'+esc(ab.id)+'"'+(ab.id===selected.id?' selected':'')+'>'+esc(abilityVariantLabel(ab))+' · '+(i+1)+'</option>').join('')+'</select></label>';
 }
 function abilitySelectVariant(id){const group=abilityCatalogIndex().byId.get(id);if(group)abilityVariantSelection.set(group.key,id);renderAbilitiesDB();}
 function renderAbilitiesDB(){
@@ -27472,10 +27621,9 @@ const search=document.activeElement,caret=search?.id==='abilityDbSearch'?[search
 const signature=JSON.stringify([f.q,f.type,f.edition,f.mode]);if(f.signature!==signature){f.page=0;f.signature=signature;}
 let h='<h2 class="rubric">Свод способностей мира</h2>'
 +'<div class="db-bar">'
-+'<input id="abilityDbSearch" type="search" aria-label="Поиск способностей" placeholder="Название, описание, источник…" value="'+esc(f.q)+'" oninput="dbFlt.ab.q=this.value;renderAbilitiesDB()">'
++'<input id="abilityDbSearch" type="search" aria-label="Поиск способностей" placeholder="Название или описание способности…" value="'+esc(f.q)+'" oninput="dbFlt.ab.q=this.value;renderAbilitiesDB()">'
 +'<select onchange="dbFlt.ab.type=this.value;renderAbilitiesDB()"><option value="">Все виды</option>'
 +Object.keys(ABILITY_TYPES).map(t=>'<option value="'+t+'"'+(f.type===t?' selected':'')+'>'+ABILITY_TYPES[t]+'</option>').join('')+'</select>'
-+'<select aria-label="Редакция способностей" onchange="dbFlt.ab.edition=this.value;renderAbilitiesDB()">'+[['campaign','2014 и авторские'],['','Все источники'],['2014','D&D 2014'],['2024','D&D 2024 · справка'],['third-party','Сторонние правила'],['custom','Авторские правила']].map(([key,label])=>'<option value="'+key+'"'+(f.edition===key?' selected':'')+'>'+label+'</option>').join('')+'</select>'
 +'<select aria-label="Применение способностей" onchange="dbFlt.ab.mode=this.value;renderAbilitiesDB()">'+[['','Любое применение'],['active','Активные'],['passive','Пассивные'],['resource','Ресурсы'],['triggered','По условию'],['manual','Справочные']].map(([key,label])=>'<option value="'+key+'"'+(f.mode===key?' selected':'')+'>'+label+'</option>').join('')+'</select>'
 +'<button class="btn rub" onclick="openAbilityEd(\'\')">✚ Новая способность</button></div>';
 if(editing.ab!==null) h+=abilityEditorHTML();
@@ -27487,7 +27635,7 @@ const arr=catalog.groups.map(group=>({...group,variants:group.variants.filter(ab
 )})).filter(group=>group.variants.length&&(ABILITY_RULES.normalize(group.name).includes(ABILITY_RULES.normalize(f.q))||group.variants.some(ab=>ABILITY_RULES.matches(ab,f.q))))
 .sort((a,b)=>a.name.localeCompare(b.name,'ru'));
 const pages=Math.max(1,Math.ceil(arr.length/40));f.page=Math.min(Math.max(0,f.page||0),pages-1);const shown=arr.slice(f.page*40,(f.page+1)*40);
-h+='<p class="note-ital" style="font-size:14px">Способностей и черт: '+arr.length+' из '+catalog.groups.length+' · страница '+(f.page+1)+' из '+pages+'. Одна карточка на способность; различия по классу, народу и редакции — в выборе варианта правил.</p>';
+h+='<p class="note-ital" style="font-size:14px">Способностей и черт: '+arr.length+' из '+catalog.groups.length+' · страница '+(f.page+1)+' из '+pages+'.</p>';
 const pager=pages>1?'<div class="db-bar"><button class="btn ghost sm" '+(f.page===0?'disabled':'')+' onclick="dbFlt.ab.page--;renderAbilitiesDB()">← Назад</button><button class="btn ghost sm" '+(f.page===pages-1?'disabled':'')+' onclick="dbFlt.ab.page++;renderAbilitiesDB()">Далее →</button></div>':'';
 h+=pager;
 shown.forEach(group=>{
@@ -27607,7 +27755,7 @@ if(c.acOverride!=null) return c.acOverride;
 const auto=acAuto(c), magical=fxSet(c,'acbase');
 const eq=c.equipment||{}, chestE=invEntry(c,eq.CHEST), chest=chestE?itemOf(chestE.itemId):null;
 if(magical!=null&&!chest){
-const dx=holderFxFlag(c,'ac.dex.block')?0:eMod(c,'dex'), shield=Math.max(0,auto-(10+dx));
+const dx=holderFxFlag(c,'ac.dex.block')?0:eMod(c,'dex'),off=invEntry(c,eq.OFF_HAND),offItem=off&&itemOf(off.itemId),shieldRule=offItem&&itemProfile(offItem).armor?.acRule,shield=shieldRule?.shield?(+shieldRule.base||2):0;
 return Math.max(auto,(+magical||10)+dx+shield);
 }
 return auto;
@@ -27987,7 +28135,7 @@ const desired=abilitiesDB.filter(ab=>ab.catalogSource?.documentKey==='srd-2014'&
 const life=c.cls==='Жрец'&&c.subcls==='Домен Жизни'&&c.level>=1?abilityOf('ab_life_disciple'):null;if(life)desired.push(life);
 const race=characterRace(c);
 (race?.mechanics?.features||[]).forEach(f=>{const ab=abilityOf(f.abilityId);if(ab)desired.push(ab);});
-// Reference-only SRD records remain reference-only; no prose is turned into an automatic action here.
+// Catalog features use reviewed declarations; prose is never an execution plan.
 const index=abilityCatalogIndex(),key=id=>index.byId.get(id)?.key||id,keep=new Set(desired.map(ab=>key(ab.id)));
 const retired=(c.abilities||[]).filter(e=>e.characterGranted&&!keep.has(key(e.abilityId)));
 if(retired.length){c.characterBuild.archivedAbilities=(c.characterBuild.archivedAbilities||[]).concat(retired);c.abilities=c.abilities.filter(e=>!retired.includes(e));}
@@ -27999,7 +28147,7 @@ if(previous&&previous.name!==name){if(previous.addedFeat)c.feats=(c.feats||[]).f
 if(!name)return;
 if(!c.characterBuild.originFeat){const addedFeat=!(c.feats||[]).includes(name);if(addedFeat)(c.feats||=[]).push(name);c.characterBuild.originFeat={name,addedFeat};}
 const feat=abilitiesDB.find(a=>a.type==='feat'&&(a.n===name||a.abilityReview?.aliases?.includes(name))&&a.catalogSource?.documentKey==='srd-2014');
-if(feat&&!ABILITY_RULES.owned(c,feat,abilityCatalogIndex()))c.abilities.push({abilityId:feat.id,cur:feat.uses??null,notes:'',originGranted:true,buildSource:'Вариант человека'});
+if(feat&&!ABILITY_RULES.owned(c,feat,abilityCatalogIndex()))c.abilities.push({abilityId:feat.id,cur:abilityMaxUses(c,feat),notes:'',originGranted:true,buildSource:'Вариант человека'});
 }
 function characterSelectValue(key,value){
 const c=cc();if(!c)return false;
@@ -28400,10 +28548,11 @@ c.skills[n].m = v.trim()==='' ? null : (parseInt(v,10)||0);
 scheduleSave(); renderChars();
 }
 function skillBonus(c,i){
-const sk=SKILLS[i]; const rec=c.skills[sk[0]]||{p:0,m:null};
+const sk=SKILLS[i]; const base=c.skills[sk[0]]||{p:0,m:null},rank=Math.max(base.p||0,...charFxAll(c).filter(f=>f.stat==='proficiency.skill'&&f.value?.name===sk[0]).map(f=>f.value.rank||1));
+const rec={...base,p:rank},jack=!rank&&charAbilityRuleEntries(c).some(x=>x.rules?.jackOfAllTrades)?Math.floor((PROF[c.level]||2)/2):0;
 const fxb=(typeof fxSkillBonus==='function')?fxSkillBonus(c,sk[0]):0;
 if(rec.m!=null) return {v:rec.m+fxb, manual:true, p:rec.p, fxb};
-return {v:eMod(c,sk[1])+rec.p*PROF[c.level]+fxb, manual:false, p:rec.p, fxb};
+return {v:eMod(c,sk[1])+rec.p*PROF[c.level]+fxb+jack, manual:false, p:rec.p, fxb};
 }
 function setExhaustion(v){ const c=cc(); if(!c) return; c.exhaustion=Math.max(0,Math.min(6,+v||0)); scheduleSave(); renderChars(); }
 function toggleCond(n){ const c=cc(); if(!c) return;
@@ -28899,7 +29048,7 @@ h+='<h3 class="rubric" style="font-size:22px">Валюта</h3><div class="coin-
 +'<div class="row-line" style="margin:6px 0"><button class="btn ghost sm" type="button" onclick="economyExchangePrompt()">⇄ Обмен валюты</button> <button class="btn ghost sm" type="button" onclick="economyChangeWallet()">Разложить сдачу</button> <button class="btn ghost sm" type="button" onclick="economyConfigureTradeContext()">Контекст торговли</button> <button class="btn ghost sm" type="button" onclick="economyConfigurePriceModifier()">Модификатор цены</button> <button class="btn ghost sm" type="button" onclick="economyVerifyJournal()">Проверить журнал</button></div>'
 +economyJournalHTML(c);
 
-(function(){ const load=carryWeightState(c), w=load.kg, known=load.known, cap=Math.round(eAb(c,'str')*7.5), over=w>cap;
+(function(){ const load=carryWeightState(c), w=load.kg, known=load.known, cap=Math.round(eAb(c,'str')*7.5*fxMul(c,'carry')), over=w>cap;
 const att=attunedEntries(c);
 h+='<div class="load-row'+(over||!known?' over':'')+'">⚖ Груз: '+(known?'<b>'+w+' кг</b> из '+cap+' кг':'<b>неизвестен</b> — подтверждено не менее <b>'+w+' кг</b> из '+cap+' кг; у предмета или содержимого не указан применимый вес')
 +(over?' — перегруз: скорость снижена на '+(/(?:фут|\bft\b|\bfeet\b|\bfoot\b)/i.test(String(c.speed||''))?'10 футов':'3 м')+' (вариант правил 5e)':'')
@@ -29313,7 +29462,7 @@ if(equippedEntries.has(e.id)&&rule&&rule.athleticsContextBonus) e.equippedDays=M
 Object.keys(c.slots).forEach(l=>{ c.slots[l].cur=c.slots[l].max; });
 if(c.magicResource){MAGIC_RULES.rest(c);if(magicUsesMp())magicEnsure(c);}
 if(c.characterBuild){c.characterBuild.slotSpent={};(c.characterBuild.archivedAbilities||[]).forEach(a=>{const db=abilityOf(a.abilityId);if(db?.uses!=null)a.cur=abilityMaxUses(c,db);});}
-c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null) a.cur=abilityMaxUses(c,db); });
+c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null) a.cur=abilityMaxUses(c,db);delete a.choiceLocked; });
 (c.inventory||[]).forEach(e=>{ delete e.sealDocumentUsed; delete e.sealResolveUsed; });
 if(typeof bg3InterruptResetCooldowns==='function')bg3InterruptResetCooldowns(c,'long');
 if(typeof bg3GrantedWeaponResetCooldowns==='function')bg3GrantedWeaponResetCooldowns(c,'long');
@@ -29622,18 +29771,18 @@ const c=cc(); if(!c) return;
 const db=abilityOf(abilityId),check=ABILITY_RULES.canAssign(c,db,abilityCatalogIndex());
 if(!check.ok){setStatus('✕ '+check.reason,true);return false;}
 if(!c.abilities.some(x=>x.abilityId===abilityId)){
-c.abilities.push({abilityId, cur:abilityMaxUses(c,db), notes:''});
+c.abilities.push({abilityId, cur:abilityMaxUses(c,db), notes:''});fxInvalidate();
 }
 sheetSearch.ab=''; scheduleSave(); renderChars();
 }
 function delCharAbility(abilityId){ const c=cc(); if(!c) return;
-c.abilities=c.abilities.filter(x=>x.abilityId!==abilityId); scheduleSave(); renderChars(); }
+c.abilities=c.abilities.filter(x=>x.abilityId!==abilityId);abilityGameplaySyncSpells(c);fxInvalidate(); scheduleSave(); renderChars(); }
 function abilityUse(abilityId,d){
 const c=cc(); const e=c.abilities.find(x=>x.abilityId===abilityId); const db=abilityOf(abilityId);
 if(!e||!db||db.uses==null) return;
 const max=abilityMaxUses(c,db);
 if(e.cur==null) e.cur=max;
-e.cur=Math.max(0,Math.min(max,e.cur+d)); scheduleSave(); renderChars();
+const shared=abilityGameplayPointPool(c,ABILITY_GAMEPLAY.profile(db)?.pool);if(shared)shared.entry.cur=Math.max(0,Math.min(shared.max,shared.cur+d));else e.cur=Math.max(0,Math.min(max,e.cur+d)); scheduleSave(); renderChars();
 }
 function quickAddAbility(){
 const g=id=>document.getElementById(id);
@@ -29677,8 +29826,8 @@ h+='<div class="db-bar"><input type="text" placeholder="Найти способ�
 +'<button class="btn ghost sm" onclick="addRaceTraitsToChar()">Вписать черты народа</button></div>';
 if(sheetSearch.ab.trim().length>1){
 const q=sheetSearch.ab.toLowerCase();
-const index=abilityCatalogIndex(),hits=index.groups.filter(group=>!ABILITY_RULES.owned(c,group.variants[0],index)).map(group=>({...group,variants:group.variants.filter(ab=>ABILITY_RULES.edition(ab)!=='2024')})).filter(group=>group.variants.some(ab=>ABILITY_RULES.matches(ab,q))).slice(0,10);
-h+=hits.length?hits.map(group=>{const ab=ABILITY_RULES.choose(group.variants,c);return '<div class="spell-hit" data-ability-id="'+esc(ab.id)+'" onclick="addAbilityFromDB(this.dataset.abilityId)"><span><b>'+esc(group.name)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+esc(ABILITY_TYPES[ab.type]||'')+(ab.source?', '+esc(ab.source):'')+'</span>'+abilityVariantSelectHTML(group.variants,ab,true)+'</span><span style="color:var(--gold)">+ вписать</span></div>';}).join('')
+const index=abilityCatalogIndex(),hits=index.groups.filter(group=>!ABILITY_RULES.owned(c,group.variants[0],index)).filter(group=>group.variants.some(ab=>ABILITY_RULES.matches(ab,q))).slice(0,10);
+h+=hits.length?hits.map(group=>{const ab=ABILITY_RULES.choose(group.variants,c);return '<div class="spell-hit" data-ability-id="'+esc(ab.id)+'" onclick="addAbilityFromDB(this.dataset.abilityId)"><span><b>'+esc(group.name)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+esc(ABILITY_TYPES[ab.type]||'')+'</span>'+abilityVariantSelectHTML(group.variants,ab,true)+'</span><span style="color:var(--gold)">+ вписать</span></div>';}).join('')
 :'<p class="note-ital" style="font-size:14px">Нет новых совпадений: способность уже есть у героя или отсутствует в доступных правилах.</p>';
 }
 if(quickForm.ab){
@@ -29719,7 +29868,7 @@ const fxBtn=isActive
 const extra=fxBtn+poolBox+uses
 +'<button class="btn ghost sm" title="Править в своде мира" onclick="switchTab(\'abilitiesdb\');openAbilityEd(\''+x.ab.id+'\')">✎</button>'
 +'<button class="del-x" onclick="delCharAbility(\''+x.ab.id+'\')">✕</button>';
-h+=abilityCardHTML(x.ab, extra,{name:abilityCatalogIndex().byId.get(x.ab.id)?.name});
+h+=abilityCardHTML(x.ab, extra,{name:abilityCatalogIndex().byId.get(x.ab.id)?.name,choices:abilityGameplayChoiceHTML(c,x.ab,x.e)});
 shown++;
 });
 });
@@ -29732,6 +29881,8 @@ function stNotes(c){
 return '<div class="panel"><div class="f-grid">'
 +'<div><label class="lbl">Игрок</label><input type="text" value="'+esc(c.player)+'" oninput="updC(\'player\',this.value)"></div>'
 +'<div><label class="lbl">Языки</label><input type="text" value="'+esc(c.langs)+'" oninput="updC(\'langs\',this.value)"></div></div>'
++(abilityGameplayLanguages(c).length?'<p>Языки от способностей: '+esc(abilityGameplayLanguages(c).join(', '))+'</p>':'')
++(abilityGameplaySight(c)?'<p>'+esc(abilityGameplaySight(c))+'</p>':'')
 +characterBiographyHTML(c)
 +'<h3 class="rubric" style="font-size:20px;margin-top:12px">Характер героя</h3><div class="persona-grid">'
 +[['tr','Черты характера','Вежлив, но недоверчив к незнакомцам…'],['id','Идеалы','Знание — путь к силе…'],['bd','Привязанности','Библиотека Огмы — мой дом…'],['fl','Слабости','Не могу устоять перед древним фолиантом…'],['ap','Внешность','Высокий эльф с серебристыми волосами…']].map(p=>
