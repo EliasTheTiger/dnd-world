@@ -85,6 +85,7 @@ async function startStaticServer() {
   server = http.createServer(async (request, response) => {
     try {
       const requestUrl = new URL(request.url, 'http://127.0.0.1');
+      if (requestUrl.pathname === '/favicon.ico') { response.writeHead(204); response.end(); return; }
       let relative = decodeURIComponent(requestUrl.pathname).replace(/^\/dnd-world\/?/, '');
       if (!relative || relative.endsWith('/')) relative += 'index.html';
       const file = path.resolve(SITE_ROOT, relative);
