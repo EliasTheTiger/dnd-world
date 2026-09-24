@@ -109,6 +109,41 @@ test('each logical ability appears once across every catalog page without a rule
  const improved=e.state().abilities.find(ab=>ab.id==='ab_sx_sneak');assert.notEqual(index.byId.get(improved.id).key,index.byId.get(source(e,'Sneak Attack').id).key,'custom improved Sneak Attack keeps its own rules');
 });
 
+test('racial and class titles show all owners, with subclasses and subraces, without changing saved rules',()=>{
+ const {e,a,c}=world(),before=JSON.stringify(e.state()),index=a.abilityCatalogIndex(true);
+ const title=name=>index.byId.get(source(e,name).id).name;
+ assert.equal(title('Hellish Resistance'),'Адская устойчивость (Тифлинг)');
+ assert.equal(title('Stonecunning'),'Знание камня (Дварф)');
+ assert.equal(title('Bardic Inspiration'),'Бардовское вдохновение (Бард)');
+ assert.equal(title('Unarmored Defense'),'Защита без брони (Варвар, Монах)');
+ assert.equal(title('Disciple of Life'),'Защитник жизни (Жрец — Домен Жизни)');
+ assert.equal(title('Sculpt Spells'),'Лепка заклинаний (Волшебник — Школа эвокации)');
+ assert.equal(title('Dwarven Toughness'),'Живучесть дварфа (Дварф, Холмовой дварф)');
+ assert.equal(title('Cantrip'),'Фокус (Высший эльф)');
+ assert.equal(title('Darkvision'),'Ночное зрение (Гном, Дварф, Драконорождённый, Орк, Полуорк, Полуэльф, Тифлинг, Эльф)');
+ for(const ab of e.state().abilities.filter(ab=>['racial','class'].includes(ab.type))){
+  assert.ok(a.rules.ownerLabels(ab).length,ab.id);
+  assert.match(a.rules.displayName([ab]),/ \([^()]+\)$/);
+  assert.doesNotMatch(index.byId.get(ab.id).name,/SRD|D&D|Open5e|Black Flag|Справочный документ/);
+ }
+ assert.equal(JSON.stringify(e.state()),before,'rendering ownership cannot migrate IDs, charges or mechanics');
+ const wind=source(e,'Second Wind');c.abilities=[{abilityId:wind.id,cur:0,notes:'Израсходовано'}];
+ assert.match(a.stAbilities(c),/<h4>Второе дыхание \(Воин\)<\/h4>/);
+ assert.equal(c.abilities[0].cur,0);assert.equal(c.abilities[0].abilityId,wind.id);
+ assert.ok(a.rules.matches(source(e,'Sculpt Spells'),'Волшебник — Школа эвокации'));
+});
+
+test('owner suffixes do not duplicate existing labels or erase meaningful parentheses and custom ownership',()=>{
+ const {a}=world(),r=a.rules;
+ assert.equal(r.displayName([{n:'Ночное зрение (Эльф)',type:'racial',source:'Эльф'}]),'Ночное зрение (Эльф)');
+ assert.equal(r.displayName([{n:'Кости превосходства (4 × d8)',type:'class',source:'Воин (Боевой мастер)'}]),'Кости превосходства (4 × d8) (Воин — Боевой мастер)');
+ assert.equal(r.displayName([{n:'Владение доспехами: Жрец (Домен Жизни)',type:'class',source:'Жрец (Домен Жизни)'}]),'Владение доспехами (Жрец — Домен Жизни)');
+ const edited={n:'Своя защита',type:'class',source:'Воин, Паладин',open5e:{ownerNameRu:'Монах'},abilityReview:{custom:true}};
+ assert.equal(r.displayName([edited]),'Своя защита (Воин, Паладин)');
+ edited.source='Друид';assert.ok(r.matches(edited,'Своя защита (Друид)'));assert.equal(r.matches(edited,'Монах'),false);
+ assert.equal(r.displayName([{n:'Бдительный',type:'feat',source:'Справочный документ'}]),'Бдительный');
+});
+
 test('legacy and imported assignments merge without refilling charges or losing notes and effect identities',()=>{
  const {e,a,c}=world(),wind=source(e,'Second Wind'),legacy=a.abilityOf('ab_lg_secondwind');
  c.abilities=[{abilityId:wind.id,cur:1,notes:'Основная запись'},{abilityId:legacy.id,cur:0,notes:'Заряд потрачен'}];

@@ -38,11 +38,17 @@ const server=http.createServer((req,res)=>{
   await search.fill('всплеск действий');assert.equal(await catalog.locator('.entry-card').count(),1);
   await search.fill('Ночное зрение');
   // Search also finds descriptions mentioning darkvision; the ability's title occurs once.
-  assert.equal(await catalog.getByRole('heading',{name:'Ночное зрение',exact:true}).count(),1);
+  assert.equal(await catalog.getByRole('heading',{name:/^Ночное зрение \(/}).count(),1);
+  for(const [query,title] of [
+   ['Hellish Resistance','Адская устойчивость (Тифлинг)'],['Stonecunning','Знание камня (Дварф)'],
+   ['Bardic Inspiration','Бардовское вдохновение (Бард)'],['Unarmored Defense','Защита без брони (Варвар, Монах)'],
+   ['Disciple of Life','Защитник жизни (Жрец — Домен Жизни)'],['Sculpt Spells','Лепка заклинаний (Волшебник — Школа эвокации)'],
+   ['Dwarven Toughness','Живучесть дварфа (Дварф, Холмовой дварф)'],['Cantrip','Фокус (Высший эльф)']
+  ]){await search.fill(query);assert.equal(await catalog.getByRole('heading',{name:title,exact:true}).count(),1,title);}
   await search.fill('Second Wind');assert.equal(await catalog.locator('.entry-card').count(),1);
   assert.equal(await catalog.locator('.entry-card select').count(),0);assert.match(await catalog.innerText(),/Бонусным действием восстановите/);assert.doesNotMatch(await catalog.innerText(),/справочная карточка|Вариант правил/);
   await page.screenshot({path:path.join(output,'01-catalog-desktop.png'),fullPage:false});
-  await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'02-catalog-mobile.png'),fullPage:true});
+  await page.setViewportSize({width:390,height:844});await search.fill('Darkvision');await page.screenshot({path:path.join(output,'02-catalog-mobile.png'),fullPage:true});
   assert.equal(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth),true,'ability catalog fits a 390px viewport');
   await page.setViewportSize({width:1440,height:1000});
   // Fixture setup only. Assignment, cancellation and healing below use actual controls.
@@ -53,9 +59,11 @@ const server=http.createServer((req,res)=>{
    chars=[c];activeCharId=c.id;sheetTab='abilities';switchTab('chars');renderChars();return {wind:wind.id,surge:surge.id};
   });
   assert.match(await page.locator('#tab-chars').innerText(),/2 \/ 2/);
+  assert.equal(await page.locator('#tab-chars').getByRole('heading',{name:'Второе дыхание (Воин)',exact:true}).count(),1);
   const heroSearch=page.getByPlaceholder('Найти способность в своде мира и вписать герою…');
   await heroSearch.fill('Second Wind');assert.equal(await page.locator('#tab-chars .spell-hit').count(),0,'owned source variants are absent from assignment search');
   await heroSearch.fill('Darkvision');assert.equal(await page.locator('#tab-chars .spell-hit').count(),1);
+  assert.match(await page.locator('#tab-chars .spell-hit').innerText(),/^Ночное зрение \(Гном, Дварф, Драконорожденный, Орк, Полуорк, Полуэльф, Тифлинг, Эльф\)/);
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.locator('#tab-chars .spell-hit select').count(),0,'assigning an ability requires no rule variant selection');
   const darkvisionId=await page.locator('#tab-chars .spell-hit').getAttribute('data-ability-id');
@@ -96,7 +104,7 @@ const server=http.createServer((req,res)=>{
   await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
   assert.deepEqual(await page.evaluate(id=>{const c=getCh('abilities-qa-defense');return [c.abilities.find(e=>e.abilityId===id).choices.element,dmgAfterTraits(c,19,'холод').amount];},defenseIds.chosen),['холод',9]);
   assert.deepEqual(errors,[]);
-  fs.writeFileSync(path.join(output,'browser-result.json'),JSON.stringify({ok:true,url,release,uniqueness,checks:['catalog pagination','one card per ability across sources','no numbered rule variant selectors in catalog or assignment search','no alternative assignments for an owned ability','Russian names and Grappler contest','all 695 variant cards are playable and contain only game information','English and legacy search without lost focus','390px layout','fighter level-17 charge limit','Strength prerequisite','healing cancellation','player-entered d10 and one charge','no maximum-HP increase','legacy duplicates merge on reload without lost notes or charge refill','migration survives a second reload','no page errors'],errors},null,2));
+  fs.writeFileSync(path.join(output,'browser-result.json'),JSON.stringify({ok:true,url,release,uniqueness,checks:['catalog pagination','one card per ability across sources','race, subrace, class and subclass suffixes in catalog, search and hero cards','no numbered rule variant selectors in catalog or assignment search','no alternative assignments for an owned ability','Russian names and Grappler contest','all 695 variant cards are playable and contain only game information','English and legacy search without lost focus','390px layout','fighter level-17 charge limit','Strength prerequisite','healing cancellation','player-entered d10 and one charge','no maximum-HP increase','legacy duplicates merge on reload without lost notes or charge refill','migration survives a second reload','no page errors'],errors},null,2));
   console.log('Abilities browser journey passed.');
  }catch(error){if(page)await page.screenshot({path:path.join(output,'failure.png'),fullPage:true});throw error;}
  finally{await browser.close();server.close();}

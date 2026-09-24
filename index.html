@@ -20402,7 +20402,7 @@ const ABILITY_TYPES={class:'Классовая',racial:'Расовая',feat:'Ч
 function abilityPlayerText(text){return String(text||'').split(/\n/).filter(line=>!/(?:формат(?:а|е)? последств|источник правил|тип лицензии|CC-BY|https?:\/\/|Open5e|SRD\s*20|перевод(?:а|е)? на рус|свер[екн].*(?:книг|глоссари)|(?:взаимодейств|интеграц|обработчик|автоисполн|автоматиз|движок|движк|mechanics|schemaVersion|manualNote|enginePolicy))/i.test(line)).join('\n').trim();}
 function abilityCardHTML(ab, extra, view){
 extra=extra||'';
-let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(view?.name||ab.n)+'</h4>'
+let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(view?.name||ABILITY_RULES.displayName([ab]))+'</h4>'
 +'<span class="type-tag">'+esc(ABILITY_TYPES[ab.type]||ab.type)+'</span>'
 +tagChips(ab.tags,ABILITY_TAGS)
 +'<span class="spacer"></span>'+extra+'</div>';
@@ -29820,7 +29820,7 @@ h+='<div class="db-bar"><input type="text" placeholder="Найти способ�
 +'<button class="btn ghost sm" onclick="addRaceTraitsToChar()">Вписать черты народа</button></div>';
 if(sheetSearch.ab.trim().length>1){
 const q=sheetSearch.ab.toLowerCase();
-const index=abilityCatalogIndex(),hits=index.groups.filter(group=>!ABILITY_RULES.owned(c,group.variants[0],index)).filter(group=>group.variants.some(ab=>ABILITY_RULES.matches(ab,q))).slice(0,10);
+const index=abilityCatalogIndex(),hits=index.groups.filter(group=>!ABILITY_RULES.owned(c,group.variants[0],index)).filter(group=>ABILITY_RULES.normalize(group.name).includes(ABILITY_RULES.normalize(q))||group.variants.some(ab=>ABILITY_RULES.matches(ab,q))).slice(0,10);
 h+=hits.length?hits.map(group=>{const ab=ABILITY_RULES.choose(group.variants,c);return '<div class="spell-hit" data-ability-id="'+esc(ab.id)+'" onclick="addAbilityFromDB(this.dataset.abilityId)"><span><b>'+esc(group.name)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+esc(ABILITY_TYPES[ab.type]||'')+'</span></span><span style="color:var(--gold)">+ вписать</span></div>';}).join('')
 :'<p class="note-ital" style="font-size:14px">Нет новых совпадений: способность уже есть у героя или отсутствует в доступных правилах.</p>';
 }

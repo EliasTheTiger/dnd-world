@@ -177,15 +177,52 @@ const searchCache=new WeakMap();
 function matches(ab,query){
  const q=normalize(query);if(!q)return true;
  // Reference equality catches edited alias arrays; primitive fields catch in-place editor writes.
- const aliases=ab.abilityReview?.aliases,fields=[ab.n,ab.x,ab.source,identity(ab),aliases];let cached=searchCache.get(ab);
- if(!cached||fields.some((v,i)=>v!==cached.fields[i])){cached={fields,text:normalize([ab.n,ab.x,ab.source,identity(ab),...(aliases||[])].join(' '))};searchCache.set(ab,cached);}
+ const aliases=ab.abilityReview?.aliases,name=displayName([ab]),fields=[ab.n,ab.x,ab.source,name,identity(ab),aliases];let cached=searchCache.get(ab);
+ if(!cached||fields.some((v,i)=>v!==cached.fields[i])){cached={fields,text:normalize([ab.n,name,ab.x,ab.source,identity(ab),...(aliases||[])].join(' '))};searchCache.set(ab,cached);}
  return cached.text.includes(q);
 }
 // One ability can have several source-specific rule profiles. Never combine
 // their mechanics: Unarmored Defense, for example, differs by class.
 function baseName(ab){
- const name=String(ab?.n||'').trim(),suffix=' ('+ab?.source+')';
- return ab?.type==='racial'&&name.endsWith(suffix)?name.slice(0,-suffix.length):name;
+ const name=String(ab?.n||'').trim();
+ if(!['racial','class'].includes(ab?.type))return name;
+ for(const owner of [ownerText(ab),ownerLabels(ab).join(', ')]){
+  const suffix=' ('+owner+')';if(owner&&normalize(name).endsWith(normalize(suffix)))return name.slice(0,-suffix.length);
+ }
+ return name;
+}
+// Display ownership is separate from identity and executable rule profiles.
+const ownerParents={
+ 'Металлург':'Механик','Чемпион':'Воин','Круг Земли':'Друид','Коллегия Знаний':'Бард',
+ 'Драконья кровь':'Чародей','Драконье колдовство':'Чародей','Охотник':'Следопыт','Домен Жизни':'Жрец',
+ 'Клятва Верности':'Паладин','Путь берсерка':'Варвар','Школа эвокации':'Волшебник','Эвокер':'Волшебник',
+ 'Исчадие':'Колдун','Покровитель демонов':'Колдун','Вор':'Плут','Боевой мастер':'Воин',
+ 'Путь открытой руки':'Монах','Воин открытой руки':'Монах'
+};
+const ownerAliases={'Воин открытой руки':'Путь открытой руки','Драконье колдовство':'Драконья кровь','Покровитель демонов':'Исчадие','Эвокер':'Школа эвокации'};
+function ownerText(ab){
+ if(!['racial','class'].includes(ab?.type))return '';
+ const raw=ab.abilityReview?.custom?ab.source:ab.open5e?.ownerNameRu||owners[ab.open5e?.ownerName]||ab.source;
+ const text=String(raw||'').split(/\s*·\s*|\n/)[0].trim();
+ return /[А-Яа-яЁё]/.test(text)&&!/[A-Za-z]|https?:|источник правил|лицензи|перевод|движ[ок]/i.test(text)?text:'';
+}
+function ownerLabels(ab){
+ const labels=ownerText(ab).split(/[,;/](?![^()]*\))/).map(s=>s.trim()).filter(Boolean).map(name=>{
+  name=name.replace(/Драконорожденный/gi,'Драконорождённый');
+  name=ownerAliases[name]||name;
+  const parent=ab.type==='class'&&Object.entries(ownerParents).find(([key])=>normalize(key)===normalize(name))?.[1];
+  return parent?parent+' — '+name:name.replace(/^([^()]+)\s+\(([^()]+)\)$/,'$1 — $2');
+ });
+ return [...new Map(labels.map(name=>[normalize(name),name])).values()];
+}
+function displayName(variants,name){
+ const rows=variants||[],preferred=choose(rows);if(!preferred)return name||'';
+ name=name??baseName(preferred);
+ const labels=[...new Map(rows.flatMap(ownerLabels).map(label=>[normalize(label),label])).values()].sort((a,b)=>a.localeCompare(b,'ru'));
+ if(!labels.length)return name;
+ // Older local proficiency records repeat their owner after a colon.
+ const tail=': '+ownerText(preferred);if(tail!==': '&&name.endsWith(tail))name=name.slice(0,-tail.length);
+ return name+' ('+labels.join(', ')+')';
 }
 function identityKey(ab){
  let en=normalize(identity(ab));
@@ -208,12 +245,12 @@ function groups(rows){
  }
  const result=[...byKey.values()],names=new Map();
  for(const group of result){
-  const preferred=choose(group.variants);group.name=({'en:augment':'Улучшение предметов','en:improvement':'Улучшение характеристик'})[group.key]||baseName(preferred);
+  const preferred=choose(group.variants);group.name=displayName(group.variants,({'en:augment':'Улучшение предметов','en:improvement':'Улучшение характеристик'})[group.key]||baseName(preferred));
   const name=normalize(group.name);if(!names.has(name))names.set(name,[]);names.get(name).push(group);
  }
  for(const collisions of names.values())if(collisions.length>1)for(const group of collisions){
   const ab=choose(group.variants),kind={feat:'черта',racial:'особенность народа',class:'классовая способность'}[ab.type]||ab.type;
-  group.name+=' — '+kind;
+  group.name=displayName(group.variants,baseName(ab)+' — '+kind);
  }
  return result;
 }
@@ -262,7 +299,7 @@ function canAssign(c,ab,index){
  const duplicate=owned(c,ab,index);
  return duplicate?{ok:false,reason:'Эта способность уже есть у героя.'}:{ok:true};
 }
-const api={revision,normalize,identity,edition,reconcile,matches,canAssign,termFor,parserText,baseName,groups,choose,catalogIndex,owned,uniqueEntries,mergeEntries,duplicateName};
+const api={revision,normalize,identity,edition,reconcile,matches,canAssign,termFor,parserText,baseName,ownerLabels,displayName,groups,choose,catalogIndex,owned,uniqueEntries,mergeEntries,duplicateName};
 root.DND_ABILITY_RULES=api;
 if(typeof module==='object'&&module.exports)module.exports=api;
 })(globalThis);
