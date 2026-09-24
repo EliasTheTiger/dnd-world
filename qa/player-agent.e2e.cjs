@@ -616,6 +616,8 @@ async function runJourney() {
     expected: 'Каждое действие дает видимый результат либо ясное объяснение отказа; количество предметов не меняется без коммита.',
     reproduction: ['Персонажи → Року → Инвентарь.', 'Нажать «Открыть» у сумки и «Прочитать» у книги.', 'Закрыть появившиеся окна.']
   }, async () => {
+    // Ability bonuses can change initiative order; item interactions need Roku's turn.
+    await advanceCombatTo('Року');
     await openCharacter('Року');
     await clickButton('Инвентарь');
     const bag = await itemCard('Сумка с реагентами');
