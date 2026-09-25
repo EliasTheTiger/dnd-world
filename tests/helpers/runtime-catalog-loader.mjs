@@ -62,6 +62,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
       }; },
       runItemIntegrationAudit, runRareBattleAudit, runSpellPreparationAudit,
       itemsApi: {
+        initializeSpells:ensureSpellAudit, playerModel:itemPlayerModel, playerText:itemPlayerText, playerRules:itemPlayerRules, instructions:bg3ItemInstructionsOpen,
         rows:itemWorkspaceCanonicalRows, search:itemWorkspaceSearch, filters:dbFlt.it,
         row:itemWorkspaceRowFromBg3, detail:itemWorkspaceDetailHTML, icon:itemIconHTML,
         list:itemWorkspaceListRowHTML, card:itemCardHTML, bag:bagItemVisualHTML,

@@ -109,6 +109,6 @@ test('completed built-ins show their implemented interactions without a stale ma
   const soap=engine.catalogs.items.find(item=>item.id==='it_мыло');
   assert.equal(api.readiness(soap).ok,true);
   const html=api.card(soap,'',{fullDescription:true});
-  assert.match(html,/Взаимодействия:/);
+  assert.match(html,/Применить инструмент/);
   assert.doesNotMatch(html,/Эффект разыгрывает мастер|Решение мастера:/);
 });

@@ -73,6 +73,11 @@ jobs:
         env:
           QA_SITE_ROOT: _site
         run: node qa/game-items.e2e.cjs
+      - name: Check gameplay item cards on desktop and mobile
+        env:
+          QA_SITE_ROOT: _site
+          QA_EXPECTED_RELEASE: ${{ github.sha }}
+        run: node qa/item-player-cards.e2e.cjs
       - name: Check every recipe record and the crafting journey
         env:
           QA_SITE_ROOT: _site

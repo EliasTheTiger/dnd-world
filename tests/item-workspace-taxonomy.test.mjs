@@ -269,20 +269,11 @@ test('semantic property filters collapse duplicate campaign and BG3 tag labels',
   assert.equal(plain(api.search({tag: scrollKey})).length, 0);
 });
 
-test('missing BG3 descriptions render source-backed status and structured facts', () => {
-  const api = loadWorkspaceAudit();
-  const technical = api.card(bg3MissingDescriptionItem('technical', 'manual'));
-  assert.match(technical, /Описание не указано\./);
-  assert.match(technical, /служебная запись каталога/);
-  assert.match(technical, /Подтверждённые характеристики/);
-  assert.match(technical, /назначение — Разное/);
-  assert.match(technical, /игровая группа — Служебные записи/);
-  assert.match(technical, /непереносимый объект/);
-  assert.match(technical, /<b>Вес:<\/b> 12 кг/);
-  assert.match(technical, /<b>Стоимость:<\/b> 5 зм/);
-  assert.match(technical, /неподдержанные операции не исполняются автоматически/);
-
-  const world = api.card(bg3MissingDescriptionItem('world-object'));
-  assert.match(world, /объект окружения/);
-  assert.doesNotMatch(world, /ручной режим/);
+test('missing descriptions keep gameplay facts without exposing ingestion diagnostics', () => {
+  const api=loadWorkspaceAudit();
+  for(const classification of ['technical','world-object']){
+    const card=api.card(bg3MissingDescriptionItem(classification,'manual'));
+    assert.match(card,/Вес: 12 кг/);assert.match(card,/Стоимость: 5 зм/);
+    assert.doesNotMatch(card,/служебная запись|поддержанные операции|источником|контракт|Описание не указано/);
+  }
 });

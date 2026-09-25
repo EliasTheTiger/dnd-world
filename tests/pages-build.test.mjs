@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import vm from 'node:vm';
@@ -18,7 +18,7 @@ test('Pages build validates and publishes only the current immutable catalog', (
   assert.match(report.catalogVersion, /^bg3-\d+-v\d+$/);
   assert.equal(report.status, 'verified');
   assert.equal(report.release, release);
-  assert.deepEqual(report.runtime, ['scripts/economy-core.js', 'scripts/merchant-core.js', 'scripts/campaign-item-art.js', 'scripts/item-domain-model.js', 'scripts/definition-repository.js', 'scripts/ruleset-registry.js', 'scripts/persistence-core.js', 'scripts/action-kernel.js', 'scripts/chest-core.js', 'scripts/catalog-governance.js', 'scripts/world-state-core.js', 'scripts/ui-action-contract.js', 'scripts/projection-cache.js', 'scripts/public-item-surface.js', 'scripts/character-rules.js', 'scripts/magic-rules.js', 'scripts/grimoire-rules.js', 'scripts/hobbyworld-ability-terms.js', 'scripts/ability-rules.js', 'scripts/ability-gameplay.js', 'scripts/recipe-item-links.js', 'scripts/recipe-rules.js', 'scripts/recipe-workbench.js', 'scripts/recipe-tabletop-rules.js', 'scripts/recipe-tabletop-items.js', 'scripts/recipe-tabletop-runtime.js']);
+  assert.deepEqual(report.runtime, ['scripts/economy-core.js', 'scripts/merchant-core.js', 'scripts/campaign-item-art.js', 'scripts/item-domain-model.js', 'scripts/definition-repository.js', 'scripts/ruleset-registry.js', 'scripts/persistence-core.js', 'scripts/action-kernel.js', 'scripts/chest-core.js', 'scripts/catalog-governance.js', 'scripts/world-state-core.js', 'scripts/ui-action-contract.js', 'scripts/projection-cache.js', 'scripts/public-item-surface.js', 'scripts/item-player-copy.js', 'scripts/character-rules.js', 'scripts/magic-rules.js', 'scripts/grimoire-rules.js', 'scripts/hobbyworld-ability-terms.js', 'scripts/ability-rules.js', 'scripts/ability-gameplay.js', 'scripts/recipe-item-links.js', 'scripts/recipe-rules.js', 'scripts/recipe-workbench.js', 'scripts/recipe-tabletop-rules.js', 'scripts/recipe-tabletop-items.js', 'scripts/recipe-tabletop-runtime.js']);
   assert.ok(report.runtime.includes('scripts/ability-gameplay.js'));
   assert.ok(report.ui.includes(`${report.catalogVersion}-item-presentation`));
   assert.ok(report.ui.includes(`${report.catalogVersion}-placement-browser`));
@@ -30,6 +30,7 @@ test('Pages build validates and publishes only the current immutable catalog', (
     env: {...process.env, DND_WORLD_RELEASE: release},
   });
   assert.equal(build.status, 0, build.stderr || build.stdout);
+  assert.equal(existsSync(new URL('../_site/docs', import.meta.url)), false, 'per-item engineering and authoring records must not be deployed');
   const builtIndex = readFileSync(new URL('../_site/index.html', import.meta.url), 'utf8');
   const versionedIndex = readFileSync(new URL(`../_site/releases/${release}/index.html`, import.meta.url), 'utf8');
   const releaseManifest = JSON.parse(readFileSync(new URL('../_site/release.json', import.meta.url), 'utf8'));

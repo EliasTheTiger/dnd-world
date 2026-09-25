@@ -40,7 +40,7 @@
 <span class="corner bl">✠</span><span class="corner br">✠</span>
 <h1 class="title">D&amp;D World</h1>
 <div class="subtitle">Летопись развития персонажей · настольная книга гейм-мастера · единое издание с «D&amp;D Нексус»</div>
-<div class="release-badge" id="releaseBadge" title="Полный каталог и подробные игровые свойства предметов">Движок 5.0 · каталог предметов</div>
+<div class="release-badge" id="releaseBadge" title="Полный каталог и подробные игровые свойства предметов">Предметы вашей D&D-игры</div>
 <div class="rule-flourish">❦</div>
 <div class="toolrow">
 <div class="dicebox">
@@ -215,6 +215,7 @@
 <script src="scripts/ui-action-contract.js"></script>
 <script src="scripts/projection-cache.js"></script>
 <script src="scripts/public-item-surface.js"></script>
+<script src="scripts/item-player-copy.js"></script>
 <script src="scripts/character-rules.js"></script>
 <script src="scripts/magic-rules.js"></script>
 <script src="scripts/grimoire-rules.js"></script>
@@ -6514,7 +6515,7 @@ const SAVE_AB_KEY={'силы':'str','ловкости':'dex','телосложе
 
 const ENGINE_VERSION='5.0';
 const RELEASE_COMMIT=/^[0-9a-f]{40}$/i.test(String(globalThis.DND_WORLD_RELEASE||''))?String(globalThis.DND_WORLD_RELEASE).toLowerCase():'';
-const ENGINE_LABEL='Движок '+ENGINE_VERSION+' · каталог предметов'+(RELEASE_COMMIT?' · сборка '+RELEASE_COMMIT.slice(0,7):'');
+const ENGINE_LABEL='Предметы вашей D&D-игры';
 const engineBadge=document.getElementById('releaseBadge');if(engineBadge) engineBadge.textContent=ENGINE_LABEL;
 const GAME_MECHANICS_SCHEMA_VERSION=1;
 const ROLL_FORMULA_SCHEMA_VERSION=2;
@@ -20367,9 +20368,22 @@ else if(focus)lines.push('', 'Выбранная ссылка больше не 
 if(!actions.length&&!interactions.length&&!effects.length&&!lifecycle.length&&!ruleRows.length)lines.push('', 'Источник не задаёт этому объекту отдельного действия, изменения характеристики или условного эффекта.');return lines;
 }
 async function bg3ItemInstructionsOpen(itemId,actorId,entryId,focusId){
-itemId=String(itemId||'');try{if(bg3CatalogIsId(itemId)){await bg3CatalogEnsureIndex();if(!bg3Catalog.items.has(itemId))await bg3CatalogHydrate([itemId]);}const it=itemOf(itemId);if(!it)throw new Error('предмет отсутствует в текущей базе');setStatus('⌁ Загружаются полные правила предмета…');const lines=bg3ItemInstructionOverview(it,focusId),focus=String(focusId||''),lifecycle=bg3LifecycleRefsOf(it).filter(effect=>!bg3ItemStorageStoryAction(effect));if(actorId||entryId)lines.push('',bg3ItemRuleInstanceText(it,actorId,entryId));if(bg3CatalogIsId(itemId)&&!bg3ElementalInfusionInstructionItem(it)){const allPrograms=await bg3ItemInstructionPrograms(it),programs=focus?allPrograms.filter(record=>bg3Array(record&&record.ref&&record.ref.contexts).some(context=>String(context&&context.focusId||'')===focus)):allPrograms;if(programs.length){lines.push('', 'Постоянные, условные и связанные правила:');for(const record of programs){lines.push('',...bg3ItemInstructionProgramLines(record));}}else if(lifecycle.length&&(!focus||lifecycle.some(ref=>String(ref&&ref.id||'')===focus)))lines.push('', 'Для этой ссылки не найдено отдельной программы; её подтверждённая сводка приведена выше.');}
-const title=bg3CatalogIsId(itemId)?bg3UserItemName(bg3Catalog.summaries.get(itemId),'Правила предмета'):String(it.n||'Правила предмета');askShow({title:'ℹ '+title,body:lines.join('\n'),note:bg3CatalogIsId(itemId)?'Это подробная справка по игровым свойствам предмета. Текст ничего не применяет и не расходует.':'Это справка по сохранённой механике предмета кампании; применение выполняется отдельной кнопкой.'});setStatus('✓ Правила предмета открыты.');return true;
-}catch(error){const reason=bg3FriendlyError(error,'попробуйте ещё раз');setStatus('✕ Правила предмета не загрузились: '+reason,true);askShow({title:'⚠ Правила временно недоступны',body:'Карточка предмета сохранена, но подробную справку сейчас открыть не удалось.',note:'Ничего не израсходовано и состояние мира не изменено. '+reason});return false;}
+  itemId=String(itemId||'');
+  try{
+    if(bg3CatalogIsId(itemId)){await bg3CatalogEnsureIndex();if(!bg3Catalog.items.has(itemId))await bg3CatalogHydrate([itemId]);}
+    const it=gameItemDefinition(itemId)||itemOf(itemId);if(!it)throw new Error('Предмет больше не доступен.');
+    const model=itemPlayerModel(it),focus=String(focusId||''),selected=model.rules.filter(r=>r.id===focus),rows=selected.length?selected:model.rules;
+    const lines=[model.kind+' · '+model.rarity,...model.hero.map(r=>r.value+' — '+r.label),model.facts.join(' · '),...model.requirements];
+    for(const row of rows){lines.push('',row.name,row.summary||'',row.text,row.facts?.join(' · ')||'');for(const key of (row.choices||[]).concat(row.links||[])){const linked=itemPlayerRuleCopy(key);if(linked?.text)lines.push(linked.name+': '+linked.text);}}
+    if(model.properties)lines.push('',model.properties);
+    if(model.gameplayDescription)lines.push('','Особенности',model.gameplayDescription);
+    if(model.description)lines.push('',model.description);
+    const crafting=itemPlayerCraftFacts(it);if(crafting.length)lines.push('','Применение',...crafting);
+    if(String(it.text||'').trim())lines.push('','Содержимое',itemPlayerText(it.text));
+    if(actorId&&entryId){const actor=getCh(String(actorId)),entry=actor&&invEntryOf(actor,String(entryId));if(entry&&entry.itemId===it.id)lines.push('','Владелец: '+actor.name+'. '+(Object.values(actor.equipment||{}).includes(entry.id)?'Предмет надет.':'В инвентаре.'));}
+    lines.push('',...model.footer);
+    askShow({title:'ℹ '+model.name,body:lines.filter(line=>line!==undefined&&line!==null).join('\n'),note:'Справка по игровым свойствам предмета.'});return true;
+  }catch(error){askShow({title:'Правила предмета',body:'Не удалось открыть правила предмета. Повторите попытку.',note:''});return false;}
 }
 function bg3ItemPresentationDetailHTML(it,actorId,entryId,loadPreviews){
 if(!bg3CatalogIsId(it&&it.id))return '';const rules=bg3ItemRuleRowsHTML(it,actorId,entryId,{loadPreviews:loadPreviews===true});if(!bg3ItemPresentationEligible())return rules;const meta=bg3ItemPresentation.byItem.get(it.id),detail=bg3ItemPresentation.details.get(it.id);if(meta&&meta.detailShard==null)return rules;if(detail)return rules;
@@ -20413,14 +20427,6 @@ if(PUBLIC_ITEM_SURFACE)return PUBLIC_ITEM_SURFACE.publicStructuredText(value,ite
 function itemDomainResultText(result){
 const labels={effects:'эффекты',rolls:'броски',checks:'проверки',damage:'урон',healing:'лечение',conditions:'состояния',modifiers:'модификаторы',environment:'окружение'},parts=[];for(const key of Object.keys(labels)){const rows=result&&result[key]||[];if(rows.length)parts.push(labels[key]+': '+rows.map(itemDomainStructuredText).join('; '));}return parts.join(' · ')||'изменений состояния мира не создаёт';
 }
-function itemArsenalContractHTML(it,open){
-const state=itemDomainOf(it);if(!state.ok||!state.item)return '';const domain=state.item,tax=domain.taxonomy||{},equipment=domain.equipment||{},attunement=equipment.attunement||{},charges=domain.charges||{},consumable=domain.consumable||{},actions=domain.gameplay&&domain.gameplay.actions||[],passive=domain.gameplay&&domain.gameplay.passive||{},requirements=equipment.requirements||[],handlers=domain.handlers||[],environment=domain.gameplay&&domain.gameplay.environment||[];
-const actionCost={action:'действие','bonus-action':'бонусное действие',reaction:'реакция',object:'взаимодействие с предметом',free:'свободное действие'},targets={self:'на себя',ally:'союзник',enemy:'противник',creature:'существо',object:'объект','creature-or-object':'существо или объект',point:'точка',area:'область',none:'без отдельной цели'};
-const actionRows=actions.length?actions.map(action=>{const req=(action.requirements||[]).concat(action.restrictions||[]),resource=action.resourceCost&&action.resourceCost.kind!=='none'?(itemDomainCodeLabel(action.resourceCost.kind)+' ×'+action.resourceCost.amount):'отдельный ресурс не расходуется';return '<div class="recipe-step"><b>'+esc(publicItemText(action.label))+'</b><div><b>Активация:</b> '+esc(actionCost[action.activation&&action.activation.cost]||itemDomainCodeLabel(action.activation&&action.activation.cost))+' · <b>Цель:</b> '+esc(targets[action.targets&&action.targets.kind]||itemDomainCodeLabel(action.targets&&action.targets.kind))+' ×'+esc(action.targets&&action.targets.count)+'</div><div><b>Ограничения:</b> '+esc(req.length?req.map(itemDomainStructuredText).join('; '):'дополнительных ограничений нет')+' · <b>Расход:</b> '+esc(resource)+'</div><div><b>Последствия:</b> '+esc(itemDomainResultText(action.result))+'</div></div>';}).join(''):'<div>Активных действий нет; предмет работает через постоянные эффекты.</div>';
-const passiveParts=[];if((passive.effects||[]).length)passiveParts.push('эффекты: '+passive.effects.map(itemDomainStructuredText).join('; '));if((passive.conditions||[]).length)passiveParts.push('состояния: '+passive.conditions.map(itemDomainStructuredText).join('; '));if((passive.modifiers||[]).length)passiveParts.push('модификаторы: '+passive.modifiers.map(itemDomainStructuredText).join('; '));
-const chargeText=charges.enabled?'запас '+charges.maximum+'; '+((charges.recovery||[]).length?'восстановление: '+charges.recovery.map(itemDomainStructuredText).join('; '):'восстановление не предусмотрено'):'заряды не используются',iconText=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicIconLabel(domain.icon):'встроенная иконка предмета',sourceText=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicSourceLabel():'Встроенный каталог D&D World',tags=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicTagValues(domain.tags):domain.tags,publicHandlers=PUBLIC_ITEM_SURFACE?PUBLIC_ITEM_SURFACE.publicHandlerValues(handlers):handlers;
-return '<details class="props-block"'+(open?' open':'')+'><summary class="toggle-link">Полный контракт предмета</summary><div style="margin-top:8px"><b>Идентификатор:</b> '+esc(publicItemIdentifier(domain.id))+'</div><div><b>Классификация:</b> '+esc(itemDomainCodeLabel(tax.category)+' / '+itemDomainCodeLabel(tax.subcategory)+' · '+itemDomainCodeLabel(tax.type)+' / '+itemDomainCodeLabel(tax.subtype))+'</div><div><b>Принадлежность:</b> '+esc(sourceText)+'</div><div><b>Иконка:</b> '+esc(iconText)+'</div><div><b>Редкость:</b> '+esc(domain.rarity)+' · <b>Вес:</b> '+esc(domain.economy.weight.value+' '+domain.economy.weight.unit)+'</div><div><b>Требования:</b> '+esc(requirements.length?requirements.map(itemDomainStructuredText).join('; '):'особых требований нет')+' · <b>Настройка:</b> '+(attunement.required?'требуется':'не требуется')+'</div><div><b>Заряды:</b> '+esc(chargeText)+' · <b>Расходуемость:</b> '+(consumable.value?'расходуемый предмет':'не расходуется')+'</div><div style="margin-top:7px"><b>Допустимые действия, цели, ограничения и эффекты:</b>'+actionRows+'</div><div style="margin-top:7px"><b>Постоянные эффекты:</b> '+esc(passiveParts.join(' · ')||'отсутствуют')+'</div><div><b>Взаимодействие с окружением:</b> '+esc(environment.length?environment.map(itemDomainStructuredText).join('; '):'не изменяет окружение')+'</div><div><b>Теги:</b> '+esc(tags.join(', ')||'публичные теги не заданы')+'</div><div><b>Обработчики движка:</b> '+esc(publicHandlers.map(ref=>ref.id+' → '+ref.executor).join(', '))+'</div></details>';
-}
 function itemIllustration(it){
 const art=globalThis.DndWorldItemArt;if(art)return art.forItem(it);
 const raw=it&&it.item||it;return it&&it.icon&&it.icon.src?it.icon:raw&&raw.icon&&raw.icon.src?raw.icon:null;
@@ -20430,69 +20436,153 @@ function itemIconHTML(it,size){
 size=Number(size)||64;const icon=itemIllustration(it),art=globalThis.DndWorldItemArt;
 return '<span class="item-icon item-icon-frame'+(size<64?' sm':'')+'" style="width:'+size+'px;height:'+size+'px" aria-hidden="true">'+(icon&&icon.src?'<img src="'+esc(icon.src)+'" width="'+size+'" height="'+size+'" loading="lazy" decoding="async" alt=""'+itemImageErrorHTML()+'>':art?'<img src="'+esc(art.fallbackData)+'" width="'+size+'" height="'+size+'" alt="">':'')+'</span>';
 }
-function itemCardHTML(it, extra, options){
-it=it&&gameItemStored(it.id)?.gameDefinition===true?gameItemDefinition(it.id):it;
-upgradeItem(it);
-extra=extra||'';options=options||{};
-const actorId=String(options.actorId||''),entryId=String(options.entryId||''),isBg3=bg3CatalogIsId(it&&it.id),interactive=options.interactive===true&&!!actorId&&!!entryId&&isBg3,instructionCall=focusId=>'bg3ItemInstructionsOpen('+esc(JSON.stringify(it.id))+','+esc(JSON.stringify(actorId))+','+esc(JSON.stringify(entryId))+','+esc(JSON.stringify(String(focusId||'')))+')',instructionButton=focusId=>interactive?'<button class="btn ghost sm" type="button" onclick="'+instructionCall(focusId)+'">открыть инструкцию</button>':'',fullInstructionButton=isBg3?'<button class="btn ghost sm" type="button" title="Открыть подробные условия, последствия и ограничения каждого свойства" onclick="'+instructionCall('')+'">ℹ Полные правила</button>':'';
-if(options.presentationDetail===true&&interactive)bg3ItemPresentationEnsureForCard(it.id,actorId);
-const icon=itemIconHTML(it,64),displayName=publicItemText(userFacingItemName(it,'Предмет'));
-let h='<div class="entry-card">'+(icon?'<div class="item-card-layout">'+icon:'')+'<div class="item-card-main"><div class="entry-head"><h4>'+esc(displayName)+'</h4>'
-+'<span class="type-tag">'+esc(ITEM_TYPES[it.type]||it.type)+'</span>'
-+(it.rarity && it.rarity!=='обычный'?'<span class="type-tag">'+esc(it.rarity)+'</span>':'')
-+tagChips(it.tags,ITEM_TAGS)
-+'<span class="spacer"></span>'+fullInstructionButton+extra+'</div>';
-h+=String(it.desc||'').trim()?descBlock(publicItemText(it.desc),options.fullDescription===true,bg3CatalogIsId(it.id)):(bg3CatalogIsId(it.id)?bg3ItemSourceFallbackHTML(it):'<div class="note-ital" style="font-size:13px">Описание не указано.</div>');
-h+=itemArsenalContractHTML(it,false);
-if(String(it.text||'').trim())h+='<details class="props-block"'+(options.fullDescription===true?' open':'')+'><summary class="toggle-link">Прочитать содержимое</summary><div class="entry-desc" style="margin-top:7px">'+esc(it.text)+'</div></details>';
-const meta=[];
-if(it.dmg) meta.push('<b>Урон:</b> <span class="dmg">'+esc(it.dmg)+(it.dmgType?' ('+esc(it.dmgType)+')':'')+'</span>');
-if(it.ac) meta.push('<b>КД:</b> '+esc(it.ac));
-if(it.slot) meta.push('<b>Слот:</b> '+esc(ITEM_SLOT_RU[it.slot]||it.slot));
-if(meta.length) h+='<div class="stat-line">'+meta.join(' &nbsp;·&nbsp; ')+'</div>';
-h+=itemProfileSummaryHTML(it);
-if(options.presentationDetail===true)h+=bg3ItemPresentationDetailHTML(it,actorId,entryId,options.fullDescription===true);
-else if(isBg3)h+=bg3ItemRuleRowsHTML(it,actorId,entryId,{loadPreviews:options.fullDescription===true});
-h+=itemRelationsHTML(it);
-const pr=itemProfile(it),material=itemMaterialMeta(it);
-if(pr.kind==='tool'&&pr.tool){
-h+='<div class="props-block"><span class="pt">Инструмент:</span> '+esc(pr.tool.what)+' · базовая характеристика '+esc(pr.tool.sk)+' · владение «'+esc(pr.tool.prof)+'»'
-+(pr.tool.dc?'<div style="margin-top:3px"><b>Ориентиры СЛ:</b> '+esc(pr.tool.dc)+'</div>':'')
-+(craftRecipesForTool(it.id).length?'<div style="margin-top:3px"><b>Рецептов:</b> '+craftRecipesForTool(it.id).length+'</div>':'')+'</div>';
+// Item presentation is a read-only projection. Engine records never come from this text.
+function itemPlayerText(value){
+  return String(value||'').replace(/<br\s*\/?\s*>/gi,'\n').replace(/<[^>]*>/g,'')
+    .replace('атомарно расходует','расходует').replace('выбор подтверждается до атомарного расходования свитка.','после использования свиток рассыпается.').replace(/(?<![А-Яа-я])КС(?![А-Яа-я])/gu,'СЛ').replace(/испытание выносливости/gi,'спасбросок Телосложения')
+    .replace('Отдельная скорость полета хранится как типизированный эффект.','')
+    .replace('Структурированный флаг дыхания виден среди действующих эффектов и снимается по истечении срока.','Не требует концентрации.')
+    .replace('Движок связывает состояние с триггерами атаки и заклинания; снятый или брошенный предмет становится видимым.','Снятый или брошенный предмет становится видимым.')
+    .replace('движок запрашивает сумму настоящих костей, применяет предел максимума хитов и расходует флакон.','выпитый флакон расходуется, а хиты не могут превысить свой максимум.')
+    .replace('каждое значение такого урона движок уменьшает вдвое с округлением вниз.','получаемый урон огнём уменьшается вдвое с округлением вниз.')
+    .replace('Кости бросают игроки; движок отдельно проверяет попадание, спасбросок и защиту цели от яда.','')
+    .replace('из структурированных рецептов','по рецептам')
+    .replace('Для ремесла необходимы все указанные ингредиенты; движок сначала проверяет их, затем списывает одной транзакцией.','Для изготовления нужны все ингредиенты рецепта. Сам набор не расходуется.')
+    .replace('Провал проверки сбора не создает предмет автоматически: последствия и реальный бросок отмечает мастер.','При неудачном сборе яд не удаётся извлечь.')
+    .replace('Реальный бросок определяет урожай; движок не генерирует случайное количество.','Количество собранных цветов зависит от проверки сбора.')
+    .replace('одну структурированную порцию','одну порцию')
+    .replace('Извлечение требует реального броска и разрешения мастера; провал не добавляет предмет.','Для извлечения требуется успешная проверка сбора.')
+    .replace('при загрузке используется именно выбранный экземпляр. Не является оружием, не даёт бонусов и не меняет сюжет автоматически.','позволяет делать оттиски вырезанного на нём текста.')
+    .split(/\n/).map(line=>line.split(/(?<=[.!?])\s+/).filter(sentence=>!/(?:движ(?:ок|к)|типизирован|schemaVersion|manualNote|обработчик|источник правил|лиценз|CC-BY|Open5e|https?:\/\/|комментарий.*перевод|атомарн|един[а-я]+.*коммит)/i.test(sentence)).join(' ')).join('\n').trim();
 }
-if(material){
-const profileMaterial=!!(material.sourceStats&&!Number.isInteger(+material.tier));
-h+='<div class="props-block"><span class="pt">Материал:</span> '+esc(material.category)+(profileMaterial?'':' · уровень '+material.tier);
-if(!profileMaterial&&material.source)h+='<div style="margin-top:3px"><b>Где добыть:</b> '+esc(material.source)+'</div>';
-if(material.harvest) h+='<div style="margin-top:3px"><b>Сбор:</b> '+esc(material.harvest.skill)+' ('+esc(AB_FULL[material.harvest.ability]||material.harvest.ability)+') СЛ '+material.harvest.dc+' · '+esc(material.harvest.time)+' · выход '+esc(material.harvest.yield)+'</div>';
-if(material.component){
-h+='<div style="margin-top:3px"><b>Компонент:</b> '+(material.component.valueMode==='inventory'?'оценка задается у экземпляра':'стоимость '+material.component.valueGp+' зм')+' · физическая форма '+esc(material.component.form||'любая')+'</div>';
-const spellLinks=(material.uses||[]).map(id=>spellOf(id)).filter(Boolean).map(sp=>{ const c=parseComponents(sp); return esc(sp.n)+' — '+materialCostFor(sp,c)+' зм, '+(matConsumeFor(sp)?'расходуется':'сохраняется'); });
-if(spellLinks.length) h+='<div style="margin-top:3px"><b>Заклинания:</b> '+spellLinks.join(' · ')+'</div>';
+function itemPlayerDice(d){return d&&d.cnt&&d.sides?d.cnt+'d'+d.sides+(+d.mod?(+d.mod>0?' + ':' − ')+Math.abs(+d.mod):''):d&&Number.isFinite(+d.mod)?String(+d.mod):'';}
+function itemPlayerEffectText(effect){
+  const stat=String(effect?.stat||''),labels={'light.bright':'Яркий свет','light.dim':'Тусклый свет',ac:'КД',acbase:'Базовый КД',speed:'Скорость','save.fear':'спасброски от испуга','save.forcedretreat':'спасброски от принудительного отступления','save.forcedRetreat':'спасброски от принудительного отступления','save.poison':'спасброски от яда','save.inhaled':'спасброски от запахов и вдыхаемых ядов','save.concentration':'спасброски для поддержания концентрации','check.climb':'проверки при лазании','check.str':'проверки Силы','incoming.attack':'атаки по цели','recipe.crossbow':'следующая атака арбалетом','size.steps':'Категория размера','carry.multiplier':'Грузоподъёмность'},label=labels[stat]||(/^(save|skill|ab)\./.test(stat)?bg3PresentationStatLabel(stat):''),value=effect?.value;
+  if(!label||typeof value==='object')return '';
+  if(effect.mode==='adv')return 'Преимущество: '+label+'.';
+  if(effect.mode==='dis')return 'Помеха: '+label+'.';
+  if(value==='automatic-success')return label+': успех без проверки.';
+  if(stat==='size.steps')return 'Размер увеличивается на '+value+' категорию.';
+  if(stat==='carry.multiplier')return 'Грузоподъёмность увеличивается в '+value+' раза.';
+  const numeric=parseFloat(value);if(!Number.isFinite(numeric))return '';
+  return label+': '+(effect.mode==='add'?fmtMod(numeric):String(numeric))+(stat==='speed'||stat.startsWith('light.')?' м':'')+'.';
 }
-const links=recipesUsingItem(it.id); if(links.length) h+='<div style="margin-top:3px"><b>Ремесло:</b> '+links.map(r=>esc(r.n)).join(' · ')+'</div>';
-h+='</div>';
+function itemPlayerRuleCopy(key){
+  const row=(globalThis.DndWorldItemRuleCopy||{})[String(key||'')];if(!row||row.hidden)return null;
+  const names={PRONE:'Сбитый с ног',BLINDED:'Ослепленный',POISONED:'Отравленный',FRIGHTENED:'Испуганный',PARALYZED:'Парализованный',STUNNED:'Ошеломленный',CHARMED:'Очарованный',INVISIBILITY:'Невидимый',PETRIFIED:'Окаменевший',RESTRAINED:'Опутанный',DEAFENED:'Глухой',UNCONSCIOUS:'Бессознательный'},condition=CONDITIONS.find(c=>c.n===names[key]);
+  return condition?{...row,name:condition.n,text:condition.d+(key==='PRONE'?' Чтобы встать, нужно потратить половину скорости.':'')}:row;
 }
-const cardUses=itemUsesOf(it).filter(action=>!bg3ItemStorageStoryAction(action));if(cardUses.length&&!isBg3){
-const tr={self:'на себя',ally:'союзник',enemy:'противник',creature:'существо',any:'любая цель',object:'объект',creatureOrObject:'существо или объект',none:'область/без цели'};
-h+='<div class="props-block"><span class="pt">Как использовать:</span>'+cardUses.map(u=>{
-const c=u.consume||{},res=c.kind==='charges'?'заряды −'+(+c.amount||1):(c.kind==='item'?'предмет −'+(+c.amount||1):(c.kind==='kit'?'набор −'+(+c.amount||1):'без расхода'));
-const parts=[combatCostLabel(u.cost),tr[u.target]||u.target,res];
-if(u.attack) parts.push('атака '+(u.attack.fixedBonus!=null?('с фиксированным бонусом '+fmtMod(+u.attack.fixedBonus||0)):(u.attack.proficient?'с владением':'без владения')));
-if(u.save) parts.push('спас. '+(AB_FULL[u.save.key]||u.save.key)+' СЛ '+u.save.dc);
-if(u.scroll){const scrollParts=bg3ScrollSummaryParts(u.scroll);parts.push(scrollParts.join(' · ')||'параметры свитка не указаны источником');}
-if(u.concentration) parts.push('концентрация');
-if(u.duration&&u.duration.label) parts.push(u.duration.label);
-const useIcon=u.icon&&u.icon.src?'<img class="item-icon sm" src="'+esc(u.icon.src)+'" width="34" height="34" loading="lazy" decoding="async" alt="">':'';
-const label=bg3CatalogIsId(it.id)?bg3UserFacingLabel(u.label,'Использовать предмет'):u.label;
-return '<div class="recipe-step" style="display:grid;grid-template-columns:'+(useIcon?'38px ':'')+'minmax(0,1fr);gap:6px;align-items:center">'+useIcon+'<div><b>'+esc(label)+'</b><div>'+esc(parts.join(' · '))+'</div>'+instructionButton(u.id)+'</div></div>';
-}).join('')+'</div>';
-} else if(it.useMode==='manual'&&!isBg3&&!itemArsenalReadiness(it).ok) h+='<div class="props-block note-ital"><span class="pt">Решение мастера:</span> '+esc(it.manualNote||'Эффект разыгрывает мастер.')+'</div>';
-const interactions=itemInteractionsOf(it).filter(row=>!bg3InteractionCoveredByExactUse(it,row,cardUses));if(interactions.length&&!isBg3)h+='<div class="props-block"><span class="pt">Взаимодействия:</span>'+interactions.map(row=>{const kind=BG3_CATALOG_INTERACTION_NAMES[row.handler]||'',cost=row.cost?combatCostLabel(row.cost):'';return '<div style="margin-top:4px"><b>'+esc(row.label||kind||'Действие')+'</b>'+([kind,cost].filter(Boolean).length?' — '+esc([kind,cost].filter(Boolean).join(' · ')):'')+instructionButton(row.id)+'</div>';}).join('')+'</div>';
-if(it.props&&!isBg3) h+='<div class="props-block"><span class="pt">Свойства:</span><div class="entry-desc">'+esc(it.props)+'</div></div>';
-if(bg3CatalogIsId(it.id)){h+=bg3LifecycleItemHTML(it,actorId);h+=bg3InventoryStatusTransitionItemHTML(it);h+=bg3InterruptItemHTML(it);}
-return h+'</div>'+(icon?'</div>':'')+'</div>';
+
+function itemPlayerUseFacts(use){
+  const targets={self:'На себя',ally:'Союзник',enemy:'Противник',creature:'Существо',any:'Себя или другое существо',object:'Предмет',creatureOrObject:'Существо или предмет',none:'Область'},facts=[];
+  if(use.cost)facts.push(combatCostLabel(use.cost));
+  if(targets[use.target])facts.push(targets[use.target]);
+  if(use.range)facts.push('Дистанция: '+use.range);
+  if(use.consume?.kind==='item')facts.push('Расход: '+(+use.consume.amount||1)+' шт.');
+  if(use.consume?.kind==='charges')facts.push('Расход: '+(+use.consume.amount||1)+' заряд');
+  if(use.consume?.kind==='kit')facts.push('Расход: '+(+use.consume.amount||1)+' применение набора');
+  if(use.save)facts.push('Спасбросок '+(AB_FULL[use.save.key]||'')+' · СЛ '+use.save.dc);
+  if(use.attack)facts.push('Атака'+(use.attack.fixedBonus!=null?' '+fmtMod(+use.attack.fixedBonus):use.attack.proficient?' с бонусом мастерства':''));
+  if(use.duration?.label)facts.push(itemPlayerText(use.duration.label));
+  if(use.concentration)facts.push('Концентрация');
+  if(use.recipeCooldown)facts.push(use.recipeCooldown==='short'?'Раз за короткий отдых':'Раз за продолжительный отдых');
+  if(use.requirements?.held)facts.push('Нужно держать в руке');
+  if(use.requirements?.attuned)facts.push('Требуется настройка');
+  if(use.requirements?.equipped)facts.push('Предмет должен быть надет');
+  return facts.filter(Boolean);
 }
+function itemPlayerRules(it){
+  const rows=[],uses=itemUsesOf(it).filter(u=>!bg3ItemStorageStoryAction(u)),seen=new Set();
+  const add=row=>{const key=[row.name,row.text,row.facts?.join('|')].join('\n');if(!row.name||seen.has(key))return;seen.add(key);rows.push(row);};
+  for(const use of uses){
+    const program=use.program||{},key=program.statusApplication?.statusId||program.sourceAction?.primary?.attributes?.StatsId||program.projection?.entrypoints?.[0]?.bg3Id,copy=itemPlayerRuleCopy(key),facts=itemPlayerUseFacts(use),parts=[];
+    if(copy?.text)parts.push(copy.text);
+    if(use.heal)parts.push('Восстанавливает '+itemPlayerDice(use.heal)+' хитов.');
+    for(const damage of use.damage||[]){const dice=itemPlayerDice(damage);if(dice)parts.push('Наносит '+dice+' '+(damage.type||'')+' урона.');}
+    if(use.dmg)parts.push('Наносит '+(typeof use.dmg==='string'?use.dmg:itemPlayerDice(use.dmg))+(use.dmgType?' '+use.dmgType:'')+' урона.');
+    for(const effect of use.effects||[]){const text=itemPlayerEffectText(effect);if(text)parts.push(text);}
+    if(use.scroll){const spell=spellOf(use.scroll.spellId);if(spell?.x)parts.push(itemPlayerText(spell.x));}
+    const label=bg3UserFacingLabel(use.label,'Использовать'),name=label.replace(/^Использовать:\s*/,it.type==='potion'?'Выпить: ':'');
+    add({id:use.id,kind:'action',name,text:parts.join('\n'),facts,links:copy?.links||[]});
+  }
+  for(const ref of bg3LifecycleRefsOf(it).filter(r=>!bg3ItemStorageStoryAction(r))){
+    const copy=itemPlayerRuleCopy(ref.bg3Id),grants=ref.grantedActions||[],keys=copy?.text?[ref.bg3Id]:grants.map(g=>g.spellId);
+    for(const key of keys){const rule=itemPlayerRuleCopy(key);if(!rule?.text)continue;
+      const facts=[bg3ItemInstructionGate(ref.gate),...(rule.facts||[])];if(rule.cost)facts.push(rule.cost);
+      add({id:ref.id,kind:ref.kind==='spell'?'action':'property',name:rule.name||bg3LifecyclePresentationName(ref,it),text:rule.text,...(rule.summary?{summary:rule.summary}:{}),facts,links:rule.links||[],choices:rule.choices||[]});
+    }
+  }
+  const covered=new Set(bg3LifecycleRefsOf(it).map(r=>r.bg3Id));
+  for(const ref of it.mechanics?.provenance?.ruleReferences?.active?.passives||[]){
+    if(covered.has(ref.id))continue;const rule=itemPlayerRuleCopy(ref.id);if(rule?.text)add({id:ref.id,kind:'property',name:rule.name,text:rule.text,facts:['Пока предмет надет'],links:rule.links||[]});
+  }
+  if(bg3ElementalInfusionInstructionItem(it)){
+    const lines=bg3ElementalInfusionInstructionLines(it).filter(l=>l.startsWith('•')).map(l=>l.replace(/^• /,'').replace(' и это событие подтверждено','').replace('; эти последствия применяются только после подтверждения попадания','').replace('подтверждённого ','').replace(' и его визуальный эффект','').replace('после полной проверки события ','')).join('\n');
+    for(let i=rows.length-1;i>=0;i--)if(rows[i].kind==='property')rows.splice(i,1);
+    add({id:'elemental-infusion',kind:'property',name:'Стихийная зарядка',text:lines,facts:['Пока кольцо надето']});
+  }
+  const equipmentCopy=(globalThis.DndWorldItemEquipmentCopy||{})[it.id];if(equipmentCopy?.facts?.length)add({id:'equipment-properties',kind:'property',name:'Свойства экипировки',text:equipmentCopy.facts.join('\n'),facts:['Пока предмет надет или используется']});
+  for(const effect of itemPassiveFx(it)){const text=itemPlayerEffectText(effect);if(text)add({id:'effect:'+rows.length,kind:'property',name:'Постоянный эффект',text,facts:[]});}
+  const interactions={weaponAttack:'Атаковать',foodEat:'Поесть',waterDrink:'Выпить',loreRead:'Прочитать',materialInspect:'Использовать в ремесле',containerOpen:'Открыть',instrumentPlay:'Играть',valuableSell:'Продать',campSet:'Разбить лагерь',ropeUse:'Закрепить верёвку',lightToggle:'Зажечь или погасить',oilFuel:'Заправить лампу',toolCheck:'Применить инструмент',writingUse:'Писать',ammoRecover:'Собрать боеприпасы',gamblePlay:'Играть',ritualBurn:'Сжечь благовония',fireStart:'Развести огонь',craftOpen:'Изготовить',harvest:'Собрать материал'};
+  for(const interaction of itemInteractionsOf(it).filter(r=>!bg3ItemStorageStoryAction(r)&&!bg3InteractionCoveredByExactUse(it,r,uses))){
+    if(interaction.handler==='weaponAttack'||interaction.handler==='materialInspect')continue;
+    const name=interactions[interaction.handler]||itemPlayerText(interaction.label);if(!name)continue;
+    add({id:interaction.id,kind:'interaction',name,text:'',facts:interaction.cost?[combatCostLabel(interaction.cost)]:[]});
+  }
+  return rows;
+}
+function itemPlayerModel(it){
+  const p=itemProfile(it),w=p.kind==='weapon'?p.weapon:null,a=['armor','shield'].includes(p.kind)?p.armor:null,hero=[],facts=[],requirements=[],footer=[],spec=it.mechanics?.itemSpec||{},flags=p.flags||{};
+  const enchantment=+w?.bonus||(globalThis.DndWorldItemEquipmentCopy||{})[it.id]?.enchantment||0;
+  if(w){const dice=itemPlayerDice(w.damage?{...w.damage,mod:(+w.damage.mod||0)+enchantment}:null)||it.dmg;if(dice)hero.push({value:dice,label:(w.damage?.type||it.dmgType||'')+' урон'});if(w.versatile?.cnt)facts.push('Двумя руками: '+itemPlayerDice({...w.versatile,mod:(+w.versatile.mod||0)+enchantment}));if(enchantment)facts.push('Зачарование '+fmtMod(enchantment)+' к атаке и урону');
+    const labels={finesse:'Фехтовальное',light:'Лёгкое',heavy:'Тяжёлое',two:'Двуручное',reach:'Досягаемость',thrown:'Метательное',loading:'Перезарядка'};for(const [key,label] of Object.entries(labels))if(w[key])facts.push(label);
+    if(w.category)facts.push(w.category==='martial'?'Воинское оружие':'Простое оружие');
+    if(w.range){const value=String(w.range),distance=bg3CatalogIsId(it.id)&&/^\d+(\.\d+)?$/.test(value)?String(+value/100).replace('.',',')+' м':value;facts.push((w.ranged?'Дальность: ':'Досягаемость: ')+distance);}
+    if(w.ammo)facts.push('Требуются боеприпасы'+(w.ammoType?': '+({crossbow:'болты','арбалет':'болты',bow:'стрелы','лук':'стрелы',sling:'снаряды для пращи',blowgun:'иглы'}[w.ammoType]||w.ammoType):''));if(w.special)facts.push(itemPlayerText(w.special));
+  }
+  if(a){const r=a.acRule||{},value=a.ac||r.base||it.ac;if(value)hero.push({value:(r.shield?'+':'')+value,label:'Класс доспеха'});if(r.dex)facts.push('Модификатор Ловкости'+(r.dexCap!=null?' (максимум +'+r.dexCap+')':''));if(a.weight)facts.push(a.weight);if(a.strReq)requirements.push('Сила '+a.strReq);if(a.stealthDis)facts.push('Помеха на Скрытность');if(a.don)facts.push('Надевание: '+a.don);}
+  if(spec.attune||it.attune)requirements.push('Требуется настройка');
+  const charge=spec.charges||it.resource;if(charge&&+(charge.max??charge.maximum)>0){requirements.push((charge.kind==='kit'?'Применений набора: ':'Заряды: ')+(charge.max??charge.maximum));if(charge.recharge){const r=charge.recharge;requirements.push('Восстановление: '+(r.cnt&&r.sides?r.cnt+'d'+r.sides+(r.plus?' + '+r.plus:''):String(r.plus||0))+' '+(charge.when||''));}if(charge.lastCharge)requirements.push('После последнего заряда: бросьте d'+charge.lastCharge.sides+'; при '+charge.lastCharge.destroyOn+' предмет уничтожается.');}
+  if(!w&&it.slot&&ITEM_SLOT_RU[it.slot])facts.push(ITEM_SLOT_RU[it.slot]);
+  if(flags.focus)facts.push('Магическая фокусировка');if(flags.componentPouch)facts.push('Мешочек компонентов');if(flags.consumable)facts.push('Расходуемый предмет');
+  if(p.container?.cap>0)facts.push('Вместимость: '+p.container.cap);
+  if(p.ammo?.pack)facts.push('В упаковке: '+p.ammo.pack);
+  if(p.scroll){if(p.scroll.level!=null)facts.push('Свиток '+p.scroll.level+' круга');if(p.scroll.saveDC!=null)facts.push('СЛ '+p.scroll.saveDC);if(p.scroll.attackBonus!=null)facts.push('Атака заклинанием '+fmtMod(+p.scroll.attackBonus));}
+  if(p.instrument?.type&&BG3_INSTRUMENT_LABELS[p.instrument.type])facts.push(BG3_INSTRUMENT_LABELS[p.instrument.type]);
+  const mass=p.mass?.display||it.weight,value=p.value?.display||it.cost;if(mass)footer.push('Вес: '+mass);if(value)footer.push('Стоимость: '+value);
+  let description=itemPlayerText(it.desc),gameplayDescription='';const bullet=description.indexOf('\n•');if(bullet>=0){gameplayDescription=description.slice(bullet).trim();description=description.slice(0,bullet).trim();}else if(it.recipeTabletop||/^На \d|^В течение \d|^Травматический яд|^Контактный яд|^Вдыхаемый яд/.test(description)){gameplayDescription=description;description='';}
+  return {name:publicItemText(userFacingItemName(it,'Предмет')),kind:itemWorkspaceKindLabel(p.kind||it.type),rarity:it.rarity||'обычный',hero,facts:[...new Set(facts.filter(Boolean))],requirements,description,gameplayDescription,properties:bg3CatalogIsId(it.id)?'':itemPlayerText(it.props),rules:itemPlayerRules(it),footer};
+}
+function itemPlayerRulesHTML(model,it,actorId,entryId){
+  const call=focus=>'bg3ItemInstructionsOpen('+[it.id,actorId||'',entryId||'',focus||''].map(v=>esc(JSON.stringify(v))).join(',')+')';
+  return model.rules.map(row=>'<section class="item-player-rule"><div class="item-player-rule-head"><h5>'+esc(row.name)+'</h5>'+(row.kind==='action'?'<span class="item-player-kind">Действие</span>':'')+'</div>'+(row.summary?'<div class="item-player-rule-summary">'+esc(row.summary)+'</div>':'')+(row.text?'<div class="entry-desc">'+esc(row.text)+'</div>':'')+(row.facts?.length?'<div class="item-player-rule-facts">'+row.facts.map(esc).join(' · ')+'</div>':'')+(row.choices?.length?'<details class="item-player-condition"><summary>Выберите эффект</summary>'+row.choices.map(key=>{const c=itemPlayerRuleCopy(key);return c?.text?'<p><b>'+esc(c.name)+'.</b> '+esc(c.text)+'</p>':'';}).join('')+'</details>':'')+(row.links?.length?'<details class="item-player-condition"><summary>Состояния и эффекты</summary>'+row.links.map(key=>{const c=itemPlayerRuleCopy(key);return c?.text?'<p><b>'+esc(c.name)+'.</b> '+esc(c.text)+'</p>':'';}).join('')+'</details>':'')+(row.kind==='interaction'&&row.name==='Прочитать'?'<button class="btn ghost sm" type="button" onclick="'+call(row.id)+'">Об этом действии</button>':'')+'</section>').join('');
+}
+function itemPlayerCraftFacts(it){
+  const pr=itemProfile(it),material=itemMaterialMeta(it),parts=[];
+  if(pr.kind==='tool'&&pr.tool){if(pr.tool.what)parts.push(itemPlayerText(pr.tool.what));if(pr.tool.prof)parts.push('Владение: '+pr.tool.prof);if(pr.tool.sk)parts.push('Проверка: '+(AB_FULL[pr.tool.sk]||pr.tool.sk));if(pr.tool.dc)parts.push('Сложность: '+pr.tool.dc);}
+  if(material){if(material.category){const categories={'alchemy.ingredient':'Алхимический ингредиент','alchemy.extract':'Алхимическая вытяжка','crafting.material':'Материал для ремесла',root:'Корень',herb:'Трава',plant:'Растение','creature.part':'Часть существа',ore:'Руда',refined:'Обработанный материал',processed:'Обработанный материал',poison:'Ядовитый компонент',inhaled:'Вдыхание',lichen:'Лишайник',aquatic:'Водное растение',moss:'Мох',toxic:'Ядовитый компонент',fuel:'Топливо',mineral:'Минерал',wood:'Древесина',gemstone:'Драгоценный камень'};parts.push(categories[material.category]||(/[А-Яа-я]/.test(material.category)?material.category:'Материал для ремесла'));}if(material.source&&!material.sourceStats)parts.push('Где добыть: '+material.source);if(material.harvest)parts.push('Сбор: '+material.harvest.skill+' ('+(AB_FULL[material.harvest.ability]||material.harvest.ability)+'), СЛ '+material.harvest.dc+' · '+material.harvest.time+' · выход '+material.harvest.yield);if(material.component)parts.push(material.component.valueMode==='inventory'?'Стоимость компонента зависит от конкретного экземпляра':'Компонент стоимостью '+material.component.valueGp+' зм');const spells=(material.uses||[]).map(spellOf).filter(Boolean);for(const sp of spells)parts.push(sp.n+' — '+(matConsumeFor(sp)?'компонент расходуется':'компонент сохраняется'));}
+  return parts.map(itemPlayerText).filter(Boolean);
+}
+function itemPlayerCraftHTML(it){
+  const parts=itemPlayerCraftFacts(it);return parts.length?'<section class="item-player-rule"><h5>Применение</h5><div class="entry-desc">'+parts.map(esc).join('<br>')+'</div></section>':'';
+}
+function itemCardHTML(it,extra,options){
+  it=it&&gameItemStored(it.id)?.gameDefinition===true?gameItemDefinition(it.id):it;upgradeItem(it);options=options||{};
+  const m=itemPlayerModel(it),actorId=String(options.actorId||''),entryId=String(options.entryId||''),call='bg3ItemInstructionsOpen('+[it.id,actorId,entryId,''].map(v=>esc(JSON.stringify(v))).join(',')+')',rarity={'обычный':'common','необычный':'uncommon','редкий':'rare','очень редкий':'very-rare','легендарный':'legendary'}[m.rarity]||'common';
+  let h='<article class="entry-card item-player-card rarity-'+rarity+'"><header class="item-player-header">'+itemIconHTML(it,80)+'<div class="item-card-main"><h4>'+esc(m.name)+'</h4><div class="item-player-subtitle">'+esc(m.kind)+' · '+esc(m.rarity)+'</div><div class="item-player-controls"><button class="btn ghost sm" type="button" onclick="'+call+'">ℹ Полные правила</button>'+(extra||'')+'</div></div></header>';
+  if(m.hero.length)h+='<div class="item-player-primary">'+m.hero.map(stat=>'<div><strong>'+esc(stat.value)+'</strong><span>'+esc(stat.label)+'</span></div>').join('')+'</div>';
+  if(m.facts.length)h+='<div class="item-player-facts">'+m.facts.map(v=>'<span>'+esc(v)+'</span>').join('')+'</div>';
+  if(m.requirements.length)h+='<div class="item-player-requirements">'+m.requirements.map(esc).join(' · ')+'</div>';
+  h+=itemPlayerRulesHTML(m,it,actorId,entryId);
+  if(m.properties)h+='<section class="item-player-rule"><h5>Свойства</h5><div class="entry-desc">'+esc(m.properties)+'</div></section>';
+  if(m.gameplayDescription)h+='<section class="item-player-rule"><h5>Особенности</h5><div class="entry-desc">'+esc(m.gameplayDescription)+'</div></section>';
+  if(m.description)h+='<div class="item-player-description entry-desc">'+esc(m.description)+'</div>';
+  if(String(it.text||'').trim())h+='<details class="item-player-book"><summary>Прочитать содержимое</summary><div class="entry-desc">'+esc(itemPlayerText(it.text))+'</div></details>';
+  h+=itemPlayerCraftHTML(it)+itemRelationsHTML(it);
+  if(m.footer.length)h+='<footer class="item-player-footer">'+m.footer.map(v=>'<span>'+esc(v)+'</span>').join('')+'</footer>';
+  return h+'</article>';
+}
+
 function spellCardHTML(sp, extra){
 extra=extra||'';
 let h='<div class="entry-card"><div class="entry-head"><h4>'+esc(sp.n)+'</h4>'
@@ -26930,8 +27020,8 @@ if(!row)return '';if(!itemWorkspacePortable(row))return '<span class="catalog-so
 const hero=itemWorkspaceHero(),heroName=hero&&hero.name||'герою',disabled=!hero?' disabled title="Сначала создайте героя"':'';return '<div class="item-grant-controls"><button class="btn rub sm" aria-label="Выдать '+esc(row.name)+' в количестве '+itemWorkspace.qty+' герою '+esc(heroName)+'"'+disabled+' onclick="itemWorkspaceGive('+esc(JSON.stringify(row.id))+')">+ '+(compact?'выдать':'выдать '+esc(heroName))+'</button></div>';
 }
 function itemWorkspaceListRowHTML(row,selected){
-const icon=itemIconHTML(row,42),taxonomy=itemWorkspaceTaxonomyLabel(row),desc=String(row.description||'').trim(),p=row.presentation,actionable=!!(row.item||p);
-return '<div class="catalog-result-row'+(selected?' selected':'')+'" data-item-id="'+esc(row.id)+'">'+icon+'<button class="catalog-result-open" type="button" onclick="itemWorkspaceSelect('+esc(JSON.stringify(row.id))+')" aria-label="Открыть карточку '+esc(row.name)+'" aria-pressed="'+(selected?'true':'false')+'"><div class="catalog-result-name">'+esc(row.name)+'</div><div class="catalog-result-meta">'+esc(taxonomy+(row.rarity?' · '+row.rarity:'')+(actionable?' · готов к движку':''))+'</div>'+(desc?'<div class="catalog-result-desc">'+esc(desc)+'</div>':'')+'</button>'+itemWorkspaceGrantControlsHTML(row,true)+'</div>';
+const icon=itemIconHTML(row,42),taxonomy=itemWorkspaceKindLabel(row.kind),desc=itemPlayerText(row.description);
+return '<div class="catalog-result-row'+(selected?' selected':'')+'" data-item-id="'+esc(row.id)+'">'+icon+'<button class="catalog-result-open" type="button" onclick="itemWorkspaceSelect('+esc(JSON.stringify(row.id))+')" aria-label="Открыть карточку '+esc(row.name)+'" aria-pressed="'+(selected?'true':'false')+'"><div class="catalog-result-name">'+esc(row.name)+'</div><div class="catalog-result-meta">'+esc(taxonomy+(row.rarity?' · '+row.rarity:''))+'</div>'+(desc?'<div class="catalog-result-desc">'+esc(desc)+'</div>':'')+'</button>'+itemWorkspaceGrantControlsHTML(row,true)+'</div>';
 }
 function itemWorkspaceSelectedRow(rows){
 let row=rows.find(value=>value.id===itemWorkspace.selectedId)||null;if(!row&&rows.length){row=rows[0];itemWorkspace.selectedId=row.id;itemWorkspace.presentationSelectedId=row.id;}if(row&&row.row)row=itemWorkspaceRowFromBg3(row.row);else if(row&&row.item)row=itemWorkspaceRowFromLocal(row.item);return row;
@@ -27588,7 +27678,7 @@ return '<div class="catalog-filter-grid" role="group" aria-label="Поиск и 
 +'<div class="catalog-filter"><label for="itemFilterRarity">Редкость</label><select id="itemFilterRarity" onchange="itemWorkspaceFilterSet(\'rarity\',this.value,\'itemFilterRarity\')">'+itemWorkspaceOption('',f.rarity,'Любая редкость')+rarities.map(value=>itemWorkspaceOption(value,f.rarity,value)).join('')+'</select></div>'
 +'<div class="catalog-filter"><label for="itemFilterTag">Игровое свойство</label><select id="itemFilterTag" onchange="itemWorkspaceFilterSet(\'tag\',this.value,\'itemFilterTag\')">'+itemWorkspaceOption('',f.tag,'Все свойства')+tags.map(option=>itemWorkspaceOption(option.value,f.tag,option.label)).join('')+'</select></div>'
 +'<div class="catalog-filter"><label for="itemFilterSort">Порядок</label><select id="itemFilterSort" onchange="itemWorkspaceFilterSet(\'sort\',this.value,\'itemFilterSort\')">'+itemWorkspaceOption('name',f.sort,'По названию')+itemWorkspaceOption('type',f.sort,'По классификации')+itemWorkspaceOption('rarity',f.sort,'По редкости')+'</select></div></div>'
-+'<details class="catalog-class-help"><summary>Критерий включения</summary><p>В арсенале остаются только предметы с полным структурированным контрактом и разрешёнными обработчиками движка: идентификация, классификация, источник, описание, иконка, масса, требования, настройка, ресурсы, действия, цели, ограничения, последствия, окружение и теги проверены до публикации.</p></details>';
+;
 }
 function renderItemsDB(openBg3Id){
 const box=document.getElementById('tab-itemsdb');if(!box)return;if(bg3RuntimeView==='scene')bg3RuntimeView='items';if(openBg3Id){itemWorkspace.selectedId=String(openBg3Id);itemWorkspace.presentationSelectedId=String(openBg3Id);}
@@ -27679,14 +27769,14 @@ return '<div class="editor"><h3>'+(editing.it?'Правка предмета':'�
 +'<div><label>Тип урона</label><input type="text" id="edItDT" value="'+esc(it.dmgType||'')+'"></div>'
 +'<div><label>КД (для доспехов)</label><input type="text" id="edItAC" value="'+esc(it.ac||'')+'"></div>'
 +'</div>'
-+'<div class="props-block"><b>Экономика:</b> '+esc(priceStatus)+(priceModel&&priceModel.source?' · источник '+esc(priceModel.source.type+': '+priceModel.source.reference):'')
++'<div class="props-block"><b>Экономика:</b> '+esc(priceStatus)
 +(editing.it?'<div style="margin-top:6px"><button type="button" class="btn ghost sm" onclick="itemPriceOverride('+esc(JSON.stringify(it.id))+',\'purchase\')">Ручная цена покупки</button> <button type="button" class="btn ghost sm" onclick="itemPriceOverride('+esc(JSON.stringify(it.id))+',\'sale\')">Ручная цена продажи</button></div>':'')+'</div>'
-+'<label>Описание</label><textarea id="edItDesc">'+esc(it.desc)+'</textarea>'
++'<label>Описание</label><textarea id="edItDesc">'+esc(itemPlayerText(it.desc))+'</textarea>'
 +'<label>Текст книги, письма, карты или свитка</label><textarea id="edItText" style="min-height:80px">'+esc(it.text||'')+'</textarea>'
-+'<label>Игровые свойства</label><textarea id="edItProps" style="min-height:60px" placeholder="Например: фехтовальное, лёгкое; преимущество на проверки Внимательности">'+esc(it.props)+'</textarea>'
++'<label>Игровые свойства</label><textarea id="edItProps" style="min-height:60px" placeholder="Например: фехтовальное, лёгкое; преимущество на проверки Внимательности">'+esc(bg3CatalogIsId(it.id)?'':itemPlayerText(it.props))+'</textarea>'
 +'<label>Ключевые признаки <span class="note-ital">(обязательно: хотя бы один)</span></label>'+tagPicker(ITEM_TAGS, it.tags||[], 'edItTags')
 +'<label>Постоянное влияние, пока предмет надет или находится в инвентаре. Каждое свойство — с новой строки, например: КД +2 · скорость +3 м · состояние: Опутанный.</label><textarea id="edItFx" rows="2">'+esc(fxToLines(itemPassiveFx(it)))+'</textarea>'
-+'<label>Решение мастера при использовании (если требуется)</label><input type="text" id="edItManual" value="'+esc(it.manualNote||'')+'">'
++'<label>Решение мастера при использовании (если требуется)</label><input type="text" id="edItManual" value="'+esc(bg3CatalogIsId(it.id)?'':itemPlayerText(it.manualNote||'').replace(/.*автоматическ.*$/i,''))+'">'
 +'<details class="props-block"'+(advancedOpen?' open':'')+'><summary class="toggle-link">Расширенные игровые правила</summary><div style="margin-top:8px">'
 +'<div class="f-grid"><div><label>Режим применения</label><select id="edItMode">'+ITEM_USE_MODES.map(m=>'<option value="'+m+'"'+((it.useMode||inferItemUseMode(it))===m?' selected':'')+'>'+esc(modeLabels[m]||m)+'</option>').join('')+'</select></div><div><label>Запас применений</label><select id="edItResourceKind"><option value="none"'+(resourceKind==='none'?' selected':'')+'>без отдельного запаса</option><option value="charges"'+(resourceKind==='charges'?' selected':'')+'>заряды</option><option value="kit"'+(resourceKind==='kit'?' selected':'')+'>единицы набора</option></select></div><div><label>Максимальный запас</label><input id="edItResourceMax" type="number" min="1" step="1" value="'+(resource&&resource.max||1)+'"></div><div><label>Когда восстанавливается</label><input id="edItResourceWhen" value="'+esc(resource&&resource.when||'')+'" placeholder="например, после долгого отдыха"></div></div><textarea id="edItResource" class="hidden" aria-hidden="true">'+esc(JSON.stringify(resource))+'</textarea>'
 +'<label>Действия предмета</label><div id="edItUsesList">'+uses.map(itemEditorUseRowHTML).join('')+'</div><button type="button" class="btn ghost sm" onclick="itemEditorAddUse()">＋ Добавить действие</button>'
