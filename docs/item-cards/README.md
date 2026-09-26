@@ -1,8 +1,8 @@
 # Item cards: gameplay presentation
 
 The public game contains 2,115 canonical item cards after the normal spell and
-item migrations. The audit uses those migrations and the same card renderer as
-the inventory and item workspace. A seed-only snapshot taken before migration
+item migrations. Catalog, inventory and equipped-item tooltips now share one
+gameplay body. A seed-only snapshot taken before migration
 contains ten additional legacy spell-scroll records; it is not the public count.
 
 ## Player surface
@@ -18,6 +18,17 @@ The former item-contract block, execution support badges, internal operation
 counts, provenance, source identifiers and engine instructions are absent from
 cards, list previews and the full-rules dialog. Item editor prose is cleaned too;
 its hidden structured controls still preserve mechanics when saving an edit.
+Custom gameplay properties remain visible after editing and reloading a former
+catalog item. Existing saved definitions use the same presentation; inventory
+entries keep their quantities, charges, attunement, equipment slots and notes.
+Rendering charges uses a copy, so hovering a card does not initialise or change
+the saved resource. Combat inspection and contextual item help open the same
+full gameplay rules. Material inspection uses readable crafting categories.
+
+The previous audit missed a separate inventory tooltip renderer. That renderer
+showed raw `props`, source-operation trees and inconsistent weapon facts. The
+replacement shares the full card body instead of maintaining another prose
+filter or fetching technical presentation shards when inventory is rendered.
 
 Presentation references:
 
@@ -61,8 +72,13 @@ node --test tests/*.test.*
 git diff --check
 ```
 
-The exhaustive audit checks cards, list previews and full rules for technical
-leaks, illustrations, descriptions and mutation while reading. Browser checks
-cover ordinary and legendary equipment, a potion, poison and tools on desktop,
-plus the adapted crossbow on a 390-pixel screen. Existing execution, inventory,
+The exhaustive audit renders all 2,115 items through the actual inventory panel,
+catalog card, list preview, equipment description and full rules. It checks
+visible text and hover/accessibility labels, preserves complete gameplay content,
+and checks both item mechanics and the hero for mutation while reading.
+The browser regression fails against the previous published version immediately
+after granting Markoheshkir. It now grants nine representative items using the
+public controls, compares catalog and inventory prose, opens full rules, edits
+gameplay properties, equips an item, saves, reloads, and checks the saved cards
+again, including a 390-pixel inventory tooltip. Existing execution, inventory,
 crafting and persistence regression tests remain part of the complete suite.
