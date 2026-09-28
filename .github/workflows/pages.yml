@@ -69,6 +69,10 @@ jobs:
           QA_SITE_ROOT: _site
           QA_EXPECTED_COMMIT: ${{ github.sha }}
         run: npm run qa:abilities
+      - name: Check the GM reference, calculators and saved notes
+        env:
+          QA_SITE_ROOT: _site
+        run: npm run qa:reference
       - name: Check the unified game items and saved inventories
         env:
           QA_SITE_ROOT: _site

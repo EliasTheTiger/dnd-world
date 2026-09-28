@@ -32,6 +32,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="styles/treasure-workspaces.css">
+<link rel="stylesheet" href="styles/gm-reference.css">
 </head>
 <body>
 <div class="wrap">
@@ -218,6 +219,8 @@
 <script src="scripts/item-player-copy.js"></script>
 <script src="scripts/character-rules.js"></script>
 <script src="scripts/magic-rules.js"></script>
+<script src="scripts/gm-reference-data.js"></script>
+<script src="scripts/gm-reference.js"></script>
 <script src="scripts/grimoire-rules.js"></script>
 <script src="scripts/hobbyworld-ability-terms.js"></script>
 <script src="scripts/ability-rules.js"></script>
@@ -3981,6 +3984,7 @@ if(t==='combat'&&typeof renderCombat==='function') renderCombat();
 if(t==='itemsdb'&&typeof bg3CatalogEnsureIndex==='function') bg3CatalogEnsureIndex().then(()=>renderItemsDB()).catch(()=>renderItemsDB());
 if(t==='chests'&&typeof renderChests==='function')renderChests();
 if(t==='merchants'&&typeof renderMerchants==='function')renderMerchants();
+if(t==='rules')renderRules();
 }
 
 
@@ -17934,8 +17938,8 @@ return h;
 function ruleEditorHTML(){
 const r=rulesDB.find(x=>x.id===refEditing.rule)||{t:'',x:''};
 return '<div class="editor"><h3>'+(refEditing.rule?'Правка записи':'Новая запись мастера')+'</h3>'
-+'<div class="f-grid"><div><label>Заголовок</label><input type="text" id="edRuT" value="'+esc(r.t)+'"></div></div>'
-+'<label>Текст записи</label><textarea id="edRuX" rows="7">'+esc(r.x)+'</textarea>'
++'<div class="f-grid"><div><label for="edRuT">Заголовок</label><input type="text" id="edRuT" value="'+esc(r.t)+'"></div></div>'
++'<label for="edRuX">Текст записи</label><textarea id="edRuX" rows="7">'+esc(r.x)+'</textarea>'
 +'<button class="btn rub" onclick="saveRuleEd()">Вписать в свод</button> '
 +'<button class="btn ghost" onclick="refEditing.rule=null;refEditing.ruleNew=false;renderRules()">Отложить перо</button></div>';
 }
@@ -17955,38 +17959,15 @@ rulesDB=rulesDB.filter(x=>x.id!==id);
 scheduleSave(); renderRules();
 }
 function renderRules(){
-let h = '<div class="db-head"><h2 class="rubric">Справочник мастера</h2>'
-+ '<button class="btn sm rub" onclick="refEditing.ruleNew=true;refEditing.rule=null;renderRules()">+ Запись мастера</button></div>';
-if(refEditing.ruleNew||refEditing.rule) h += ruleEditorHTML();
-if(rulesDB.length){
-h += '<h3 class="sub"><span class="fl">❧</span>Записи мастера</h3><div class="grid c2">';
-rulesDB.forEach(r=>{
-h += '<div class="card"><div class="card-tools">'
-+ '<button class="mini" title="Править" onclick="refEditing.rule=\''+r.id+'\';refEditing.ruleNew=false;renderRules();window.scrollTo({top:0,behavior:\'smooth\'})">✎</button>'
-+ '<button class="mini" title="Вычеркнуть" onclick="delRule(\''+r.id+'\')">✕</button></div>'
-+ '<h4>'+esc(r.t)+'</h4><p style="font-size:14.5px;white-space:pre-wrap">'+esc(r.x)+'</p></div>';
-});
-h += '</div>';
-}
-h += '<h3 class="sub"><span class="fl">❧</span>Опыт и бонус мастерства</h3><div class="table-scroll"><table class="ms"><tr><th>Уровень</th><th>Опыт</th><th>Бонус мастерства</th><th>Уровень</th><th>Опыт</th><th>Бонус мастерства</th></tr>';
-for(let i=1;i<=10;i++){
-h += '<tr><td><b>'+i+'</b></td><td>'+XP_TABLE[i].toLocaleString('ru')+'</td><td>+'+PROF[i]+'</td>'
-+ '<td><b>'+(i+10)+'</b></td><td>'+XP_TABLE[i+10].toLocaleString('ru')+'</td><td>+'+PROF[i+10]+'</td></tr>';
-}
-h += '</table></div>';
-h += '<h3 class="sub"><span class="fl">❧</span>Навыки и характеристики</h3><div class="table-scroll"><table class="ms"><tr><th>Навык</th><th>Характеристика</th><th>Навык</th><th>Характеристика</th></tr>';
-for(let i=0;i<SKILLS.length;i+=2){
-const a=SKILLS[i], b=SKILLS[i+1];
-h += '<tr><td><b>'+a[0]+'</b></td><td>'+AB_FULL[a[1]]+'</td><td>'+(b?'<b>'+b[0]+'</b>':'')+'</td><td>'+(b?AB_FULL[b[1]]:'')+'</td></tr>';
-}
-h += '</table></div>';
-h += '<h3 class="sub"><span class="fl">❧</span>Состояния</h3><div class="grid c3">';
-CONDITIONS.forEach(c=>{ h += '<div class="card"><h4>'+esc(c.n)+'</h4><p style="font-size:14.5px">'+esc(c.d)+'</p></div>'; });
-h += '</div>';
-h += '<h3 class="sub"><span class="fl">❧</span>Предыстории</h3><div class="table-scroll"><table class="ms"><tr><th>Предыстория</th><th>Навыки</th><th>Прочие владения</th><th>Умение</th></tr>';
-BACKGROUNDS.forEach(b=>{ h += '<tr><td><b>'+esc(b.n)+'</b></td><td>'+esc(b.sk)+'</td><td>'+esc(b.ex)+'</td><td>'+esc(b.f)+'</td></tr>'; });
-h += '</table></div>';
-document.getElementById('tab-rules').innerHTML = h;
+// Keep the reading workspace lazy; campaign imports need not build a hidden reference.
+if(activeWorldTab!=='rules')return;
+globalThis.DND_GM_REFERENCE.render({host:document.getElementById('tab-rules'),notes:rulesDB,
+xp:XP_TABLE,prof:PROF,skills:SKILLS,abilities:AB_FULL,backgrounds:BACKGROUNDS,mpCosts:MAGIC_RULES.costs,
+magicLabel:magicUsesMp()?'MP · '+(magicFreeAccess()?'весь список класса':'изучение и подготовка'):'ячейки · подготовка по классу',
+editorHTML:refEditing.ruleNew||refEditing.rule?ruleEditorHTML():'',
+onAdd(){refEditing.ruleNew=true;refEditing.rule=null;renderRules();document.getElementById('edRuT')?.focus();},
+onEdit(id){refEditing.rule=id;refEditing.ruleNew=false;renderRules();document.getElementById('edRuT')?.focus();},
+onDelete:delRule});
 }
 
 

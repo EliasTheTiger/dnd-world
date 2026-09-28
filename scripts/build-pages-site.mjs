@@ -11,6 +11,7 @@ const checkOnly = process.argv.slice(2).includes('--check');
 const runtimeFiles = ['economy-core.js', 'merchant-core.js', 'campaign-item-art.js', 'item-domain-model.js', 'definition-repository.js', 'ruleset-registry.js', 'persistence-core.js', 'action-kernel.js', 'chest-core.js', 'catalog-governance.js', 'world-state-core.js', 'ui-action-contract.js', 'projection-cache.js', 'public-item-surface.js', 'item-player-copy.js'];
 runtimeFiles.push('character-rules.js','magic-rules.js','grimoire-rules.js','hobbyworld-ability-terms.js','ability-rules.js','ability-gameplay.js','recipe-item-links.js','recipe-rules.js','recipe-workbench.js');
 runtimeFiles.push('recipe-tabletop-rules.js','recipe-tabletop-items.js','recipe-tabletop-runtime.js');
+runtimeFiles.push('gm-reference-data.js','gm-reference.js');
 const RELEASE_PLACEHOLDER = '__DND_WORLD_RELEASE__';
 const PAGES_BASE = '/dnd-world/';
 const OPEN_CATALOG_PATH = 'data/dnd5e/open5e-cc-v1/catalog.js';
