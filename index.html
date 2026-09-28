@@ -17965,6 +17965,7 @@ globalThis.DND_GM_REFERENCE.render({host:document.getElementById('tab-rules'),no
 xp:XP_TABLE,prof:PROF,skills:SKILLS,abilities:AB_FULL,backgrounds:BACKGROUNDS,mpCosts:MAGIC_RULES.costs,
 magicLabel:magicUsesMp()?'MP · '+(magicFreeAccess()?'весь список класса':'изучение и подготовка'):'ячейки · подготовка по классу',
 editorHTML:refEditing.ruleNew||refEditing.rule?ruleEditorHTML():'',
+editorKey:refEditing.ruleNew?'new':refEditing.rule,
 onAdd(){refEditing.ruleNew=true;refEditing.rule=null;renderRules();document.getElementById('edRuT')?.focus();},
 onEdit(id){refEditing.rule=id;refEditing.ruleNew=false;renderRules();document.getElementById('edRuT')?.focus();},
 onDelete:delRule});
