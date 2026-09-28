@@ -378,6 +378,8 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       renderWorld() {
         renderRaces(); renderClasses(); renderRules(); renderChars(); renderCombat();
         renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderFoes();
+        // The reference is intentionally lazy: exercise the same open-tab path as the browser.
+        const previousTab=activeWorldTab; switchTab('rules'); switchTab(previousTab);
         return ['chars','combat','races','classes','spellsdb','itemsdb','abilitiesdb','foes','rules']
           .reduce((o,id)=>{ o[id]=document.getElementById('tab-'+id).innerHTML; return o; },{});
       },
@@ -412,6 +414,10 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
         style: {}, dataset: {}, className: '',
         classList: {toggle() {}, add() {}, remove() {}},
         closest() { return null; }
+      });
+      if(id==='tab-rules')Object.assign(elements.get(id),{
+        querySelectorAll(){return [];},
+        querySelector(selector){const child=element(id+':'+selector);child.setAttribute=()=>{};child.removeAttribute=()=>{};return child;}
       });
     }
     return elements.get(id);
@@ -467,6 +473,8 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
   }
   vm.runInContext(fs.readFileSync(new URL('../scripts/character-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/magic-rules.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/gm-reference-data.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/gm-reference.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/grimoire-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/hobbyworld-ability-terms.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/ability-rules.js', import.meta.url), 'utf8'), context);
@@ -4658,6 +4666,8 @@ test('все девять вкладок и шесть панелей листа
   const world = e.renderWorld();
   assert.deepEqual(Object.keys(world), ['chars', 'combat', 'races', 'classes', 'spellsdb', 'itemsdb', 'abilitiesdb', 'foes', 'rules']);
   Object.entries(world).forEach(([name, html]) => assert.ok(html.length > 40, `пустая вкладка ${name}`));
+  assert.match(world.rules, /role="tablist"/);
+  assert.match(world.rules, /Разделы справочника/);
 
   const expected = {
     stats: ['Характеристики', 'Хиты', 'Класс доспеха', 'Состояния'],
