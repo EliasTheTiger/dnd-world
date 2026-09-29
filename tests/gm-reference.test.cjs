@@ -16,7 +16,7 @@ test('reference search finds formulas, table cells and master notes across secti
 test('damage preview rounds at each stage and uses received damage before temporary HP for concentration',()=>{
  const input={damage:19,save:'half',defense:'resistance',temp:3};
  assert.match(reference.calculate('damage',input),/Полученный урон: 4\. Потеря обычных хитов: 1\. Остаток временных хитов: 0/);
- assert.match(reference.calculate('damage',{damage:23,save:'full',defense:'normal',temp:30}),/Потеря обычных хитов: 0\. Остаток временных хитов: 7\. Если есть концентрация, СЛ 11/);
+ assert.match(reference.calculate('damage',{damage:23,save:'full',defense:'normal',temp:30}),/Потеря обычных хитов: 0\. Остаток временных хитов: 7\. Для сохранения концентрации нужен спасбросок Телосложения со СЛ 11/);
  assert.match(reference.calculate('damage',{damage:19,save:'full',defense:'both',temp:0}),/Полученный урон: 18/);
  assert.match(reference.calculate('damage',{...input,defense:'immune'}),/Полученный урон: 0/);
  assert.match(reference.calculate('damage',{...input,save:'none'}),/Полученный урон: 0/);
@@ -26,9 +26,9 @@ test('damage preview rounds at each stage and uses received damage before tempor
 test('attack preview handles AC ties and natural dice independently of modifiers',()=>{
  assert.match(reference.calculate('attack',{die:12,bonus:5,ac:17}),/: попадание/);
  assert.match(reference.calculate('attack',{die:11,bonus:5,ac:17}),/: промах/);
- assert.match(reference.calculate('attack',{die:1,bonus:100,ac:2}),/Натуральная 1: промах/);
+ assert.match(reference.calculate('attack',{die:1,bonus:100,ac:2}),/На кости выпала 1: промах/);
  assert.match(reference.calculate('attack',{die:20,bonus:-100,ac:100}),/критическое попадание/);
- assert.match(reference.calculate('concentration',{damage:23}),/СЛ концентрации: 11/);
+ assert.match(reference.calculate('concentration',{damage:23}),/спасбросок Телосложения со СЛ 11/);
  assert.match(reference.calculate('concentration',{damage:0}),/не требуется/);
 });
 
