@@ -26,18 +26,3 @@ test('a delayed rejected merchant save cannot erase a concurrently accepted manu
   release(false);await buy;assert.equal(actor.hp,20);assert.equal(actor.inventory.length,0);
   e.charactersApi.setHp(7);assert.equal(actor.hp,7,'editing resumes immediately after rollback');
 });
-
-test('incoming and outbound sync cannot observe or replace a kernel transaction before persistence starts',async()=>{
-  let requests=0;const e=loadRuntimeIntegrationEngine(undefined,{fetch:async()=>{requests++;throw new Error('network forbidden while action is pending');}}),actor=e.buildBlank();actor.id='hero';actor.name='Исходное имя';
-  e.setState({chars:[actor],activeCharId:actor.id});e.economyApi.quiet();e.economyApi.saveWith(async()=>true);
-  e.syncApi.config({url:'https://fixture.invalid',room:'test',on:true});
-  let enter,release;const entered=new Promise(resolve=>{enter=resolve;});
-  const action=e.economyApi.transaction('pending-action',async()=>{actor.name='Локальная операция';enter();await new Promise(resolve=>{release=resolve;});return {ok:true};});await entered;
-  assert.equal(e.saveSafety.pending(),false,'the action has not reached scheduleSave yet');
-  let applications=0;const channel={key:'fixture',name:'Тест',remoteRevision:0,dirtyParentRevision:null,applyData(){applications++;}};
-  const message={revision:1,payload:{name:'Входящая запись'}};
-  assert.equal(e.syncApi.applyRemote(channel,message,{replaceLocal:true}),false);assert.equal(applications,0);
-  assert.equal(await e.syncApi.pushNow(e.syncApi.channels()[0]),false);assert.equal(requests,0);
-  release();await action;assert.equal(actor.name,'Локальная операция');assert.equal(channel.pending,message);assert.equal(channel.pendingConflict,true);
-  assert.equal(e.syncApi.applyRemote(channel,message),false,'a held message remains a conflict after the transaction');
-});

@@ -1,6 +1,6 @@
 # D&D World save formats
 
-The supported read window starts with the following persisted shapes:
+The offline inspector recognizes the following persisted shapes. Since 2026-10-22 the application uses one local campaign; cloud transport and campaign import/export have been removed. Historical wrappers below remain read-only diagnostic inputs and cannot be loaded into the app:
 
 | Format | Identity | Authority during migration |
 |---|---|---|

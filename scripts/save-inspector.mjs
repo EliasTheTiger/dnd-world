@@ -5,7 +5,8 @@ import persistence from './persistence-core.js';
 
 export const WORLD_SNAPSHOT_SCHEMA = persistence.WORLD_SNAPSHOT_SCHEMA;
 export const CAMPAIGN_ENVELOPE_SCHEMA = persistence.ENVELOPE_SCHEMA;
-export const CLOUD_CHANNEL_SCHEMA = persistence.CLOUD_SCHEMA;
+// Offline recognition of historical files; no cloud connection or writer.
+export const CLOUD_CHANNEL_SCHEMA = 'dnd-world-cloud-channel/1';
 
 const REQUIRED_WORLD_ARRAYS = ['chars', 'items', 'spells', 'abilities', 'races', 'classes', 'rules', 'foes'];
 

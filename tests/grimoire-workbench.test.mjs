@@ -55,11 +55,11 @@ test('all seven SRD lands grant eight canonical spells at level 9 and only two a
   assert.equal(a.cantripKnownMax(c),3);c.subcls='Круг Луны';a.upgradeSpellcastingState(c);assert.equal(a.cantripKnownMax(c),2);
 });
 
-test('Fiend expanded spells must be learned in classic and MP 2.2, but belong to the full class list in MP 2.1',async()=>{
+test('Fiend expanded spells must be learned in slots and MP, including migrated legacy access settings',async()=>{
   const {a,c,spell}=world({cls:'Колдун',subcls:'Исчадие',level:5}),fireball=spell('Fireball');
   assert.equal(c.spellbook.some(e=>e.spellId===fireball.id),false);
   assert.equal(a.spellAddCheck(c,fireball).ok,true);assert.equal(a.slotPlanFor(c,fireball).ok,false);
-  await a.magicSwitch('mp','free');assert.equal(a.slotPlanFor(c,fireball,3).ok,true);assert.deepEqual(plain(c.spellbook),[]);
+  await a.magicSwitch('mp','free');assert.equal(a.slotPlanFor(c,fireball,3).ok,false);assert.deepEqual(plain(c.spellbook),[]);
   await a.magicSwitch('mp','class');assert.equal(a.slotPlanFor(c,fireball,3).ok,false);
   a.addSpellFromDB(fireball.id);assert.equal(a.knownSpellCount(c),1);assert.equal(a.slotPlanFor(c,fireball,3).ok,true);
   c.subcls='Архифея';a.upgradeSpellcastingState(c);assert.equal(a.slotPlanFor(c,fireball,3).ok,false);
@@ -128,7 +128,7 @@ test('favorites and inert GM notes survive export and reconciliation; comparison
   const {e,g,c,spell}=world(),sp=spell('Magic Missile'),mechanics=JSON.stringify(sp.mechanics),actor=JSON.stringify(c);
   g.grimoireFavorite(sp.id);g.grimoireNote(sp.id,'<img src=x onerror=alert(1)> Решение мастера');g.grimoireCompare(sp.id);
   assert.match(g.grimoireComparisonHTML(c),/Волшебная стрела/);assert.equal(JSON.stringify(c),actor);assert.equal(JSON.stringify(sp.mechanics),mechanics);
-  g.rules.reconcile(e.state().spells);assert.equal(sp.grimoire.gmFavorite,true);assert.match(e.dndWorldExportPayload().spells.find(row=>row.id===sp.id).grimoire.gmNote,/Решение мастера/);
+  g.rules.reconcile(e.state().spells);assert.equal(sp.grimoire.gmFavorite,true);assert.match(e.localSnapshot().spells.find(row=>row.id===sp.id).grimoire.gmNote,/Решение мастера/);
   g.renderSpellsDB();
 });
 

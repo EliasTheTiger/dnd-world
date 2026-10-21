@@ -6,8 +6,8 @@ const clone=value=>JSON.parse(JSON.stringify(value));
 function settings(value){
   if(value==null)return {version:1,mode:'slots',preparation:'class',revision:0};
   if(value.version!==1||!['slots','mp'].includes(value.mode)||!['class','free','known'].includes(value.preparation)||!Number.isSafeInteger(value.revision)||value.revision<0)throw new Error('Неизвестный формат настроек магии кампании.');
-  // Migrate the earlier experimental no-preparation setting to the explicit MP variant.
-  return {...clone(value),preparation:value.preparation==='known'?'free':value.preparation};
+  // MP changes payment only. Legacy free access never replaces the character's class rules.
+  return {...clone(value),preparation:'class'};
 }
 function slots(value){
   const result={};for(const [key,row] of Object.entries(value||{})){

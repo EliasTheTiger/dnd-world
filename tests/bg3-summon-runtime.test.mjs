@@ -804,7 +804,7 @@ function loadEngine(random = () => 0, fetchImpl = null) {
         const program=programs.get(descriptor.artifact+'|'+descriptor.programId),verified=bg3InterruptProgramCheck(descriptor,program);if(!verified.ok)return verified;
         const prepared={ok:true,key:descriptor.id,epoch:bg3Catalog.epoch,profile:bg3Catalog.preferredProfile||'standard',fingerprint:bg3InterruptFingerprint(descriptor),it,ref,descriptor:itemClone(descriptor),program,payloads:new Map([[descriptor.artifact,payload]]),programs};
         bg3InterruptRuntime.prepared.set(descriptor.id,prepared);return prepared; },
-      charFxAll, runScheduledSave, dndWorldExportPayload, dndWorldImportPayload, removeActiveFx,
+      charFxAll, runScheduledSave, loadAll, storeSet:(key,value)=>store.set(key,value), removeActiveFx,
       catalogItem(id) { return bg3Catalog.items.get(id)||null; },
       catalogRebind(id,item) { if(item===undefined)bg3Catalog.items.delete(id);else bg3Catalog.items.set(id,item);return bg3Catalog.items.get(id)||null; },
       castState() { return {ctx:castCtx,spec:castCtx&&castCtx.spec}; },
@@ -1910,7 +1910,7 @@ test('Sleet Storm replaces its exact stack but keeps adjacent ground RemoveStatu
   assert.equal(world.randomCalls(), 0);
 });
 
-test('manual summon provenance survives export/import and remains explicitly dismissible', async () => {
+test('manual summon provenance survives local save/reload and remains explicitly dismissible', async () => {
   const row = RUNTIME_ROWS.find(source => source.spellId === 'Target_CursedTome_Seelie_Summon');
   const world = await summonWorld({row});
   const opened = await openSummon(world, {position: 'persist-world,11,12,13', canStand: true});
@@ -1936,10 +1936,9 @@ test('manual summon provenance survives export/import and remains explicitly dis
   const persistedActor = persisted.find(value => value.id === world.actor.id);
   assert.ok(persistedActor?.activeFx.some(effect => effect.uid === source.uid),
     'the deferred receipt reaches ordinary local persistence');
-  const exported = plain(world.engine.dndWorldExportPayload());
   const restored = loadEngine(() => 0, selectedBg3FileFetch());
-  const imported = await restored.dndWorldImportPayload(exported);
-  assert.equal(imported.ok, true, imported.reason);
+  await restored.storeSet('dndworld2:world-snapshot', world.engine.storedValue('dndworld2:world-snapshot'));
+  await restored.loadAll();
   const restoredActor = restored.state().chars.find(value => value.id === world.actor.id);
   const overlay = restoredActor?.activeFx.find(effect => effect.uid === source.uid);
   assert.ok(overlay);

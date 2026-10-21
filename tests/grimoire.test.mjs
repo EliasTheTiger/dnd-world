@@ -48,14 +48,18 @@ test('full Russian names, English names and abbreviations produce the same class
  for(const label of ['Влш, Чрд','Волшебник, Чародей','Wizard, Sorcerer'])assert.equal(a.magicClassSpellAvailable(c,{id:'label-check',n:'Test',l:2,c:label}),true);
  for(const s of rows.filter(s=>s.grimoire.status!=='active'))assert.equal(a.magicClassSpellAvailable(c,s),false,s.id);
 });
-test('free MP includes canonical own class cards once and never a revised or third party spell',async()=>{
- const {e,g,a,rows}=world(),c=Object.assign(e.buildBlank(),{cls:'Волшебник',level:5});e.state().chars.push(c);a.withoutPresentation();a.characterAdopt(c);a.applyClassSlots(c);c.spellbook=[];await a.magicSwitch('mp','free');
- const entries=a.characterSpellEntries(c);assert.ok(entries.length>80);assert.equal(new Set(entries.map(x=>x.spellId)).size,entries.length);for(const entry of entries){const s=g.spellOf(entry.spellId);assert.ok(g.grimoireActive(s));assert.ok(s.l<=3);assert.ok(g.spellClassTokens(s).includes('Влш'));}assert.deepEqual(plain(c.spellbook),[]);
+test('MP keeps canonical learned class cards without granting the whole class list',async()=>{
+ const {e,g,a,rows}=world(),c=Object.assign(e.buildBlank(),{cls:'Волшебник',level:5});e.state().chars.push(c);a.withoutPresentation();a.characterAdopt(c);a.applyClassSlots(c);c.spellbook=[];await a.magicSwitch('mp');
+ assert.deepEqual(plain(a.characterSpellEntries(c)),[]);
+ const chosen=rows.filter(s=>g.grimoireActive(s)&&s.l===1&&g.spellClassTokens(s).includes('Влш')).slice(0,2);
+ c.spellbook=chosen.map(s=>({spellId:s.id,access:'spellbook',prep:true}));
+ const entries=a.characterSpellEntries(c);assert.deepEqual(plain(entries.map(x=>x.spellId)),plain(chosen.map(s=>s.id)));assert.equal(new Set(entries.map(x=>x.spellId)).size,2);
+ for(const entry of entries){const s=g.spellOf(entry.spellId);assert.ok(g.grimoireActive(s));assert.equal(a.spellAccessCheck(c,s,entry).ok,true);}
 });
-test('an isolated import without SRD rows cannot bypass the 2014 boundary or unlock foreign spells in free MP',async()=>{
+test('an isolated saved catalogue cannot bypass the 2014 boundary or implicitly unlock spells in MP',async()=>{
  const {e,g,a}=world(),c=Object.assign(e.buildBlank(),{id:'isolated-wizard',cls:'Волшебник',level:5});e.state().chars.push(c);a.withoutPresentation();a.characterAdopt(c);a.applyClassSlots(c);c.spellbook=[];
  const foreign=[{id:'foreign-2024',n:'Foreign 2024',l:1,c:'Влш',catalogSource:{documentKey:'srd-2024'}},{id:'foreign-other',n:'Other source',l:1,c:'Влш',catalogSource:{documentKey:'tob'}},{id:'foreign-ruleset',n:'Revised rule',l:1,c:'Влш',rulesetRef:{id:'dnd5e-2024-reference'}}],custom={id:'custom-2014',n:'Custom 2014',l:1,c:'Влш'};
- e.state().spells.splice(0,e.state().spells.length,...foreign,custom);g.reconcile(e.state().spells,[c]);await a.magicSwitch('mp','free');
+ e.state().spells.splice(0,e.state().spells.length,...foreign,custom);g.reconcile(e.state().spells,[c]);await a.magicSwitch('mp');assert.deepEqual(plain(a.characterSpellEntries(c)),[]);c.spellbook=[{spellId:custom.id,access:'spellbook',prep:true}];
  for(const sp of foreign){assert.equal(g.grimoireActive(sp),false);assert.equal(a.magicClassSpellAvailable(c,sp),false);}
  assert.equal(g.grimoireActive(custom),true);assert.deepEqual(plain(a.characterSpellEntries(c).map(entry=>entry.spellId)),[custom.id]);
 });
@@ -71,7 +75,7 @@ test('Burning Hands uses 3d6 plus one per higher circle after migration; no inve
 test('Sleep scales its shared pool and skips unconscious, undead, charm-immune and elven targets without spending their HP budget',async()=>{
  const {e,g,a}=world(),caster=Object.assign(e.buildBlank(),{id:'sleep-caster',cls:'Волшебник',level:3,inventory:[{id:'pouch',itemId:'it_reagent_bag',qty:1}]});a.withoutPresentation();a.characterAdopt(caster);a.applyClassSlots(caster);
  const hero=(id,hp,extra={})=>Object.assign(e.buildBlank(),{id,name:id,hp,hpMax:hp},extra),small=hero('small',4),medium=hero('medium',7),large=hero('large',12),asleep=hero('asleep',1,{cond:['Бессознательный']}),undead=hero('undead',1,{creatureType:'нежить'}),charmed=hero('immune-charm',1,{condImmune:['Очарованный']}),elf=hero('elf',1,{race:'Эльф',subrace:'Высший эльф'});a.characterAdopt(elf);
- const targets=[large,asleep,undead,charmed,elf,medium,small];e.state().chars.push(caster,...targets);await a.magicSwitch('mp','free');const sp=g.spellOf('sp_magic_sleep'),spec=e.rollSpecOf(sp,{kind:'spell',caster,slotLvl:2,target:e.targetInfoOf('ally:large')}),pool=spec.rows.find(row=>row.type==='sleep');assert.equal(pool.cnt,7);assert.equal(pool.sides,8);
+ const targets=[large,asleep,undead,charmed,elf,medium,small];e.state().chars.push(caster,...targets);caster.spellbook=[{spellId:'sp_magic_sleep',access:'spellbook',prep:true}];await a.magicSwitch('mp');const sp=g.spellOf('sp_magic_sleep'),spec=e.rollSpecOf(sp,{kind:'spell',caster,slotLvl:2,target:e.targetInfoOf('ally:large')}),pool=spec.rows.find(row=>row.type==='sleep');assert.equal(pool.cnt,7);assert.equal(pool.sides,8);
  const before=JSON.stringify(e.state().chars),extra=targets.slice(1).map(c=>'ally:'+c.id);for(const invalid of [undefined,0,57]){assert.equal(e.castSpellApply(sp.id,caster.id,'ally:large','',undefined,'2',{sleepTotal:invalid},extra),false);assert.equal(JSON.stringify(e.state().chars),before);}
  const values={[pool.key]:11},out=e.resolveOutcome(spec,values),rolls=a.castFormulaRollsBuild(spec,values,out).rolls;assert.equal(e.castSpellApply(sp.id,caster.id,'ally:large','',undefined,'2',rolls,extra),true);assert.equal(a.magicPool(caster).cur,11);
  for(const target of [small,medium])assert.ok(e.effectiveConditions(target).includes('Бессознательный'),target.id);for(const target of [large,undead,charmed,elf])assert.equal(e.effectiveConditions(target).includes('Бессознательный'),false,target.id);
@@ -84,7 +88,7 @@ test('search recognizes aliases, English original and ё/е without exposing tra
 });
 test('Magic Missile shares one d4, allocates every dart and applies resistance per dart; resources are paid once',async()=>{
  const {e,g,a}=world(),caster=Object.assign(e.buildBlank(),{id:'caster',cls:'Волшебник',level:3}),first=Object.assign(e.buildBlank(),{id:'first',hp:30,hpMax:30}),second=Object.assign(e.buildBlank(),{id:'second',hp:30,hpMax:30});
- e.state().chars.push(caster,first,second);a.withoutPresentation();a.characterAdopt(caster);a.applyClassSlots(caster);caster.spellbook=[];await a.magicSwitch('mp','free');
+ e.state().chars.push(caster,first,second);a.withoutPresentation();a.characterAdopt(caster);a.applyClassSlots(caster);caster.spellbook=[{spellId:'sp_magic_missile',access:'spellbook',prep:true}];await a.magicSwitch('mp');
  first.activeFx=[{uid:'force-resistance',id:'force-resistance',k:'custom',fx:[{stat:'damage.rule',mode:'grant',value:{mode:'resist',types:['силовое поле'],when:''}}]}];
  const sp=g.spellOf('sp_magic_missile');
  const roll=(target,darts)=>{const spec=e.rollSpecOf(sp,{kind:'spell',caster,slotLvl:2,projectileCount:darts,target:e.targetInfoOf(target)});assert.equal(spec.rows.filter(r=>r.type==='dmg').length,1);assert.equal(spec.rows.some(r=>r.type==='atk'||r.type==='save'),false);const values={dmg0:2},out=e.resolveOutcome(spec,values);return a.castFormulaRollsBuild(spec,values,out).rolls;};
@@ -93,14 +97,14 @@ test('Magic Missile shares one d4, allocates every dart and applies resistance p
  assert.equal(e.castSpellApply(sp.id,caster.id,'ally:first','',undefined,'2',r1,['ally:second'],{'ally:second':r2}),true);assert.equal(first.hp,28);assert.equal(second.hp,24);assert.equal(a.magicPool(caster).cur,11);
 });
 test('Shield blocks Magic Missile for its protected target and Witch Bolt cannot grant a false attack buff',async()=>{
- const {e,g,a}=world(),caster=Object.assign(e.buildBlank(),{id:'caster',cls:'Волшебник',level:3}),target=Object.assign(e.buildBlank(),{id:'target',hp:30,hpMax:30});e.state().chars.push(caster,target);a.withoutPresentation();a.characterAdopt(caster);a.applyClassSlots(caster);await a.magicSwitch('mp','free');
+ const {e,g,a}=world(),caster=Object.assign(e.buildBlank(),{id:'caster',cls:'Волшебник',level:3}),target=Object.assign(e.buildBlank(),{id:'target',hp:30,hpMax:30});e.state().chars.push(caster,target);a.withoutPresentation();a.characterAdopt(caster);a.applyClassSlots(caster);caster.spellbook=[{spellId:'sp_magic_missile',access:'spellbook',prep:true},{spellId:'sp_ведьмин_снаряд',access:'spellbook',prep:true}];await a.magicSwitch('mp');
  target.activeFx=[{uid:'shield',k:'spell',id:'sp_щит',fx:[{stat:'spell.magicMissileImmune',mode:'set',value:1}]}];
  const sp=g.spellOf('sp_magic_missile'),spec=e.rollSpecOf(sp,{kind:'spell',caster,slotLvl:1,target:e.targetInfoOf('ally:target')}),values={dmg0:4},out=e.resolveOutcome(spec,values);assert.equal(out.dmgRaw,15);assert.equal(out.dmgTotal,0);const built=a.castFormulaRollsBuild(spec,values,out);
  assert.equal(e.castSpellApply(sp.id,caster.id,'ally:target','',undefined,'1',built.rolls),true);assert.equal(target.hp,30);assert.equal(a.magicPool(caster).cur,12);
  e.closeCastModal();const before=JSON.stringify([caster,target]);assert.equal(e.castSpellApply('sp_ведьмин_снаряд',caster.id,'ally:target','',undefined,'1',{hit:true,dmgRaw:8,dmgTotal:8}),false);assert.equal(JSON.stringify([caster,target]),before);assert.deepEqual(plain(g.spellOf('sp_ведьмин_снаряд').mechanics.effects),[]);
 });
-test('import migrates duplicate references and hiding a card does not erase character history',async()=>{
+test('local loading migrates duplicate references and hiding a card does not erase character history',async()=>{
  const {e,g,a,rows}=world(),c=Object.assign(e.buildBlank(),{id:'old-wizard',cls:'Волшебник',level:5});a.characterAdopt(c);a.applyClassSlots(c);const alias=rows.find(s=>s.grimoire.status==='alias'&&s.open5e?.originalName==='Fireball'),canonical=g.spellOf(alias.id);c.spellbook=[{spellId:alias.id,prep:true},{spellId:canonical.id,prep:false}];e.state().chars.push(c);
- const exported=e.dndWorldExportPayload();assert.equal((await e.dndWorldImportPayload(plain(exported))).ok,true);const loaded=e.state().chars.find(x=>x.id===c.id);assert.equal(loaded.spellbook.filter(x=>x.spellId===canonical.id).length,1);
+ assert.equal(await e.saveWorldNow(),true);await e.loadAll();const loaded=e.state().chars.find(x=>x.id===c.id);assert.equal(loaded.spellbook.filter(x=>x.spellId===canonical.id).length,1);
  const card=g.spellOf(canonical.id);card.grimoire.hidden=true;const before=JSON.stringify(loaded);assert.equal(a.spellAccessCheck(loaded,card,loaded.spellbook.find(x=>x.spellId===card.id)).ok,false);g.reconcile(e.state().spells,e.state().chars);assert.equal(card.grimoire.hidden,true);assert.equal(JSON.stringify(loaded),before);
 });

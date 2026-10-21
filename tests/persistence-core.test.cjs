@@ -78,11 +78,7 @@ test('write failure does not manufacture a committed receipt or revision', async
   assert.equal(result.ok, false); assert.equal(result.code, 'WRITE_FAILED'); assert.equal(await adapter.get(repository.key), null);
 });
 
-test('cloud CAS rejects a stale campaign before payload replacement', () => {
-  const remote = persistence.createCloudMessage({state:'remote'},{by:'remote',parentRevision:3,transactionId:'remote-4',at:4});
-  assert.deepEqual(persistence.cloudCasPlan(remote,3), {ok:false,conflict:true,code:'CLOUD_REVISION_CONFLICT',expectedRevision:3,actualRevision:4});
-  assert.deepEqual(persistence.cloudCasPlan(remote,4), {ok:true,parentRevision:4,revision:5});
-});
+
 
 test('legacy migration preserves a campaign created by another writer before installation', async () => {
   const adapter = new persistence.MemoryAdapter(), repository = new persistence.EnvelopeRepository({adapter});

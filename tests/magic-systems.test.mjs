@@ -60,8 +60,8 @@ test('campaign mode change is refused during combat or an open roll without any 
 test('failed durable mode save rolls back every hero and the campaign setting',async()=>{
   const {a,c,e}=world();const before=JSON.stringify(c),mode=plain(e.state().campaignMagic);a.failBackgroundPersistence();const result=await a.magicSwitch('mp');assert.equal(result.success,false);assert.equal(JSON.stringify(c),before);assert.deepEqual(plain(e.state().campaignMagic),mode);
 });
-test('export includes the campaign mode and actual MP debt, with no active slots',async()=>{
-  const {a,c,e}=world();await mp(a);a.commitSlotPlan(c,a.magicPlan(c,2));const exported=plain(e.dndWorldExportPayload());assert.equal(exported.campaignMagic.mode,'mp');assert.equal(exported.chars[0].magicResource.spent,3);assert.deepEqual(exported.chars[0].slots,{});
+test('local snapshot includes the campaign mode and actual MP debt, with no active slots',async()=>{
+  const {a,c,e}=world();await mp(a);a.commitSlotPlan(c,a.magicPlan(c,2));const exported=plain(e.localSnapshot());assert.equal(exported.campaignMagic.mode,'mp');assert.equal(exported.chars[0].magicResource.spent,3);assert.deepEqual(exported.chars[0].slots,{});
   assert.throws(()=>a.magicRules.settings({version:88,mode:'mp'}));
 });
 
@@ -86,9 +86,10 @@ test('wizard MP recovery works once per long rest, and classic preparation state
   const {a,c,e}=world();prepare(e,c);await mp(a);a.commitSlotPlan(c,a.magicPlan(c,2));a.commitSlotPlan(c,a.magicPlan(c,2));a.shortRest();assert.equal(a.magicPool(c).cur,12);assert.equal(c.arcUsed,true);assert.equal(c.spellbook[0].prep,true);a.shortRest();assert.equal(a.magicPool(c).cur,12);a.longRest();assert.equal(a.magicPool(c).cur,14);assert.equal(c.arcUsed,false);
 });
 
-test('corrupt imported MP history is rejected before the current campaign can change',async()=>{
-  const {a,c,e}=world();await mp(a);const data=plain(e.dndWorldExportPayload()),before=JSON.stringify(c),mode=plain(e.state().campaignMagic);delete data.chars[0].magicResource.baselineSpent;
-  await assert.rejects(()=>e.dndWorldImportPayload(data),/история расхода/);assert.equal(JSON.stringify(c),before);assert.deepEqual(plain(e.state().campaignMagic),mode);
+test('corrupt persisted MP history is rejected without rewriting saved data',async()=>{
+  const {a,e}=world();await mp(a);const data=e.localSnapshot();delete data.chars[0].magicResource.baselineSpent;
+  const fresh=loadRuntimeIntegrationEngine(),raw=JSON.stringify(data);await fresh.storeSet('dndworld2:world-snapshot',raw);
+  await assert.rejects(()=>fresh.loadAll(),/история расхода/);assert.equal(await fresh.storeGet('dndworld2:world-snapshot'),raw);
 });
 
 test('MP sheet has a single pool and no slot editors; its state appears in combat changes',async()=>{

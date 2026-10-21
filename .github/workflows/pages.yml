@@ -76,6 +76,16 @@ jobs:
           QA_SITE_ROOT: _site
           QA_EXPECTED_COMMIT: ${{ github.sha }}
         run: npm run qa:abilities
+      - name: Check personal class spell learning and preparation
+        env:
+          QA_SITE_ROOT: _site
+          QA_EXPECTED_COMMIT: ${{ github.sha }}
+        run: npm run qa:spell-learning
+      - name: Check the public interface and excluded diagnostic artifacts
+        env:
+          QA_SITE_ROOT: _site
+          QA_EXPECTED_COMMIT: ${{ github.sha }}
+        run: npm run qa:public-shell
       - name: Check the GM reference, calculators and saved notes
         env:
           QA_SITE_ROOT: _site
@@ -87,7 +97,7 @@ jobs:
           npm run qa:characters
           npm run qa:dialogs
           npm run qa:action-guard
-          npm run qa:import-export
+          npm run qa:local-persistence
       - name: Check every section on a narrow mobile viewport
         env:
           QA_SITE_ROOT: _site

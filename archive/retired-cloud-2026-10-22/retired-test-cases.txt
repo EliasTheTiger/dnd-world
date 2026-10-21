@@ -1,0 +1,130 @@
+
+
+## tests/effect-engine.test.mjs
+test('выпуск 4.1 объединяет локальную и облачную летопись без возврата незавершенного боя', () => {
+  const e = loadEngine();
+  const items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
+  const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
+  const localCustom = hero('custom_shared', {name: 'Локальный герой', hp: 1, hpMax: 22});
+  const localOnly = hero('custom_local', {name: 'Только локальный', hp: 2, hpMax: 18});
+  const combat = e.blankCombat(); combat.active = true; combat.round = 4;
+  combat.log = [{id: 'unfinished', text: 'Не должен сохраниться'}];
+  combat.history = [{id: 'local_battle', name: 'Локальный архив', log: []}];
+  e.setState({chars: [e.buildRoku(), localCustom, localOnly], journal: [
+    {id: 'shared_page', date: '2026-08-01', title: 'Локальная старая версия', text: 'local'},
+    {id: 'local_page', date: '2026-08-02', title: 'Локальная страница', text: 'local only'}
+  ], items, spells, abilities, races, classes, foes, combat});
+  e.bg3CatalogUseRefs([{id:'bg3',version:'bg3-999-v1',profile:'standard'}]);
+
+  const remote = {
+    chars: [hero('custom_shared', {name: 'Облачный герой', hp: 3, hpMax: 30}), hero('custom_cloud', {name: 'Только облачный', hp: 4, hpMax: 26})],
+    journal: [
+      {id: 'shared_page', date: '2026-08-01', title: 'Облачная новая версия', text: 'cloud'},
+      {id: 'cloud_page', date: '2026-08-03', title: 'Облачная страница', text: 'cloud only'}
+    ],
+    combat: {history: [{id: 'cloud_battle', name: 'Облачный архив', log: []}]},
+    catalogRefs: []
+  };
+  const payload = e.structuredReleaseCampaignPayload(remote);
+  assert.deepEqual(plain(payload.chars.slice(0, 4).map(x => x.id)), ['char_roku', 'char_torgar', 'char_septih', 'char_legerem']);
+  assert.deepEqual(plain(payload.chars.slice(4).map(x => x.id)), ['custom_shared', 'custom_cloud', 'custom_local']);
+  assert.equal(payload.chars.find(x => x.id === 'custom_shared').name, 'Облачный герой', 'облачная версия общего героя приоритетна');
+  assert.equal(payload.chars.find(x => x.id === 'custom_shared').hp, 30, 'пользовательский герой получает полный отдых');
+  assert.deepEqual(plain(payload.journal.map(x => x.id)), ['shared_page', 'cloud_page', 'local_page']);
+  assert.equal(payload.journal[0].text, 'cloud');
+  assert.equal(payload.combat.active, false); assert.equal(payload.combat.round, 0); assert.equal(payload.combat.log.length, 0);
+  assert.deepEqual(plain(payload.combat.history.map(x => x.id)), ['cloud_battle', 'local_battle']);
+  assert.deepEqual(plain(payload.catalogRefs), [], 'explicit empty remote pin cannot inherit a different local campaign catalog');
+
+  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /const CLOUD_PAUSED=false/);
+  assert.equal(e.engineVersion(), '5.0');
+  assert.equal(e.engineLabel(), 'Предметы вашей D&D-игры');
+});
+
+
+## tests/effect-engine.test.mjs
+test('облачная синхронизация отличает штатную базу и безопасно добавляет ID-токен', () => {
+  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
+  assert.doesNotMatch(html,/"\.read"\s*:\s*true/);
+  assert.doesNotMatch(html,/"\.write"\s*:\s*true/);
+  assert.match(html,/firebase-auth\.js/);
+  assert.match(html,/getIdToken/);
+  const e=loadEngine();
+  e.setSyncConfig({
+    url:'https://best-dnd-campaign-ever-default-rtdb.firebaseio.com/',
+    room:'SpeakFriendAndEnter2026',
+    on:true
+  });
+  assert.equal(e.syncNeedsOwnerAuth(),true);
+  assert.equal(
+    e.syncUrlWithAuth('https://example.firebaseio.com/world.json','token +/='),
+    'https://example.firebaseio.com/world.json?auth=token%20%2B%2F%3D'
+  );
+  assert.equal(
+    e.syncUrlWithAuth('https://example.firebaseio.com/world.json?print=silent','abc'),
+    'https://example.firebaseio.com/world.json?print=silent&auth=abc'
+  );
+  e.setSyncConfig({url:'https://another-project.firebaseio.com',room:'main',on:true});
+  assert.equal(e.syncNeedsOwnerAuth(),false);
+});
+
+
+## tests/bg3-standard-only.test.mjs
+test('cloud campaign ingress, egress and structured release are Standard-only', () => {
+  const channelStart = html.indexOf("const chCamp=makeChan('кампания'");
+  const channelEnd = html.indexOf('const syncChans=', channelStart);
+  const releaseStart = html.indexOf('function structuredReleaseCampaignPayload(remote){');
+  const releaseEnd = html.indexOf('\nfunction ', releaseStart + 1);
+  const channel = html.slice(channelStart, channelEnd), release = html.slice(releaseStart, releaseEnd);
+  assert.match(channel, /catalogRefs:bg3CatalogStandardRefs\(bg3CatalogRefs\(\)\)/);
+  assert.match(channel, /bg3CatalogUseRefs\(bg3CatalogStandardRefs\(incomingRefs\)\)/);
+  assert.match(release, /const catalogRefs=bg3CatalogStandardRefs\(/);
+  assert.match(release, /bg3TadpoleStandardState\(/);
+});
+
+
+## tests/persistence-core.test.cjs
+test('cloud CAS rejects a stale campaign before payload replacement', () => {
+  const remote = persistence.createCloudMessage({state:'remote'},{by:'remote',parentRevision:3,transactionId:'remote-4',at:4});
+  assert.deepEqual(persistence.cloudCasPlan(remote,3), {ok:false,conflict:true,code:'CLOUD_REVISION_CONFLICT',expectedRevision:3,actualRevision:4});
+  assert.deepEqual(persistence.cloudCasPlan(remote,4), {ok:true,parentRevision:4,revision:5});
+});
+
+
+## tests/action-ui-guard.test.mjs
+test('incoming and outbound sync cannot observe or replace a kernel transaction before persistence starts',async()=>{
+  let requests=0;const e=loadRuntimeIntegrationEngine(undefined,{fetch:async()=>{requests++;throw new Error('network forbidden while action is pending');}}),actor=e.buildBlank();actor.id='hero';actor.name='Исходное имя';
+  e.setState({chars:[actor],activeCharId:actor.id});e.economyApi.quiet();e.economyApi.saveWith(async()=>true);
+  e.syncApi.config({url:'https://fixture.invalid',room:'test',on:true});
+  let enter,release;const entered=new Promise(resolve=>{enter=resolve;});
+  const action=e.economyApi.transaction('pending-action',async()=>{actor.name='Локальная операция';enter();await new Promise(resolve=>{release=resolve;});return {ok:true};});await entered;
+  assert.equal(e.saveSafety.pending(),false,'the action has not reached scheduleSave yet');
+  let applications=0;const channel={key:'fixture',name:'Тест',remoteRevision:0,dirtyParentRevision:null,applyData(){applications++;}};
+  const message={revision:1,payload:{name:'Входящая запись'}};
+  assert.equal(e.syncApi.applyRemote(channel,message,{replaceLocal:true}),false);assert.equal(applications,0);
+  assert.equal(await e.syncApi.pushNow(e.syncApi.channels()[0]),false);assert.equal(requests,0);
+  release();await action;assert.equal(actor.name,'Локальная операция');assert.equal(channel.pending,message);assert.equal(channel.pendingConflict,true);
+  assert.equal(e.syncApi.applyRemote(channel,message),false,'a held message remains a conflict after the transaction');
+});
+
+## tests/magic-systems.test.mjs
+test('corrupt imported MP history is rejected before the current campaign can change',async()=>{
+  const {a,c,e}=world();await mp(a);const data=plain(e.localSnapshot()),before=JSON.stringify(c),mode=plain(e.state().campaignMagic);delete data.chars[0].magicResource.baselineSpent;
+  await assert.rejects(()=>e.dndWorldImportPayload(data),/история расхода/);assert.equal(JSON.stringify(c),before);assert.deepEqual(plain(e.state().campaignMagic),mode);
+});
+
+## tests/bg3-standard-only.test.mjs
+test('saved-world load and import route catalogue refs through the Standard migration', () => {
+  const loadStart = html.indexOf('async function loadAll(){');
+  const loadEnd = html.indexOf('\nfunction ', loadStart + 1);
+  const importStart = html.indexOf('async function dndWorldImportPayload(data){');
+  const importEnd = html.indexOf('\nfunction doImport(', importStart + 1);
+
+  assert.ok(loadStart >= 0 && loadEnd > loadStart, 'loadAll source must be discoverable');
+  assert.ok(importStart >= 0 && importEnd > importStart, 'import source must be discoverable');
+  assert.match(html.slice(loadStart, loadEnd), /bg3CatalogStandardRefs\(/,
+    'loading a persisted world must migrate legacy profile refs before selecting a catalogue');
+  assert.match(html.slice(importStart, importEnd), /bg3CatalogStandardRefs\(/,
+    'importing a persisted world must migrate legacy profile refs before selecting a catalogue');
+});

@@ -13,7 +13,7 @@ upgrades. Presentation readiness and item portability remain gameplay checks.
 
 `gameItemDefinition(id)` resolves the current definition; persisted edits are
 marked `gameDefinition: true` and take precedence over the installed asset with
-the same ID. They use the existing snapshot, export/import and synchronization
+the same ID. They use the existing local snapshot and verified envelope
 storage. Legacy name/alias cleanup cannot remove or remap these saved definitions.
 Canonical name folding is a view. Hiding an item prevents new grants and preserves
 its existing inventory instances, equipment and world references.

@@ -8,6 +8,9 @@ import {fileURLToPath} from 'node:url';
 import {inspectFile, inspectSave, inspectFileVerified, inspectSaveVerified} from '../scripts/save-inspector.mjs';
 import persistence from '../scripts/persistence-core.js';
 
+// An offline historical file fixture, not an active cloud writer.
+const historicCloudFixture=(payload,options)=>({schemaVersion:'dnd-world-cloud-channel/1',...options,revision:options.parentRevision+1,payload});
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const fixture = name => path.join(root, 'tests', 'fixtures', 'saves', name);
 const snapshot = () => JSON.parse(fs.readFileSync(fixture('world-snapshot-v1.json'), 'utf8'));
@@ -135,7 +138,7 @@ test('both cloud wrappers verify the inner envelope without authenticating trans
   const value = await envelope();
   for (const wrapper of [
     {by:'legacy-client', at:1, j:JSON.stringify(value)},
-    persistence.createCloudMessage(value, {by:'client', parentRevision:2, transactionId:'cloud-3', at:1})
+    historicCloudFixture(value, {by:'client', parentRevision:2, transactionId:'cloud-3', at:1})
   ]) {
     const report = await inspectSaveVerified(wrapper);
     assert.equal(report.status, 'verified');
@@ -144,7 +147,7 @@ test('both cloud wrappers verify the inner envelope without authenticating trans
     assert.equal(report.cloud.integrity, 'unverified');
     assert.equal(report.integrity.scope, 'campaign-envelope');
   }
-  const cloud = persistence.createCloudMessage(snapshot(), {by:'client',parentRevision:0,transactionId:'cloud-1',at:1});
+  const cloud = historicCloudFixture(snapshot(), {by:'client',parentRevision:0,transactionId:'cloud-1',at:1});
   assert.equal((await inspectSaveVerified(cloud)).status, 'unverified');
 });
 

@@ -136,31 +136,15 @@ test('unknown catalogue profiles remain invalid instead of being silently rewrit
   assert.equal(result.preferredProfile, '');
 });
 
-test('saved-world load and import route catalogue refs through the Standard migration', () => {
-  const loadStart = html.indexOf('async function loadAll(){');
-  const loadEnd = html.indexOf('\nfunction ', loadStart + 1);
-  const importStart = html.indexOf('async function dndWorldImportPayload(data){');
-  const importEnd = html.indexOf('\nfunction doImport(', importStart + 1);
-
-  assert.ok(loadStart >= 0 && loadEnd > loadStart, 'loadAll source must be discoverable');
-  assert.ok(importStart >= 0 && importEnd > importStart, 'import source must be discoverable');
-  assert.match(html.slice(loadStart, loadEnd), /bg3CatalogStandardRefs\(/,
-    'loading a persisted world must migrate legacy profile refs before selecting a catalogue');
-  assert.match(html.slice(importStart, importEnd), /bg3CatalogStandardRefs\(/,
-    'importing a persisted world must migrate legacy profile refs before selecting a catalogue');
+test('saved-world load routes catalogue refs through the Standard migration', () => {
+  const start = html.indexOf('async function loadAll(){');
+  const end = html.indexOf('\nfunction ', start + 1);
+  assert.ok(start >= 0 && end > start);
+  assert.match(html.slice(start, end), /bg3CatalogStandardRefs\(/,
+    'loading local data migrates legacy profile refs before selecting a catalogue');
 });
 
-test('cloud campaign ingress, egress and structured release are Standard-only', () => {
-  const channelStart = html.indexOf("const chCamp=makeChan('кампания'");
-  const channelEnd = html.indexOf('const syncChans=', channelStart);
-  const releaseStart = html.indexOf('function structuredReleaseCampaignPayload(remote){');
-  const releaseEnd = html.indexOf('\nfunction ', releaseStart + 1);
-  const channel = html.slice(channelStart, channelEnd), release = html.slice(releaseStart, releaseEnd);
-  assert.match(channel, /catalogRefs:bg3CatalogStandardRefs\(bg3CatalogRefs\(\)\)/);
-  assert.match(channel, /bg3CatalogUseRefs\(bg3CatalogStandardRefs\(incomingRefs\)\)/);
-  assert.match(release, /const catalogRefs=bg3CatalogStandardRefs\(/);
-  assert.match(release, /bg3TadpoleStandardState\(/);
-});
+
 
 test('a pending legacy Honour tadpole dialog is cancelled without consuming its jar', () => {
   const audit = loadStandardOnlyAudit(), raw = {

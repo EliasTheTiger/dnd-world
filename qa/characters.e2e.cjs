@@ -79,10 +79,11 @@ await page.evaluate(()=>window.releaseCharacterQaSave());
 await page.getByRole('button',{name:'← К списку героев',exact:true}).click();assert.equal(await page.locator('.char-card').count(),count+1);
 await page.locator('#character-search').fill('Эйра');assert.equal(await page.locator('.char-card:visible').count(),1);
 await page.getByRole('button',{name:'✠ Новый герой',exact:true}).click();await page.getByRole('button',{name:'Отмена',exact:true}).click();assert.equal(await page.locator('.char-card').count(),count+1);
-await page.waitForFunction(async()=>{
+await page.waitForFunction(()=>!hasUnsavedCampaignChanges());
+assert.equal(await page.evaluate(async()=>{
  const saved=await campaignEnvelopeRepository.read();
  return !hasUnsavedCampaignChanges()&&saved.ok&&saved.envelope?.state?.chars?.some(character=>character.name==='Эйра Лунная'&&character.subrace==='Высший эльф');
-});
+}),true,'the edited character must be present in the verified durable envelope before reload');
 await page.reload({waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'✠ Новый герой',exact:true}).waitFor({timeout:120000});
 await page.locator('#character-search').fill('Эйра');await page.locator('.char-card:visible').click();assert.equal(await page.locator('#sheet-subrace').inputValue(),'Высший эльф');
 await page.getByRole('button',{name:'Предыстория',exact:true}).click();assert.match(await page.locator('#character-biography').inputValue(),/Личная биография Эйры/);assert.equal(await page.locator('progress').getAttribute('value'),'0');assert.equal(await page.locator('.background-history li').count(),2);

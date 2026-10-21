@@ -6,7 +6,6 @@
 
   const ENVELOPE_SCHEMA = 'dnd-world-campaign-envelope/1';
   const RECEIPT_SCHEMA = 'dnd-world-persistence-receipt/1';
-  const CLOUD_SCHEMA = 'dnd-world-cloud-channel/1';
   const WORLD_SNAPSHOT_SCHEMA = 'dnd-world-world-snapshot/1';
 
   function fail(message, code) {
@@ -187,22 +186,8 @@
     }
   }
 
-  function cloudRevision(message) { return message && message.schemaVersion === CLOUD_SCHEMA && Number.isSafeInteger(message.revision) ? message.revision : 0; }
-
-  function cloudCasPlan(remoteMessage, dirtyParentRevision) {
-    const remoteRevision = cloudRevision(remoteMessage), parent = positiveInteger(dirtyParentRevision, 'dirtyParentRevision', true);
-    if (remoteRevision !== parent) return {ok:false, conflict:true, code:'CLOUD_REVISION_CONFLICT', expectedRevision:parent, actualRevision:remoteRevision};
-    return {ok:true, parentRevision:remoteRevision, revision:remoteRevision + 1};
-  }
-
-  function createCloudMessage(payload, options) {
-    options = options || {}; const parentRevision = positiveInteger(options.parentRevision, 'parentRevision', true), revision = parentRevision + 1;
-    const by = String(options.by || '').trim(), transactionId = String(options.transactionId || '').trim(); if (!by || !transactionId) fail('Cloud message identity is required.', 'INVALID_CLOUD_MESSAGE');
-    return plain({schemaVersion:CLOUD_SCHEMA, by, at:Number(options.at || Date.now()), revision, parentRevision, transactionId, payload});
-  }
-
   return Object.freeze({
-    ENVELOPE_SCHEMA,RECEIPT_SCHEMA,CLOUD_SCHEMA,WORLD_SNAPSHOT_SCHEMA,canonicalJson,sha256,createEnvelope,verifyEnvelope,migrateWorldSnapshot,
-    parseStored,selectFreshestEnvelope,MemoryAdapter,EnvelopeRepository,cloudRevision,cloudCasPlan,createCloudMessage
+    ENVELOPE_SCHEMA,RECEIPT_SCHEMA,WORLD_SNAPSHOT_SCHEMA,canonicalJson,sha256,createEnvelope,verifyEnvelope,migrateWorldSnapshot,
+    parseStored,selectFreshestEnvelope,MemoryAdapter,EnvelopeRepository
   });
 });

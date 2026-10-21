@@ -482,7 +482,7 @@ async function selectVisibleCastTarget(name) {
 async function assertNoSaveFailure(context) {
   await page.waitForTimeout(500);
   const text = await bodyText();
-  const match = text.match(/Летопись не сохранена[^\n]*/i);
+  const match = text.match(/(?:Не удалось сохранить изменения|Сохранение отклонено)[^\n]*/i);
   if (match) throw new QaFailure(`${context}: ${match[0]}`);
 }
 

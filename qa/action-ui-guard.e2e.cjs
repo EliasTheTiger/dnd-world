@@ -52,17 +52,19 @@ const server=http.createServer((req,res)=>{
   // A pending-input action opens a dice dialog, then saves that opening. The dialog must resume afterward.
   await page.evaluate(()=>{
    window.__guardInputAction=combatActionKernel.execute({actionId:'guard-dice'},{resolve:async()=>null,context:async()=>null,validate:async()=>({allowed:true}),snapshot:async()=>null,prepare:async()=>null,
-    commit:async()=>{roll(20);return {ok:true};},consequences:value=>value,persist:()=>new Promise(resolve=>{window.__guardReleaseInput=()=>resolve({ok:true});})});
+    commit:async()=>{rollCheck('Инициатива',initTotal(cc()),'init');return {ok:true};},consequences:value=>value,persist:()=>new Promise(resolve=>{window.__guardReleaseInput=()=>resolve({ok:true});})});
   });
   await page.waitForFunction(()=>typeof window.__guardReleaseInput==='function');
-  const dialog=page.getByRole('dialog',{name:'⚂ Кость d20'});await dialog.waitFor();
+  const dialog=page.getByRole('dialog',{name:'⚂ Инициатива',exact:true});await dialog.waitFor();
   await page.keyboard.press('Escape');assert.equal(await dialog.isVisible(),true,'Escape cannot alter a transaction awaiting persistence');
   await page.evaluate(async()=>{window.__guardReleaseInput();await window.__guardInputAction;});
   await notice.waitFor({state:'hidden'});await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});
   assert.equal(await page.locator('.wrap').evaluate(el=>el.inert),false);
-  await page.getByRole('button',{name:'d20',exact:true}).click();
+  const initiative=page.getByTitle('Бросить инициативу',{exact:true});
+  const bonus=Number((await initiative.innerText()).replace(/[^+\-\d]/g,''));
+  await initiative.click();
   await dialog.getByRole('spinbutton',{name:'d20',exact:true}).fill('13');await dialog.getByRole('button',{name:'Рассчитать и применить'}).click();
-  await dialog.waitFor({state:'hidden'});assert.match(await page.locator('#diceOut').innerText(),/d20 → 13/);
+  await dialog.waitFor({state:'hidden'});assert.match(await page.locator('#diceOut').innerText(),new RegExp('^Инициатива: d20 13.* = '+(13+bonus)+'$'));
   checks.push('pending dice opens safely, Escape resumes after persistence, modal inert is restored and manual dice still apply');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,checks,errors},null,2));
   console.log('Action UI guard: '+checks.length+' causal browser scenarios passed.');

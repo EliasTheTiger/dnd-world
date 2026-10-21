@@ -97,7 +97,8 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
         bg3SceneState=bg3SceneNormalizeState(s.bg3SceneState);bg3StoryState=bg3StoryNormalizeState(s.bg3StoryState);bg3TadpoleState=bg3TadpoleNormalizeState(s.bg3TadpoleState);bg3TreasureState=bg3TreasureNormalizeState(s.bg3TreasureState);
         combat=normalizeCombatState(s.combat); lastCastEvent=null; castCtx=null; rollSpec=null; rollQueue=[]; rollCompleting=false; bg3RollPromptScope=null; bg3RuleProgramClear(); bg3LifecycleReset(); bg3GithbornMindcrusherTrustCharacters(chars); bg3InterruptReset(); bg3InventoryStatusTransitionReset(); bg3SceneCatalogReset(); fxInvalidate();
       },
-      loadAll, blankCombat,runScheduledSave,syncPersistLocal,dndWorldExportPayload,dndWorldImportPayload,
+      loadAll, blankCombat,runScheduledSave,
+      localSnapshot(){return JSON.parse(JSON.stringify({...worldSnapshotPayload(),journal}));},
       storeGet:(key)=>store.get(key),storeSet:(key,value)=>store.set(key,value),
       state() { return {chars,itemsDB,spellsDB,abilitiesDB,racesDB,classesDB,foesDB,harvestedSources,bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState,activeCharId,fxRound,lastCastEvent,combat}; },
       applyFxTo, removeActiveFx, advanceFxRound, attachDuration, spellFxForCast,
@@ -140,8 +141,6 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
       combatStart, combatNextTurn, combatEnd, combatSpend, combatCanSpend, combatSpendEvaluation, combatBasicAction, combatFocus, combatTurnStamp, combatSyncActionState,
       gameContextFor,gameContextContractCheck,gameActionDefinitionContractCheck,gameActionEvaluate,gameActionCommand,gameActionExecute,gameActionOverrideLastResult,gameActionOverrideFromControls,gameActionOverrideControlsHTML,gameActionAuditLog,gameActionDeadButtonAudit,combatActionButton,combatActionsHTML,combatItemActionRouteCheck,
       combatEnsureSetup, restorePartyAndCombatState, resetCombatAndParty,
-      mergeStableEntries, structuredReleaseCampaignPayload,
-      syncNeedsOwnerAuth, syncUrlWithAuth,
       bg3CatalogUseRefs, bg3CatalogRefs, bg3CatalogSelectProfile, bg3FetchPinnedJSON, bg3CatalogEnsureIndex, bg3CatalogLoadShard, bg3CatalogHydrate,
       bg3CatalogSearch,bg3CatalogSearchText,bg3CatalogSearchCacheEnsure,bg3UserFacingLabel,bg3UserItemName,userFacingItemName,userFacingItemActionLabel,activeFxUserFacingLabel,bg3PublicRuntimeReason,bg3FriendlyError,itemSearchNormalize, bg3CatalogAvailable, bg3CatalogMaterializeItem, bg3CatalogLoadArtifact, bg3CatalogEnsureAsset,bg3AvailableIds,bg3SelectionItemId,
       bg3CatalogUpgradePlanFor,bg3CatalogUpgradeCommit,bg3CatalogUpgradeReferencedIds,bg3CatalogMigrateSameVersionReissue,
@@ -326,7 +325,6 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
         loadedAssets:Object.keys(bg3Catalog.assets).filter(k=>!!bg3Catalog.assets[k]),assetErrors:[...bg3Catalog.assetErrors],
         artifactCount:bg3Catalog.artifacts.size,artifactErrors:[...bg3Catalog.artifactErrors],sceneRoot:bg3SceneCatalog.root,
         sceneCompactCount:bg3SceneCatalog.compact.size,sceneIndexShards:[...bg3SceneCatalog.indexShards.keys()],sceneRecordShards:[...bg3SceneCatalog.recordShards.keys()]}; },
-      setSyncConfig(v){ syncCfg=v; },
       saveWorldNow(){savePendWorld=true;return runScheduledSave();},
       worldSavePending(){return savePendWorld===true;},
       storedValue(k){return globalThis.localStorage.getItem(k);},
@@ -4733,55 +4731,13 @@ test('единый сброс удаляет текущий бой и точно
   assert.ok(html.includes('Сбросить бой и группу'));
 });
 
-test('выпуск 4.1 объединяет локальную и облачную летопись без возврата незавершенного боя', () => {
-  const e = loadEngine();
-  const items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
-  const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
-  const localCustom = hero('custom_shared', {name: 'Локальный герой', hp: 1, hpMax: 22});
-  const localOnly = hero('custom_local', {name: 'Только локальный', hp: 2, hpMax: 18});
-  const combat = e.blankCombat(); combat.active = true; combat.round = 4;
-  combat.log = [{id: 'unfinished', text: 'Не должен сохраниться'}];
-  combat.history = [{id: 'local_battle', name: 'Локальный архив', log: []}];
-  e.setState({chars: [e.buildRoku(), localCustom, localOnly], journal: [
-    {id: 'shared_page', date: '2026-08-01', title: 'Локальная старая версия', text: 'local'},
-    {id: 'local_page', date: '2026-08-02', title: 'Локальная страница', text: 'local only'}
-  ], items, spells, abilities, races, classes, foes, combat});
-  e.bg3CatalogUseRefs([{id:'bg3',version:'bg3-999-v1',profile:'standard'}]);
 
-  const remote = {
-    chars: [hero('custom_shared', {name: 'Облачный герой', hp: 3, hpMax: 30}), hero('custom_cloud', {name: 'Только облачный', hp: 4, hpMax: 26})],
-    journal: [
-      {id: 'shared_page', date: '2026-08-01', title: 'Облачная новая версия', text: 'cloud'},
-      {id: 'cloud_page', date: '2026-08-03', title: 'Облачная страница', text: 'cloud only'}
-    ],
-    combat: {history: [{id: 'cloud_battle', name: 'Облачный архив', log: []}]},
-    catalogRefs: []
-  };
-  const payload = e.structuredReleaseCampaignPayload(remote);
-  assert.deepEqual(plain(payload.chars.slice(0, 4).map(x => x.id)), ['char_roku', 'char_torgar', 'char_septih', 'char_legerem']);
-  assert.deepEqual(plain(payload.chars.slice(4).map(x => x.id)), ['custom_shared', 'custom_cloud', 'custom_local']);
-  assert.equal(payload.chars.find(x => x.id === 'custom_shared').name, 'Облачный герой', 'облачная версия общего героя приоритетна');
-  assert.equal(payload.chars.find(x => x.id === 'custom_shared').hp, 30, 'пользовательский герой получает полный отдых');
-  assert.deepEqual(plain(payload.journal.map(x => x.id)), ['shared_page', 'cloud_page', 'local_page']);
-  assert.equal(payload.journal[0].text, 'cloud');
-  assert.equal(payload.combat.active, false); assert.equal(payload.combat.round, 0); assert.equal(payload.combat.log.length, 0);
-  assert.deepEqual(plain(payload.combat.history.map(x => x.id)), ['cloud_battle', 'local_battle']);
-  assert.deepEqual(plain(payload.catalogRefs), [], 'explicit empty remote pin cannot inherit a different local campaign catalog');
-
-  const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /const CLOUD_PAUSED=false/);
-  assert.equal(e.engineVersion(), '5.0');
-  assert.equal(e.engineLabel(), 'Предметы вашей D&D-игры');
-});
 
 test('формулы v2 не содержат броска мастера, ручного попадания или изменяемого преимущества', () => {
   const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   ['Прочий бросок (по решению мастера)', 'castHitSet', 'hitOverride', 'castAdvSet', 'id="cfHit"']
     .forEach(token => assert.equal(html.includes(token), false, `удален запрещенный путь: ${token}`));
-  // The campaign's free-access variant still pays MP; only a cast payment bypass is forbidden.
-  const settingsStart=html.indexOf('function magicSettingsHTML()'),settingsEnd=html.indexOf('\nfunction magicPoolHTML(',settingsStart);
-  assert.ok(settingsStart>=0&&settingsEnd>settingsStart,'campaign settings boundaries must be present');
-  assert.equal((html.slice(0,settingsStart)+html.slice(settingsEnd)).includes('value="free"'),false,'нет обхода оплаты в интерфейсе наложения');
+  assert.equal(html.includes('value="free"'),false,'нет обхода оплаты или классового изучения в интерфейсе');
 
   const e = loadEngine(), items = e.seedItemsDB(), spells = e.seedSpellsDB(), abilities = e.seedAbilitiesDB();
   const races = e.seedRacesDB(), classes = e.seedClassesDB(), foes = e.seedFoesDB();
@@ -5128,7 +5084,7 @@ test('штатные Року и Торгар имеют полные канон
   assert.equal(e.spellEntryReady(roku,school,spells.find(x=>x.id===school.spellId)),true);
   let html=e.renderSheetPanel('spells');
   assert.match(html,/Активно подготовлено: <b>6 из 6<\/b>/);
-  assert.ok(html.includes('Аудит подготовки: 320'));
+  assert.doesNotMatch(html,/Аудит подготовки: 320|spellPrepAuditBtn|spellPrepAuditOut/);
   assert.ok(html.includes('Подготовить после отдыха'));
 
   assert.equal(e.prepCount(torgar),6);assert.equal(e.prepMax(torgar),6);
@@ -6123,30 +6079,7 @@ test('регрессия уникальных предметов: реакции
   assert.equal(e.inlineSavePlanCheck(stale.plan).ok, false, 'снятая между планом и d20 печать делает план stale без расхода');
 });
 
-test('облачная синхронизация отличает штатную базу и безопасно добавляет ID-токен', () => {
-  const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');
-  assert.doesNotMatch(html,/"\.read"\s*:\s*true/);
-  assert.doesNotMatch(html,/"\.write"\s*:\s*true/);
-  assert.match(html,/firebase-auth\.js/);
-  assert.match(html,/getIdToken/);
-  const e=loadEngine();
-  e.setSyncConfig({
-    url:'https://best-dnd-campaign-ever-default-rtdb.firebaseio.com/',
-    room:'SpeakFriendAndEnter2026',
-    on:true
-  });
-  assert.equal(e.syncNeedsOwnerAuth(),true);
-  assert.equal(
-    e.syncUrlWithAuth('https://example.firebaseio.com/world.json','token +/='),
-    'https://example.firebaseio.com/world.json?auth=token%20%2B%2F%3D'
-  );
-  assert.equal(
-    e.syncUrlWithAuth('https://example.firebaseio.com/world.json?print=silent','abc'),
-    'https://example.firebaseio.com/world.json?print=silent&auth=abc'
-  );
-  e.setSyncConfig({url:'https://another-project.firebaseio.com',room:'main',on:true});
-  assert.equal(e.syncNeedsOwnerAuth(),false);
-});
+
 
 test('BG3 loader: pinned Standard version and concurrent shard hydration are deterministic', async () => {
   const version='bg3-111-v1', commonId='bg3:item:rt:00000000-0000-0000-0000-000000000001';
@@ -6862,12 +6795,12 @@ test('BG3 immutable v2 rejects lazy entrypoints missing an exact manifest file d
   await assert.rejects(makeEngine(true).bg3CatalogLoadArtifact('recipes.json'),/SHA-256\/bytes descriptor/);
 });
 
-test('BG3 recipe/treasure schema drift fails closed and cloud persistence refreshes the canonical world snapshot', async () => {
+test('BG3 recipe/treasure schema drift fails closed and local persistence refreshes the canonical world snapshot', async () => {
   const e=loadEngine(),actor=hero('persistence-owner',{inventory:[{id:'loot-entry',itemId:'it_loot',qty:2}],
     bg3TreasureHistory:[{id:'bg3-loot-1',tableId:'bg3:treasure:test'}]});
   const treasureState={schemaVersion:'dnd-world-bg3-treasure-state/1',revision:7,cycles:{'v|standard|t|0|drop':{signature:'1',defaults:[1],remaining:[1]}}};
   e.setState({chars:[actor],items:[],bg3TreasureState:treasureState});
-  const ok=await e.syncPersistLocal();assert.equal(ok,true);
+  const ok=await e.saveWorldNow();assert.equal(ok,true);
   const snapshot=JSON.parse(e.storedValue('dndworld2:world-snapshot')),splitChars=JSON.parse(e.storedValue('dndworld2:chars')),
     splitTreasure=JSON.parse(e.storedValue('dndworld2:bg3-treasure-state'));
   assert.deepEqual(snapshot.chars[0].inventory,plain(actor.inventory));assert.deepEqual(snapshot.chars[0].bg3TreasureHistory,plain(actor.bg3TreasureHistory));
@@ -7042,9 +6975,7 @@ test('BG3 Story: state round-trips through local persistence, export and campaig
   assert.deepEqual(JSON.parse(e.storedValue('dndworld2:bg3-story-state')),plain(normalized));
   const atomicWorld=JSON.parse(e.storedValue('dndworld2:world-snapshot'));assert.equal(atomicWorld.schemaVersion,'dnd-world-world-snapshot/1');
   assert.deepEqual(atomicWorld.bg3StoryState,plain(normalized));assert.deepEqual(atomicWorld.chars.map(row=>row.id),['roundtrip']);
-  assert.deepEqual(plain(e.dndWorldExportPayload().bg3StoryState),plain(normalized));
-  const payload=e.structuredReleaseCampaignPayload({bg3StoryState:normalized});
-  assert.deepEqual(plain(payload.bg3StoryState),plain(normalized));assert.notEqual(payload.bg3StoryState,normalized,'campaign migration clones persisted Story state');
+  assert.deepEqual(plain(e.localSnapshot().bg3StoryState),plain(normalized));
 });
 
 function bg3TestAction(id, handler = 'bg3RuleProgram', overrides = {}) {
@@ -8770,7 +8701,7 @@ test('BG3 A33 LearnSpell uses exact Wizard/AddChildren evidence, Savant rate and
   assert.equal(e.bg3LearnedSpellUpgradeEntries({bg3LearnedSpells:[foreignLegacy]}),false);assert.equal(foreignLegacy.manifestSha256,undefined,
     'legacy executable data is upgraded only from its exact matching pinned campaign ref');
 
-  await e.saveWorldNow();const exported=e.dndWorldExportPayload(),persisted=exported.chars.find(row=>row.id===wizard.id).bg3LearnedSpells;
+  await e.saveWorldNow();const exported=e.localSnapshot(),persisted=exported.chars.find(row=>row.id===wizard.id).bg3LearnedSpells;
   assert.deepEqual(plain(persisted),plain(wizard.bg3LearnedSpells),'exact rule/artifact, icon and cast resource persist in the character snapshot');
 
   const prepared=await e.bg3LearnedSpellPrepare(wizard,wizard.bg3LearnedSpells[0].id);assert.equal(prepared.ok,true,prepared.reason);
@@ -8906,7 +8837,7 @@ test('BG3 OnDestroy explicit GM inventory/placement plans preflight four causal 
   const placement=await e.bg3OnDestroyPlanFor({kind:'placement',actorId:actor.id,placementId:fixture.destroyRow.placementId},{gmConfirmed:true,transactionId:'destroy-placement-1'});assert.equal(placement.ok,true,placement.reason);assert.equal((await e.bg3OnDestroyCommit(placement)).ok,true);const state=plain(e.state().bg3SceneState),scope=Object.values(state.scopes)[0],placed=scope.placements[fixture.destroyRow.placementId],surfaces=Object.values(scope.surfaces);assert.equal(placed.state.destroyed,true);assert.equal(placed.state.onDestroy.orderedConsequences.length,4);assert.equal(placed.state.onDestroy.icon.src,fixture.destroyItem.icon.src);assert.deepEqual(surfaces.map(row=>row.actionType),[4,10]);assert.equal(surfaces[0].lifeTime,-1);assert.equal(surfaces[0].radius,0);assert.equal(placed.state.itemState,11);assert.equal(placed.state.snapToGround,true);assert.equal(placed.state.dynamicPhysicsVisual,'00000000-0000-0000-0000-00000000d502');assert.equal(placed.state.replacementTemplateUuid,'00000000-0000-0000-0000-00000000d503');assert.deepEqual(plain(placed.state.fade),{fx:'',delay:0.25});assert.deepEqual(plain(placed.state.lastSound),{eventId:'00000000-0000-0000-0000-00000000d504',playOnHUD:false,sourceNoOp:false});assert.equal(scope.committed['destroy-placement-1'].kind,'bg3-on-destroy');assert.equal(scope.committed['destroy-placement-1'].surfaceOverlayIds.length,2);assert.equal(scope.committed['destroy-placement-1'].destroyParameterOverlayIds.length,1);assert.equal(scope.committed['destroy-placement-1'].soundOverlayIds.length,1);assert.deepEqual(plain(e.bg3SceneNormalizeState(state)),state,'placement destruction event and all concrete overlays persist through strict scene normalization');
   const ordinaryState=plain(state),ordinaryScope=Object.values(ordinaryState.scopes)[0],ordinarySurface=Object.values(ordinaryScope.surfaces).find(row=>row.actionType===4);ordinarySurface.lifeTime=5;ordinarySurface.radius=2;const ordinaryRoundTrip=Object.values(Object.values(plain(e.bg3SceneNormalizeState(ordinaryState)).scopes)[0].surfaces).find(row=>row.actionType===4);assert.equal(ordinaryRoundTrip.eventKind,'object-destroyed');assert.equal(ordinaryRoundTrip.sourceRootProgramId,ordinarySurface.sourceRootProgramId);assert.equal(ordinaryRoundTrip.sourceOperationOrder,0);assert.deepEqual(plain(ordinaryRoundTrip.spatialTarget),plain(ordinarySurface.spatialTarget),'ordinary positive surface values must still use the dedicated OnDestroy normalizer and retain causal evidence');
   await e.bg3SceneLoadPlacement(fixture.destroyRow.placementId);const html=e.bg3SceneOpenedHTML(fixture.destroyRow.placementId);assert.match(html,/уничтожено/);assert.match(html,new RegExp(fixture.destroyItem.icon.src.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
-  await e.saveWorldNow();const exported=e.dndWorldExportPayload(),persisted=exported.chars.find(row=>row.id===actor.id).bg3DestroyedObjects,exportScope=Object.values(exported.bg3SceneState.scopes)[0];assert.equal(persisted.length,1);assert.equal(persisted[0].orderedConsequences.length,4);assert.equal(exportScope.worldObjects.TEST_SCENE.transactionId,'destroy-inventory-1');assert.equal(exportScope.worldObjects.TEST_SCENE.state.itemState,11);assert.equal(exportScope.worldObjects.TEST_SCENE.state.lastSound.eventId,'00000000-0000-0000-0000-00000000d504');assert.equal(randomCalls,0);
+  await e.saveWorldNow();const exported=e.localSnapshot(),persisted=exported.chars.find(row=>row.id===actor.id).bg3DestroyedObjects,exportScope=Object.values(exported.bg3SceneState.scopes)[0];assert.equal(persisted.length,1);assert.equal(persisted[0].orderedConsequences.length,4);assert.equal(exportScope.worldObjects.TEST_SCENE.transactionId,'destroy-inventory-1');assert.equal(exportScope.worldObjects.TEST_SCENE.state.itemState,11);assert.equal(exportScope.worldObjects.TEST_SCENE.state.lastSound.eventId,'00000000-0000-0000-0000-00000000d504');assert.equal(randomCalls,0);
 });
 
 test('BG3 OnDestroy permanent/zero-radius defaults persist while empty surface and sound are explicit source no-ops', async () => {
@@ -10094,9 +10025,8 @@ test('BG3 tadpole jars follow exact gated dialog transactions, consume one bound
 
   await e.saveWorldNow();const saved=JSON.parse(e.storedValue('dndworld2:bg3-tadpole-state')),world=JSON.parse(e.storedValue('dndworld2:world-snapshot'));
   assert.equal(saved.actors[actor.id].tadpolePoints,2);assert.equal(world.bg3TadpoleState.actors[actor.id].tadpolePoints,2);
-  const exported=e.dndWorldExportPayload();assert.equal(exported.bg3TadpoleState.actors[actor.id].tadpolePoints,2);
-  assert.deepEqual(plain(e.bg3TadpoleNormalizeState(exported.bg3TadpoleState)),plain(exported.bg3TadpoleState),'export/import normalization is lossless');
-  assert.equal(e.structuredReleaseCampaignPayload({}).bg3TadpoleState.actors[actor.id].tadpolePoints,2,'Firebase campaign owner includes the overlay');
+  const exported=e.localSnapshot();assert.equal(exported.bg3TadpoleState.actors[actor.id].tadpolePoints,2);
+  assert.deepEqual(plain(e.bg3TadpoleNormalizeState(exported.bg3TadpoleState)),plain(exported.bg3TadpoleState),'local save/reload normalization is lossless');
 
   const raceActor=hero('tadpole-race',{inventory:[{id:'race-jar-a',itemId:normal.item.id,qty:1},{id:'race-jar-b',itemId:normal.item.id,qty:1}]});
   e.setState({chars:[raceActor],items:all.map(row=>row.item),activeCharId:raceActor.id,bg3TadpoleState:{facts:{daisyUnlocked:true,hadConsumeDialog:true},actors:{[raceActor.id]:{daisyAccepted:true}}}});
@@ -10273,7 +10203,7 @@ test('BG3 scene: lockpick/disarm accept only real entered d20 and source DC, con
   const success=await e.bg3ScenePlanFor(target,fixture.rows.disarm.use.id,{...base,transactionId:'disarm-success',check:{d20:18,modifier:3,dc:15,dcField:'DisarmDifficultyClassID',dcSourceId:direct.DisarmDifficultyClassID,gmConfirmed:true}});assert.equal(success.ok,true,success.reason);assert.equal((await e.bg3SceneCommit(success)).ok,true);assert.equal(e.state().chars[0].inventory.some(row=>row.id==='disarm-entry'),false);
   const unconfirmedLock=await e.bg3ScenePlanFor(target,fixture.rows.lockpick.use.id,{actorId:actor.id,sourceEntryId:'lockpick-entry',check:{d20:12,modifier:4,dc:15,dcField:'LockDifficultyClassID',dcSourceId:direct.LockDifficultyClassID,gmConfirmed:true}});assert.equal(unconfirmedLock.ok,false);assert.equal(unconfirmedLock.needsInput.kind,'locked-state-confirmation');const lock=await e.bg3ScenePlanFor(target,fixture.rows.lockpick.use.id,{actorId:actor.id,sourceEntryId:'lockpick-entry',transactionId:'lock-success',gmConfirmedLocked:true,check:{d20:12,modifier:4,dc:15,dcField:'LockDifficultyClassID',dcSourceId:direct.LockDifficultyClassID,gmConfirmed:true}});assert.equal(lock.ok,true,lock.reason);assert.equal((await e.bg3SceneCommit(lock)).ok,true);assert.equal(e.state().chars[0].inventory.find(row=>row.id==='lockpick-entry').qty,1,'Consume=False leaves the exact tool entry intact');
   const scope=Object.values(plain(e.state().bg3SceneState).scopes)[0],overlay=scope.placements[target];assert.equal(overlay.state.disarmAttempts,2);assert.equal(overlay.state.trapped,false);assert.equal(overlay.state.locked,false);assert.equal(overlay.instanceUuid,fixture.rows.secured.instanceUuid);assert.equal(randomCalls,0);
-  await e.saveWorldNow();const saved=JSON.parse(e.storedValue('dndworld2:bg3-scene-state')),world=JSON.parse(e.storedValue('dndworld2:world-snapshot')),exported=e.dndWorldExportPayload(),release=e.structuredReleaseCampaignPayload({});assert.deepEqual(saved,world.bg3SceneState);assert.deepEqual(plain(exported.bg3SceneState),saved);assert.deepEqual(plain(release.bg3SceneState),saved);assert.deepEqual(plain(e.bg3SceneNormalizeState(saved)),saved,'scene overlay survives import normalization without copying immutable definitions');assert.equal(JSON.stringify(saved).includes('definitions'),false);const poisoned=plain(saved),poisonScope=Object.values(poisoned.scopes)[0],poisonPlacement=poisonScope.placements[target];poisonPlacement.definitions=[{directAttributes:{MapKey:'forged'}}];poisonPlacement.state.provenance={module:'forged'};poisonScope.actors[actor.id].effectiveByProfile={standard:{variantId:'forged'}};const scrubbed=e.bg3SceneNormalizeState(poisoned);assert.equal(JSON.stringify(scrubbed).includes('forged'),false,'imports cannot smuggle immutable source fields into the mutable overlay');
+  await e.saveWorldNow();const saved=JSON.parse(e.storedValue('dndworld2:bg3-scene-state')),world=JSON.parse(e.storedValue('dndworld2:world-snapshot')),exported=e.localSnapshot();assert.deepEqual(saved,world.bg3SceneState);assert.deepEqual(plain(exported.bg3SceneState),saved);assert.deepEqual(plain(e.bg3SceneNormalizeState(saved)),saved,'scene overlay survives import normalization without copying immutable definitions');assert.equal(JSON.stringify(saved).includes('definitions'),false);const poisoned=plain(saved),poisonScope=Object.values(poisoned.scopes)[0],poisonPlacement=poisonScope.placements[target];poisonPlacement.definitions=[{directAttributes:{MapKey:'forged'}}];poisonPlacement.state.provenance={module:'forged'};poisonScope.actors[actor.id].effectiveByProfile={standard:{variantId:'forged'}};const scrubbed=e.bg3SceneNormalizeState(poisoned);assert.equal(JSON.stringify(scrubbed).includes('forged'),false,'imports cannot smuggle immutable source fields into the mutable overlay');
 });
 
 function installTransmuterCase({family='ACID',profile='standard',qty=1,actorId='transmuter-source',recipient=true,serial='stone'}={}) {
@@ -10349,9 +10279,9 @@ test('Transmuter Stone: central mutation guard blocks every staged carrier-loss 
   {const canonical=installTransmuterCase({actorId:'char_roku',serial:'builtin-reset',recipient:false});canonical.source.equipment={};const saved=plain(canonical.source);assert.equal(canonical.e.restorePartyAndCombatState(),false,'built-in actor replacement must reject an undeclared final carrier loss');assert.deepEqual(plain(canonical.source),saved);}
 });
 
-test('Transmuter Stone: legacy craft is guarded before slot/material mutation and export/import preserves GM evidence plus technical marker', async () => {
+test('Transmuter Stone: legacy craft is guarded before slot/material mutation and local save/reload preserves GM evidence plus technical marker', async () => {
   const e=loadEngine(),items=e.seedItemsDB(),material=items.find(row=>row.id==='it_silver_powder_25'),transition=transmuterItem('THUNDER','standard','craft-guard');material.mechanics=plain(transition.mechanics);const actor=hero('craft-cleric',{cls:'Жрец',inventory:[{id:'silver-entry',itemId:material.id,qty:1}],slots:{1:{cur:1,max:1}},craftingFacilities:['признанный религиозный обряд']});e.setState({chars:[actor],items,activeCharId:actor.id});e.bg3InventoryStatusTransitionTestInstall([]);const authoritative=()=>plain({inventory:actor.inventory,equipment:actor.equipment,slots:actor.slots,coins:actor.coins,activeFx:actor.activeFx}),before=authoritative(),craft=e.craftPlanFor(actor,'cr_holy_water',{});assert.equal(craft.ok,false);assert.match(craft.reason,/gm-declared/);assert.deepEqual(authoritative(),before);
-  const persisted=installTransmuterCase({family:'MOVEMENTSPEED',serial:'persist',recipient:false});persisted.source.equipment={};const plan=persisted.e.bg3InventoryStatusTransitionPlanFor(persisted.source.id,persisted.entry.id,gmTransitionSelections('campaign-inventory-removal',{suffix:'persist'}));assert.equal((await persisted.e.bg3InventoryStatusTransitionCommit(plan)).ok,true);const payload=plain(persisted.e.dndWorldExportPayload()),saved=payload.chars.find(row=>row.id===persisted.source.id);assert.equal(saved.bg3InventoryStatusTransitionHistory[0].causeEvidence.note,'GM witnessed the exact campaign inventory cause');assert.equal(saved.bg3InventoryStatusTransitionHistory[0].sourceEvidence.removalCauseSemantics,'not-declared-by-source');assert.equal(saved.activeFx[0].bg3InventoryStatusTransition.transactionId,plan.transactionId);const imported=loadEngine();imported.setState({chars:payload.chars,items:payload.items,fxRound:payload.fxRound});const restored=imported.state().chars.find(row=>row.id===persisted.source.id);assert.deepEqual(plain(restored.bg3InventoryStatusTransitionHistory),plain(saved.bg3InventoryStatusTransitionHistory));assert.deepEqual(plain(restored.activeFx),plain(saved.activeFx));
+  const persisted=installTransmuterCase({family:'MOVEMENTSPEED',serial:'persist',recipient:false});persisted.source.equipment={};const plan=persisted.e.bg3InventoryStatusTransitionPlanFor(persisted.source.id,persisted.entry.id,gmTransitionSelections('campaign-inventory-removal',{suffix:'persist'}));assert.equal((await persisted.e.bg3InventoryStatusTransitionCommit(plan)).ok,true);const payload=plain(persisted.e.localSnapshot()),saved=payload.chars.find(row=>row.id===persisted.source.id);assert.equal(saved.bg3InventoryStatusTransitionHistory[0].causeEvidence.note,'GM witnessed the exact campaign inventory cause');assert.equal(saved.bg3InventoryStatusTransitionHistory[0].sourceEvidence.removalCauseSemantics,'not-declared-by-source');assert.equal(saved.activeFx[0].bg3InventoryStatusTransition.transactionId,plan.transactionId);const imported=loadEngine();imported.setState({chars:payload.chars,items:payload.items,fxRound:payload.fxRound});const restored=imported.state().chars.find(row=>row.id===persisted.source.id);assert.deepEqual(plain(restored.bg3InventoryStatusTransitionHistory),plain(saved.bg3InventoryStatusTransitionHistory));assert.deepEqual(plain(restored.activeFx),plain(saved.activeFx));
 });
 
 test('BG3 granted weapon actions: exact bridge descriptors are source-pinned for all three Standard IDs while native Item-union readiness stays impossible', () => {
@@ -10426,7 +10356,7 @@ test('BG3 granted weapon actions: one accepted Character action atomically spend
   grantedWeaponCast(e,world);const applied=e.bg3GrantedWeaponApply(world.actor,world.virtual,world.targetKey,prepared.rolls);assert.equal(applied,true,e.elementText('saveStatus')+' '+e.elementText('castErr'));assert.equal(world.target.hp,beforeHp-prepared.rolls.dmgTotal);const dazed=world.target.activeFx.filter(row=>row.bg3Status==='DAZED');assert.equal(dazed.length,1);assert.equal(dazed[0].bg3StatusLifecycle.ruleId,world.fixture.statusProgram.sourceRuleId);assert.deepEqual(plain(dazed[0].fx.filter(row=>['combat.reaction.block','save.wis','ac.dex.block'].includes(row.stat)).map(row=>[row.stat,row.mode,row.value]).sort()),[['ac.dex.block','set',1],['combat.reaction.block','set',1],['save.wis','dis',1]]);assert.equal(e.combatCanSpend('reaction',`ally:${world.target.id}`),false);assert.equal(e.bg3GrantedWeaponSaveState(e.targetInfoOf(world.targetKey),'wis',10).advantageMode,2,'DAZED gives exact Wisdom-save disadvantage');assert.equal(e.acTotal(world.target),beforeAc-3,'DAZED suppresses the exact Dexterity ability modifier from AC');
   const cooldowns=world.actor.inventory[0].bg3GrantedActionCooldowns,keys=Object.keys(cooldowns||{});assert.equal(keys.length,1);assert.equal(keys[0],prepared.proof.cooldownKey);assert.equal(cooldowns[keys[0]].spellId,'Target_ConcussiveSmash');assert.equal(cooldowns[keys[0]].refId,world.virtual.row.ref.id);assert.equal(cooldowns[keys[0]].profile,'standard');
   assert.deepEqual(plain(world.actor.bg3GrantedActionTokens),[prepared.proof.eventId]);assert.equal(world.actor.inventory[0].bg3WeaponFunctorEvents.length,1);assert.deepEqual(plain(world.actor.inventory[0].bg3WeaponFunctorEvents[0].scopePath),['GROUND']);assert.equal(world.actor.inventory[0].bg3WeaponFunctorEvents[0].executed,true);assert.equal(e.state().combat.turn.actionUsed,true);
-  const persisted=plain(e.dndWorldExportPayload()),saved=persisted.chars.find(row=>row.id===world.actor.id);assert.deepEqual(plain(saved.inventory[0].bg3GrantedActionCooldowns),plain(cooldowns),'cooldown is part of the authoritative world payload');
+  const persisted=plain(e.localSnapshot()),saved=persisted.chars.find(row=>row.id===world.actor.id);assert.deepEqual(plain(saved.inventory[0].bg3GrantedActionCooldowns),plain(cooldowns),'cooldown is part of the authoritative world payload');
   const hpAfter=world.target.hp;grantedWeaponCast(e,world);assert.equal(e.bg3GrantedWeaponApply(world.actor,world.virtual,world.targetKey,prepared.rolls),false);assert.equal(world.target.hp,hpAfter);assert.equal(world.actor.inventory[0].bg3WeaponFunctorEvents.length,1);assert.equal(Object.keys(cooldowns).length,1);
   e.combatEnd(true);assert.equal(e.shortRest(),false,'the still-open replay form must be dismissed before resting');e.closeCastModal();e.shortRest();assert.equal(Object.keys(world.actor.inventory[0].bg3GrantedActionCooldowns).length,0,'real short-rest caller resets OncePerShortRest');e.bg3GrantedWeaponTestContext({bg3GrantedSourceSpellDcSelection:{sourceSpellDcMode:'unavailable-fallback-negative',evidence:'explicit-confirmed-no-valid-source-spell-dc'}});const refreshed=e.bg3GrantedWeaponProofFor(world.actor,world.virtual,world.targetKey);assert.equal(refreshed.ok,true,refreshed.reason);
   const imported=loadEngine();imported.setState({chars:persisted.chars,items:persisted.items,foes:persisted.foes,activeCharId:world.actor.id});const importedActor=imported.state().chars.find(row=>row.id===world.actor.id);assert.equal(Object.keys(importedActor.inventory[0].bg3GrantedActionCooldowns).length,1,'cooldown survives import');assert.equal(imported.longRest(),true);assert.equal(Object.keys(importedActor.inventory[0].bg3GrantedActionCooldowns).length,0,'real long-rest caller resets OncePerShortRest');
@@ -11097,7 +11027,7 @@ test('арсенал не показывает кампанийный или с�
   const beforePresentation=e.renderWorld().itemsdb;
   assert.match(beforePresentation,/data-catalog-state="loading"/);assert.doesNotMatch(beforePresentation,/data-user-items=/);
   assert.doesNotMatch(beforePresentation,/catalog-result-list|Поиск и фильтры предметов/);
-  assert.equal(e.elementText('itemsTabButton'),'Предметы');assert.equal(e.elementText('releaseBadge'),e.engineLabel());
+  assert.equal(e.elementText('itemsTabButton'),'Предметы');
 
   await e.bg3ItemPresentationEnsure();
   const finalTotal=e.itemWorkspaceTestFilters().length,ready=e.renderWorld().itemsdb;
@@ -11124,7 +11054,7 @@ test('единый каталог одновременно ищет строги
 
   e.itemWorkspaceTestFilters();const html=e.renderWorld().itemsdb,heroStart=html.indexOf('id="bg3CatalogPrimary"'),listStart=html.indexOf('class="catalog-result-list"'),listEnd=html.indexOf('id="itemWorkspaceDetail"',listStart),listHtml=html.slice(listStart,listEnd);
   assert.equal(e.engineVersion(),'5.0');assert.equal(e.engineLabel(),'Предметы вашей D&D-игры');
-  const userTotal=combined.length;assert.equal(e.elementText('releaseBadge'),`Предметы вашей D&D-игры · ${fmt(userTotal)} предметов`);
+  const userTotal=combined.length;
   assert.equal(e.elementText('itemsTabButton'),`Предметы · ${fmt(userTotal)}`);
   assert.ok(heroStart>=0&&listStart>heroStart&&listEnd>listStart,'единый master-detail каталог собран в одном блоке');
   assert.match(html,new RegExp(`data-user-items="${userTotal}"`));
@@ -11853,8 +11783,8 @@ test('BG3 summon descriptor failures roll back before burning resource combat or
   {const world=await realBg3SummonWorld(),{e,actor}=world;Object.defineProperty(actor.activeFx,'length',{...Object.getOwnPropertyDescriptor(actor.activeFx,'length'),writable:false});const activeRef=actor.activeFx,opened=await realBg3SummonOpen(world,{position:'descriptor-overlay-world,1,2,3'});assert.equal(opened.opened,true);assert.equal(e.castConfirm(),false);assert.equal(actor.activeFx,activeRef);assert.equal(actor.activeFx.length,0);assert.equal(actor.inventory[0].qty,2);assert.equal(e.bg3ItemSummonAudit().phase,'rolled-back');}
 });
 
-test('BG3 summon overlay provenance survives export/import and a manual summon remains explicitly dismissible',async()=>{
-  const row=REAL_BG3_SUMMON_ROWS[4],world=await realBg3SummonWorld({row}),{e,actor}=world,opened=await realBg3SummonOpen(world,{position:'persist-world,11,12,13',canStand:true});assert.equal(opened.opened,true);assert.equal(e.castConfirm(),true,JSON.stringify(e.bg3ItemSummonAudit()));const source=actor.activeFx.find(effect=>effect.k==='bg3-summon');assert.ok(source);assert.equal(source.durationKind,'manual');assert.equal(source.manualDismiss,true);assert.equal(Object.prototype.hasOwnProperty.call(source,'expiresAtRound'),false);const exported=plain(e.dndWorldExportPayload()),restored=loadEngine(()=>0,selectedBg3FileFetch()),imported=await restored.dndWorldImportPayload(exported);assert.equal(imported.ok,true,imported.reason);const restoredActor=restored.state().chars.find(value=>value.id===actor.id),overlay=restoredActor&&restoredActor.activeFx.find(effect=>effect.uid===source.uid);assert.ok(overlay);assert.deepEqual(plain(overlay.bg3Summon),plain(source.bg3Summon));assert.equal(overlay.durationKind,'manual');assert.equal(overlay.manualDismiss,true);assert.equal(Object.prototype.hasOwnProperty.call(overlay,'expiresAtRound'),false);restored.removeActiveFx(restoredActor.id,overlay.uid);assert.equal(restoredActor.activeFx.some(effect=>effect.uid===overlay.uid),false,'manual dismissal uses the existing exact activeFx removal path');
+test('BG3 summon overlay provenance survives local save/reload and a manual summon remains explicitly dismissible',async()=>{
+  const row=REAL_BG3_SUMMON_ROWS[4],world=await realBg3SummonWorld({row}),{e,actor}=world,opened=await realBg3SummonOpen(world,{position:'persist-world,11,12,13',canStand:true});assert.equal(opened.opened,true);assert.equal(e.castConfirm(),true,JSON.stringify(e.bg3ItemSummonAudit()));const source=actor.activeFx.find(effect=>effect.k==='bg3-summon');assert.ok(source);assert.equal(source.durationKind,'manual');assert.equal(source.manualDismiss,true);assert.equal(Object.prototype.hasOwnProperty.call(source,'expiresAtRound'),false);await e.saveWorldNow();const restored=loadEngine(()=>0,selectedBg3FileFetch());await restored.storeSet('dndworld2:world-snapshot',e.storedValue('dndworld2:world-snapshot'));await restored.loadAll();const restoredActor=restored.state().chars.find(value=>value.id===actor.id),overlay=restoredActor&&restoredActor.activeFx.find(effect=>effect.uid===source.uid);assert.ok(overlay);assert.deepEqual(plain(overlay.bg3Summon),plain(source.bg3Summon));assert.equal(overlay.durationKind,'manual');assert.equal(overlay.manualDismiss,true);assert.equal(Object.prototype.hasOwnProperty.call(overlay,'expiresAtRound'),false);restored.removeActiveFx(restoredActor.id,overlay.uid);assert.equal(restoredActor.activeFx.some(effect=>effect.uid===overlay.uid),false,'manual dismissal uses the existing exact activeFx removal path');
 });
 }
 
@@ -12034,9 +11964,9 @@ test('BG3 MediumArmorMaster carrier fingerprint rejects profile/catalog/projecti
   }
 });
 
-test('BG3 MediumArmorMaster GM identity survives world export/import and the editor exposes an explicit set/reset field', () => {
+test('BG3 MediumArmorMaster GM identity survives world local save/reload and the editor exposes an explicit set/reset field', () => {
   const e=loadEngine(),ability=mediumArmorMasterAbility(e),actor=hero('medium-persist',{abilities:[{abilityId:ability.id,cur:null,notes:'GM confirmed'}]});e.setState({chars:[actor],abilities:[ability],activeCharId:actor.id});
-  const payload=plain(e.dndWorldExportPayload());assert.equal(payload.abilities.find(row=>row.id===ability.id).bg3Id,'MediumArmorMaster');assert.equal(payload.chars[0].abilities[0].abilityId,ability.id);
+  const payload=plain(e.localSnapshot());assert.equal(payload.abilities.find(row=>row.id===ability.id).bg3Id,'MediumArmorMaster');assert.equal(payload.chars[0].abilities[0].abilityId,ability.id);
   const imported=loadEngine();imported.setState({chars:payload.chars,abilities:payload.abilities,activeCharId:actor.id});assert.equal(imported.bg3MediumArmorMasterPassiveEvidence(imported.state().chars[0]).value,true);
   const html=fs.readFileSync(new URL('../index.html',import.meta.url),'utf8');assert.match(html,/Подтверждённая пассивная черта/);assert.match(html,/<select id="edAbBg3Id">/);
   assert.match(html,/<option value="MediumArmorMaster"/);assert.match(html,/>Мастер средних доспехов<\/option>/);assert.match(html,/«Не подтверждена», чтобы сбросить его/);
@@ -12506,18 +12436,18 @@ test('BG3 GITHYANKI UI ledger is authoritative, tri-state, sanitizing, and never
   assert.equal(e.bg3GithyankiEvidenceSet('no',actor),true);assert.deepEqual(plain(actor.bg3Tags),[],'untrusted replacement members never cross the authority boundary');assert.equal(e.bg3GithyankiEvidenceMode(actor),'no');
   assert.equal(e.bg3GithyankiEvidenceSet('unknown',actor),true);assert.equal(Object.hasOwn(actor,'bg3Tags'),false);
   actor.bg3Tags=['GITHYANKI'];assert.equal(e.bg3GithyankiEvidenceSet('unknown',actor),true);assert.equal(Object.hasOwn(actor,'bg3Tags'),false,'reset removes an otherwise empty exact ledger');assert.equal(e.bg3GithyankiEvidenceMode(actor),'unknown');
-  e.bg3GithyankiEvidenceSet('yes',actor);const exported=e.dndWorldExportPayload();assert.deepEqual(plain(exported.chars.find(row=>row.id===actor.id).bg3Tags),['GITHYANKI'],'world export persists the exact property');
+  e.bg3GithyankiEvidenceSet('yes',actor);const exported=e.localSnapshot();assert.deepEqual(plain(exported.chars.find(row=>row.id===actor.id).bg3Tags),['GITHYANKI'],'world export persists the exact property');
 });
 
 test('BG3 GITHYANKI exact ledger survives export and production import for yes, no, and unknown and revokes an applied lifecycle synchronously', async () => {
   const source=loadEngine(),yes=hero('githyanki-import-yes',{bg3Tags:['GITHYANKI']}),no=hero('githyanki-import-no',{bg3Tags:[]}),unknown=hero('githyanki-import-unknown');
-  source.setState({chars:[yes,no,unknown],activeCharId:yes.id});const exported=plain(source.dndWorldExportPayload()),restored=loadEngine(),imported=await restored.dndWorldImportPayload(exported);assert.equal(imported.ok,true,imported.reason);
+  source.setState({chars:[yes,no,unknown],activeCharId:yes.id});await source.saveWorldNow();const restored=loadEngine();await restored.storeSet('dndworld2:world-snapshot',source.storedValue('dndworld2:world-snapshot'));await restored.loadAll();
   const byId=id=>restored.state().chars.find(row=>row.id===id),restoredYes=byId(yes.id),restoredNo=byId(no.id),restoredUnknown=byId(unknown.id);
   assert.deepEqual(plain(restoredYes.bg3Tags),['GITHYANKI']);assert.equal(restored.bg3GithyankiEvidenceMode(restoredYes),'yes');
   assert.deepEqual(plain(restoredNo.bg3Tags),[]);assert.equal(restored.bg3GithyankiEvidenceMode(restoredNo),'no');
   assert.equal(Object.hasOwn(restoredUnknown,'bg3Tags'),false);assert.equal(restored.bg3GithyankiEvidenceMode(restoredUnknown),'unknown');
 
-  const future=await githbornWorld('standard'),futurePayload=plain(future.e.dndWorldExportPayload()),futureRestored=loadEngine(),futureImport=await futureRestored.dndWorldImportPayload(futurePayload);assert.equal(futureImport.ok,true,futureImport.reason);
+  const future=await githbornWorld('standard'),futureRestored=loadEngine();await future.e.saveWorldNow();await futureRestored.storeSet('dndworld2:world-snapshot',future.e.storedValue('dndworld2:world-snapshot'));await futureRestored.loadAll();
   const importedActor=futureRestored.state().chars.find(row=>row.id===future.actor.id),importedCarrier=futureRestored.state().itemsDB.find(row=>row.id===future.fixture.item.id),importedSword=futureRestored.state().itemsDB.find(row=>row.id===future.sword.id);assert.ok(importedActor&&importedCarrier&&importedSword,'the exact actor and carrier survive the production import path');
   futureRestored.bg3GithbornMindcrusherTestInstall([importedCarrier,importedSword],future.fixture.rule,'standard',true);const applied=await futureRestored.bg3LifecycleReconcile(importedActor),targetRow=applied.rows.find(row=>row.bg3Id===GITHBORN_SOURCE.bg3Id);assert.equal(targetRow&&targetRow.status,'applied');
   assert.equal(futureRestored.bg3GithyankiEvidenceSet('no',importedActor),true);assert.deepEqual(plain(importedActor.bg3Tags),[]);assert.equal(futureRestored.bg3LifecycleState(importedActor),null,'removing the exact tag synchronously invalidates the already applied lifecycle cache');
@@ -12777,7 +12707,7 @@ test('campaign read-back failure is shown with one terminal punctuation mark', a
   await e.loadAll();
   e.setState({chars:[hero('read-back-after')]});
   assert.equal(await e.saveWorldNow(), false);
-  assert.equal(e.elementText('saveStatus'), 'Летопись не сохранена: Campaign envelope could not be verified after write.');
+  assert.equal(e.elementText('saveStatus'), 'Не удалось сохранить изменения: Campaign envelope could not be verified after write.');
 });
 
 test('campaign storage refuses same-revision split-brain envelopes', async () => {

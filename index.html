@@ -42,31 +42,7 @@
 <span class="corner tl">✠</span><span class="corner tr">✠</span>
 <span class="corner bl">✠</span><span class="corner br">✠</span>
 <h1 class="title">D&amp;D World</h1>
-<div class="subtitle">Летопись развития персонажей · настольная книга гейм-мастера · единое издание с «D&amp;D Нексус»</div>
-<div class="release-badge" id="releaseBadge" title="Полный каталог и подробные игровые свойства предметов">Предметы вашей D&D-игры</div>
 <div class="rule-flourish">❦</div>
-<div class="toolrow">
-<div class="dicebox">
-<span class="lbl">Кости:</span>
-<button class="die" onclick="roll(4)">d4</button>
-<button class="die" onclick="roll(6)">d6</button>
-<button class="die" onclick="roll(8)">d8</button>
-<button class="die" onclick="roll(10)">d10</button>
-<button class="die" onclick="roll(12)">d12</button>
-<button class="die" onclick="roll(20)">d20</button>
-<button class="die" onclick="roll(100)">d100</button>
-<input class="dice-note" id="diceNote" aria-label="Формула броска" placeholder="2d6+3" onkeydown="if(event.key==='Enter')rollNotation()">
-<button class="die" onclick="rollNotation()">⚁ бросить</button>
-<button class="btn ghost sm adv-0" id="advBtn" title="Преимущество/помеха для бросков d20 с листа" onclick="cycleAdv()">⚖ обычный</button>
-<span id="diceOut">—</span>
-</div>
-<div class="util-btns">
-<button class="btn ghost sm" id="cloudBtn" onclick="openSyncModal()">☁ Облако</button>
-<button class="btn ghost sm" onclick="doExport()">Выгрузить летопись</button>
-<button class="btn ghost sm" onclick="document.getElementById('impFile').click()">Загрузить летопись</button>
-<input type="file" id="impFile" accept=".json" class="hidden" onchange="doImport(this)">
-</div>
-</div>
 </header>
 <nav class="tabs" id="tabsNav" aria-label="Разделы мира">
 <button class="tab active" data-tab="chars" onclick="switchTab('chars')">Персонажи</button>
@@ -83,6 +59,7 @@
 </nav>
 <main class="leaf" id="main-content" tabindex="-1">
 <div class="save-status" id="saveStatus"></div>
+<div id="diceOut" class="game-roll-result" role="status" aria-live="polite"></div>
 <div id="tab-chars"></div>
 <div id="tab-combat" class="hidden"></div>
 <div id="tab-races" class="hidden"></div>
@@ -363,7 +340,7 @@ const CHARACTER_RULES=globalThis.DndCharacterRules||null;
 const MAGIC_RULES=globalThis.DND_MAGIC_RULES||null;
 let campaignMagic={version:1,mode:'slots',preparation:'class',revision:0};
 function magicUsesMp(){return campaignMagic.mode==='mp';}
-function magicFreeAccess(){return magicUsesMp()&&campaignMagic.preparation==='free';}
+function magicFreeAccess(){return false;}
 function magicClassKey(c){return [c.cls,c.subcls,c.level].join('|');}
 function magicEnsure(c){if(!magicUsesMp())return;return c.magicResource?.mode==='slots'?MAGIC_RULES.switchCharacter(c,'mp',slotsRowFor(c),magicClassKey(c)):MAGIC_RULES.sync(c,slotsRowFor(c),magicClassKey(c));}
 function magicPool(c){return MAGIC_RULES.pool(c);}
@@ -373,6 +350,7 @@ let magicSwitchBusy=false;
 async function magicSwitch(mode,preparation=campaignMagic.preparation){
 if(magicSwitchBusy)return {success:false,message:'Изменение магии уже сохраняется.'};
 if(!['slots','mp'].includes(mode)||!['class','free'].includes(preparation))return {success:false,message:'Неизвестный режим магии.'};
+preparation='class';
 if(mode===campaignMagic.mode&&preparation===campaignMagic.preparation)return {success:true,unchanged:true};
 if(combat.active||castCtx||rollSpec||backgroundUiBusy){setStatus('Завершите открытое действие и активный бой перед сменой магии кампании.',true);renderChars();return {success:false,message:'Открыто действие или активный бой.'};}
 magicSwitchBusy=true;const expected=campaignMagic.revision;
@@ -389,8 +367,7 @@ present:result=>{setStatus((result.success?'✦ ':'✕ ')+result.message,!result
 });}finally{magicSwitchBusy=false;renderChars();renderCombat();}
 }
 function magicSettingsHTML(){return '<div class="magic-settings"><label><span class="lbl">Магия кампании · для всех героев</span><select id="campaign-magic-mode" aria-label="Система магии кампании" onchange="magicSwitch(this.value)"'+(magicSwitchBusy?' disabled':'')+'><option value="slots"'+(!magicUsesMp()?' selected':'')+'>D&D 5e · ячейки</option><option value="mp"'+(magicUsesMp()?' selected':'')+'>Очки магии · MP</option></select></label>'
-+(magicUsesMp()?'<label><span class="lbl">Доступ к заклинаниям · режим MP</span><select id="campaign-mp-access" aria-label="Доступ к заклинаниям в MP" onchange="magicSwitch(\'mp\',this.value)"'+(magicSwitchBusy?' disabled':'')+'><option value="free"'+(magicFreeAccess()?' selected':'')+'>2.1 · Весь список класса</option><option value="class"'+(!magicFreeAccess()?' selected':'')+'>2.2 · Изучение и подготовка</option></select></label>':'')
-+'<p>'+(magicUsesMp()?(magicFreeAccess()?'Все заклинания своего класса и доступных кругов открыты без изучения и подготовки.':'Жрец, друид и паладин готовят список; бард, чародей, колдун и следопыт знают выбранные заклинания; волшебник изучает и готовит из книги.')+' Единый запас MP восстанавливается только через отдых. Компоненты, цели и время наложения учитываются.':'Подготовьте список по правилам класса; подходящая ячейка выбирается при наложении.')+' Переключение сохраняет расход ресурсов, книгу и выбранные списки.</p></div>';}
++'<p>Способ изучения и подготовки определяется классом каждого героя в его профиле. '+(magicUsesMp()?'Наложение расходует MP.':'Наложение расходует подходящую ячейку.')+' Переключение сохраняет расход ресурсов, книгу и выбранные списки.</p></div>';}
 function magicPoolHTML(c){const p=magicPool(c);return '<div class="magic-pool"><div><span class="lbl">Очки магии</span><strong>'+p.cur+' <small>/ '+p.max+' MP</small></strong></div><progress max="'+Math.max(1,p.max)+'" value="'+p.cur+'" aria-label="Остаток маны"></progress><p>Доступны круги до '+maxCircleFor(c)+'. Восстановление после '+magicRecoveryText(c)+'. Заговоры и допустимые ритуалы не расходуют MP.</p><div class="magic-costs">'+MAGIC_RULES.costs.slice(1).map((cost,i)=>'<span class="'+(i+1>maxCircleFor(c)?'unavailable':'')+'">'+(i+1)+' круг <b>'+cost+' MP</b></span>').join('')+'</div></div>';}
 const BACKGROUNDS_SEED = [
 {n:'Аколит', sk:'Проницательность, Религия', ex:'2 языка', f:'Приют верующих: может получить помощь и кров в храмах своей веры.'},
@@ -2213,17 +2190,43 @@ function spellEntryCountsAgainstPreparation(e){ return !!e&&!spellEntryAlwaysPre
 function spellEntryCountsAgainstKnown(e){ return !!e&&!spellEntryGranted(e)&&e.countsAgainstKnown!==false; }
 function knownSpellMax(c){
 if(CHARACTER_RULES&&CHARACTER_RULES.thirdCaster(c))return CHARACTER_RULES.thirdKnown[c.level-1];
-const row=SPELLS_KNOWN_2014[c&&c.cls]; return row?row[Math.max(0,Math.min(19,(+c.level||1)-1))]:0;
+const rule=classesDB.find(x=>x.n===c.cls)?.mechanics?.spellcasting,row=Array.isArray(rule?.knownSpellsByLevel)&&rule.knownSpellsByLevel.length?rule.knownSpellsByLevel:SPELLS_KNOWN_2014[c&&c.cls]; return row?Math.max(0,+row[Math.max(0,Math.min(19,(+c.level||1)-1))]||0):0;
 }
 function cantripKnownMax(c){
 if(CHARACTER_RULES&&CHARACTER_RULES.thirdCaster(c))return (c.cls==='Плут'?3:2)+(c.level>=10?1:0);
-const row=CANTRIPS_KNOWN_2014[c&&c.cls],bonus=c.cls==='Друид'&&c.subcls==='Круг Земли'&&c.level>=2?1:0; return row?row[Math.max(0,Math.min(19,(+c.level||1)-1))]+bonus:0;
+const rule=classesDB.find(x=>x.n===c.cls)?.mechanics?.spellcasting,row=Array.isArray(rule?.cantripsByLevel)&&rule.cantripsByLevel.length?rule.cantripsByLevel:CANTRIPS_KNOWN_2014[c&&c.cls],bonus=c.cls==='Друид'&&c.subcls==='Круг Земли'&&c.level>=2?1:0; return row?Math.max(0,+row[Math.max(0,Math.min(19,(+c.level||1)-1))]||0)+bonus:0;
 }
 function spellLearningState(c){
 if(!c.spellLearning||typeof c.spellLearning!=='object') c.spellLearning={replacements:0,anyClassChoices:0};
 c.spellLearning.replacements=Math.max(0,+c.spellLearning.replacements||0);
 c.spellLearning.anyClassChoices=Math.max(0,+c.spellLearning.anyClassChoices||0);
 return c.spellLearning;
+}
+function spellBookLearningSlots(c){
+if(casterPreparationMode(c)!=='book')return null;
+const rule=classesDB.find(x=>x.n===c.cls)?.mechanics?.spellcasting?.spellbookLearning;
+if(!rule||!Number.isSafeInteger(rule.level1)||rule.level1<0||!Number.isSafeInteger(rule.perWizardLevel)||rule.perWizardLevel<0)return null;
+const slots=[];for(let level=1;level<=c.level;level++)for(let i=0;i<(level===1?rule.level1:rule.perWizardLevel);i++)slots.push({level,circle:maxCircleFor(Object.assign({},c,{level})),used:false});
+const saved=c.spellLearning?.bookChoices;
+const choices=Array.isArray(saved)?saved:(c.spellbook||[]).filter(e=>e.access==='spellbook'&&!e.bookCopy&&spellEntryCountsAgainstKnown(e)).map(e=>({spellId:e.spellId,circle:+spellOf(e.spellId)?.l||0})).filter(e=>e.circle>0).sort((a,b)=>a.circle-b.circle);
+const ledger=[];
+for(const choice of choices){const slot=slots.find(s=>!s.used&&(choice.level!=null?s.level===choice.level:s.circle>=choice.circle));if(slot)slot.used=true;ledger.push(choice.level!=null?itemClone(choice):{spellId:choice.spellId,level:slot?slot.level:0,legacy:true});}
+return {slots,choices:ledger,remaining:slots.filter(s=>!s.used).length};
+}
+function spellLearningProfile(c){
+const meta=casterMeta(c),mode=meta?.preparation||'none',book=spellBookLearningSlots(c),known=knownSpellCount(c),cantrips=cantripKnownCount(c);
+return {className:c.cls,level:c.level,mode,kind:meta?.kind||'none',ability:spellAbOf(c),maxCircle:maxCircleFor(c),known,knownMax:knownSpellMax(c),cantrips,cantripMax:cantripKnownMax(c),prepared:prepCount(c),prepareMax:prepMax(c),bookChoices:book?.remaining??null,replacements:Math.max(0,+c.spellLearning?.replacements||0),ritual:!!meta?.ritualCasting,recovery:meta?.slotRecovery||'none',campaignFree:magicFreeAccess()};
+}
+function archiveSpellClass(c){
+c.spellClassArchives=c.spellClassArchives||{};
+Object.defineProperty(c.spellClassArchives,c.cls,{value:{level:c.level,entries:(c.spellbook||[]).filter(e=>e.access!=='archive'&&!spellEntryGranted(e)).map(itemClone),learning:itemClone(c.spellLearning||{replacements:0,anyClassChoices:0})},writable:true,enumerable:true,configurable:true});
+}
+function restoreSpellClass(c){
+const archived=c.spellClassArchives&&Object.prototype.hasOwnProperty.call(c.spellClassArchives,c.cls)&&c.spellClassArchives[c.cls];
+if(!archived||!Array.isArray(archived.entries))return false;
+for(const saved of archived.entries){const at=c.spellbook.findIndex(e=>e.spellId===saved.spellId);if(at>=0&&spellEntryGranted(c.spellbook[at]))continue;if(at>=0)c.spellbook[at]=itemClone(saved);else c.spellbook.push(itemClone(saved));}
+c.spellLearning=itemClone(archived.learning||{replacements:0,anyClassChoices:0});
+autoLevelSpells(c,archived.level);return true;
 }
 function bardMagicalSecretsEarned(level){ return [10,14,18].filter(x=>(+level||1)>=x).length*2; }
 function knownSpellCount(c){
@@ -2234,6 +2237,7 @@ return (c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&+sp
 }
 function spellEntryEligible(c,e,sp){
 if(!grimoireActive(sp)) return false;
+if(e&&e.access==='archive')return false;
 if(e?.loreSecret&&(c.cls!=='Бард'||c.subcls!=='Коллегия Знаний'||c.level<6||(c.spellbook||[]).filter(row=>row.loreSecret).length>2))return false;
 if(e?.subclassSpellGrant&&subclassSpellRule(c,sp)?.kind!=='prepared')return false;
 const m=casterMeta(c);
@@ -2344,7 +2348,7 @@ function spellAddCheck(c,sp,opts){
 if(!grimoireActive(sp))return {ok:false,reason:'Эта запись не входит в действующий гримуар D&D 2014.'};
 opts=opts||{}; const m=casterMeta(c);
 if(!m) return {ok:false,reason:'Класс «'+c.cls+'» не имеет заклинательной прогрессии.'};
-if((c.spellbook||[]).some(e=>e.spellId===sp.id))return {ok:false,reason:'Это заклинание уже есть в списке героя; повторный выбор не заменяет другое заклинание.'};
+if((c.spellbook||[]).some(e=>e.spellId===sp.id&&(e.access!=='archive'||spellEntryGranted(e))))return {ok:false,reason:'Это заклинание уже есть в списке героя; повторный выбор не заменяет другое заклинание.'};
 if(opts.loreSecret){
 if(loreSecretRemaining(c)<1)return {ok:false,reason:'Нет свободных дополнительных «Тайн магии» Коллегии Знаний.'};
 if(+sp.l>maxCircleFor(c))return {ok:false,reason:'Этот круг недоступен герою.'};
@@ -2356,6 +2360,7 @@ if(+sp.l>0&&+sp.l>maxCircleFor(c)) return {ok:false,reason:'Доступны з�
 if(+sp.l===0&&!opts.granted&&cantripKnownCount(c)>=cantripKnownMax(c))
 return {ok:false,reason:'Лимит известных заговоров достигнут: '+cantripKnownCount(c)+' из '+cantripKnownMax(c)+'.'};
 const replacing=!!(opts.replacement&&c.spellReplacementDraft&&c.spellReplacementDraft.removeId);
+if(replacing){const old=(c.spellbook||[]).find(e=>e.spellId===c.spellReplacementDraft.removeId),oldSpell=old&&spellOf(old.spellId);if(m.preparation!=='known'||!oldSpell||+oldSpell.l===0||+sp.l===0||!spellEntryCountsAgainstKnown(old)||!spellEntryEligible(c,old,oldSpell)||!(+learning.replacements>0))return {ok:false,reason:'Выбор для замены устарел. Выберите известное заклинание заново.'};}
 if(CHARACTER_RULES&&CHARACTER_RULES.thirdCaster(c)&&+sp.l>0&&!opts.granted){
 const schools=c.cls==='Воин'?['Ограждение','Воплощение']:['Иллюзия','Иллюзии','Очарование'];
 if(!schools.includes(sp.s)){
@@ -2366,6 +2371,7 @@ if(used>=limit)return {ok:false,reason:'Для этого архетипа ос�
 }
 if(+sp.l>0&&m.preparation==='known'&&!opts.granted&&knownSpellCount(c)>=knownSpellMax(c)&&!replacing)
 return {ok:false,reason:'Лимит известных заклинаний достигнут: '+knownSpellCount(c)+' из '+knownSpellMax(c)+'. Замена выполняется при получении уровня.'};
+if(+sp.l>0&&m.preparation==='book'&&!opts.granted){const book=spellBookLearningSlots(c),slot=book?.slots.find(s=>!s.used&&s.circle>=+sp.l);if(book&&!slot)return {ok:false,reason:'Нет свободного выбора этого круга при развитии героя. Новые заклинания можно переписать из найденного свитка через инвентарь.'};if(slot)return {ok:true,bookLevel:slot.level};}
 return {ok:true,special:magicalSecret&&!spellClassListHas(c,sp)?'magicalSecrets':''};
 }
 function syncClassSpellAccess(c){
@@ -2400,8 +2406,8 @@ const gained=Math.max(0,(+c.level||1)-(+oldLevel||+c.level||1));
 const beforeKnown=SPELLS_KNOWN_2014[c.cls]?SPELLS_KNOWN_2014[c.cls][Math.max(0,Math.min(19,(+oldLevel||1)-1))]:0;
 const afterKnown=knownSpellMax(c);
 if(m.preparation==='known'){
-const learning=spellLearningState(c); learning.replacements+=gained;
-if(c.cls==='Бард') learning.anyClassChoices+=Math.max(0,bardMagicalSecretsEarned(c.level)-bardMagicalSecretsEarned(oldLevel));
+const learning=spellLearningState(c),previous=Math.max(+oldLevel||1,+learning.highestLevel||0),newLevels=Math.max(0,c.level-previous);learning.highestLevel=Math.max(previous,c.level);learning.replacements+=newLevels;
+if(c.cls==='Бард') learning.anyClassChoices+=Math.max(0,bardMagicalSecretsEarned(c.level)-bardMagicalSecretsEarned(previous));
 if((+c.level||1)<(+oldLevel||1)){ learning.replacements=0;learning.anyClassChoices=Math.min(learning.anyClassChoices,bardMagicalSecretsEarned(c.level));delete c.spellReplacementDraft; }
 return {added:[],removed:[],learnChoices:Math.max(0,afterKnown-beforeKnown),replacements:gained,anyClassChoices:learning.anyClassChoices};
 }
@@ -3449,8 +3455,7 @@ economyServiceCache=new api.CurrencyService({currencies:economyState.currencies.
 return economyServiceCache;
 }
 function economyUserId(){
-const auth=window.dndFirebaseAuth&&window.dndFirebaseAuth.currentUser&&window.dndFirebaseAuth.currentUser();
-return String(auth&&(auth.uid||auth.email)||'local-gm');
+return 'local-gm';
 }
 function economyAccountFor(c){
 if(!c||typeof c!=='object')return null;
@@ -3748,8 +3753,8 @@ return ++saveStatusVersion;
 }
 async function persist(key,val,expectedStatusVersion){
 const ok=await store.set(key, JSON.stringify(val));
-if(!ok)setStatus('Хранилище недоступно — не забудьте «Выгрузить летопись»',true);
-else if(expectedStatusVersion==null||saveStatusVersion===expectedStatusVersion)setStatus('Записано в летопись ✓');
+if(!ok)setStatus('Хранилище недоступно. Оставьте страницу открытой и повторите сохранение.',true);
+else if(expectedStatusVersion==null||saveStatusVersion===expectedStatusVersion)setStatus('Сохранено ✓');
 return ok;
 }
 const WORLD_SNAPSHOT_SCHEMA='dnd-world-world-snapshot/1';
@@ -3781,7 +3786,7 @@ function validWorldSnapshot(value){return !!(value&&value.schemaVersion===WORLD_
 &&Array.isArray(value.spells)&&Array.isArray(value.abilities)&&Array.isArray(value.races)&&Array.isArray(value.classes)&&Array.isArray(value.rules)&&Array.isArray(value.foes));}
 let savePendWorld=false, savePendJournal=false;
 let scheduledSaveQueue=Promise.resolve(true),scheduledSaveOperations=0;
-async function runScheduledSaveNow(skipSyncTouch,progress){
+async function runScheduledSaveNow(progress){
 progress=progress||{};
 const w=savePendWorld, j=savePendJournal;
 savePendWorld=savePendJournal=false;
@@ -3792,7 +3797,7 @@ const snapshot=worldSnapshotPayload();let envelopeCommitted=false;
 if(campaignEnvelopeRepository){
 const envelopeResult=await campaignEnvelopeRepository.commit({campaignId:'default',expectedRevision:campaignEnvelopeRevision,state:snapshot,
 rulesetRefs:typeof rulesetActiveRefs==='function'?rulesetActiveRefs():[],catalogRefs:snapshot.catalogRefs});
-if(!envelopeResult.ok){savePendWorld=true;if(j)savePendJournal=true;const persistenceReason=String(envelopeResult.reason||envelopeResult.code||'неизвестная ошибка').replace(/[.!?]+\s*$/,'');setStatus(envelopeResult.conflict?'Сохранение отклонено: летопись была изменена в другом окне. Перезагрузите её перед повтором.':'Летопись не сохранена: '+persistenceReason+'.',true);return false;}
+if(!envelopeResult.ok){savePendWorld=true;if(j)savePendJournal=true;const persistenceReason=String(envelopeResult.reason||envelopeResult.code||'неизвестная ошибка').replace(/[.!?]+\s*$/,'');setStatus(envelopeResult.conflict?'Сохранение отклонено: данные были изменены в другом окне. Перезагрузите страницу перед повтором.':'Не удалось сохранить изменения: '+persistenceReason+'.',true);return false;}
 campaignEnvelopeRevision=envelopeResult.receipt.revision;campaignLastPersistenceReceipt=envelopeResult.receipt;envelopeCommitted=true;progress.worldSaved=true;
 }
 const snapshotOk=await persist('dndworld2:world-snapshot',snapshot,statusVersion);
@@ -3822,16 +3827,14 @@ if(j){
 if(await persist('dndworld2:journal',journal,statusVersion))progress.journalSaved=true;
 else{savePendJournal=true;if(!progress.worldSaved)return false;}
 }
-if(skipSyncTouch!==true&&typeof syncTouch==='function') syncTouch();
 return true;
 }
-function runScheduledSave(skipSyncTouch){
-if(campaignImportPreparing)return Promise.resolve(false);
+function runScheduledSave(){
 scheduledSaveOperations++;
 const execute=async()=>{
 const pendingWorld=savePendWorld,pendingJournal=savePendJournal,progress={worldSaved:false,journalSaved:false};
-try{if(campaignImportPreparing)return false;return await runScheduledSaveNow(skipSyncTouch,progress);}
-catch(error){if(pendingWorld&&!progress.worldSaved)savePendWorld=true;if(pendingJournal&&!progress.journalSaved)savePendJournal=true;setStatus((progress.worldSaved?'Мир сохранен, но не удалось завершить дополнительные записи: ':'Летопись не сохранена: ')+String(error&&error.message||error)+'.',true);return progress.worldSaved||progress.journalSaved;}
+try{return await runScheduledSaveNow(progress);}
+catch(error){if(pendingWorld&&!progress.worldSaved)savePendWorld=true;if(pendingJournal&&!progress.journalSaved)savePendJournal=true;setStatus((progress.worldSaved?'Мир сохранен, но не удалось завершить дополнительные записи: ':'Не удалось сохранить изменения: ')+String(error&&error.message||error)+'.',true);return progress.worldSaved||progress.journalSaved;}
 finally{scheduledSaveOperations--;}
 },queued=scheduledSaveQueue.then(execute,execute);
 scheduledSaveQueue=queued.catch(()=>false);return queued;
@@ -3846,12 +3849,12 @@ if(!scheduledSaveOperations){clearTimeout(saveTimer);runScheduledSave();}
 function scheduleSave(skipCombatSync){
 if(skipCombatSync!==true&&typeof combatSyncChanges==='function') combatSyncChanges();
 savePendWorld=true;
-clearTimeout(saveTimer); pendingSaveStatusVersion=setStatus('Перо скрипит…');
+clearTimeout(saveTimer); pendingSaveStatusVersion=setStatus('Сохраняем изменения…');
 saveTimer=setTimeout(runScheduledSave,600);
 }
 function scheduleJournalSave(){
 savePendJournal=true;
-clearTimeout(saveTimer); pendingSaveStatusVersion=setStatus('Перо скрипит…');
+clearTimeout(saveTimer); pendingSaveStatusVersion=setStatus('Сохраняем изменения…');
 saveTimer=setTimeout(runScheduledSave,600);
 }
 async function readJSON(key){
@@ -3880,7 +3883,7 @@ if(!iv.n) return;
 let db=itemsDB.find(x=>x.n===iv.n);
 if(!db){
 db={id:'it_'+uid(), n:iv.n, type:'equipment', rarity:'обычный', custom:true, tags:[], slot:null,
-weight:iv.w||'', cost:'', dmg:'', dmgType:'', desc:'(перенесено из прежней летописи)', props:''};
+weight:iv.w||'', cost:'', dmg:'', dmgType:'', desc:'', props:''};
 itemsDB.push(db);
 }
 c.inventory.push({id:'inv_'+uid(), itemId:db.id, qty:iv.q||1, notes:''});
@@ -3890,27 +3893,32 @@ if(!sv.n) return;
 let db=spellsDB.find(x=>x.n===sv.n);
 if(!db){
 db={id:'sp_'+uid(), n:sv.n, l:sv.l||0, s:'Воплощение', c:'', t:'', r:'', cm:'', d:'', ritual:false, conc:false,
-custom:true, tags:[], x:'(перенесено из прежней летописи)', hi:''};
+custom:true, tags:[], x:'', hi:''};
 spellsDB.push(db);
 }
 c.spellbook.push({spellId:db.id, prep:false});
 });
 return c;
 }
+async function readSavedParty(key){
+const raw=await store.get(key);if(raw==null)return null;
+try{const value=JSON.parse(raw);if(!Array.isArray(value))throw new Error('Список персонажей должен быть массивом.');if(value.some(row=>!row||typeof row!=='object'||Array.isArray(row)))throw new Error('Некорректная запись персонажа.');return value;}
+catch(error){setStatus('Не удалось прочитать сохранённых персонажей. Исходные данные оставлены без изменений; автоматическое создание группы остановлено.',true);throw error;}
+}
 async function loadAll(){
-setStatus('Открываю летопись…');
+setStatus('Загрузка данных…');
 let savedWorldRaw=null;
 if(campaignEnvelopeRepository){
 const envelopeRead=await campaignEnvelopeRepository.read();
-if(!envelopeRead.ok){setStatus('Летопись повреждена или имеет неподдерживаемый формат ('+(envelopeRead.code||'ошибка')+'). Автоматическая замена начальными данными запрещена.',true);throw new Error(envelopeRead.reason||envelopeRead.code);}
+if(!envelopeRead.ok){setStatus('Сохранённые данные повреждены или имеют неподдерживаемый формат ('+(envelopeRead.code||'ошибка')+'). Автоматическая замена начальными данными запрещена.',true);throw new Error(envelopeRead.reason||envelopeRead.code);}
 if(!envelopeRead.missing){campaignEnvelopeRevision=envelopeRead.revision;savedWorldRaw=envelopeRead.envelope.state;}
 else{
 const legacyRaw=await store.get('dndworld2:world-snapshot');
-if(legacyRaw){let legacyValue=null;try{legacyValue=JSON.parse(legacyRaw);}catch(error){setStatus('Старая летопись содержит повреждённый JSON. Исходные данные оставлены без изменений.',true);throw error;}
-if(!validWorldSnapshot(legacyValue)){setStatus('Старая летопись имеет неизвестную схему. Автоматическая миграция остановлена.',true);throw new Error('UNSUPPORTED_LEGACY_WORLD_SNAPSHOT');}
+if(legacyRaw){let legacyValue=null;try{legacyValue=JSON.parse(legacyRaw);}catch(error){setStatus('Сохранённые данные прежнего формата содержат повреждённый JSON. Исходные данные оставлены без изменений.',true);throw error;}
+if(!validWorldSnapshot(legacyValue)){setStatus('Сохранённые данные прежнего формата имеют неизвестную схему. Автоматическая миграция остановлена.',true);throw new Error('UNSUPPORTED_LEGACY_WORLD_SNAPSHOT');}
 const migrated=await PERSISTENCE_CORE.migrateWorldSnapshot(legacyValue,{campaignId:'default',transactionId:'migrate-world-snapshot-v1',catalogRefs:legacyValue.catalogRefs||[]}),installed=await campaignEnvelopeRepository.installMigrated(migrated,legacyRaw);
 if(!installed.ok){
-if(installed.code!=='WRITE_FAILED'){setStatus('Не удалось создать проверяемый конверт летописи: '+(installed.reason||installed.code)+'.',true);throw new Error(installed.reason||installed.code);}
+if(installed.code!=='WRITE_FAILED'){setStatus('Не удалось подготовить сохранение: '+(installed.reason||installed.code)+'.',true);throw new Error(installed.reason||installed.code);}
 /* Исходный legacy-снимок уже прошёл строгую проверку, а конверт — криптографическую.
 Если браузер запретил все долговечные записи, продолжаем без мутации источника. */
 campaignEnvelopeRevision=-1;campaignLastPersistenceReceipt=null;campaignEnvelopeReadOnlyFallback=true;savedWorldRaw=migrated.state;
@@ -3920,6 +3928,9 @@ campaignEnvelopeRevision=-1;campaignLastPersistenceReceipt=null;campaignEnvelope
 }
 if(!savedWorldRaw)savedWorldRaw=await readJSON('dndworld2:world-snapshot');
 const savedWorld=validWorldSnapshot(savedWorldRaw)?savedWorldRaw:null;
+// Validate existing party bytes before any catalogue migration can queue a save.
+const savedChars=savedWorld?savedWorld.chars:await readSavedParty('dndworld2:chars');
+const oldChars=Array.isArray(savedChars)?null:await readSavedParty('dndworld:chars');
 campaignMagic=MAGIC_RULES.settings(savedWorld&&savedWorld.campaignMagic);
 recipeState=RECIPE_RULES.state(savedWorld&&savedWorld.recipeState);
 worldState=WORLD_STATE_CORE?WORLD_STATE_CORE.normalize(savedWorld&&savedWorld.worldState||WORLD_STATE_CORE.blank('default')):(savedWorld&&savedWorld.worldState||worldState);
@@ -3951,23 +3962,18 @@ enrichAllTags();
 await store.set('dndworld2:tagver','2');
 scheduleSave();
 }
-const savedChars=savedWorld?savedWorld.chars:await readJSON('dndworld2:chars');
-if(savedChars){ chars=savedChars; }
-else{
-chars=[buildRoku()];
-const old=await readJSON('dndworld:chars');
-if(old && old.length) old.forEach(o=>chars.push(upgradeOldChar(o)));
-}
+const hasSavedParty=Array.isArray(savedChars)||Array.isArray(oldChars);
+chars=Array.isArray(savedChars)?savedChars:Array.isArray(oldChars)?oldChars.map(upgradeOldChar):[buildRoku()];
 if(typeof bg3InventoryStatusTransitionReset==='function')bg3InventoryStatusTransitionReset();
 let bg3LearnedStateTouched=false;chars.forEach(c=>{ if(typeof upgradeChar3==='function') upgradeChar3(c);if(bg3LearnedSpellUpgradeEntries(c))bg3LearnedStateTouched=true; });bg3GithbornMindcrusherTrustCharacters(chars);
-if(typeof ensureTorgar==='function') await ensureTorgar();
-if(typeof ensureSeptih==='function') await ensureSeptih();
-if(typeof ensureLegerem==='function') await ensureLegerem();
+if(!hasSavedParty&&typeof ensureTorgar==='function') await ensureTorgar();
+if(!hasSavedParty&&typeof ensureSeptih==='function') await ensureSeptih();
+if(!hasSavedParty&&typeof ensureLegerem==='function') await ensureLegerem();
 if(typeof ensureSpellAudit==='function') await ensureSpellAudit();
-if(typeof ensureCharAudit==='function') await ensureCharAudit();
+if(!hasSavedParty&&typeof ensureCharAudit==='function') await ensureCharAudit();
 if(typeof ensureItemAudit==='function') await ensureItemAudit();
 if(typeof ensureAbilityAudit==='function') await ensureAbilityAudit();
-if(typeof ensureCombatLoadouts==='function') await ensureCombatLoadouts();
+if(!hasSavedParty&&typeof ensureCombatLoadouts==='function') await ensureCombatLoadouts();
 if(typeof ensureFoeAudit==='function') await ensureFoeAudit();
 /* Дополнения и аудиты выше могли добавить или исправить справочные записи.
 Финальный проход гарантирует единый исполняемый контракт для всей базы. */
@@ -3987,13 +3993,13 @@ bg3SceneState=bg3SceneNormalizeState(savedWorld?savedWorld.bg3SceneState:await r
 bg3StoryState=bg3StoryNormalizeState(savedWorld?savedWorld.bg3StoryState:await readJSON('dndworld2:bg3-story-state'));
 bg3TadpoleState=bg3TadpoleStandardState(savedWorld?savedWorld.bg3TadpoleState:await readJSON('dndworld2:bg3-tadpole-state'));
 bg3TreasureState=bg3TreasureNormalizeState(savedWorld?savedWorld.bg3TreasureState:await readJSON('dndworld2:bg3-treasure-state'));
-const localArsenalPrune=pruneIncompleteCampaignArsenal();if(localArsenalPrune.removed)scheduleSave();
+if(!hasSavedParty){const localArsenalPrune=pruneIncompleteCampaignArsenal();if(localArsenalPrune.removed)scheduleSave();}
 combat.order=combat.order.filter(e=>e&&((e.kind==='ally'&&chars.some(c=>c.id===e.id))||(e.kind==='foe'&&foesDB.some(f=>f.id===e.id))));
 if(typeof combatRepairRuntime==='function') combatRepairRuntime();
 const bg3ProfileMigrationNeeded=bg3HonourProfileMigrated||bg3CatalogHasHonourLearnedSpells(chars),bg3Reissue=await bg3CatalogMigrateSameVersionReissue({migrateProfileFrom:bg3ProfileMigrationNeeded?'honour':''}),bg3World=await bg3CatalogHydrateWorld(),bg3LearnedProfile=await bg3CatalogMigrateLearnedHonourToStandard();
 if(!bg3Reissue.ok)setStatus('Обновлённая публикация каталога не прошла проверку; сохранённая ссылка не изменена.',true);
 if(!bg3LearnedProfile.ok)setStatus('Обычные правила включены, но часть изученных заклинаний каталога не удалось безопасно перепривязать: '+bg3LearnedProfile.reason,true);
-if(bg3Reissue.ok&&bg3LearnedProfile.ok&&!bg3Catalog.error&&bg3World.ok){if(bg3ProfileMigrationNeeded)scheduleSave();setStatus(campaignEnvelopeReadOnlyFallback?'Летопись открыта · режим только для чтения · хранилище недоступно, выгрузите летопись':'Летопись открыта · обычные правила',campaignEnvelopeReadOnlyFallback);}
+if(bg3Reissue.ok&&bg3LearnedProfile.ok&&!bg3Catalog.error&&bg3World.ok){if(bg3ProfileMigrationNeeded)scheduleSave();setStatus(campaignEnvelopeReadOnlyFallback?'Данные загружены · режим только для чтения · хранилище недоступно. Оставьте страницу открытой.':'Данные загружены · обычные правила',campaignEnvelopeReadOnlyFallback);}
 }
 
 
@@ -4263,119 +4269,6 @@ rows:[{key:'s',label:'Сумма '+cnt+'d'+sides,sub:'от '+cnt+' до '+(cnt*s
 compute:v=>inp.value.trim()+' → '+(v.s+mod2),
 apply:v=>diceOutSet(inp.value.trim()+' → '+(v.s+mod2)+' (кости '+v.s+(mod2?(mod2>0?' +':' ')+mod2:'')+')')});
 }
-let campaignImportBusy=false,campaignImportPreparing=false;
-function dndWorldExportPayload(){
-return {app:'dndworld2', exported:new Date().toISOString(),campaignMagic,recipeState,fxRound,
-chars, journal, combat, harvestedSources, economyState, merchantState, worldState, chestState, items:itemsDB, spells:spellsDB, abilities:abilitiesDB, races:racesDB, classes:classesDB, rules:rulesDB, foes:foesDB,
-catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};
-}
-function doExport(){
-const blob=new Blob([JSON.stringify(dndWorldExportPayload(), null, 2)], {type:'application/json'});
-const a=document.createElement('a');
-a.href=URL.createObjectURL(blob); a.download='dnd-world-letopis.json'; a.click();
-URL.revokeObjectURL(a.href);
-}
-function validateCampaignImport(data){
-if(!data||!['dndworld','dndworld2'].includes(data.app))return false;
-const arrays=['chars','journal','items','spells','abilities','races','classes','rules','foes','catalogRefs'];
-if(!Array.isArray(data.chars))throw new Error('В летописи отсутствует список персонажей.');
-for(const key of arrays){
-if(data[key]===undefined)continue;
-if(!Array.isArray(data[key]))throw new Error('Поле «'+key+'» должно быть списком.');
-const ids=new Set();
-for(const row of data[key]){
-if(!row||typeof row!=='object'||Array.isArray(row))throw new Error('Некорректная запись в «'+key+'».');
-if(row.id!=null){const id=String(row.id);if(!id.trim()||ids.has(id))throw new Error('Пустой или повторный идентификатор в «'+key+'».');ids.add(id);}
-}
-}
-for(const c of data.chars)for(const key of ['inventory','spellbook','abilities','activeFx'])if(c[key]!==undefined&&!Array.isArray(c[key]))throw new Error('Поле персонажа «'+key+'» должно быть списком.');
-return true;
-}
-async function dndWorldImportPayload(data){
-if(!validateCampaignImport(data))return {ok:false,reason:'not-dnd-world'};
-if(campaignImportBusy||combatActionKernel&&combatActionKernel.inFlight.size||rollSpec||rollQueue.length||castCtx)return {ok:false,reason:'Сначала завершите текущее игровое действие.'};
-data=JSON.parse(JSON.stringify(data));
-campaignImportBusy=true;let checkpoint=null,previous=null,identity=null,committed=false,catalogWarning='';
-try{
-clearTimeout(saveTimer);
-if(!await runScheduledSave()||savePendWorld||savePendJournal)return {ok:false,reason:'Текущую летопись не удалось сохранить. Импорт отменен.'};
-previous={...dndWorldExportPayload(),activeCharId,fxRound,savePendWorld,savePendJournal};
-identity=bg3InterruptIdentitySnapshot(Object.values(previous));checkpoint=bg3InterruptWorldCheckpoint([]);
-campaignImportPreparing=true;
-if(data&&data.app==='dndworld2'){
-const importedMagic=MAGIC_RULES.settings(data.campaignMagic);
-for(const c of (data.chars||[])){MAGIC_RULES.slots(c.slots);if(c.magicResource)MAGIC_RULES.validateState(c.magicResource);}
-campaignMagic=importedMagic;recipeState=RECIPE_RULES.state(data.recipeState);
-chars=data.chars||[]; journal=data.journal||[];
-if(typeof bg3InventoryStatusTransitionReset==='function')bg3InventoryStatusTransitionReset();
-combat=normalizeCombatState(data.combat);fxRound=Number.isSafeInteger(data.fxRound)&&data.fxRound>0?data.fxRound:1;
-harvestedSources=data.harvestedSources&&typeof data.harvestedSources==='object'?data.harvestedSources:{};
-economyState=normalizeEconomyState(data.economyState);economyServiceCache=null;
-merchantState=normalizeMerchantState(data.merchantState);merchantServiceCache=null;activeMerchantId=null;
-worldState=WORLD_STATE_CORE?WORLD_STATE_CORE.normalize(data.worldState||WORLD_STATE_CORE.blank('default')):(data.worldState||worldState);
-chestState=CHEST_CORE?CHEST_CORE.normalizeState(data.chestState):(data.chestState||chestState);
-bg3SceneState=bg3SceneNormalizeState(data.bg3SceneState);
-bg3StoryState=bg3StoryNormalizeState(data.bg3StoryState);
-bg3TadpoleState=bg3TadpoleStandardState(data.bg3TadpoleState);
-bg3TreasureState=bg3TreasureNormalizeState(data.bg3TreasureState);
-chars.forEach(c=>{ if(typeof upgradeChar3==='function') upgradeChar3(c); });bg3GithbornMindcrusherTrustCharacters(chars);
-itemsDB=data.items||itemsDB; spellsDB=data.spells||spellsDB; abilitiesDB=data.abilities||abilitiesDB;
-racesDB=data.races||racesDB; classesDB=data.classes||classesDB; rulesDB=data.rules||rulesDB; foesDB=data.foes||foesDB;
-itemsDB.forEach(upgradeItem);
-spellsDB.forEach(upgradeSpell);
-abilitiesDB.forEach(upgradeAbility);
-racesDB.forEach(upgradeRace);
-classesDB.forEach(upgradeClass);
-foesDB.forEach(upgradeFoe);
-pruneIncompleteCampaignArsenal();
-grimoireReconcile(spellsDB,chars);
-reconcileAbilityRules(abilitiesDB);
-const importedCatalogRefs=Array.isArray(data.catalogRefs)?data.catalogRefs:[],importedHonourProfile=bg3CatalogHasLegacyHonourRef(importedCatalogRefs),catalogRefsOk=bg3CatalogUseRefs(bg3CatalogStandardRefs(importedCatalogRefs));
-if(!catalogRefsOk)throw new Error('Ссылка на каталог предметов в файле некорректна. Прежняя летопись сохранена.');
-if(catalogRefsOk)chars.forEach(bg3LearnedSpellUpgradeEntries);
-if(typeof combatRepairRuntime==='function') combatRepairRuntime();
-try{if(catalogRefsOk){const profileMigrationNeeded=importedHonourProfile||bg3CatalogHasHonourLearnedSpells(chars),reissue=await bg3CatalogMigrateSameVersionReissue({migrateProfileFrom:profileMigrationNeeded?'honour':''});if(!reissue.ok)throw new Error(reissue.reason);await bg3CatalogHydrateWorld({rethrow:true});const learnedProfile=await bg3CatalogMigrateLearnedHonourToStandard();if(!learnedProfile.ok)catalogWarning=' Обычные правила включены, но часть изученных заклинаний каталога не удалось безопасно перепривязать: '+learnedProfile.reason;else if(profileMigrationNeeded)catalogWarning=' Сохранение переведено на обычные правила.';}}
-catch(error){catalogWarning=' Каталог предметов пока недоступен: ссылки сохранены, действия с ними заблокированы ('+error.message+').';}
-} else if(data&&data.app==='dndworld'){
-journal=data.journal||journal;
-(data.chars||[]).forEach(o=>chars.push(upgradeOldChar(o)));
-} else return {ok:false,reason:'not-dnd-world'};
-reconcileAbilityAssignments();activeCharId=null;
-scheduleSave(); scheduleJournalSave();clearTimeout(saveTimer);campaignImportPreparing=false;
-if(!await runScheduledSave())throw new Error('Импорт не удалось сохранить. Прежняя летопись восстановлена.');
-committed=true;
-if(savePendJournal)catalogWarning+=' Журнал пока не сохранен; оставьте страницу открытой и повторите сохранение.';
-try{renderChars(); renderCombat(); renderJournal(); renderSpellsDB(); renderItemsDB(); if(typeof renderChests==='function')renderChests(); renderMerchants(); renderAbilitiesDB(); renderRaces(); renderClasses(); renderRules(); renderFoes();}
-catch(error){catalogWarning+=' Летопись сохранена, но представление не обновилось; перезагрузите страницу.';}
-return {ok:true,catalogWarning};
-}catch(error){
-if(previous&&!committed){
-clearTimeout(saveTimer);bg3CatalogUseRefs(previous.catalogRefs);bg3InterruptIdentityRestore(identity);bg3InterruptWorldRestore(checkpoint);
-campaignMagic=previous.campaignMagic;recipeState=previous.recipeState;chars=previous.chars;journal=previous.journal;combat=previous.combat;harvestedSources=previous.harvestedSources;
-economyState=previous.economyState;merchantState=previous.merchantState;worldState=previous.worldState;chestState=previous.chestState;economyServiceCache=null;merchantServiceCache=null;
-itemsDB=previous.items;spellsDB=previous.spells;abilitiesDB=previous.abilities;racesDB=previous.races;classesDB=previous.classes;rulesDB=previous.rules;foesDB=previous.foes;
-bg3SceneState=previous.bg3SceneState;bg3StoryState=previous.bg3StoryState;bg3TadpoleState=previous.bg3TadpoleState;bg3TreasureState=previous.bg3TreasureState;
-activeCharId=previous.activeCharId;fxRound=previous.fxRound;savePendWorld=previous.savePendWorld;savePendJournal=previous.savePendJournal;fxInvalidate();
-}
-throw error;
-}finally{campaignImportPreparing=false;campaignImportBusy=false;}
-}
-function doImport(inp){
-const f=inp.files&&inp.files[0]; if(!f) return;
-const rd=new FileReader();
-rd.onload=async()=>{
-const surface=document.querySelector('.wrap'),wasInert=surface&&surface.inert;
-try{
-const data=JSON.parse(rd.result);
-if(surface){surface.inert=true;surface.setAttribute('aria-busy','true');}
-const imported=await dndWorldImportPayload(data);if(!imported.ok){alert(imported.reason==='not-dnd-world'?'Это не летопись D&D World.':imported.reason);return;}
-alert('Летопись загружена.'+imported.catalogWarning);
-}catch(e){ alert('Летопись не загружена: '+e.message); }
-finally{if(surface){surface.inert=wasInert;surface.removeAttribute('aria-busy');}}
-};
-rd.readAsText(f); inp.value='';
-}
-
 /* ═══════════════ ДВИЖОК ЭФФЕКТОВ ═══════════════
 Эффект: {stat, mode:'add'|'text', value, note}
 stat: ac, hpmax, hp, init, speed, atk, dmg, passperc,
@@ -8456,7 +8349,7 @@ const r=applyHealTo(targetVal, rolls.healTotal, srcLabel,ti);
 if(r&&r.blocked){ info+=' · лечение не применено ('+r.reason+')'; }
 else if(r){ info+=' · лечение +'+rolls.healTotal+' хитов ('+r.name+': '+r.hp+'/'+r.hpMax+')'+(r.extra||'');
 diceOutSet(srcLabel+' → '+r.name+': +'+rolls.healTotal+' хитов','var(--ok)'); }
-else info+=' · лечение +'+rolls.healTotal+' хитов (цель вне листов — записано в летопись)';
+else info+=' · лечение +'+rolls.healTotal+' хитов';
 }
 if(rolls.tempTotal!=null&&rolls.tempTotal>0){
 const r=applyTempHp(targetVal, rolls.tempTotal,ti);
@@ -10491,7 +10384,7 @@ if(granted) restored.granted=true;if(alwaysPrepared)restored.alwaysPrepared=true
 if(noPrep)restored.countsAgainstPreparation=false;if(noKnown)restored.countsAgainstKnown=false;
 delete restored.anyClassKnown;delete restored.auto;
 c.spellbook=c.spellbook.filter((x,i)=>i===fresh.existingIndex||x.spellId!==fresh.spell.id);
-}else c.spellbook.push({spellId:fresh.spell.id,prep:false,access:'spellbook',source:'Переписано со свитка'});
+}else c.spellbook.push({spellId:fresh.spell.id,prep:false,access:'spellbook',bookCopy:true,bookSource:'Переписано со свитка',source:'Переписано со свитка'});
 }
 const consumed=(fresh.consumeFx||[]).slice();
 if(consumed.length) consumeRollFx(c,consumed);
@@ -15903,7 +15796,7 @@ const body=inner
 : (isBg3?'Описание этой записи не раскрывается хранилищем предметов.':([itemPlayerModel(it).description,itemPlayerModel(it).gameplayDescription,itemPlayerModel(it).properties].filter(Boolean).join('\n\n')
 || 'Мастер еще не вписал, что здесь написано. Поле «Содержание» — на вкладке «Предметы».'));
 askShow({title:'📖 '+itemName, body,
-note:inner?('Читает '+c.name+' — отмечено в летописи.')
+note:inner?''
 :('Своего текста у записи пока нет — показано описание. Впишите содержание в поле «Содержание» на вкладке «Предметы».')});
 scheduleSave(); renderChars();
 itemLog(c,'📖 '+c.name+' изучает: '+itemName);
@@ -16269,479 +16162,6 @@ return h+'</div>';
 
 
 
-
-
-const CLOUD_PAUSED=false;
-const DEFAULT_DB_URL='https://best-dnd-campaign-ever-default-rtdb.firebaseio.com';
-const DEFAULT_ROOM='SpeakFriendAndEnter2026';
-const STRUCTURED_RELEASE='structured-engine-4.1-20260810';
-
-let syncCfg=null, syncOn=false, syncClientId=null, syncReleasePending=false;
-
-function lsGet(k){ try{ return window.localStorage.getItem(k); }catch(e){ return null; } }
-function lsSet(k,v){ try{ window.localStorage.setItem(k,v); }catch(e){} }
-
-function syncLoadCfg(){
-try{ syncCfg=JSON.parse(lsGet('dndworld2:synccfg')||'null'); }catch(e){ syncCfg=null; }
-if(!syncCfg && DEFAULT_DB_URL){ syncCfg={url:DEFAULT_DB_URL, room:DEFAULT_ROOM, on:true}; syncSaveCfg(); }
-
-
-const defaultCfg=syncCfg&&String(syncCfg.url||'').replace(/\/+$/,'')===DEFAULT_DB_URL
-&&String(syncCfg.room||'')===DEFAULT_ROOM;
-if(defaultCfg&&lsGet('dndworld2:sync-rollout')!==STRUCTURED_RELEASE){
-syncCfg.on=true; syncSaveCfg(); lsSet('dndworld2:sync-rollout',STRUCTURED_RELEASE);
-}
-syncReleasePending=defaultCfg&&lsGet('dndworld2:release-pending')===STRUCTURED_RELEASE;
-syncClientId=lsGet('dndworld2:clientid');
-if(!syncClientId){ syncClientId='cl_'+Math.random().toString(36).slice(2,10); lsSet('dndworld2:clientid',syncClientId); }
-}
-function syncSaveCfg(){ lsSet('dndworld2:synccfg', JSON.stringify(syncCfg||{})); }
-
-function syncBase(){
-if(!syncCfg||!syncCfg.url) return null;
-const u=String(syncCfg.url).trim().replace(/\/+$/,'');
-return /^https:\/\/.+/.test(u)? u : null;
-}
-function syncRoom(){ return String((syncCfg&&syncCfg.room)||'').trim().replace(/[^a-zA-Z0-9_-]/g,''); }
-
-function syncNeedsOwnerAuth(){
-const b=syncBase();
-return !!b && b===DEFAULT_DB_URL;
-}
-function syncAuthApi(){ return window.dndFirebaseAuth||null; }
-function syncAuthReady(timeoutMs){
-const api=syncAuthApi();
-if(api) return Promise.resolve(api);
-return new Promise(resolve=>{
-let done=false;
-const finish=()=>{ if(done) return; done=true; resolve(syncAuthApi()); };
-window.addEventListener('dnd-firebase-auth-ready',finish,{once:true});
-setTimeout(finish,timeoutMs||8000);
-});
-}
-async function syncAuthToken(forceRefresh){
-if(!syncNeedsOwnerAuth()) return '';
-const api=await syncAuthReady();
-if(!api) return null;
-await api.ready;
-return api.currentUser()?api.getToken(!!forceRefresh):null;
-}
-function syncUrlWithAuth(url,token){
-if(!token) return url;
-return url+(url.includes('?')?'&':'?')+'auth='+encodeURIComponent(token);
-}
-function syncRenderAuth(){
-const box=document.getElementById('syncAuthState');
-const inBtn=document.getElementById('syncAuthIn');
-const outBtn=document.getElementById('syncAuthOut');
-const api=syncAuthApi(), user=api&&api.currentUser?api.currentUser():null;
-if(box) box.textContent=user?'Владелец авторизован ✓':'Требуется вход владельца';
-if(box) box.className='sync-status'+(user?' ok':'');
-if(inBtn) inBtn.style.display=user?'none':'';
-if(outBtn) outBtn.style.display=user?'':'none';
-}
-async function syncAuthSignIn(){
-const api=syncAuthApi();
-if(!api){ syncStatus('Модуль защищенного входа еще загружается','err'); return false; }
-try{
-await api.signIn();
-syncRenderAuth();
-if(api.currentUser()) await syncConnect(false);
-return !!api.currentUser();
-}catch(e){
-if(e&&e.code==='auth/popup-closed-by-user') return false;
-syncStatus('Вход не выполнен — '+(e&&e.message?e.message:'неизвестная ошибка'),'err');
-return false;
-}
-}
-async function syncAuthSignOut(){
-const api=syncAuthApi();
-syncChans.forEach(syncCloseStream); syncOn=false;
-if(api) await api.signOut();
-syncRenderAuth(); syncStatus('Облако защищено: выполните вход владельца');
-}
-if(typeof window.addEventListener==='function') window.addEventListener('dnd-firebase-auth-changed',()=>{
-syncRenderAuth();
-const api=syncAuthApi();
-if(api&&api.currentUser()&&syncCfg&&syncCfg.on&&!syncOn) syncConnect(false);
-else if(syncNeedsOwnerAuth()&&(!api||!api.currentUser())){
-syncChans.forEach(syncCloseStream); syncOn=false;
-syncStatus('Облако защищено: выполните вход владельца');
-}
-});
-
-function syncStatus(t,cls){
-const el=document.getElementById('syncStatus');
-if(el){ el.textContent=t; el.className='sync-status'+(cls?' '+cls:''); }
-const btn=document.getElementById('cloudBtn');
-if(btn){ btn.classList.toggle('cloud-on', !!syncOn); btn.textContent=syncOn?'☁ Облако ✓':'☁ Облако'; }
-}
-
-
-
-function makeChan(name, key, urlFn, payloadFn, applyFn){
-const dirtyParentRaw=lsGet('dndworld2:syncparent:'+key),dirtyParentRevision=dirtyParentRaw==null||dirtyParentRaw===''?null:+dirtyParentRaw;
-return { name, key, url:urlFn, payloadOf:payloadFn, applyData:applyFn,
-lastAt:+(lsGet('dndworld2:synclast:'+key)||0),remoteRevision:+(lsGet('dndworld2:syncrev:'+key)||0),dirtyParentRevision:Number.isSafeInteger(dirtyParentRevision)?dirtyParentRevision:null,
-es:null, pushTimer:null, retryTimer:null, pending:null };
-}
-const chWorld=makeChan('мир','w',
-()=>{ const b=syncBase(); return b? b+'/world.json' : null; },
-()=>({ items:itemsDB, spells:spellsDB, abilities:abilitiesDB, races:racesDB, classes:classesDB, rules:rulesDB, foes:foesDB }),
-(d)=>{
-itemsDB=d.items||[]; spellsDB=d.spells||[]; abilitiesDB=d.abilities||[];
-racesDB=d.races||racesDB; classesDB=d.classes||classesDB; rulesDB=d.rules||rulesDB; foesDB=d.foes||foesDB;
-itemsDB.forEach(upgradeItem); spellsDB.forEach(upgradeSpell); abilitiesDB.forEach(upgradeAbility);grimoireReconcile(spellsDB,chars);
-racesDB.forEach(upgradeRace); classesDB.forEach(upgradeClass);
-foesDB.forEach(upgradeFoe);
-pruneIncompleteCampaignArsenal();
-renderSpellsDB(); renderItemsDB(); renderAbilitiesDB(); renderRaces(); renderClasses(); renderRules(); renderFoes(); renderChars();
-});
-const chCamp=makeChan('кампания','c',
-()=>{ const b=syncBase(), r=syncRoom(); return (b&&r)? b+'/campaigns/'+r+'.json' : null; },
-()=>({ chars, journal, combat, recipeState, harvestedSources, economyState, merchantState, worldState, chestState, catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState }),
-(d)=>{ const incomingRefs=Array.isArray(d.catalogRefs)?d.catalogRefs:[],incomingHonourProfile=bg3CatalogHasLegacyHonourRef(incomingRefs),catalogRefsOk=bg3CatalogUseRefs(bg3CatalogStandardRefs(incomingRefs));
-if(!catalogRefsOk)setStatus('Кампания содержит некорректную ссылку на каталог BG3.',true);
-recipeState=RECIPE_RULES.state(d.recipeState);
-chars=(d.chars||[]).map(x=>typeof upgradeChar3==='function'?upgradeChar3(x):x);chars.forEach(bg3LearnedSpellUpgradeEntries); journal=d.journal||[];
-combat=normalizeCombatState(d.combat); harvestedSources=d.harvestedSources&&typeof d.harvestedSources==='object'?d.harvestedSources:{};
-economyState=normalizeEconomyState(d.economyState);economyServiceCache=null;
-merchantState=normalizeMerchantState(d.merchantState);merchantServiceCache=null;
-worldState=WORLD_STATE_CORE?WORLD_STATE_CORE.normalize(d.worldState||WORLD_STATE_CORE.blank('default')):(d.worldState||worldState);
-chestState=CHEST_CORE?CHEST_CORE.normalizeState(d.chestState):(d.chestState||chestState);
-bg3SceneState=bg3SceneNormalizeState(d.bg3SceneState);
-bg3StoryState=bg3StoryNormalizeState(d.bg3StoryState);
-bg3TadpoleState=bg3TadpoleStandardState(d.bg3TadpoleState);
-bg3TreasureState=bg3TreasureNormalizeState(d.bg3TreasureState);
-if(typeof combatRepairRuntime==='function') combatRepairRuntime();const profileMigrationNeeded=incomingHonourProfile||bg3CatalogHasHonourLearnedSpells(chars);bg3CatalogMigrateSameVersionReissue({migrateProfileFrom:profileMigrationNeeded?'honour':''}).then(result=>{if(!result.ok)throw new Error(result.reason);return bg3CatalogHydrateWorld({rethrow:true});}).then(()=>bg3CatalogMigrateLearnedHonourToStandard()).then(result=>{if(!result.ok)setStatus('Облачная кампания открыта в обычных правилах, но часть изученных заклинаний не перепривязана: '+result.reason,true);renderChars();}).catch(error=>{setStatus('Облачная кампания открыта в обычных правилах, но каталог не прошёл проверку: '+String(error&&error.message||error),true);renderChars();}); renderChars(); renderCombat(); if(typeof renderChests==='function')renderChests(); renderJournal(); });
-const syncChans=[chWorld, chCamp];
-
-function mergeStableEntries(primary,secondary){
-const out=[],seen={};
-(Array.isArray(primary)?primary:[]).concat(Array.isArray(secondary)?secondary:[]).forEach((x,i)=>{
-if(!x||typeof x!=='object') return;
-const key=x.id?'id:'+x.id:'sig:'+JSON.stringify([x.date||'',x.title||'',x.name||'',x.startedAt||'',x.text||'']);
-if(seen[key]) return; seen[key]=1; out.push(x);
-});
-return out;
-}
-
-
-
-function structuredReleaseCampaignPayload(remote){
-remote=remote&&typeof remote==='object'?remote:{};
-const builtin={char_roku:1,char_torgar:1,char_septih:1,char_legerem:1};
-const remoteCustom=(remote.chars||[]).filter(c=>c&&!builtin[c.id]);
-const localCustom=(chars||[]).filter(c=>c&&!builtin[c.id]);
-const custom=mergeStableEntries(remoteCustom,localCustom).map(resetCustomCharacterForCombat);
-const nextChars=[buildRoku(),buildTorgar(),buildSeptih(),buildLegerem()].concat(custom);
-if(typeof upgradeChar3==='function') nextChars.forEach(upgradeChar3);
-const nextJournal=mergeStableEntries(remote.journal,journal);
-const nextCombat=blankCombat();
-nextCombat.history=mergeStableEntries(remote.combat&&remote.combat.history,combat&&combat.history).slice(0,20);
-const nextHarvested=Object.assign({},harvestedSources,remote.harvestedSources&&typeof remote.harvestedSources==='object'?remote.harvestedSources:{});
-const catalogRefs=bg3CatalogStandardRefs(Array.isArray(remote.catalogRefs)?remote.catalogRefs:bg3CatalogRefs());
-const learnedCatalog=bg3LearnSpellCatalogIdentityFromRefs(catalogRefs);nextChars.forEach(c=>bg3LearnedSpellUpgradeEntries(c,learnedCatalog));
-const nextScene=bg3SceneNormalizeState(remote.bg3SceneState||bg3SceneState);
-const nextStory=bg3StoryNormalizeState(remote.bg3StoryState||bg3StoryState);
-const nextTadpole=bg3TadpoleStandardState(remote.bg3TadpoleState||bg3TadpoleState);
-const nextTreasure=bg3TreasureNormalizeState(remote.bg3TreasureState||bg3TreasureState);
-const remoteEconomy=normalizeEconomyState(remote.economyState),nextEconomy=normalizeEconomyState(economyState);
-nextEconomy.operations=mergeStableEntries(remoteEconomy.operations,nextEconomy.operations);nextEconomy.priceAudit=mergeStableEntries(remoteEconomy.priceAudit,nextEconomy.priceAudit);
-nextEconomy.priceSettings=Object.assign({},nextEconomy.priceSettings,remoteEconomy.priceSettings);nextEconomy.tradeContext=Object.assign({},nextEconomy.tradeContext,remoteEconomy.tradeContext);
-return {chars:nextChars,journal:nextJournal,combat:nextCombat,recipeState:RECIPE_RULES.state(remote.recipeState||recipeState),harvestedSources:nextHarvested,economyState:nextEconomy,catalogRefs,bg3SceneState:nextScene,bg3StoryState:nextStory,bg3TadpoleState:nextTadpole,bg3TreasureState:nextTreasure};
-}
-
-
-
-async function applyStructuredReleaseMigration(){
-const key='dndworld2:structured-release';
-if((await store.get(key))===STRUCTURED_RELEASE){
-syncReleasePending=lsGet('dndworld2:release-pending')===STRUCTURED_RELEASE;
-return false;
-}
-restorePartyAndCombatState();
-await store.set('dndworld2:chars',JSON.stringify(chars));
-await store.set('dndworld2:foes',JSON.stringify(foesDB));
-await store.set('dndworld2:journal',JSON.stringify(journal));
-await store.set('dndworld2:combat',JSON.stringify(combat));
-await store.set('dndworld2:harvested-sources',JSON.stringify(harvestedSources));
-await store.set('dndworld2:economy-state',JSON.stringify(economyState));
-await store.set('dndworld2:catalog-refs',JSON.stringify(bg3CatalogStandardRefs(bg3CatalogRefs())));
-await store.set('dndworld2:bg3-scene-state',JSON.stringify(bg3SceneState));
-await store.set('dndworld2:bg3-story-state',JSON.stringify(bg3StoryState));
-await store.set('dndworld2:bg3-tadpole-state',JSON.stringify(bg3TadpoleState));
-await store.set('dndworld2:bg3-treasure-state',JSON.stringify(bg3TreasureState));
-await store.set('dndworld2:fxround',JSON.stringify(fxRound));
-await store.set(key,STRUCTURED_RELEASE);
-lsSet('dndworld2:release-pending',STRUCTURED_RELEASE);
-syncReleasePending=true;
-return true;
-}
-
-
-async function syncPersistLocal(){
-
-
-savePendWorld=true;savePendJournal=true;clearTimeout(saveTimer);return runScheduledSave(true);
-}
-function syncMessageData(msg){if(msg&&msg.payload&&typeof msg.payload==='object')return msg.payload;if(msg&&typeof msg.j==='string')return JSON.parse(msg.j);throw new Error('облачное сообщение не содержит payload');}
-function syncObserveRevision(ch,msg){const revision=PERSISTENCE_CORE?PERSISTENCE_CORE.cloudRevision(msg):0;ch.remoteRevision=revision;lsSet('dndworld2:syncrev:'+ch.key,String(revision));return revision;}
-function syncApplyRemote(ch,msg,options){
-const replaceLocal=!!(options&&options.replaceLocal);
-if(campaignImportBusy||gameActionInteractionLocked()||!replaceLocal&&(ch.pendingConflict||ch.dirtyParentRevision!=null||lsGet('dndworld2:dirty:'+ch.key)==='1'||hasUnsavedCampaignChanges())){
-ch.pending=msg;ch.pendingConflict=true;clearTimeout(ch.retryTimer);
-syncStatus('Облако: конфликт ('+ch.name+') — есть локальные изменения. Переподключитесь и выберите нужную версию.','err');return false;
-}
-const ae=document.activeElement;
-const typing=ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA') && ae.closest && ae.closest('.leaf');
-if(typing&&!replaceLocal){
-ch.pending=msg;
-clearTimeout(ch.retryTimer);
-ch.retryTimer=setTimeout(()=>{ const m=ch.pending; ch.pending=null; if(m) syncApplyRemote(ch,m); },2500);
-return;
-}
-try{
-const d=syncMessageData(msg);
-ch.applyData(d);
-ch.pending=null;ch.pendingConflict=false;clearTimeout(ch.retryTimer);
-if(typeof bg3InventoryStatusTransitionReset==='function')bg3InventoryStatusTransitionReset();
-ch.lastAt=msg.at||Date.now();
-syncObserveRevision(ch,msg);ch.dirtyParentRevision=null;lsSet('dndworld2:syncparent:'+ch.key,'');
-lsSet('dndworld2:synclast:'+ch.key,String(ch.lastAt)); lsSet('dndworld2:dirty:'+ch.key,'');
-syncPersistLocal();
-syncStatus('Облако: получены изменения ('+ch.name+') ✓','ok');
-setStatus('Летопись обновлена из облака ✓');
-return true;
-}catch(e){ syncStatus('Облако: не удалось разобрать данные ('+ch.name+')','err');return false; }
-}
-
-
-function syncTouch(){
-if(!syncCfg||!syncCfg.on) return;
-syncChans.forEach(ch=>{
-if(!ch.url()) return;
-ch.localChangeVersion=(+ch.localChangeVersion||0)+1;
-if(ch.dirtyParentRevision==null){ch.dirtyParentRevision=ch.remoteRevision;lsSet('dndworld2:syncparent:'+ch.key,String(ch.dirtyParentRevision));}
-lsSet('dndworld2:dirty:'+ch.key,'1');
-if(!syncOn)return;
-clearTimeout(ch.pushTimer);
-ch.pushTimer=setTimeout(()=>syncPushNow(ch),1200);
-});
-}
-async function syncPushNow(ch){
-if(campaignImportBusy||gameActionInteractionLocked()||ch.pendingConflict)return false;
-const u=ch.url(); if(!u||!syncOn) return false;
-try{
-const token=await syncAuthToken(false);
-if(campaignImportBusy||gameActionInteractionLocked()||ch.pendingConflict)return false;
-if(syncNeedsOwnerAuth()&&!token) throw new Error('требуется вход владельца');
-syncStatus('Облако: отправляю ('+ch.name+')…');
-const target=syncUrlWithAuth(u,token),currentResponse=await fetch(target,{headers:{'X-Firebase-ETag':'true'}});
-if(!currentResponse.ok)throw new Error('HTTP '+currentResponse.status);
-const remote=await currentResponse.json(),etag=currentResponse.headers&&currentResponse.headers.get?currentResponse.headers.get('etag'):null,
-parent=ch.dirtyParentRevision==null?ch.remoteRevision:ch.dirtyParentRevision,
-plan=PERSISTENCE_CORE?PERSISTENCE_CORE.cloudCasPlan(remote,parent):{ok:true,parentRevision:0,revision:1};
-if(campaignImportBusy||gameActionInteractionLocked()||ch.pendingConflict)return false;
-if(!plan.ok){ch.pending=remote;syncStatus('Облако: конфликт ('+ch.name+') — удалённая ревизия '+plan.actualRevision+', ожидалась '+plan.expectedRevision+'. Выберите версию при подключении.','err');return false;}
-const localChangeVersion=+ch.localChangeVersion||0,payload=ch.payloadOf(),p=PERSISTENCE_CORE?PERSISTENCE_CORE.createCloudMessage(payload,{by:syncClientId,parentRevision:plan.parentRevision,transactionId:'cloud-'+ch.key+'-'+Date.now(),at:Date.now()}):{by:syncClientId,at:Date.now(),payload};
-p.j=JSON.stringify(payload);
-const headers={'Content-Type':'application/json'};if(etag)headers['if-match']=etag;
-const r=await fetch(target,{method:'PUT',headers,body:JSON.stringify(p)});
-if(r.status===412){syncStatus('Облако: конфликт ('+ch.name+') — данные изменились во время записи. Локальные изменения не потеряны.','err');return false;}
-if(!r.ok) throw new Error('HTTP '+r.status);
-ch.lastAt=p.at;ch.remoteRevision=Number.isSafeInteger(p.revision)?p.revision:plan.revision;
-const newerLocalChanges=campaignImportBusy||gameActionInteractionLocked()||(+ch.localChangeVersion||0)!==localChangeVersion;
-ch.dirtyParentRevision=newerLocalChanges?ch.remoteRevision:null;lsSet('dndworld2:syncparent:'+ch.key,newerLocalChanges?String(ch.remoteRevision):'');
-lsSet('dndworld2:syncrev:'+ch.key,String(ch.remoteRevision));
-lsSet('dndworld2:synclast:'+ch.key,String(p.at)); lsSet('dndworld2:dirty:'+ch.key,newerLocalChanges?'1':'');
-if(newerLocalChanges){clearTimeout(ch.pushTimer);ch.pushTimer=setTimeout(()=>syncPushNow(ch),1200);}
-syncStatus(newerLocalChanges?'Облако: предыдущая запись сохранена; новые изменения ожидают отправки ('+ch.name+').':'Облако: сохранено ('+ch.name+') ✓',newerLocalChanges?'':'ok');
-return true;
-}catch(e){ syncStatus('Облако: ошибка отправки ('+ch.name+') — '+e.message,'err'); return false; }
-}
-
-
-function syncCloseStream(ch){ if(ch.es){ try{ ch.es.close(); }catch(e){} ch.es=null; } }
-async function syncOpenStream(ch,forceRefresh){
-syncCloseStream(ch);
-const u=ch.url(); if(!u) return;
-try{
-const token=await syncAuthToken(!!forceRefresh);
-if(syncNeedsOwnerAuth()&&!token) throw new Error('требуется вход владельца');
-ch.es=new EventSource(syncUrlWithAuth(u,token));
-const onPut=(ev)=>{
-try{
-const p=JSON.parse(ev.data);
-if(!p || p.path!=='/' || !p.data) return;
-const msg=p.data;
-if(msg.by===syncClientId) return;
-if(!(msg.at>ch.lastAt)) return;
-syncApplyRemote(ch,msg);
-}catch(e){}
-};
-ch.es.addEventListener('put',onPut);
-ch.es.addEventListener('patch',onPut);
-ch.es.addEventListener('cancel',()=>syncStatus('Облако: доступ закрыт правилами базы','err'));
-ch.es.addEventListener('auth_revoked',()=>{
-syncStatus('Облако: обновляю защищенный доступ…');
-syncCloseStream(ch);
-if(syncOn) setTimeout(()=>syncOpenStream(ch,true),400);
-});
-ch.es.onerror=()=>{ if(syncOn) syncStatus('Облако: связь прервана ('+ch.name+'), переподключаюсь…','err'); };
-}catch(e){ syncStatus('Облако: живой поток недоступен — '+e.message,'err'); }
-}
-
-
-async function syncHandshake(ch, cloud, interactive){
-const dirty=lsGet('dndworld2:dirty:'+ch.key)==='1';
-if(cloud)syncObserveRevision(ch,cloud);
-if(dirty&&ch.dirtyParentRevision==null)ch.dirtyParentRevision=ch.remoteRevision;
-if(cloud && cloud.j && cloud.at){
-if(cloud.at>ch.lastAt){
-let take=true;
-if(interactive){
-take=window.confirm('В облаке уже есть данные («'+ch.name+'», запись от '+new Date(cloud.at).toLocaleString()+').\n\nОК — взять из облака (заменит данные на этом устройстве).\nОтмена — заменить облако данными этого устройства.');
-}
-if(take) syncApplyRemote(ch,cloud,{replaceLocal:!!interactive});
-else {ch.pendingConflict=false;ch.pending=null;ch.dirtyParentRevision=ch.remoteRevision;lsSet('dndworld2:syncparent:'+ch.key,String(ch.dirtyParentRevision));await syncPushNow(ch);}
-} else if(dirty){ await syncPushNow(ch); }
-} else {
-await syncPushNow(ch);
-}
-await syncOpenStream(ch);
-}
-
-async function syncStructuredReleaseCampaign(cloud){
-let remote={};
-try{ if(cloud) remote=syncMessageData(cloud); }catch(e){
-syncStatus('Облако: повреждена кампанийная копия, выпуск остановлен','err'); return false;
-}
-const merged=structuredReleaseCampaignPayload(remote);
-chCamp.applyData(merged);
-await syncPersistLocal();
-const ok=await syncPushNow(chCamp);
-if(!ok) return false;
-lsSet('dndworld2:release-pending','');
-syncReleasePending=false;
-await syncOpenStream(chCamp);
-return true;
-}
-
-
-async function syncConnect(interactive){
-if(!syncBase()){ syncStatus('Укажите ссылку на базу (https://…)','err'); return; }
-syncChans.forEach(syncCloseStream);
-syncStatus('Облако: подключаюсь…');
-const token=await syncAuthToken(false);
-if(syncNeedsOwnerAuth()&&!token){
-syncOn=false;
-syncStatus('Облако защищено: войдите как владелец','err');
-syncRenderAuth();
-return false;
-}
-
-let cloudW=null, cloudC=null;
-try{
-const r=await fetch(syncUrlWithAuth(chWorld.url(),token));
-if(!r.ok) throw new Error('HTTP '+r.status);
-cloudW=await r.json();
-}catch(e){ syncOn=false; syncStatus('Облако: нет доступа — '+e.message,'err'); return; }
-if(chCamp.url()){
-try{ const r=await fetch(syncUrlWithAuth(chCamp.url(),token)); if(r.ok) cloudC=await r.json(); }catch(e){}
-}
-syncOn=true; syncCfg.on=true; syncSaveCfg();
-
-if((!cloudW || !cloudW.j) && cloudC && cloudC.j){
-try{
-const old=JSON.parse(cloudC.j);
-if(old.items||old.spells||old.abilities){
-itemsDB=old.items||itemsDB; spellsDB=old.spells||spellsDB; abilitiesDB=old.abilities||abilitiesDB;
-itemsDB.forEach(upgradeItem); spellsDB.forEach(upgradeSpell); abilitiesDB.forEach(upgradeAbility);grimoireReconcile(spellsDB,chars);
-pruneIncompleteCampaignArsenal();
-await syncPushNow(chWorld);
-cloudW={schemaVersion:PERSISTENCE_CORE&&PERSISTENCE_CORE.CLOUD_SCHEMA||'',by:syncClientId,at:chWorld.lastAt,revision:chWorld.remoteRevision,parentRevision:Math.max(-1,chWorld.remoteRevision-1),j:JSON.stringify(chWorld.payloadOf()),payload:chWorld.payloadOf()};
-syncStatus('Облако: своды мира вынесены из кампании в общий контур ✓','ok');
-}
-}catch(e){}
-}
-await syncHandshake(chWorld, cloudW, interactive);
-if(chCamp.url()){
-if(syncReleasePending){
-const ok=await syncStructuredReleaseCampaign(cloudC);
-if(!ok){ syncStatus('Облако: не удалось завершить перенос кампании','err'); return; }
-} else await syncHandshake(chCamp, cloudC, interactive);
-}
-syncStatus('Облако: подключено ✓ (мир — общий'+(chCamp.url()?', кампания «'+syncRoom()+'»':'; кампания не задана')+')','ok');
-return true;
-}
-function syncDisconnect(){
-syncChans.forEach(syncCloseStream); syncOn=false;
-if(syncCfg){ syncCfg.on=false; syncSaveCfg(); }
-syncStatus('Облако: отключено');
-}
-function syncAutoStart(){
-syncLoadCfg();
-if(CLOUD_PAUSED){ syncStatus('Облако: на паузе — весь материал ведется локально для всего сайта'); return; }
-if(syncCfg && syncCfg.on && syncBase() && typeof EventSource!=='undefined'){
-syncAuthReady().then(()=>syncConnect(false));
-}
-}
-
-
-function openSyncModal(){
-syncLoadCfg();
-let m=document.getElementById('syncModal');
-if(!m){
-m=document.createElement('div'); m.id='syncModal'; m.className='sync-overlay hidden';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');m.setAttribute('aria-labelledby','syncModalTitle');
-m.innerHTML=
-'<div class="sync-box">'+
-'<div class="sync-head" id="syncModalTitle">☁ Облачная летопись</div>'+
-'<div class="sync-sub"><b>Своды мира</b> — предметы и снаряжение, заклинания, способности, народы, призвания, справочник мастера — общие для всего сайта и синхронизируются безусловно, вне кампаний. <b>Персонажи и журнал</b> живут в кампании и синхронизируются между устройствами с одинаковым ключом.</div>'+
-'<label class="sync-lbl" for="syncUrlInp">Ссылка на базу данных (Firebase Realtime Database)</label>'+
-'<input id="syncUrlInp" class="sync-inp" placeholder="https://ваш-проект-default-rtdb.europe-west1.firebasedatabase.app">'+
-'<label class="sync-lbl" for="syncRoomInp">Ключ кампании — для персонажей и журнала (можно оставить main)</label>'+
-'<input id="syncRoomInp" class="sync-inp" placeholder="main">'+
-'<div id="syncAuthState" class="sync-status">Проверяю защищенный вход…</div>'+
-'<div class="sync-btns">'+
-'<button id="syncAuthIn" class="btn rub sm" onclick="syncAuthSignIn()">Войти владельцем</button>'+
-'<button id="syncAuthOut" class="btn ghost sm" onclick="syncAuthSignOut()" style="display:none">Выйти из аккаунта</button>'+
-'</div>'+
-'<div class="sync-btns">'+
-'<button class="btn sm" onclick="syncSaveAndConnect()">Подключить</button>'+
-'<button class="btn ghost sm" onclick="syncDisconnect()">Отключить</button>'+
-'<button class="btn ghost sm" onclick="closeSyncModal()">Закрыть</button>'+
-'</div>'+
-'<div id="syncStatus" class="sync-status"></div>'+
-'<details class="sync-help"><summary>Как безопасно завести свое облако</summary>'+
-'<ol>'+
-'<li>Откройте <b>console.firebase.google.com</b> (нужен аккаунт Google) → «Создать проект». Название любое, Analytics можно выключить.</li>'+
-'<li>Слева: <b>Build → Realtime Database</b> → «Создать базу данных». Тестовый режим используйте только на время первоначальной настройки.</li>'+
-'<li>Включите <b>Authentication → Google</b>, зарегистрируйте Web app и добавьте домен сайта в Authorized domains.</li>'+
-'<li>Над таблицей данных появится ссылка вида <i>https://…-default-rtdb.….firebasedatabase.app/</i> — скопируйте ее в поле выше.</li>'+
-'<li>Опубликуйте Security Rules, разрешающие чтение и запись только вашему <code>auth.uid</code>. Никогда не ставьте глобальные <code>.read: true</code> и <code>.write: true</code>.</li>'+
-'<li>Нажмите «Войти владельцем», затем «Подключить». На своих устройствах используйте тот же аккаунт и ключ кампании.</li>'+
-'</ol>'+
-'<div class="sync-note">Ссылка и Firebase Web API key не являются паролями. Защиту обеспечивают Authentication и Security Rules.</div>'+
-'</details>'+
-'</div>';
-document.body.appendChild(m);
-m.addEventListener('click',e=>{ if(e.target===m) closeSyncModal(); });
-}
-document.getElementById('syncUrlInp').value=(syncCfg&&syncCfg.url)||'';
-document.getElementById('syncRoomInp').value=(syncCfg&&syncCfg.room)||DEFAULT_ROOM;
-m.classList.remove('hidden');
-syncRenderAuth();
-syncStatus(syncOn?'Облако: подключено ✓':(CLOUD_PAUSED?'Облако: на паузе по решению мастера — «Подключить» включит его снова':'Облако: не подключено'), syncOn?'ok':'');
-}
-function closeSyncModal(){ const m=document.getElementById('syncModal'); if(m) m.classList.add('hidden'); }
-function syncSaveAndConnect(){
-syncCfg=syncCfg||{};
-syncCfg.url=document.getElementById('syncUrlInp').value.trim();
-syncCfg.room=document.getElementById('syncRoomInp').value.trim()||DEFAULT_ROOM;
-syncSaveCfg();
-syncConnect(true);
-}
 
 
 const refEditing={race:null, cls:null, rule:null, raceNew:false, clsNew:false, ruleNew:false};
@@ -17777,7 +17197,7 @@ if(!foeAlive(f)){ setStatus('✕ «'+f.n+'» повержен и не может
 const block=ACTION_BLOCK_CONDS.find(n=>effectiveFoeConditions(f).indexOf(n)>=0);
 if(block){ setStatus('✕ Состояние «'+block+'» не позволяет противнику действовать.',true); return; }
 const first=chars.find(c=>(+c.hp||0)>0)||chars[0];
-if(!first){ setStatus('✕ В летописи нет персонажей — выбрать цель невозможно.',true); return; }
+if(!first){ setStatus('✕ Выбрать цель невозможно.',true); return; }
 const back=document.getElementById('castBack'); if(!back) return;
 castCtx={kind:'foe',foeId:f.id,actionId:a.id,target:'ally:'+first.id,primaryTarget:'ally:'+first.id,extraTargets:[],rollsByTarget:{},rollQueue:null,sharedCasterVals:null};
 setCastConfirmCaption('☠ Перейти к броскам');
@@ -19089,11 +18509,10 @@ window.__lastRareBattleAudit=report;
 return report;
 }
 function combatSetupHTML(){
-combatEnsureSetup(); let h='<div class="combat-shell"><div class="combat-setup"><div class="combat-top"><div class="combat-title">⚔ Новый бой</div><span class="spacer"></span><span>Броски вводит мастер</span><button class="btn ghost sm" id="rareAuditBtn" onclick="runRareBattleAudit()">◇ 250 редких боёв</button><button class="btn ghost sm" onclick="resetCombatAndParty()">↺ Сбросить бой и группу</button></div>';
-h+='<div id="rareAuditOut" style="display:none;margin:8px 0;padding:8px;border:1px solid #4f5f4e;background:#182019;font-size:13px"></div>';
+combatEnsureSetup(); let h='<div class="combat-shell"><div class="combat-setup"><div class="combat-top"><div class="combat-title">⚔ Новый бой</div><span class="spacer"></span><span>Броски вводит мастер</span><button class="btn ghost sm" onclick="resetCombatAndParty()">↺ Сбросить бой и группу</button></div>';
 h+='<div class="combat-callout">Выберите участников и впишите фактический результат d20. Модификаторы и итог рассчитываются реактивно; при ничьей порядок уточняет мастер.</div>';
 h+='<label style="display:block;margin-bottom:10px">Название схватки <input id="combatName" style="width:100%;margin-top:4px" value="'+esc(combat.name||'Схватка')+'"></label>';
-h+='<div class="combat-setup-grid"><div class="combat-setup-card"><h3>⚔ Герои <small>· d20 + инициа</small></h3>'+combatSetupRows('ally',chars)+'</div><div class="combat-setup-card"><h3>☠ Противники <small>· d20 + Ловк.</small></h3>'+combatSetupRows('foe',foesDB)+'</div></div>';
+h+='<div class="combat-setup-grid"><div class="combat-setup-card"><h3>⚔ Герои <small>Инициатива: d20 + модификатор</small></h3>'+combatSetupRows('ally',chars)+'</div><div class="combat-setup-card"><h3>☠ Противники <small>Инициатива: d20 + Ловкость</small></h3>'+combatSetupRows('foe',foesDB)+'</div></div>';
 h+='<div style="text-align:center;margin:16px"><button class="btn rub" style="font-size:19px;padding:11px 28px" onclick="combatStart()">⚔ Начать бой</button></div>';
 if((combat.log||[]).length) h+='<div class="combat-panel"><h3>Журнал последнего боя</h3><div class="combat-log" style="height:260px">'+combatLogHTML(combat.log)+'</div></div>';
 h+=combatArchiveHTML(); return h+'</div></div>';
@@ -20768,7 +20187,7 @@ const BG3_ITEM_PRESENTATION_MANIFEST_SHA256='d6cda0d7926c313fae086aa449017ca6b70
 let bg3ItemPresentation={root:null,loading:null,error:'',byItem:new Map(),detailFiles:new Map(),searchFiles:new Map(),details:new Map(),detailShards:new Map(),detailPromises:new Map(),detailErrors:new Map(),searchDocs:new Map(),searchReady:false,searchLoading:null,searchError:''};
 
 /* ═══════════════ BG3: НЕИЗМЕНЯЕМЫЙ ЛЕНИВЫЙ КАТАЛОГ ═══════════════
-Полные записи не попадают в itemsDB/localStorage/Firebase. Мир хранит лишь
+Полные записи не попадают в itemsDB/localStorage. Мир хранит лишь
 стабильные itemId; чанк гидратируется перед использованием. */
 const BG3_CATALOG_POINTER='data/bg3/current.json';
 const BG3_CATALOG_PAGE_SIZE=40;
@@ -27061,9 +26480,7 @@ return '<section class="bg3-release-hero" id="bg3ReleaseMetrics" data-catalog-st
 +(recipes?'<div class="bg3-release-metric"><b>'+bg3Count(recipes)+'</b>рецептов</div>':'')+'</div></section>';
 }
 function refreshBg3ReleaseLabels(){
-const ready=bg3ItemWorkspaceCatalogReady(),count=ready?itemWorkspaceCanonicalRows().length:0,badge=document.getElementById('releaseBadge'),tab=document.getElementById('itemsTabButton');
-if(badge)badge.textContent=ENGINE_LABEL+(ready?' · '+bg3Count(count)+' предметов':'');
-if(badge&&RELEASE_COMMIT)badge.title='Опубликованная сборка '+RELEASE_COMMIT+' · полный каталог и подробные игровые свойства предметов';
+const ready=bg3ItemWorkspaceCatalogReady(),count=ready?itemWorkspaceCanonicalRows().length:0,tab=document.getElementById('itemsTabButton');
 if(tab)tab.textContent='Предметы'+(ready?' · '+bg3Count(count):'');
 }
 function bg3CatalogRestoreFilterFocus(id,start,end){
@@ -27467,7 +26884,7 @@ function grimoireNote(id,value){const sp=spellOf(id);if(!sp)return false;sp.grim
 function grimoireCompare(id){const at=grimoireDesk.compare.indexOf(id);if(at>=0)grimoireDesk.compare.splice(at,1);else if(grimoireDesk.compare.length<3)grimoireDesk.compare.push(id);else{setStatus('Для сравнения выберите до трёх заклинаний.',true);return;}renderSpellsDB();}
 function grimoireOpenCast(id){const c=getCh(grimoireDesk.actorId),sp=spellOf(id);if(!c||!sp)return false;const status=grimoireSpellStatus(c,sp);if(!status.canOpen){setStatus(status.engineReady&&status.reason||'Сейчас это заклинание нельзя наложить.',true);return false;}castSpellFx(sp.id,c.id);return true;}
 function grimoireHeroSheet(id){if(!getCh(id))return;activeCharId=id;sheetTab='spells';switchTab('chars');renderChars();}
-function grimoireLearn(id,loreSecret){const c=getCh(grimoireDesk.actorId);if(!c||combat.active||castCtx||rollSpec||magicSwitchBusy)return false;activeCharId=c.id;addSpellFromDB(id,{loreSecret:!!loreSecret});renderSpellsDB();return true;}
+function grimoireLearn(id,loreSecret){const c=getCh(grimoireDesk.actorId);if(!c||combat.active||castCtx||rollSpec||magicSwitchBusy)return false;return spellLearningSelect(c.id,id,'learn',{loreSecret:!!loreSecret});}
 function circleLandSet(id,value){
 const c=getCh(id);if(!c||c.cls!=='Друид'||c.subcls!=='Круг Земли'||!Object.hasOwn(MAGIC_RULES.landSpells,value)||combat.active||castCtx||rollSpec||magicSwitchBusy)return false;
 c.circleLand=value;upgradeSpellcastingState(c);scheduleSave();renderChars();renderSpellsDB();return true;
@@ -28319,10 +27736,11 @@ if(c.spellReplacementDraft){
 const old=byId(c.spellReplacementDraft.removeId);
 if(!old||learning.replacements<=0){ delete c.spellReplacementDraft;touched=true; }
 }
-if(firstMigration&&c.cls==='Бард'){
-const used=(c.spellbook||[]).filter(e=>e.anyClassKnown).length,gap=Math.max(0,knownSpellMax(c)-knownSpellCount(c));
+if(c.cls==='Бард'&&!learning.secretsInitialized){
+const used=(c.spellbook||[]).filter(e=>e.anyClassKnown&&e.access!=='archive').length,gap=Math.max(0,knownSpellMax(c)-knownSpellCount(c));
 const pending=Math.min(gap,Math.max(0,bardMagicalSecretsEarned(c.level)-used));
 if(learning.anyClassChoices<pending){ learning.anyClassChoices=pending;touched=true; }
+learning.secretsInitialized=true;touched=true;
 }
 }else if(mode==='book'||mode==='prepared'){
 if(c.spellReplacementDraft){ delete c.spellReplacementDraft;touched=true; }
@@ -28344,6 +27762,7 @@ if(!!e.prep!==should){ e.prep=should; touched=true; }
 });
 if(fillCanonical&&+c.spellPrepCanonicalVersion!==1){ c.spellPrepCanonicalVersion=1;touched=true; }
 }
+if(mode==='book'&&!Array.isArray(learning.bookChoices)){const book=spellBookLearningSlots(c);if(book){learning.bookChoices=book.choices;touched=true;}}
 if(+c.spellPrepVersion!==SPELL_PREPARATION_STATE_VERSION){ c.spellPrepVersion=SPELL_PREPARATION_STATE_VERSION; touched=true; }
 return touched;
 }
@@ -28625,7 +28044,7 @@ c.name=c.name.trim();delete c.baseAbilities;delete c.abilityMethod;delete c.hpMe
 t.skills.forEach(n=>c.skills[n]={p:1,m:null});t.savingThrows.forEach(k=>c.saves[k]=true);
 c.langs=t.languages.join(', ');c.toolProficiencies=t.tools;c.xp=XP_TABLE[c.level]||0;
 c.characterBuild={version:1,legacy:false,applied:characterSnapshot(c)};
-characterSyncFeatures(c);applyClassSlots(c);syncClassSpellAccess(c);c._v3=true;
+characterSyncFeatures(c);applyClassSlots(c);syncClassSpellAccess(c);upgradeSpellcastingState(c);c._v3=true;
 chars.push(c);bg3GithbornMindcrusherTrustCharacter(c);activeCharId=c.id;sheetTab='stats';
 characterCreatorClose();fxInvalidate();scheduleSave();renderChars();renderCombat();return true;
 }
@@ -28680,7 +28099,7 @@ function backToList(){ activeCharId=null; renderChars(); }
 function delChar(id){
 const c=getCh(id); if(!c) return;
 const guard=bg3InventoryStatusTransitionFullLossGuard(c,'character-delete');if(!guard.ok){setStatus('✕ Лист нельзя удалить: '+(guard.reason==='exact-catalog-item-not-hydrated'?'точный предмет каталога не загружен; восстановите закреплённый каталог.':'передача состояния сначала требует явного решения мастера: '+guard.reason),true);return false;}
-if(!confirm('Вырвать лист «'+c.name+'» из летописи? Действие необратимо.')) return;
+if(!confirm('Удалить героя «'+c.name+'»? Действие необратимо.')) return;
 chars=chars.filter(x=>x.id!==id); if(activeCharId===id) activeCharId=null;
 scheduleSave(); renderChars();
 }
@@ -28731,7 +28150,7 @@ if(activeCharId && cc()){ box.innerHTML=sheetHTML(cc()); return; }
 let h='<h2 class="rubric">Действующие лица</h2>'+magicSettingsHTML()
 +'<div class="row-line character-list-toolbar"><label class="grow"><span class="lbl">Поиск героя</span><input id="character-search" type="search" placeholder="Имя, игрок, народ или класс…" value="'+esc(characterSearch)+'" oninput="characterSearch=this.value;filterCharacterCards()"></label><span id="character-search-status" role="status" aria-live="polite" aria-atomic="true"></span><button class="btn rub" onclick="newChar()">✠ Новый герой</button></div>';
 if(!chars.length){
-h+='<div class="empty-scroll"><span class="big">❦</span>Летопись пуста.<br>Впишите первого героя — и история начнется.</div>';
+h+='<div class="empty-scroll"><span class="big">❦</span>Впишите первого героя — и история начнется.</div>';
 } else {
 h+='<div class="grid c2">';
 chars.forEach(c=>{
@@ -28774,12 +28193,14 @@ const archivedProgress=c.characterBuild?.hpProgressionArchive?.[v],changedHitDie
 if(replaceManual&&!confirm('Новый класс использует d'+nextClass.hd+' вместо d'+classOf(c).hd+'. Пересчитать хиты по фиксированному приросту нового класса? Старые ручные броски сохранятся для возврата к прежнему классу.')){renderChars();return false;}
 characterBeforeEdit(c);
 const old=c.cls;
+archiveSpellClass(c);
 if(c.hpProgression){c.characterBuild.hpProgressionArchive=c.characterBuild.hpProgressionArchive||{};c.characterBuild.hpProgressionArchive[old]=itemClone(c.hpProgression);if(archivedProgress)c.hpProgression=itemClone(archivedProgress);else if(replaceManual)c.hpProgression={method:'average',rolls:[]};c.hpPend=c.hpProgression.method==='manual'&&(c.hpProgression.rolls||[]).length<c.level-1;}
 characterArchiveSubclassSpells(c,c.subcls);
 if(c.characterBuild){characterArchiveFeatures(c,'class',old);characterArchiveFeatures(c,'class',old+' ('+c.subcls+')');}
 (c.spellbook||[]).forEach(e=>{ if(!spellEntryGranted(e)){ e.access='archive';e.prep=false; } });
 c.cls=v;c.subcls='';c.spellAb='';if(c.buildChoices){c.buildChoices.classSkills=[];c.buildChoices.tools=[];} delete c.spellPrepDraft;delete c.spellReplacementDraft;
 c.spellLearning={replacements:0,anyClassChoices:v==='Бард'?bardMagicalSecretsEarned(c.level):0};
+restoreSpellClass(c);
 if(typeof applyClassSlots==='function') applyClassSlots(c);
 if(typeof syncClassSpellAccess==='function') syncClassSpellAccess(c);
 if(typeof upgradeSpellcastingState==='function') upgradeSpellcastingState(c);
@@ -28940,6 +28361,7 @@ h+='<div class="combat-grid">'
 +'<div class="row-line" style="margin-top:8px"><button class="btn ghost sm" onclick="shortRest()">☕ Короткий отдых</button>'
 +'<button class="btn ghost sm" onclick="longRest()">☾ Долгий отдых</button>'
 +'<button class="btn ghost sm" onclick="characterFallDamage()">Урон от падения</button>'
++'<button class="btn ghost sm adv-'+advMode+'" id="advBtn" title="Преимущество или помеха для проверок с листа" onclick="cycleAdv()">'+['⚖ обычный','▲ преимущество','▼ помеха'][advMode]+'</button>'
 +'<span class="note-ital" style="font-size:13px">Короткий: способности и траты костей хитов · Долгий: хиты, '+(magicUsesMp()?'MP':'ячейки')+', способности, половина костей</span></div></div>';
 
 const tabs=[['stats','Характеристики'],['background','Предыстория'],['inventory','Инвентарь'],['equipment','Экипировка'],['spells','Заклинания'],['abilities','Способности'],['notes','Записи']];
@@ -29734,12 +29156,65 @@ return h+'</div>';
 
 
 const bookFlt={q:'',l:'',prep:'',page:0};
+function spellLearningViewToken(c){return gameActionHash({id:c.id,cls:c.cls,subcls:c.subcls,level:c.level,ab:c.ab,spellAb:c.spellAb,book:c.spellbook,learning:c.spellLearning,preparation:c.spellPrepDraft,replacement:c.spellReplacementDraft,magic:campaignMagic,rule:classesDB.find(x=>x.n===c.cls)?.mechanics?.spellcasting});}
+function spellLearningChoiceCheck(c,sp,kind,options){
+if(magicFreeAccess())return {ok:false,reason:'Свободный доступ MP включён для кампании; сохранённые классовые выборы не изменяются.'};
+if(!c||!sp||combat.active||castCtx||rollSpec||magicSwitchBusy)return {ok:false,reason:'Завершите открытое действие и бой перед изменением заклинаний.'};
+if(kind==='learn')return spellAddCheck(c,sp,{replacement:!!c.spellReplacementDraft,loreSecret:!!options?.loreSecret});
+if(kind!=='prepare'||!['book','prepared'].includes(casterPreparationMode(c))||+sp.l===0)return {ok:false,reason:'Этому заклинанию не требуется подготовка.'};
+const e=(c.spellbook||[]).find(row=>row.spellId===sp.id),access=spellAccessCheck(c,sp,e);if(!access.ok)return access;
+if(spellEntryAlwaysPrepared(e))return {ok:false,reason:'Это заклинание всегда подготовлено и не занимает место.'};
+if(!preparedChoiceIds(c,true).has(sp.id)&&prepCount(c,{draft:true})>=prepMax(c))return {ok:false,reason:'План подготовки заполнен. Сначала исключите другое заклинание.'};
+return {ok:true};
+}
+function spellLearningPlan(actorId,spellId,kind='learn',options={},expected){
+const c=getCh(actorId),sp=spellOf(spellId);if(!c||!sp)return {ok:false,reason:'Герой или заклинание больше недоступны.'};
+const token=spellLearningViewToken(c);if(expected&&expected!==token)return {ok:false,reason:'Профиль героя изменился. Выберите заклинание заново.'};
+const check=spellLearningChoiceCheck(c,sp,kind,options);if(!check.ok)return check;
+return {ok:true,actorId,spellId,kind,options:{loreSecret:!!options.loreSecret},token,spellToken:gameActionHash(sp)};
+}
+async function spellLearningCommit(plan){
+if(!plan?.ok||!combatActionKernel){const result={success:false,message:plan?.reason||'Выберите доступное заклинание.'};setStatus(result.message,true);return result;}
+const fresh=()=>{const next=spellLearningPlan(plan.actorId,plan.spellId,plan.kind,plan.options,plan.token);if(!next.ok||next.spellToken!==plan.spellToken)throw new Error(next.reason||'Карточка заклинания изменилась. Выберите её заново.');return next;};
+const result=await combatActionKernel.execute({actionId:'spell-learning:'+plan.actorId},{
+resolve:async()=>plan,context:async()=>null,validate:async()=>{fresh();return {allowed:true};},
+snapshot:async()=>gameActionTransactionSnapshot(),prepare:async()=>fresh(),
+commit:async(_next,token)=>token.commit('spell-selection',()=>{fresh();const c=getCh(plan.actorId),sp=spellOf(plan.spellId);
+if(plan.kind==='learn'){const check=spellLearningChoiceCheck(c,sp,plan.kind,plan.options);if(!check.ok)throw new Error(check.reason);commitSpellLearningSelection(c,sp,check);}
+else{const draft=ensureSpellPreparationDraft(c),ids=new Set(draft.choices);if(ids.has(sp.id))ids.delete(sp.id);else ids.add(sp.id);draft.choices=[...ids];}
+return {success:true,kind:plan.kind,spellId:sp.id,message:plan.kind==='learn'?'Изучено: «'+sp.n+'».':'План подготовки сохранён. Активный список сменится после долгого отдыха.'};}),
+consequences:async result=>{fxInvalidate();return result;},
+persist:async()=>{scheduleSave();clearTimeout(saveTimer);return await runScheduledSave()?{ok:true,receipt:campaignLastPersistenceReceipt}:{ok:false,reason:'Не удалось сохранить выбор. Книга, подготовка и доступные выборы восстановлены.'};},
+rollback:async snapshot=>gameActionTransactionRestore(snapshot),reject:error=>({success:false,message:String(error.message||error)})});
+if(result.success)sheetSearch.sp='';setStatus(result.message,!result.success);renderChars();renderSpellsDB();return result;
+}
+function spellLearningSelect(actorId,spellId,kind='learn',options={},expected){return spellLearningCommit(spellLearningPlan(actorId,spellId,kind,options,expected));}
+function spellLearningSubmit(actorId,kind,expected){return spellLearningSelect(actorId,document.getElementById('spell-choice-'+kind)?.value,kind,{},expected);}
+function spellLearningProfileHTML(c){
+const p=spellLearningProfile(c),modeNames={none:'Нет классовых заклинаний',book:'Книга и подготовка',prepared:'Подготовка из списка класса',known:'Известные заклинания'};
+let h='<section class="props-block" aria-label="Изучение заклинаний героя"><h3 class="rubric">'+esc(c.name)+' · '+esc(modeNames[p.mode]||p.mode)+'</h3>';
+h+='<p>'+esc(c.cls)+' · '+c.level+' уровень'+(c.subcls?' · '+esc(c.subcls):'')+'. '+(p.mode==='none'?'Классовой магии нет. Заклинания расы и особенностей сохраняют свои условия.':'Заклинательная характеристика: '+esc(AB_FULL[p.ability]||p.ability)+'. '+(p.maxCircle?'Доступны круги 1–'+p.maxCircle+'.':'Заклинания 1-го круга ещё недоступны.'))+'</p>';
+if(p.mode==='none')return h+'</section>';
+if(p.mode==='book')h+='<p>Новые записи выбираются в книгу при развитии героя'+(p.bookChoices!=null?': осталось <b>'+p.bookChoices+'</b> выборов соответствующих кругов':' по правилам этого класса')+'. Для наложения подготовьте до <b>'+p.prepareMax+'</b> заклинаний. Уже переписанные свитки не расходуют выборы за уровни. <button class="btn ghost sm" onclick="setSheetTab(\'inventory\')">Переписать свиток из инвентаря</button></p>';
+else if(p.mode==='prepared')h+='<p>Список класса открывается автоматически по уровню. Выберите план из <b>'+p.prepareMax+'</b> заклинаний; он вступит в силу после долгого отдыха. Заклинания подкласса с постоянной подготовкой не занимают места.</p>';
+else h+='<p>Известно <b>'+p.known+' из '+p.knownMax+'</b>; свободно <b>'+Math.max(0,p.knownMax-p.known)+'</b> выборов. Подготовка не нужна. Доступно замен при повышении уровня: <b>'+p.replacements+'</b>. Для замены выберите «↔ Заменить» у прежнего заклинания.</p>';
+h+='<p>Заговоры: <b>'+p.cantrips+' из '+p.cantripMax+'</b>. '+(p.ritual?(p.mode==='book'?'Ритуалы можно использовать прямо из книги без подготовки.':p.mode==='known'?'Ритуал должен быть известен герою.':'Для ритуала заклинание должно быть подготовлено.'):'Класс не даёт ритуального наложения.')+' '+(p.kind==='pact'?'Магия договора восстанавливается на коротком или долгом отдыхе.':'Основной запас магии восстанавливается на долгом отдыхе.')+'</p>';
+if(p.campaignFree)return h+'<p>В кампании включён свободный доступ MP. Классовый профиль и ранее изученные заклинания сохранены; выборы ниже доступны в режиме изучения и подготовки.</p></section>';
+const stamp=spellLearningViewToken(c),blocked=!!(combat.active||castCtx||rollSpec||magicSwitchBusy||gameActionInteractionLocked());
+for(const kind of ['learn',...(p.mode==='known'?[]:['prepare'])]){
+const choices=spellsDB.filter(sp=>grimoireActive(sp)&&spellLearningChoiceCheck(c,sp,kind,{}).ok).sort((a,b)=>a.l-b.l||a.n.localeCompare(b.n,'ru'));
+const label=kind==='learn'?(p.mode==='prepared'?'Выбрать новый заговор':'Выбрать новое заклинание'):'План подготовки после отдыха';
+h+='<div class="f-grid"><div><label for="spell-choice-'+kind+'">'+label+'</label><select id="spell-choice-'+kind+'" style="width:100%;min-width:0;max-width:100%"'+(blocked||!choices.length?' disabled':'')+'><option value="">Выберите из доступных…</option>'+choices.map(sp=>'<option value="'+esc(sp.id)+'">'+(sp.l?sp.l+' круг':'Заговор')+' · '+esc(sp.n)+(kind==='prepare'&&preparedChoiceIds(c,true).has(sp.id)?' · в плане':'')+'</option>').join('')+'</select></div><div><button class="btn ghost sm"'+(blocked||!choices.length?' disabled':'')+' onclick="spellLearningSubmit('+esc(JSON.stringify(c.id))+','+esc(JSON.stringify(kind))+','+esc(JSON.stringify(stamp))+')">'+(kind==='learn'?'Изучить и сохранить':'Изменить план и сохранить')+'</button></div></div>';
+}
+return h+'</section>';
+}
 function cancelKnownSpellReplacement(){
 const c=cc(); if(!c||!c.spellReplacementDraft) return;
 delete c.spellReplacementDraft;scheduleSave();renderChars();setStatus('Замена известного заклинания отменена; прежнее заклинание осталось известно.');
 }
 function beginKnownSpellReplacement(c,spellId){
 const sp=spellOf(spellId),learning=spellLearningState(c);
+const entry=(c.spellbook||[]).find(e=>e.spellId===spellId);if(casterPreparationMode(c)!=='known'||!entry||!sp||+sp.l===0||!spellEntryCountsAgainstKnown(entry)||!spellEntryEligible(c,entry,sp))return false;
 if(combat&&combat.active){ setStatus('✕ Нельзя менять известные заклинания во время активного боя.',true); return false; }
 if(learning.replacements<=0){ setStatus('✕ '+c.cls+' может заменить одно известное заклинание только при получении уровня; доступных замен сейчас нет.',true); return false; }
 c.spellReplacementDraft={removeId:spellId};
@@ -29747,6 +29222,7 @@ sheetSearch.sp='';scheduleSave();renderChars();setStatus('Выбрано для 
 return true;
 }
 function commitSpellLearningSelection(c,sp,check){
+if(check?.bookLevel){const book=spellBookLearningSlots(c),learning=spellLearningState(c);learning.bookChoices=(book?.choices||[]).concat({spellId:sp.id,level:check.bookLevel});}
 const meta=casterMeta(c),replacing=check?.special!=='loreSecret'&&meta&&meta.preparation==='known'&&c.spellReplacementDraft&&c.spellReplacementDraft.removeId;
 if(replacing){
 const removeId=c.spellReplacementDraft.removeId;
@@ -29760,7 +29236,9 @@ if(check&&check.special==='magicalSecrets'){
 entry.access='magicalSecrets';entry.anyClassKnown=true;entry.source='Тайны магии барда';
 const learning=spellLearningState(c);learning.anyClassChoices=Math.max(0,learning.anyClassChoices-1);
 }
-if(!c.spellbook.some(x=>x.spellId===sp.id)) c.spellbook.push(entry);
+const archived=c.spellbook.findIndex(x=>x.spellId===sp.id&&x.access==='archive'&&!spellEntryGranted(x));
+if(archived>=0){if(c.spellbook[archived].notes!=null)entry.notes=c.spellbook[archived].notes;c.spellbook[archived]=entry;}
+else if(!c.spellbook.some(x=>x.spellId===sp.id)) c.spellbook.push(entry);
 return {replaced:!!replacing,entry};
 }
 function addSpellFromDB(spellId,options){
@@ -30051,14 +29529,10 @@ const prepMode=casterPreparationMode(c),knownMode=prepMode==='known',meta=caster
 let h=magicSettingsHTML()+'<div class="panel">';
 
 h+='<div class="row-line"><h3 class="rubric" style="font-size:22px;margin:0">'+(magicUsesMp()?'Магия героя · MP':'Ячейки заклинаний')+'</h3><span class="grow"></span>'
-+(!magicUsesMp()?'<button class="btn ghost sm" id="spellPrepAuditBtn" onclick="runSpellPreparationAudit()">◇ Аудит подготовки: 320</button>':'')
 +(!magicUsesMp()?'<button class="btn ghost sm" onclick="suggestSlots()">По таблице заклинателя</button>':'')
 +'<button class="btn ghost sm" onclick="shortRest()">☕ Короткий отдых</button>'
 +'<button class="btn ghost sm" onclick="longRest()">☾ Долгий отдых</button></div>';
-const audit=spellPrepAuditView;
-h+='<div id="spellPrepAuditOut" style="display:'+(audit?'block':'none')+';margin:8px 0;padding:8px;border:1px solid '+(audit&&audit.failed?'#9f3d32':'#4f7655')+';background:#f6f2e7;color:'+(audit&&audit.failed?'#9f2f25':'#315f39')+';font-size:13px">'
-+(audit?(audit.failed?('✕ '+audit.passed+' / '+audit.total+'; первый сбой: '+esc(audit.failures[0].className)+', '+audit.failures[0].level+' ур. — '+esc(audit.failures[0].message)):('✓ '+audit.passed+' / '+audit.total+' проверок · 8 классов × 20 уровней × 2 цикла · кампания не изменена')):'')+'</div>';
-h+=spellDashHTML(c)+casterGuideHTML(c);
+h+=spellLearningProfileHTML(c)+spellDashHTML(c)+casterGuideHTML(c);
 
 const sab=spellAbOf(c);
 h+='<div class="spell-stats"><span>Заклинательная характеристика: <select onchange="setSpellAb(this.value)">'
@@ -30084,11 +29558,11 @@ h+='<div class="db-bar"><input type="text" placeholder="'+esc(addHint)+'" value=
 +'<button class="btn ghost sm" onclick="quickForm.sp=!quickForm.sp;renderChars()">✚ Свое</button></div>';
 if(sheetSearch.sp.trim().length>1){
 const q=sheetSearch.sp.toLowerCase();
-const inBook=new Set(c.spellbook.map(x=>x.spellId));
+const inBook=new Set(c.spellbook.filter(x=>x.access!=='archive'||spellEntryGranted(x)).map(x=>x.spellId));
 const candidates=spellsDB.filter(sp=>grimoireActive(sp)&&GRIMOIRE_RULES.matches(sp,q)&&!inBook.has(sp.id));
 const replacing=!!(c.spellReplacementDraft&&c.spellReplacementDraft.removeId);
 const checked=candidates.map(sp=>({sp,check:spellAddCheck(c,sp,{replacement:replacing})})),hits=checked.filter(x=>x.check.ok).slice(0,10);
-h+=hits.length?hits.map(x=>'<div class="spell-hit" onclick="addSpellFromDB(\''+x.sp.id+'\')"><span><b>'+esc(x.sp.n)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+(x.sp.l===0?'заговор':x.sp.l+' круг')+', '+esc(x.sp.s)+'</span></span><span style="color:var(--gold)">+ '+(knownMode?'выбрать':'вписать')+'</span></div>').join('')
+h+=hits.length?hits.map(x=>'<button type="button" class="spell-hit" onclick="spellLearningSelect('+esc(JSON.stringify(c.id))+','+esc(JSON.stringify(x.sp.id))+',\'learn\',{},'+esc(JSON.stringify(spellLearningViewToken(c)))+')"><span><b>'+esc(x.sp.n)+'</b> <span style="font-size:13px;color:var(--ink-faint)">'+(x.sp.l===0?'заговор':x.sp.l+' круг')+', '+esc(x.sp.s)+'</span></span><span style="color:var(--gold)">+ '+(knownMode?'выбрать':'вписать')+'</span></button>').join('')
 :'<p class="note-ital" style="font-size:14px">'+(checked.length?'Недоступно: '+esc(checked[0].check.reason):(candidates.length?'Все подходящие записи уже есть у героя.':'В гримуаре мира такого нет — создайте свое.'))+'</p>';
 }
 if(quickForm.sp){
@@ -30147,7 +29621,7 @@ else if(knownMode) prepControl='<span class="type-tag">'+(spellEntryGranted(x.e)
 else {
 const planned=plannedIds.has(x.sp.id);
 const label=hasDraft?(planned?(ready?'Останется ✓':'После отдыха ✓'):(ready?'После отдыха: снять':'Подготовить после отдыха')):(ready?'Подготовлено ✓':'Подготовить после отдыха');
-prepControl='<button class="btn ghost sm prep-btn'+(planned?' on':'')+'" title="Меняет план; активный список обновится только после долгого отдыха" onclick="togglePrep(\''+x.sp.id+'\')">'+label+'</button>';
+prepControl='<button class="btn ghost sm prep-btn'+(planned?' on':'')+'" title="Меняет план; активный список обновится только после долгого отдыха" onclick="spellLearningSelect('+esc(JSON.stringify(c.id))+','+esc(JSON.stringify(x.sp.id))+',\'prepare\',{},'+esc(JSON.stringify(spellLearningViewToken(c)))+')">'+label+'</button>';
 }
 }
 let removeControl='';
@@ -30220,7 +29694,7 @@ return '<div class="spell-dash"><div class="sd-line">Способностей с
 +(backBattle?' · вернется после боя: <b>'+backBattle+'</b>':'')
 +(backShort?' · после короткого отдыха: <b>'+backShort+'</b>':'')
 +(backLong?' · после длинного отдыха: <b>'+backLong+'</b>':'')+'.</div>'
-+'<div class="sd-line">Пассивные действуют постоянно и видны в «Действующих эффектах»; активные применяются кнопкой «✦ Применить» — с целью, тратой заряда и записью в летопись.</div></div>';
++'</div>';
 }
 function stAbilities(c){
 let h='<div class="panel">';
@@ -30295,7 +29769,7 @@ return '<div class="panel"><div class="f-grid">'
 '<div><label class="lbl">'+p[1]+'</label><textarea rows="2" placeholder="'+p[2]+'" oninput="updPersona(\''+p[0]+'\',this.value)">'+esc((c.persona||{})[p[0]]||'')+'</textarea></div>').join('')
 +'</div>'
 +'<label class="lbl">Заметки мастера</label>'
-+'<textarea style="width:100%;min-height:220px" oninput="updC(\'notes\',this.value)" placeholder="Все, что должно остаться в летописи…">'+esc(c.notes)+'</textarea></div>';
++'<textarea style="width:100%;min-height:220px" oninput="updC(\'notes\',this.value)">'+esc(c.notes)+'</textarea></div>';
 }
 
 
@@ -30306,74 +29780,19 @@ if(globalThis.DndWorldActionUi)DndWorldActionUi.create({document,isBusy:gameActi
 if(globalThis.DndWorldDialogs)DndWorldDialogs.create({window,document,dialogs:[
 {id:'castBack',close:closeCastModal},{id:'showBack',close:()=>{document.getElementById('showBack').style.display='none';}},
 {id:'rollBack',close:rollCancel},{id:'craftBack',close:craftClose},{id:'economyExchangeBack',close:economyExchangeClose},
-{id:'syncModal',close:closeSyncModal},{id:'characterCreator',close:characterCreatorClose}
+{id:'characterCreator',close:characterCreatorClose}
 ]}).start();
 if(RULESET_CORE&&!await rulesetLoadManifest())return;
 await loadAll();
-if(typeof applyStructuredReleaseMigration==='function') await applyStructuredReleaseMigration();
 renderRaces(); renderClasses(); renderRules();
 renderChars(); renderCombat(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderMerchants(); renderAbilitiesDB(); renderFoes();
 if(globalThis.DndWorldNavigation){worldNavigation=DndWorldNavigation.create({window,document,onNavigate:switchTab});worldNavigation.start();}
 if(bg3CatalogNeedsProductionRecovery())switchTab('itemsdb');
-if(typeof syncAutoStart==='function') syncAutoStart();
 
 
 
-if(typeof location!=='undefined'&&typeof URLSearchParams!=='undefined'
-&&['localhost','127.0.0.1','::1'].includes(location.hostname)
-&&new URLSearchParams(location.search).get('spell-user-audit')==='1'){
-const qa=document.createElement('script');
-qa.src='tests/spell-browser-user-audit.js';
-qa.dataset.qa='spell-user-audit';
-document.body.appendChild(qa);
-}
 })();
 </script>
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js';
-import {
-getAuth, GoogleAuthProvider, getRedirectResult, onAuthStateChanged,
-signInWithPopup, signInWithRedirect, signOut
-} from 'https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js';
 
-const firebaseConfig={
-apiKey:'AIzaSyBp218SsfywNhxb0EJJZVXLwuAIuNqmvVc',
-authDomain:'best-dnd-campaign-ever.firebaseapp.com',
-databaseURL:'https://best-dnd-campaign-ever-default-rtdb.firebaseio.com',
-projectId:'best-dnd-campaign-ever',
-storageBucket:'best-dnd-campaign-ever.firebasestorage.app',
-messagingSenderId:'109610232229',
-appId:'1:109610232229:web:6fba38d143feb44c62204c'
-};
-const firebaseApp=initializeApp(firebaseConfig);
-const firebaseAuth=getAuth(firebaseApp);
-const googleProvider=new GoogleAuthProvider();
-let authReadyResolve;
-const authReady=new Promise(resolve=>{ authReadyResolve=resolve; });
-let authSeen=false;
-
-window.dndFirebaseAuth={
-ready:authReady,
-currentUser:()=>firebaseAuth.currentUser,
-getToken:force=>firebaseAuth.currentUser?firebaseAuth.currentUser.getIdToken(!!force):Promise.resolve(null),
-async signIn(){
-try{ return (await signInWithPopup(firebaseAuth,googleProvider)).user; }
-catch(e){
-if(e&&e.code==='auth/popup-blocked'){
-await signInWithRedirect(firebaseAuth,googleProvider);
-return null;
-}
-throw e;
-}
-},
-signOut:()=>signOut(firebaseAuth)
-};
-window.dispatchEvent(new Event('dnd-firebase-auth-ready'));
-onAuthStateChanged(firebaseAuth,user=>{
-if(!authSeen){ authSeen=true; authReadyResolve(user||null); }
-window.dispatchEvent(new CustomEvent('dnd-firebase-auth-changed',{detail:{signedIn:!!user}}));
-});
-getRedirectResult(firebaseAuth).catch(e=>console.warn('Firebase redirect sign-in:',e&&e.code||e));
-</script>
 </body>
 </html>

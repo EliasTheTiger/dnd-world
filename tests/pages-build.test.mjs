@@ -58,6 +58,9 @@ test('Pages build validates and publishes only the current immutable catalog', (
   assert.equal(report.files, builtReport.files);
   assert.equal(report.bytes, builtReport.bytes);
   assert.equal(existsSync(new URL('../_site/docs', import.meta.url)), false, 'per-item engineering and authoring records must not be deployed');
+  for (const path of ['qa', 'tests', `data/bg3/${report.catalogVersion}/item-economy-report.json`, `data/bg3/${report.catalogVersion}/item-mechanics-report.md`, `data/bg3/${report.catalogVersion}/story-items-report.json`]) {
+    assert.equal(existsSync(new URL(`../_site/${path}`, import.meta.url)), false, `${path} stays in GitHub, outside the public release`);
+  }
   const builtIndex = readFileSync(new URL('../_site/index.html', import.meta.url), 'utf8');
   const versionedIndex = readFileSync(new URL(`../_site/releases/${release}/index.html`, import.meta.url), 'utf8');
   const releaseManifest = JSON.parse(readFileSync(new URL('../_site/release.json', import.meta.url), 'utf8'));
@@ -106,6 +109,10 @@ test('Pages preflight rejects a missing runtime tag without replacing the previo
   write(`data/bg3/${version}/manifest.json`, manifest);
   write('data/bg3/current.json', JSON.stringify({catalogVersion:version, manifest:`${version}/manifest.json`, manifestSha256:createHash('sha256').update(manifest).digest('hex')}));
   for (const projection of ['item-presentation', 'placement-browser']) write(`data/bg3/ui/${version}-${projection}/manifest.json`, JSON.stringify({catalogVersion:version}));
+  const privatePaths = ['assets/saved-audit.html', 'data/catalogs/tests/snapshot.json', `data/bg3/${version}/item-economy-report.json`, `data/bg3/${version}/item-economy-report.md`, `data/bg3/ui/${version}-item-presentation/diagnostics/result.json`];
+  for (const path of privatePaths) write(path, 'historical diagnostic evidence');
+  const runtimePaths = [`data/bg3/${version}/mechanics-coverage.json`, `data/bg3/${version}/rule-program-coverage.json`, `data/bg3/${version}/source/gold-values.json`, 'data/dnd5e/SRD51-NOTICE.md'];
+  for (const path of runtimePaths) write(path, 'required runtime contract or notice');
   const index = `<head><meta name="dnd-world-release" content="__DND_WORLD_RELEASE__">${tags.map(([tag])=>tag).join('\n')}</head>`;
   write('index.html', index);
   copyFileSync(new URL('../scripts/build-pages-site.mjs', import.meta.url), join(fixture, 'scripts/build-pages-site.mjs'));
@@ -115,6 +122,15 @@ test('Pages preflight rejects a missing runtime tag without replacing the previo
   });
   const valid = run('--check');
   assert.equal(valid.status, 0, valid.stderr || valid.stdout);
+  const published = run();
+  assert.equal(published.status, 0, published.stderr || published.stdout);
+  assert.deepEqual(measureTree(join(fixture, '_site')), (({files,bytes})=>({files,bytes}))(JSON.parse(published.stdout)));
+  for (const path of privatePaths) {
+    assert.equal(existsSync(join(fixture, '_site', path)), false, `${path} must not be published`);
+    assert.equal(readFileSync(join(fixture, path), 'utf8'), 'historical diagnostic evidence', `${path} must remain in the repository`);
+  }
+  for (const path of runtimePaths) assert.equal(readFileSync(join(fixture, '_site', path), 'utf8'), 'required runtime contract or notice');
+  write('_site/index.html', 'previous working release');
   write('index.html', index.replace('src="scripts/economy-core.js"', 'data-missing="scripts/economy-core.js"'));
   for (const args of [['--check'], []]) {
     const result = run(...args);

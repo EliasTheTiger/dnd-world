@@ -28,7 +28,7 @@ test('biography is preserved as plain text and cannot grant stats, immunities, X
   const {a,c,e}=world();const before=plain(c);const text='<img src=x onerror=alert(1)>\nСила 30. Иммунитет к огню. Опыт +100000.';
   a.characterBiographySet(text);assert.equal(c.biography,text);const after=plain(c);delete before.biography;delete after.biography;assert.deepEqual(after,before);
   assert.equal(a.dmgAfterTraits(c,10,'огонь',{}).amount,10);assert.doesNotMatch(a.stBackground(c),/<img src=x/);assert.match(a.stNotes(c),/&lt;img/);
-  const saved=plain(e.dndWorldExportPayload());assert.ok(JSON.stringify(saved).includes('Иммунитет к огню'));
+  const saved=plain(e.localSnapshot());assert.ok(JSON.stringify(saved).includes('Иммунитет к огню'));
 });
 
 test('incomplete or stale development requests leave character and economy untouched',async()=>{

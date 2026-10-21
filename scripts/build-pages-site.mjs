@@ -26,6 +26,15 @@ function sha256(buffer) {
   return createHash('sha256').update(buffer).digest('hex');
 }
 
+// Engineering evidence stays in Git; recursive runtime trees must not publish it.
+// Catalog definitions, manifests, signed programs, coverage contracts and notices stay intact.
+function publishRuntimeEntry(path) {
+  const name = relative(repositoryRoot, path).replaceAll('\\', '/');
+  return !/(?:^|\/)(?:qa|tests?|docs|audits?|diagnostics?)(?:\/|$)/iu.test(name)
+    && !/\.(?:html?|log)$/iu.test(name)
+    && !/(?:^|\/)[^/]*-(?:report|audit)\.(?:json|md|txt)$/iu.test(name);
+}
+
 async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
 }
@@ -72,6 +81,7 @@ async function inspectTree(root) {
       if (entry.isSymbolicLink()) {
         throw new Error(`GitHub Pages artifact must not contain symlinks: ${relative(repositoryRoot, absolute)}`);
       }
+      if (!publishRuntimeEntry(absolute)) continue;
       if (entry.isDirectory()) {
         await visit(absolute);
       } else if (entry.isFile()) {
@@ -154,16 +164,17 @@ async function buildSite(inputs) {
   await writeFile(join(outputRoot, 'releases', inputs.release, 'index.html'), inputs.renderedIndex);
   await writeFile(join(outputRoot, 'release.json'), inputs.releaseManifest);
   await cp(join(repositoryRoot, 'styles.css'), join(outputRoot, 'styles.css'));
-  await cp(join(repositoryRoot, 'styles'), join(outputRoot, 'styles'), { recursive: true });
+  const runtimeTreeOptions = { recursive: true, filter: publishRuntimeEntry };
+  await cp(join(repositoryRoot, 'styles'), join(outputRoot, 'styles'), runtimeTreeOptions);
   for (const name of runtimeFiles) await cp(join(repositoryRoot, 'scripts', name), join(outputRoot, 'scripts', name));
-  await cp(join(repositoryRoot, 'assets'), join(outputRoot, 'assets'), { recursive: true });
-  await cp(join(repositoryRoot, 'data', 'rulesets'), join(outputRoot, 'data', 'rulesets'), { recursive: true });
-  await cp(join(repositoryRoot, 'data', 'catalogs'), join(outputRoot, 'data', 'catalogs'), { recursive: true });
-  await cp(join(repositoryRoot, 'data', 'dnd5e'), join(outputRoot, 'data', 'dnd5e'), { recursive: true });
+  await cp(join(repositoryRoot, 'assets'), join(outputRoot, 'assets'), runtimeTreeOptions);
+  await cp(join(repositoryRoot, 'data', 'rulesets'), join(outputRoot, 'data', 'rulesets'), runtimeTreeOptions);
+  await cp(join(repositoryRoot, 'data', 'catalogs'), join(outputRoot, 'data', 'catalogs'), runtimeTreeOptions);
+  await cp(join(repositoryRoot, 'data', 'dnd5e'), join(outputRoot, 'data', 'dnd5e'), runtimeTreeOptions);
   await cp(inputs.currentPath, join(outputRoot, 'data', 'bg3', 'current.json'));
-  await cp(inputs.catalogRoot, join(outputRoot, 'data', 'bg3', inputs.version), { recursive: true });
+  await cp(inputs.catalogRoot, join(outputRoot, 'data', 'bg3', inputs.version), runtimeTreeOptions);
   for (const name of inputs.uiNames) {
-    await cp(join(inputs.uiRoot, name), join(outputRoot, 'data', 'bg3', 'ui', name), { recursive: true });
+    await cp(join(inputs.uiRoot, name), join(outputRoot, 'data', 'bg3', 'ui', name), runtimeTreeOptions);
   }
   await writeFile(join(outputRoot, '.nojekyll'), '');
 }
