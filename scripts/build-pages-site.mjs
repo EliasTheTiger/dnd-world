@@ -12,6 +12,7 @@ const runtimeFiles = ['economy-core.js', 'merchant-core.js', 'campaign-item-art.
 runtimeFiles.push('character-rules.js','magic-rules.js','grimoire-rules.js','hobbyworld-ability-terms.js','ability-rules.js','ability-gameplay.js','recipe-item-links.js','recipe-rules.js','recipe-workbench.js');
 runtimeFiles.push('recipe-tabletop-rules.js','recipe-tabletop-items.js','recipe-tabletop-runtime.js');
 runtimeFiles.push('gm-reference-data.js','gm-reference.js');
+runtimeFiles.push('world-navigation.js');
 const RELEASE_PLACEHOLDER = '__DND_WORLD_RELEASE__';
 const PAGES_BASE = '/dnd-world/';
 const OPEN_CATALOG_PATH = 'data/dnd5e/open5e-cc-v1/catalog.js';
@@ -45,6 +46,7 @@ function renderPublishedIndex(source, release) {
   const assets = [
     { attribute: 'href', path: 'styles.css' },
     { attribute: 'href', path: 'styles/treasure-workspaces.css' },
+    { attribute: 'href', path: 'styles/gm-reference.css' },
     ...runtimeFiles.map(name => ({ attribute: 'src', path: `scripts/${name}` })),
     { attribute: 'src', path: OPEN_CATALOG_PATH },
     { attribute: 'src', path: SPELL_FACTS_PATH },
@@ -114,6 +116,7 @@ async function validateInputs() {
 
   const roots = [
     join(repositoryRoot, 'assets'),
+    join(repositoryRoot, 'styles'),
     join(repositoryRoot, 'data', 'rulesets'),
     join(repositoryRoot, 'data', 'catalogs'),
     join(repositoryRoot, 'data', 'dnd5e'),
@@ -124,15 +127,22 @@ async function validateInputs() {
   const indexPath = join(repositoryRoot, 'index.html');
   const indexSource = await readFile(indexPath, 'utf8');
   invariant(indexSource.includes(RELEASE_PLACEHOLDER), 'index.html is missing the release placeholder');
-  const indexBytes = Buffer.byteLength(indexSource);
+  const release = releaseId();
+  const renderedIndex = renderPublishedIndex(indexSource, release);
+  const releaseManifest = `${JSON.stringify({
+    schemaVersion: 'dnd-world-release/1',
+    commit: release,
+    catalogVersion: version,
+  }, null, 2)}\n`;
+  const indexBytes = Buffer.byteLength(renderedIndex) * 2;
   const styleBytes = (await stat(join(repositoryRoot, 'styles.css'))).size;
   const currentBytes = (await stat(currentPath)).size;
   const runtimeBytes = (await Promise.all(runtimeFiles.map(name => stat(join(repositoryRoot, 'scripts', name))))).reduce((sum, row) => sum + row.size, 0);
-  const bytes = measurements.reduce((sum, row) => sum + row.bytes, indexBytes + styleBytes + currentBytes + runtimeBytes);
+  const bytes = measurements.reduce((sum, row) => sum + row.bytes, indexBytes + styleBytes + currentBytes + runtimeBytes + Buffer.byteLength(releaseManifest));
   const files = measurements.reduce((sum, row) => sum + row.files, 6 + runtimeFiles.length);
   invariant(bytes < 10_000_000_000, 'current Pages artifact exceeds the 10 GB upload limit');
 
-  return { currentPath, version, catalogRoot, uiRoot, uiNames, files, bytes, indexSource, release: releaseId() };
+  return { currentPath, version, catalogRoot, uiRoot, uiNames, files, bytes, renderedIndex, releaseManifest, release };
 }
 
 async function buildSite(inputs) {
@@ -140,14 +150,9 @@ async function buildSite(inputs) {
   await mkdir(join(outputRoot, 'data', 'bg3', 'ui'), { recursive: true });
   await mkdir(join(outputRoot, 'releases', inputs.release), { recursive: true });
   await mkdir(join(outputRoot, 'scripts'), { recursive: true });
-  const renderedIndex = renderPublishedIndex(inputs.indexSource, inputs.release);
-  await writeFile(join(outputRoot, 'index.html'), renderedIndex);
-  await writeFile(join(outputRoot, 'releases', inputs.release, 'index.html'), renderedIndex);
-  await writeFile(join(outputRoot, 'release.json'), `${JSON.stringify({
-    schemaVersion: 'dnd-world-release/1',
-    commit: inputs.release,
-    catalogVersion: inputs.version,
-  }, null, 2)}\n`);
+  await writeFile(join(outputRoot, 'index.html'), inputs.renderedIndex);
+  await writeFile(join(outputRoot, 'releases', inputs.release, 'index.html'), inputs.renderedIndex);
+  await writeFile(join(outputRoot, 'release.json'), inputs.releaseManifest);
   await cp(join(repositoryRoot, 'styles.css'), join(outputRoot, 'styles.css'));
   await cp(join(repositoryRoot, 'styles'), join(outputRoot, 'styles'), { recursive: true });
   for (const name of runtimeFiles) await cp(join(repositoryRoot, 'scripts', name), join(outputRoot, 'scripts', name));

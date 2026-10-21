@@ -83,3 +83,53 @@ test('cloud CAS rejects a stale campaign before payload replacement', () => {
   assert.deepEqual(persistence.cloudCasPlan(remote,3), {ok:false,conflict:true,code:'CLOUD_REVISION_CONFLICT',expectedRevision:3,actualRevision:4});
   assert.deepEqual(persistence.cloudCasPlan(remote,4), {ok:true,parentRevision:4,revision:5});
 });
+
+test('legacy migration preserves a campaign created by another writer before installation', async () => {
+  const adapter = new persistence.MemoryAdapter(), repository = new persistence.EnvelopeRepository({adapter});
+  const migrated = await persistence.migrateWorldSnapshot(state('legacy'), {campaignId:'fixture', transactionId:'migration'});
+  const newer = await persistence.createEnvelope({campaignId:'fixture', revision:1, parentRevision:0, transactionId:'other-writer', state:state('newer')});
+  const set = adapter.set.bind(adapter);
+  adapter.set = async (key, value) => {
+    await set(key, value);
+    if (key === repository.backupKey) await set(repository.key, persistence.canonicalJson(newer));
+    return true;
+  };
+
+  const result = await repository.installMigrated(migrated, JSON.stringify(state('legacy')));
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'ENVELOPE_EXISTS');
+  assert.equal(result.conflict, true);
+  assert.equal((await repository.read()).envelope.checksum, newer.checksum);
+  assert.equal((await repository.read()).envelope.state.marker, 'newer');
+});
+
+test('legacy migration requires an exact verified read-back before reporting success', async t => {
+  const migrated = await persistence.migrateWorldSnapshot(state('legacy'), {campaignId:'fixture', transactionId:'migration'});
+  const other = await persistence.createEnvelope({campaignId:'fixture', revision:0, parentRevision:-1, transactionId:'other-writer', state:state('other')});
+  for (const [label, readBack] of [['missing', null], ['different valid campaign', persistence.canonicalJson(other)]]) {
+    await t.test(label, async () => {
+      let wroteEnvelope = false;
+      const adapter = {
+        async get() { return wroteEnvelope ? readBack : null; },
+        async set(key) { if (!key.endsWith(':backup')) wroteEnvelope = true; return true; },
+      };
+      const repository = new persistence.EnvelopeRepository({adapter});
+      const result = await repository.installMigrated(migrated, JSON.stringify(state('legacy')));
+      assert.equal(result.ok, false);
+      assert.equal(result.code, 'READ_BACK_FAILED');
+      assert.notEqual(result.migrated, true);
+    });
+  }
+});
+
+test('legacy migration verifies the installed envelope and retains its original backup', async () => {
+  const adapter = new persistence.MemoryAdapter(), repository = new persistence.EnvelopeRepository({adapter});
+  const sourceRaw = JSON.stringify(state('legacy'));
+  const migrated = await persistence.migrateWorldSnapshot(JSON.parse(sourceRaw), {campaignId:'fixture', transactionId:'migration'});
+  const result = await repository.installMigrated(migrated, sourceRaw);
+  assert.equal(result.ok, true);
+  assert.equal(result.migrated, true);
+  assert.equal(result.envelope.checksum, migrated.checksum);
+  assert.equal(await adapter.get(repository.backupKey), sourceRaw);
+});

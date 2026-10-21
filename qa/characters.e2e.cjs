@@ -59,10 +59,28 @@ await page.locator('#bg-confirm-train').check();await page.getByRole('button',{n
 await page.locator('#bg-development-error:not([hidden])').waitFor({timeout:60000});assert.match(await page.locator('#bg-development-error').innerText(),/Недостаточно монет/);
 assert.equal(await page.locator('progress').getAttribute('value'),'0');assert.equal(await page.getByLabel('Максимальные хиты',{exact:true}).inputValue(),'17');
 await page.screenshot({path:path.join(output,'06-background.png'),fullPage:true});
+await page.waitForFunction(()=>!hasUnsavedCampaignChanges());
+// Keep the durable write in flight so navigation protection is tested independently of CPU speed.
+await page.evaluate(()=>{
+ const original=campaignEnvelopeAdapter.compareAndSet;let release;
+ const gate=new Promise(resolve=>{release=resolve;});
+ campaignEnvelopeAdapter.compareAndSet=async(...args)=>{await gate;return original(...args);};
+ window.releaseCharacterQaSave=()=>{campaignEnvelopeAdapter.compareAndSet=original;release();delete window.releaseCharacterQaSave;};
+});
 await page.locator('#sheet-subrace').selectOption('Высший эльф');assert.equal(await page.getByLabel('Базовая скорость',{exact:true}).inputValue(),'9 м');
+const warningEvent=page.waitForEvent('dialog',{predicate:dialog=>dialog.type()==='beforeunload'});
+const blockedReload=page.reload({waitUntil:'domcontentloaded'}).then(()=>null,error=>error);
+const warning=await warningEvent;assert.equal(warning.type(),'beforeunload');await warning.dismiss();
+assert.ok(await blockedReload,'cancelling the unsaved-changes warning must prevent reload');
+assert.equal(await page.locator('#sheet-subrace').inputValue(),'Высший эльф','the unsaved edit remains in the live character');
+await page.evaluate(()=>window.releaseCharacterQaSave());
 await page.getByRole('button',{name:'← К списку героев',exact:true}).click();assert.equal(await page.locator('.char-card').count(),count+1);
 await page.locator('#character-search').fill('Эйра');assert.equal(await page.locator('.char-card:visible').count(),1);
 await page.getByRole('button',{name:'✠ Новый герой',exact:true}).click();await page.getByRole('button',{name:'Отмена',exact:true}).click();assert.equal(await page.locator('.char-card').count(),count+1);
+await page.waitForFunction(async()=>{
+ const saved=await campaignEnvelopeRepository.read();
+ return !hasUnsavedCampaignChanges()&&saved.ok&&saved.envelope?.state?.chars?.some(character=>character.name==='Эйра Лунная'&&character.subrace==='Высший эльф');
+});
 await page.reload({waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'✠ Новый герой',exact:true}).waitFor({timeout:120000});
 await page.locator('#character-search').fill('Эйра');await page.locator('.char-card:visible').click();assert.equal(await page.locator('#sheet-subrace').inputValue(),'Высший эльф');
 await page.getByRole('button',{name:'Предыстория',exact:true}).click();assert.match(await page.locator('#character-biography').inputValue(),/Личная биография Эйры/);assert.equal(await page.locator('progress').getAttribute('value'),'0');assert.equal(await page.locator('.background-history li').count(),2);
@@ -72,6 +90,6 @@ await page.screenshot({path:path.join(output,'05-mobile.png'),fullPage:true});
 assert.equal(await page.locator('.character-creator').evaluate(el=>el.scrollWidth<=el.clientWidth),true,'creator must not scroll horizontally on mobile');
 await page.keyboard.press('Escape');assert.equal(await page.locator('#characterCreator').count(),0);
 assert.deepEqual(errors,[],'no unhandled browser exceptions');
-fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,created:'Эйра Лунная',checks:['dependent dropdowns','24 backgrounds','ability assignment','training choices','single creation commit','saved background description','inert biography','milestone inspiration','training course','insufficient funds rollback','development reload','branch effects','search','cancellation','reload','mobile layout','Escape','no browser exceptions']},null,2));console.log('Characters browser journey passed; screenshots: '+output);
+fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,created:'Эйра Лунная',checks:['dependent dropdowns','24 backgrounds','ability assignment','training choices','single creation commit','saved background description','inert biography','milestone inspiration','training course','insufficient funds rollback','development reload','branch effects','unsaved reload protection','durable save before reload','search','cancellation','reload','mobile layout','Escape','no browser exceptions']},null,2));console.log('Characters browser journey passed; screenshots: '+output);
 }finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

@@ -127,6 +127,12 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
       coinCopperTotal, acTotal, eHpMax, effectiveConditions,
       dndWorldExportPayload, dndWorldImportPayload, loadAll, runScheduledSave,
       saveWorldNow() { savePendWorld=true; return runScheduledSave(); },
+      saveSafety:{
+        scheduleWorld(){scheduleSave(true);},scheduleJournal:scheduleJournalSave,beforeUnload:campaignBeforeUnload,
+        pending:hasUnsavedCampaignChanges,
+        state(){return {world:savePendWorld,journal:savePendJournal,operations:scheduledSaveOperations};},
+        setStorageWriter(write){const previous=store.set;store.set=write;return previous;},
+      },
       persistenceState() { return {
         revision: campaignEnvelopeRevision,
         receipt: campaignLastPersistenceReceipt ? structuredClone(campaignLastPersistenceReceipt) : null,

@@ -2,6 +2,32 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const reference=require('../scripts/gm-reference.js');
 const data=require('../scripts/gm-reference-data.js');
+const fs=require('node:fs');
+const vm=require('node:vm');
+
+test('reference recovers when its reading data arrives after the UI module',()=>{
+ const saved=JSON.stringify({tab:'conditions',favorites:['concentration-save']});
+ let reloads=0;
+ const browser=vm.createContext({localStorage:{getItem:()=>saved,setItem(){}},location:{reload(){reloads++;}}});
+ vm.runInContext(fs.readFileSync(require.resolve('../scripts/gm-reference.js'),'utf8'),browser);
+ const panel={innerHTML:'',setAttribute(){},removeAttribute(){}},counter={textContent:''};
+ const host={innerHTML:'',classList:{add(){}},querySelectorAll:()=>[],contains:()=>true,
+  querySelector(selector){return selector==='.gm-panel'?panel:selector==='.gm-result-count'?counter:{setAttribute(){}};}};
+ const config={host,notes:[],xp:[],prof:[],skills:[],abilities:{},backgrounds:[]};
+
+ assert.doesNotThrow(()=>browser.DND_GM_REFERENCE.render(config));
+ assert.match(host.innerHTML,/Не удалось загрузить справочник/);
+ assert.match(host.innerHTML,/Обновить страницу/);
+ host.onclick({target:{closest:()=>({hasAttribute:()=>true})}});
+ assert.equal(reloads,1);
+
+ vm.runInContext(fs.readFileSync(require.resolve('../scripts/gm-reference-data.js'),'utf8'),browser);
+ assert.doesNotThrow(()=>browser.DND_GM_REFERENCE.render(config));
+ assert.match(host.innerHTML,/role="tablist"/);
+ assert.match(panel.innerHTML,/<h3>Состояния<\/h3>/,'late loading must retain the saved reference section');
+ assert.match(counter.textContent,/Состояния/);
+ assert.ok(browser.DND_GM_REFERENCE.allEntries(config).length>data.entries.length);
+});
 
 test('reference search finds formulas, table cells and master notes across sections',()=>{
  const context={xp:[0,0,300],prof:[0,2,2],skills:[['Внимательность','wis']],abilities:{wis:'Мудрость'},backgrounds:[],notes:[{id:'own',t:'Правило стола',x:'Ещё одна попытка перепрыгнуть ров'}]};

@@ -171,9 +171,19 @@
     async installMigrated(envelope, sourceRaw) {
       const verified = await verifyEnvelope(envelope); if (!verified.ok) return verified;
       const current = await this.read(); if (!current.ok || !current.missing) return current.ok ? {ok:false, code:'ENVELOPE_EXISTS', reason:'A campaign envelope already exists.'} : current;
-      try { if (sourceRaw != null) await this.adapter.set(this.backupKey, String(sourceRaw)); await this.adapter.set(this.key, canonicalJson(verified.envelope)); }
+      try {
+        if (sourceRaw != null) await this.adapter.set(this.backupKey, String(sourceRaw));
+        const encoded = canonicalJson(verified.envelope);
+        if (typeof this.adapter.compareAndSet === 'function') {
+          const installed = await this.adapter.compareAndSet(this.key, null, encoded);
+          if (!installed) return {ok:false, conflict:true, code:'ENVELOPE_EXISTS', reason:'A campaign envelope was created during migration.'};
+        } else await this.adapter.set(this.key, encoded);
+      }
       catch (error) { return {ok:false, code:'WRITE_FAILED', reason:String(error && error.message || error)}; }
-      const readBack = await this.read(); return readBack.ok ? {ok:true, envelope:readBack.envelope, migrated:true} : readBack;
+      const readBack = await this.read();
+      if (!readBack.ok) return readBack;
+      if (readBack.missing || readBack.revision !== verified.envelope.revision || readBack.envelope.checksum !== verified.envelope.checksum) return {ok:false, code:'READ_BACK_FAILED', reason:'Migrated campaign envelope could not be verified after write.'};
+      return {ok:true, envelope:readBack.envelope, migrated:true};
     }
   }
 

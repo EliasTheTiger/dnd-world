@@ -35,6 +35,7 @@
 <link rel="stylesheet" href="styles/gm-reference.css">
 </head>
 <body>
+<a class="skip-link" href="#main-content" onclick="event.preventDefault();document.getElementById('main-content').focus()">Перейти к содержимому</a>
 <div class="wrap">
 <header class="masthead">
 <span class="corner tl">✠</span><span class="corner tr">✠</span>
@@ -66,7 +67,7 @@
 </div>
 </div>
 </header>
-<nav class="tabs" id="tabsNav">
+<nav class="tabs" id="tabsNav" aria-label="Разделы мира">
 <button class="tab active" data-tab="chars" onclick="switchTab('chars')">Персонажи</button>
 <button class="tab" data-tab="combat" onclick="switchTab('combat')">⚔ Бой</button>
 <button class="tab" data-tab="races" onclick="switchTab('races')">Расы</button>
@@ -79,7 +80,7 @@
 <button class="tab" data-tab="foes" onclick="switchTab('foes')">Противники</button>
 <button class="tab" data-tab="rules" onclick="switchTab('rules')">Справочник</button>
 </nav>
-<main class="leaf">
+<main class="leaf" id="main-content" tabindex="-1">
 <div class="save-status" id="saveStatus"></div>
 <div id="tab-chars"></div>
 <div id="tab-combat" class="hidden"></div>
@@ -214,6 +215,7 @@
 <script src="scripts/catalog-governance.js"></script>
 <script src="scripts/world-state-core.js"></script>
 <script src="scripts/ui-action-contract.js"></script>
+<script src="scripts/world-navigation.js"></script>
 <script src="scripts/projection-cache.js"></script>
 <script src="scripts/public-item-surface.js"></script>
 <script src="scripts/item-player-copy.js"></script>
@@ -3775,8 +3777,9 @@ classes:classesDB,rules:rulesDB,foes:foesDB,fxRound,combat,harvestedSources,econ
 function validWorldSnapshot(value){return !!(value&&value.schemaVersion===WORLD_SNAPSHOT_SCHEMA&&Array.isArray(value.chars)&&Array.isArray(value.items)
 &&Array.isArray(value.spells)&&Array.isArray(value.abilities)&&Array.isArray(value.races)&&Array.isArray(value.classes)&&Array.isArray(value.rules)&&Array.isArray(value.foes));}
 let savePendWorld=false, savePendJournal=false;
-let scheduledSaveQueue=Promise.resolve(true);
-async function runScheduledSaveNow(skipSyncTouch){
+let scheduledSaveQueue=Promise.resolve(true),scheduledSaveOperations=0;
+async function runScheduledSaveNow(skipSyncTouch,progress){
+progress=progress||{};
 const w=savePendWorld, j=savePendJournal;
 savePendWorld=savePendJournal=false;
 const statusVersion=pendingSaveStatusVersion==null?saveStatusVersion:pendingSaveStatusVersion;
@@ -3787,10 +3790,11 @@ if(campaignEnvelopeRepository){
 const envelopeResult=await campaignEnvelopeRepository.commit({campaignId:'default',expectedRevision:campaignEnvelopeRevision,state:snapshot,
 rulesetRefs:typeof rulesetActiveRefs==='function'?rulesetActiveRefs():[],catalogRefs:snapshot.catalogRefs});
 if(!envelopeResult.ok){savePendWorld=true;if(j)savePendJournal=true;const persistenceReason=String(envelopeResult.reason||envelopeResult.code||'неизвестная ошибка').replace(/[.!?]+\s*$/,'');setStatus(envelopeResult.conflict?'Сохранение отклонено: летопись была изменена в другом окне. Перезагрузите её перед повтором.':'Летопись не сохранена: '+persistenceReason+'.',true);return false;}
-campaignEnvelopeRevision=envelopeResult.receipt.revision;campaignLastPersistenceReceipt=envelopeResult.receipt;envelopeCommitted=true;
+campaignEnvelopeRevision=envelopeResult.receipt.revision;campaignLastPersistenceReceipt=envelopeResult.receipt;envelopeCommitted=true;progress.worldSaved=true;
 }
 const snapshotOk=await persist('dndworld2:world-snapshot',snapshot,statusVersion);
 if(!snapshotOk&&!envelopeCommitted){savePendWorld=true;if(j)savePendJournal=true;return false;}
+if(snapshotOk)progress.worldSaved=true;
 await persist('dndworld2:chars',chars,statusVersion);
 await persist('dndworld2:items',itemsDB,statusVersion);
 await persist('dndworld2:spells',spellsDB,statusVersion);
@@ -3811,13 +3815,29 @@ await persist('dndworld2:bg3-story-state',bg3StoryState,statusVersion);
 await persist('dndworld2:bg3-tadpole-state',bg3TadpoleState,statusVersion);
 await persist('dndworld2:bg3-treasure-state',bg3TreasureState,statusVersion);
 }
-if(j) await persist('dndworld2:journal',journal,statusVersion);
+if(j){
+if(await persist('dndworld2:journal',journal,statusVersion))progress.journalSaved=true;
+else{savePendJournal=true;if(!progress.worldSaved)return false;}
+}
 if(skipSyncTouch!==true&&typeof syncTouch==='function') syncTouch();
 return true;
 }
 function runScheduledSave(skipSyncTouch){
-const execute=()=>runScheduledSaveNow(skipSyncTouch),queued=scheduledSaveQueue.then(execute,execute);
+scheduledSaveOperations++;
+const execute=async()=>{
+const pendingWorld=savePendWorld,pendingJournal=savePendJournal,progress={worldSaved:false,journalSaved:false};
+try{return await runScheduledSaveNow(skipSyncTouch,progress);}
+catch(error){if(pendingWorld&&!progress.worldSaved)savePendWorld=true;if(pendingJournal&&!progress.journalSaved)savePendJournal=true;setStatus((progress.worldSaved?'Мир сохранен, но не удалось завершить дополнительные записи: ':'Летопись не сохранена: ')+String(error&&error.message||error)+'.',true);return progress.worldSaved||progress.journalSaved;}
+finally{scheduledSaveOperations--;}
+},queued=scheduledSaveQueue.then(execute,execute);
 scheduledSaveQueue=queued.catch(()=>false);return queued;
+}
+function hasUnsavedCampaignChanges(){return savePendWorld||savePendJournal||scheduledSaveOperations>0;}
+function campaignBeforeUnload(event){
+if(!hasUnsavedCampaignChanges())return;
+event.preventDefault();event.returnValue='';
+// If the user stays, finish pending edits without waiting for the debounce timer.
+if(!scheduledSaveOperations){clearTimeout(saveTimer);runScheduledSave();}
 }
 function scheduleSave(skipCombatSync){
 if(skipCombatSync!==true&&typeof combatSyncChanges==='function') combatSyncChanges();
@@ -3974,7 +3994,9 @@ if(bg3Reissue.ok&&bg3LearnedProfile.ok&&!bg3Catalog.error&&bg3World.ok){if(bg3Pr
 
 
 let activeWorldTab='chars';
-function switchTab(t){
+let worldNavigation=null;
+function switchTab(t,options){
+if(!['chars','combat','races','classes','spellsdb','itemsdb','chests','merchants','abilitiesdb','foes','rules'].includes(t))return false;
 activeWorldTab=t;
 document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===t));
 ['chars','combat','races','classes','spellsdb','itemsdb','chests','merchants','abilitiesdb','foes','rules'].forEach(x=>{
@@ -3985,6 +4007,8 @@ if(t==='itemsdb'&&typeof bg3CatalogEnsureIndex==='function') bg3CatalogEnsureInd
 if(t==='chests'&&typeof renderChests==='function')renderChests();
 if(t==='merchants'&&typeof renderMerchants==='function')renderMerchants();
 if(t==='rules')renderRules();
+if(worldNavigation)worldNavigation.sync(t,options);
+return true;
 }
 
 
@@ -28583,25 +28607,31 @@ if(typeof fxInvalidate==='function') fxInvalidate();
 const box=document.getElementById('tab-chars');
 if(activeCharId && cc()){ box.innerHTML=sheetHTML(cc()); return; }
 let h='<h2 class="rubric">Действующие лица</h2>'+magicSettingsHTML()
-+'<div class="row-line character-list-toolbar"><label class="grow"><span class="lbl">Поиск героя</span><input id="character-search" type="search" placeholder="Имя, игрок, народ или класс…" value="'+esc(characterSearch)+'" oninput="characterSearch=this.value;filterCharacterCards()"></label><span>'+chars.length+' героев</span><button class="btn rub" onclick="newChar()">✠ Новый герой</button></div>';
++'<div class="row-line character-list-toolbar"><label class="grow"><span class="lbl">Поиск героя</span><input id="character-search" type="search" placeholder="Имя, игрок, народ или класс…" value="'+esc(characterSearch)+'" oninput="characterSearch=this.value;filterCharacterCards()"></label><span id="character-search-status" role="status" aria-live="polite" aria-atomic="true"></span><button class="btn rub" onclick="newChar()">✠ Новый герой</button></div>';
 if(!chars.length){
 h+='<div class="empty-scroll"><span class="big">❦</span>Летопись пуста.<br>Впишите первого героя — и история начнется.</div>';
 } else {
 h+='<div class="grid c2">';
 chars.forEach(c=>{
-h+='<div class="card char-card" tabindex="0" role="button" aria-label="Открыть героя '+esc(c.name)+'" data-character-search="'+esc([c.name,c.player,c.race,c.subrace,c.cls,c.subcls].join(' ').toLocaleLowerCase())+'" style="cursor:pointer" onkeydown="if(event.target===this&&(event.key===\'Enter\'||event.key===\' \')){event.preventDefault();openChar(\''+c.id+'\')}" onclick="openChar(\''+c.id+'\')">'
+h+='<div class="card char-card" tabindex="0" role="button" aria-label="Открыть героя '+esc(c.name)+'" data-character-search="'+esc([c.name,c.player,c.race,c.subrace,c.cls,c.subcls].join(' ').toLocaleLowerCase('ru').replace(/ё/g,'е'))+'" style="cursor:pointer" onkeydown="if(event.target===this&&(event.key===\'Enter\'||event.key===\' \')){event.preventDefault();openChar(\''+c.id+'\')}" onclick="openChar(\''+c.id+'\')">'
 +'<div class="sigil">'+esc((c.name||'?')[0].toUpperCase())+'</div>'
 +'<div class="cc-main"><div class="cc-name">'+esc(c.name)+(canLevelUp(c)?' <span class="lvlup-badge">↑ уровень!</span>':'')+'</div>'
 +'<div class="cc-line">Уровень '+c.level+' · '+esc(c.race)+(c.subrace?' ('+esc(c.subrace)+')':'')+' '+esc(c.cls)+(c.subcls?' · '+esc(c.subcls):'')+'</div>'
 +'<div class="cc-line">Хиты '+c.hp+' / '+eHpMax(c)+' · КД '+acTotal(c)+' · опыт '+c.xp+'</div>'+(c.player?'<div class="cc-line">Игрок: '+esc(c.player)+'</div>':'')+'</div>'
 +'<button class="del-x" aria-label="Удалить героя '+esc(c.name)+'" onclick="event.stopPropagation();delChar(\''+c.id+'\')">✕</button></div>';
 });
-h+='</div>';
+h+='</div><div id="character-search-empty" class="empty-scroll" hidden><p>Герои не найдены. Попробуйте другое имя, игрока, народ или класс.</p><button type="button" class="btn ghost" onclick="characterSearch=\'\';const input=document.getElementById(\'character-search\');if(input){input.value=\'\';input.focus();}filterCharacterCards()">Очистить поиск</button></div>';
 }
 box.innerHTML=h;
 filterCharacterCards();
 }
-function filterCharacterCards(){const query=characterSearch.toLocaleLowerCase().trim();document.querySelectorAll('[data-character-search]').forEach(card=>card.hidden=!!query&&!card.dataset.characterSearch.includes(query));}
+function filterCharacterCards(){
+const query=characterSearch.toLocaleLowerCase('ru').replace(/ё/g,'е').trim();
+const cards=[...document.querySelectorAll('[data-character-search]')];let shown=0;
+cards.forEach(card=>{card.hidden=!!query&&!card.dataset.characterSearch.includes(query);if(!card.hidden)shown++;});
+const status=document.getElementById('character-search-status');if(status)status.textContent='Показано героев: '+shown+' из '+cards.length+'.';
+const empty=document.getElementById('character-search-empty');if(empty)empty.hidden=!query||shown>0||cards.length===0;
+}
 function raceOpts(sel){ return characterOptions(racesDB.map(r=>r.n),sel,'Выберите народ'); }
 function subraceOpts(race,sel){
 const r=racesDB.find(x=>x.n===race);
@@ -30114,11 +30144,13 @@ return '<div class="panel"><div class="f-grid">'
 
 /* ═══════════════ ЗАПУСК ═══════════════ */
 (async function init(){
+if(typeof window.addEventListener==='function')window.addEventListener('beforeunload',campaignBeforeUnload);
 if(RULESET_CORE&&!await rulesetLoadManifest())return;
 await loadAll();
 if(typeof applyStructuredReleaseMigration==='function') await applyStructuredReleaseMigration();
 renderRaces(); renderClasses(); renderRules();
 renderChars(); renderCombat(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderMerchants(); renderAbilitiesDB(); renderFoes();
+if(globalThis.DndWorldNavigation){worldNavigation=DndWorldNavigation.create({window,document,onNavigate:switchTab});worldNavigation.start();}
 if(bg3CatalogNeedsProductionRecovery())switchTab('itemsdb');
 if(typeof syncAutoStart==='function') syncAutoStart();
 

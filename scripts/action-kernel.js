@@ -16,18 +16,22 @@
       pipeline=pipeline||{};const key=String(pipeline.key?pipeline.key(intent):intent&&intent.actionId||'').trim();
       if(!key)return this.reject(pipeline,actionError('INVALID_INTENT','Action intent has no key.'),{intent,phase:'intent'});
       if(this.inFlight.has(key)||pipeline.singleFlight!==false&&this.inFlight.size)return this.reject(pipeline,actionError('ACTION_IN_FLIGHT','Another action is already executing.'),{intent,key,phase:'intent'});
-      this.inFlight.add(key);let snapshot=null,committed=false,phase='definition';
+      this.inFlight.add(key);let snapshot=null,committed=false,persisted=false,outcome=null,persistence=null,phase='definition';
       try{
         const definition=await pipeline.resolve(intent);phase='context';const context=await pipeline.context(intent,definition);phase='validation';const evaluation=await pipeline.validate(intent,definition,context);
         if(!evaluation||evaluation.allowed!==true)throw actionError(evaluation&&evaluation.reasonCode||'ACTION_REJECTED',evaluation&&evaluation.explanation||'Action is not allowed.',evaluation);
         phase='snapshot';snapshot=await pipeline.snapshot(intent,definition,context,evaluation);phase='prepare';const prepared=await pipeline.prepare(intent,definition,context,evaluation);
         const token=new ResourceCommitToken();phase='commit';const commitResult=await pipeline.commit(prepared,token,{intent,definition,context,evaluation,snapshot});const committedResources=token.close();committed=true;
-        phase='consequences';const outcome=await pipeline.consequences(commitResult,{intent,definition,context,evaluation,prepared,committedResources});
-        phase='persistence';const persistence=await pipeline.persist(outcome,{intent,definition,context,evaluation,prepared,committedResources,snapshot});
+        phase='consequences';outcome=await pipeline.consequences(commitResult,{intent,definition,context,evaluation,prepared,committedResources});
+        phase='persistence';persistence=await pipeline.persist(outcome,{intent,definition,context,evaluation,prepared,committedResources,snapshot});
         if(!persistence||persistence.ok!==true)throw actionError(persistence&&persistence.code||'FAILED_TO_PERSIST',persistence&&persistence.reason||'Durable persistence receipt was not produced.',persistence);
+        persisted=true;phase='feedback';
         if(persistence.receipt&&outcome&&typeof outcome==='object')outcome.persistenceReceipt=persistence.receipt;
-        phase='feedback';return pipeline.present?await pipeline.present(outcome,{persistence,committedResources}):outcome;
-      }catch(error){if(snapshot!=null&&typeof pipeline.rollback==='function')try{await pipeline.rollback(snapshot,{intent,key,phase,committed,error});}catch(rollbackError){error.rollbackError=rollbackError;}
+        return pipeline.present?await pipeline.present(outcome,{persistence,committedResources}):outcome;
+      }catch(error){
+        // Durable state is authoritative: failed feedback cannot undo a saved action.
+        if(persisted)return outcome&&typeof outcome==='object'?Object.assign({},outcome,{persistenceReceipt:persistence.receipt,feedbackError:{code:'ACTION_FEEDBACK_FAILED',message:String(error&&error.message||error)}}):outcome;
+        if(snapshot!=null&&typeof pipeline.rollback==='function')try{await pipeline.rollback(snapshot,{intent,key,phase,committed,error});}catch(rollbackError){error.rollbackError=rollbackError;}
         return this.reject(pipeline,error,{intent,key,phase,committed});
       }finally{this.inFlight.delete(key);}
     }

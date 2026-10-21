@@ -1,6 +1,6 @@
 (function(root){
 'use strict';
-const data=root.DND_GM_REFERENCE_DATA||(typeof require==='function'?require('./gm-reference-data.js'):null);
+let data=root.DND_GM_REFERENCE_DATA||(typeof require==='function'?require('./gm-reference-data.js'):null);
 const key='dndworld2:gm-reference-preferences';
 const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const normalize=value=>String(value??'').toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
@@ -20,7 +20,7 @@ function tableEntries(context){
 }
 function allEntries(context){return data.entries.concat(tableEntries(context),(context.notes||[]).map(note=>({id:'note:'+note.id,noteId:note.id,title:note.t,text:[note.x],tab:'notes',source:'note'})));}
 function readPreferences(){
- try{const raw=JSON.parse(root.localStorage.getItem(key)||'{}');return {tab:data.sections.some(s=>s.id===raw.tab)?raw.tab:'formulas',favorites:Array.isArray(raw.favorites)?raw.favorites.filter(id=>typeof id==='string'):[]};}catch{return {tab:'formulas',favorites:[]};}
+ try{const raw=JSON.parse(root.localStorage.getItem(key)||'{}');return {tab:typeof raw.tab==='string'&&(!data||data.sections.some(s=>s.id===raw.tab))?raw.tab:'formulas',favorites:Array.isArray(raw.favorites)?raw.favorites.filter(id=>typeof id==='string'):[]};}catch{return {tab:'formulas',favorites:[]};}
 }
 const prefs=readPreferences();
 const state={tab:prefs.tab,favorites:new Set(prefs.favorites),query:'',onlyFavorites:false,calculator:'concentration'};
@@ -112,6 +112,14 @@ function render(config){
  const draft=host===config.host&&config.editorHTML&&context?.editorKey===config.editorKey?host.querySelector('.editor'):null;
  context=config;host=config.host;if(!host)return;
  host.classList.add('gm-reference');
+ // A failed initial script request must not permanently capture missing data.
+ data=data||root.DND_GM_REFERENCE_DATA;
+ if(!data){
+  host.innerHTML='<h2 class="rubric">Справочник мастера</h2><div class="gm-empty" role="alert"><h3>Не удалось загрузить справочник</h3><p>Обновите страницу и попробуйте снова.</p><button type="button" class="btn ghost" data-reload-reference>Обновить страницу</button></div>';
+  host.onclick=event=>{const button=event.target.closest('button');if(button&&host.contains(button)&&button.hasAttribute('data-reload-reference'))root.location.reload();};
+  return;
+ }
+ if(!data.sections.some(section=>section.id===state.tab))state.tab='formulas';
  host.innerHTML='<div class="db-head"><h2 class="rubric">Справочник мастера</h2><button class="btn sm rub" data-add-note>+ Запись мастера</button></div><p class="gm-edition"><b>D&D 5e · 2014</b><span>Правила редакции 2014 года. Дополнения D&D World отмечены отдельно.</span></p><div class="gm-toolbar"><label class="gm-search-label" for="gm-search">Найти правило<input id="gm-search" data-search type="search" value="'+esc(state.query)+'" placeholder="Атака, концентрация, захват…" autocomplete="off"></label><button class="btn ghost" data-reset-filters>Сбросить</button><button class="btn ghost gm-favorites" data-favorites-only aria-pressed="'+state.onlyFavorites+'">★ Избранное</button></div><div class="gm-tabs" role="tablist" aria-label="Разделы справочника">'+data.sections.map(section=>'<button type="button" id="gm-tab-'+section.id+'" role="tab" aria-controls="gm-panel" aria-selected="false" tabindex="-1" data-section="'+section.id+'">'+section.name+' <span></span></button>').join('')+'</div>'+(config.editorHTML||'')+'<p class="gm-result-count" role="status" aria-live="polite"></p><section id="gm-panel" class="gm-panel" tabindex="0"></section><details class="gm-sources"><summary>Редакция и источники</summary><p>Основа справочника — SRD 5.1 для редакции D&D 2014 года. Правила изложены в сокращённом виде. Если описание конкретного заклинания, умения или предмета отличается от общего правила, применяйте его описание. Подробности доступны в «Гримуаре», «Способностях» и «Предметах».</p><p>Спасбросок в некоторых карточках называется испытанием; фокус — это заклинание 0-го круга, также известное как заговор. Названия состояний в листе персонажа могут иметь форму прилагательного: например, «Бессознательный» означает «Без сознания».</p><p>В формулах d20 обозначает двадцатигранную кость, а 2d6 — две шестигранные кости. Скобки ⌊…⌋ означают округление вниз. Для расстояний на поле боя принято соотношение 5 футов = 1,5 м; переводы больших расстояний и веса приблизительны. Избранное и последняя открытая вкладка запоминаются на этом устройстве.</p><p>В справочнике использованы материалы System Reference Document 5.1 («SRD 5.1») компании Wizards of the Coast LLC. Оригинал доступен по ссылке <a href="https://dnd.wizards.com/resources/systems-reference-document" target="_blank" rel="noopener noreferrer">https://dnd.wizards.com/resources/systems-reference-document</a>. SRD 5.1 распространяется на условиях лицензии <a href="https://creativecommons.org/licenses/by/4.0/legalcode" target="_blank" rel="noopener noreferrer">Creative Commons Attribution 4.0 International License</a>.</p></details>';
  if(draft)host.querySelector('.editor')?.replaceWith(draft);
  host.onclick=click;host.onkeydown=keydown;
