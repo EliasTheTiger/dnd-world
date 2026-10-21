@@ -86,6 +86,11 @@ jobs:
           QA_SITE_ROOT: _site
           QA_EXPECTED_COMMIT: ${{ github.sha }}
         run: npm run qa:public-shell
+      - name: Check Mystic Arcanum choices, casting and recovery
+        env:
+          QA_SITE_ROOT: _site
+          QA_EXPECTED_COMMIT: ${{ github.sha }}
+        run: npm run qa:mystic-arcanum
       - name: Check the GM reference, calculators and saved notes
         env:
           QA_SITE_ROOT: _site

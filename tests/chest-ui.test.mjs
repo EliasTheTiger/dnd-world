@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
+import chests from '../scripts/chest-core.js';
+import {loadRuntimeIntegrationEngine} from './helpers/runtime-catalog-loader.mjs';
+import {localCampaignFixture} from './helpers/local-campaign-fixture.mjs';
 
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const css=readFileSync(new URL('../styles.css',import.meta.url),'utf8');
@@ -19,13 +22,22 @@ test('chest workspace exposes templates, review, placement and every requested p
   assert.match(css,/\.chest-workspace/);
 });
 
-test('chest state survives snapshots, export/import and cloud campaign sync',()=>{
-  assert.match(html,/worldSnapshotPayload\(\)[\s\S]{0,600}chestState/);
-  assert.match(html,/persist\('dndworld2:chest-state',chestState,statusVersion\)/);
-  assert.match(html,/savedWorld\?savedWorld\.chestState:await readJSON\('dndworld2:chest-state'\)/);
-  assert.match(html,/chars, journal, combat, harvestedSources, economyState, merchantState, worldState, chestState, items:/);
-  assert.match(html,/CHEST_CORE\.normalizeState\(data\.chestState\)/);
-  assert.match(html,/CHEST_CORE\.normalizeState\(d\.chestState\)/);
+test('opened, claimed and revealed chests survive local migration, durable save and restart',async()=>{
+  const engine=loadRuntimeIntegrationEngine(),fixture=localCampaignFixture();
+  const opened=chests.createChest({id:'kept-chest',templateId:'trapped-vault',state:'opened',revision:7,
+    placement:{sceneId:'kept-scene',zoneId:'kept-zone',placed:true},
+    trap:{disarmed:true,detected:true},lock:{type:'complex',dc:16,opened:true},
+    loot:{status:'claimed',claimedByActorId:'char_septih',approved:{items:[{itemId:'kept-item',qty:2}],currency:{gp:17}}}});
+  const mimic=chests.createChest({id:'kept-mimic',templateId:'mimic',creature:{instanceId:'kept-foe',revealed:true}});
+  fixture.snapshot.chestState=chests.normalizeState({revision:9,instances:[opened,mimic],events:[{id:'kept-event',action:'claim',actorId:'char_septih'}]});
+  await engine.storeSet('dndworld2:world-snapshot',JSON.stringify(fixture.snapshot));
+  await engine.loadAll();
+  const actual=()=>JSON.parse(JSON.stringify(engine.economyApi.state().chestState));
+  assert.deepEqual(actual(),fixture.snapshot.chestState);
+  assert.equal(await engine.saveWorldNow(),true);
+  assert.deepEqual(JSON.parse(await engine.storeGet('dndworld2:chest-state')),fixture.snapshot.chestState);
+  await engine.loadAll();
+  assert.deepEqual(actual(),fixture.snapshot.chestState);
 });
 
 test('chest buttons bind to the authoritative action executor and mimic is a real foe',()=>{

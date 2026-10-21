@@ -1285,9 +1285,22 @@ const context=ITEM_DOMAIN_MODEL.createMigrationContext(out);return out.filter(it
 const SUPERSEDED_SPELLS = ['Волшебная рука','Огненный снаряд','Луч холода','Волшебная стрела','Сон','Паутина'];
 const GRIMOIRE_RULES=globalThis.DND_GRIMOIRE_RULES;
 function grimoireActive(sp){return GRIMOIRE_RULES.active(sp);}
+function grimoireCombatCorrections(sp){
+// Separate from the editorial revision: saved built-in contracts already have origin:'explicit'.
+const ids={'sp_перст_смерти':'fingerOfDeath','sp_слово_силы_оглушение':'powerWordStun'},special=ids[sp?.id],revision='srd2014-finger-stun-1';
+if(!special||!grimoireActive({...sp,grimoire:{...sp.grimoire,hidden:false}})||sp.custom||sp.grimoire?.edition!=='2014'||sp.grimoire?.translation==='custom'||!sp.mechanics||sp.mechanics.origin==='editor'||sp.grimoire.combatRevision===revision)return;
+const m=sp.mechanics;m.special=special;
+if(special==='fingerOfDeath'){
+m.resolution.save={key:'con',dc:{source:'spell'},half:true,tags:['magical']};m.resolution.needsRoll=true;
+m.spell=m.spell||compileSpellRule(sp,m);m.spell.resolution.savingThrow=mechanicsClone(m.resolution.save);m.spell.input={...m.spell.input,requireCompleteRolls:true};
+m.manualNote='Оживление убитого гуманоида в начале следующего хода заклинателя учитывает мастер вручную.';
+}else m.manualNote='Повторный спасбросок Телосложения в конце хода цели и завершение оглушения учитываются вручную.';
+sp.grimoire.combatRevision=revision;
+}
 function grimoireReconcile(rows,party){
 GRIMOIRE_RULES.reconcile(rows);
 rows.forEach(sp=>{
+if(['sp_перст_смерти','sp_слово_силы_оглушение'].includes(sp.id)&&(sp.custom||sp.mechanics?.origin==='editor'))return;
 if(!grimoireActive(sp)||sp.grimoire?.engineRevision===GRIMOIRE_RULES.revision)return;
 if(sp.grimoire?.translation==='custom'){sp.grimoire.engineRevision=GRIMOIRE_RULES.revision;return;}
 // The preserved explicit engine contract is separate from editorial prose.
@@ -1309,6 +1322,7 @@ if(m.special==='magicMissile'){m.spell.targeting=fresh.targeting;m.spell.input.r
 sp.grimoire.engineRevision=GRIMOIRE_RULES.revision;
 }
 });
+rows.forEach(grimoireCombatCorrections);
 (party||[]).forEach(c=>GRIMOIRE_RULES.migrateCharacter(c,rows));return rows;
 }
 function grimoireCanonicalId(id){return GRIMOIRE_RULES.resolveId(spellsDB,id);}
@@ -2187,7 +2201,7 @@ return !!(e&&(e.granted||e.alwaysPrepared||e.countsAgainstKnown===false||e.acces
 }
 function spellEntryAlwaysPrepared(e){ return !!(e&&e.alwaysPrepared); }
 function spellEntryCountsAgainstPreparation(e){ return !!e&&!spellEntryAlwaysPrepared(e)&&e.countsAgainstPreparation!==false; }
-function spellEntryCountsAgainstKnown(e){ return !!e&&!spellEntryGranted(e)&&e.countsAgainstKnown!==false; }
+function spellEntryCountsAgainstKnown(e){ return !!e&&!spellEntryArcanum(e)&&!spellEntryGranted(e)&&e.countsAgainstKnown!==false; }
 function knownSpellMax(c){
 if(CHARACTER_RULES&&CHARACTER_RULES.thirdCaster(c))return CHARACTER_RULES.thirdKnown[c.level-1];
 const rule=classesDB.find(x=>x.n===c.cls)?.mechanics?.spellcasting,row=Array.isArray(rule?.knownSpellsByLevel)&&rule.knownSpellsByLevel.length?rule.knownSpellsByLevel:SPELLS_KNOWN_2014[c&&c.cls]; return row?Math.max(0,+row[Math.max(0,Math.min(19,(+c.level||1)-1))]||0):0;
@@ -2202,6 +2216,81 @@ c.spellLearning.replacements=Math.max(0,+c.spellLearning.replacements||0);
 c.spellLearning.anyClassChoices=Math.max(0,+c.spellLearning.anyClassChoices||0);
 return c.spellLearning;
 }
+const MYSTIC_ARCANUM_LEVELS={6:11,7:13,8:15,9:17};
+function mysticArcanumClass(c){const m=c&&casterMeta(c);return !!(c&&c.cls==='Колдун'&&m?.kind==='pact'&&m.edition==='2014');}
+function spellEntryArcanum(e){return !!(e&&(e.access==='arcanum'||Object.prototype.hasOwnProperty.call(MYSTIC_ARCANUM_LEVELS,e.arcanumCircle)));}
+function mysticArcanumStateCheck(c){
+const state=c?.mysticArcanum;if(state==null)return {ok:true,state:null};
+const object=value=>!!value&&typeof value==='object'&&!Array.isArray(value),integer=value=>Number.isSafeInteger(value)&&value>=0;
+if(!object(state)||state.version!==1||!integer(state.revision)||!object(state.choices)||typeof state.context!=='string')return {ok:false,reason:'Сохранённое состояние арканума повреждено; выбор и расход заблокированы.'};
+for(const [circle,row] of Object.entries(state.choices))if(!Object.prototype.hasOwnProperty.call(MYSTIC_ARCANUM_LEVELS,circle)||!object(row)||typeof row.spellId!=='string'||!row.spellId||typeof row.spent!=='boolean'||!integer(row.revision))return {ok:false,reason:'Запись выбора арканума повреждена; расход не изменён.'};
+return {ok:true,state};
+}
+function mysticArcanumSync(c){
+let touched=false;const checked=mysticArcanumStateCheck(c);if(!checked.ok)return false;
+if(!checked.state){if(!mysticArcanumClass(c))return false;c.mysticArcanum={version:1,revision:0,context:c.cls+'|'+c.level,choices:{}};touched=true;}
+const state=c.mysticArcanum,context=c.cls+'|'+c.level;
+if(state.context!==context){state.context=context;state.revision++;touched=true;}
+if(!mysticArcanumClass(c))return touched;
+for(const [circle,row] of Object.entries(state.choices)){
+const sp=spellOf(row.spellId);if(!sp)continue;
+let entry=(c.spellbook||[]).find(e=>e.spellId===row.spellId);
+if(!entry){entry={spellId:row.spellId,access:'arcanum',arcanumCircle:+circle,prep:true,source:'Таинственный арканум'};(c.spellbook||=[]).push(entry);state.revision++;touched=true;}
+else if(spellEntryArcanum(entry)&&entry.access==='archive'){entry.access='arcanum';entry.prep=true;state.revision++;touched=true;}
+}
+return touched;
+}
+function mysticArcanumRetireLegacyCantrip(c){
+let touched=false;const feature=id=>ABILITY_GAMEPLAY.profile(abilityOf(id))?.key,legacy=id=>['mystic arcanum','magical secrets','additional magical secrets'].includes(feature(id));
+for(const entry of c.spellbook||[]){
+if(!entry.abilityGameplayGrant||!legacy(entry.abilityGameplayGrant))continue;
+if(entry.anyClassKnown||entry.loreSecret){delete entry.abilityGameplayGrant;touched=true;continue;}
+const other=abilityGameplayEntries(c).find(x=>x.ab.id!==entry.abilityGameplayGrant&&x.profile.binding==='cantrip'&&x.entry.grantedSpell===entry.spellId);
+if(other){entry.abilityGameplayGrant=other.ab.id;touched=true;continue;}
+const original=itemClone(entry),notes=entry.notes,marker=feature(entry.abilityGameplayGrant)==='mystic arcanum'?'retiredArcanumGrant':'retiredClassSpellGrant';Object.keys(entry).forEach(key=>delete entry[key]);Object.assign(entry,{spellId:original.spellId,access:'archive',prep:false,[marker]:original});if(notes)entry.notes=notes;touched=true;
+}
+for(const entry of c.abilities||[])if(entry.grantedSpell&&legacy(entry.abilityId)){entry.legacyGrantedSpell=entry.grantedSpell;delete entry.grantedSpell;touched=true;}
+return touched;
+}
+function mysticArcanumProfile(c){
+if(!mysticArcanumClass(c))return [];
+const checked=mysticArcanumStateCheck(c);
+return Object.entries(MYSTIC_ARCANUM_LEVELS).map(([circle,requiredLevel])=>{const row=checked.state?.choices[circle],sp=row&&spellOf(row.spellId),unlocked=c.level>=requiredLevel,valid=!!(checked.ok&&sp&&grimoireActive(sp)&&+sp.l===+circle&&spellClassListHas(c,sp));return {circle:+circle,requiredLevel,unlocked,spellId:row?.spellId||'',spent:row?.spent===true,available:!!(unlocked&&valid&&!row.spent),valid,reason:checked.ok?'':checked.reason};});
+}
+function mysticArcanumChoiceCheck(c,sp,circle){
+circle=Number(circle);const checked=mysticArcanumStateCheck(c);if(!checked.ok)return checked;
+if(!mysticArcanumClass(c)||!MYSTIC_ARCANUM_LEVELS[circle]||c.level<MYSTIC_ARCANUM_LEVELS[circle])return {ok:false,reason:'Этот круг арканума ещё недоступен колдуну.'};
+if(!sp||!grimoireActive(sp)||+sp.l!==circle||!spellClassListHas(c,sp))return {ok:false,reason:'Выберите заклинание колдуна ровно '+circle+' круга из действующего гримуара.'};
+if(checked.state?.choices[circle])return {ok:false,reason:'Арканум '+circle+' круга уже выбран; удаление записи не возвращает выбор или использование.'};
+return {ok:true,circle};
+}
+function mysticArcanumEntryEligible(c,e,sp){
+const checked=mysticArcanumStateCheck(c),circle=+e?.arcanumCircle,row=checked.state?.choices[circle];
+return !!(checked.ok&&mysticArcanumClass(c)&&e?.access==='arcanum'&&row&&row.spellId===e.spellId&&sp?.id===row.spellId&&+sp.l===circle&&c.level>=MYSTIC_ARCANUM_LEVELS[circle]&&grimoireActive(sp)&&spellClassListHas(c,sp));
+}
+function mysticArcanumCastToken(c,sp){return gameActionHash({actor:c.id,cls:c.cls,level:c.level,entry:(c.spellbook||[]).find(e=>e.spellId===sp.id),state:c.mysticArcanum,spell:sp,rule:classesDB.find(x=>x.n===c.cls)?.mechanics?.spellcasting});}
+function mysticArcanumPaymentPlan(c,sp,selection){
+const e=(c.spellbook||[]).find(row=>row.spellId===sp.id),circle=+e?.arcanumCircle;
+if(!mysticArcanumEntryEligible(c,e,sp))return {ok:false,reason:'Выбранный арканум больше недоступен этому герою или его карточка изменилась.'};
+if(selection!=null&&selection!==circle+':arcanum')return {ok:false,reason:'Арканум применяется только своим использованием, без усиления, ячейки или MP.'};
+const state=c.mysticArcanum,row=state.choices[circle];if(row.spent)return {ok:false,reason:'Арканум '+circle+' круга уже использован — требуется долгий отдых.'};
+return {ok:true,mode:'arcanum',lv:circle,circle,spellId:sp.id,casterId:c.id,token:mysticArcanumCastToken(c,sp),info:' · арканум '+circle+' круга (без ячейки и MP)'};
+}
+function commitMysticArcanumPayment(c,plan){
+const sp=spellOf(plan.spellId),fresh=sp&&mysticArcanumPaymentPlan(c,sp,plan.circle+':arcanum');
+if(!fresh?.ok||plan.casterId!==c.id||plan.lv!==fresh.lv||plan.token!==fresh.token)throw new Error(fresh?.reason||'План применения арканума устарел.');
+const row=c.mysticArcanum.choices[plan.circle];row.spent=true;row.revision++;c.mysticArcanum.revision++;
+}
+function mysticArcanumRest(c){
+const checked=mysticArcanumStateCheck(c);if(!checked.ok||!checked.state)return;
+for(const row of Object.values(checked.state.choices)){row.spent=false;row.revision++;}checked.state.revision++;
+}
+function commitMysticArcanumSelection(c,sp,circle){
+const checked=mysticArcanumChoiceCheck(c,sp,circle);if(!checked.ok)throw new Error(checked.reason);
+mysticArcanumSync(c);c.mysticArcanum.choices[checked.circle]={spellId:sp.id,spent:false,revision:0};c.mysticArcanum.revision++;
+const at=(c.spellbook||[]).findIndex(e=>e.spellId===sp.id),entry={spellId:sp.id,access:'arcanum',arcanumCircle:checked.circle,prep:true,source:'Таинственный арканум'};
+if(at>=0){if(c.spellbook[at].notes)entry.notes=c.spellbook[at].notes;c.spellbook[at]=entry;}else(c.spellbook||=[]).push(entry);
+}
 function spellBookLearningSlots(c){
 if(casterPreparationMode(c)!=='book')return null;
 const rule=classesDB.find(x=>x.n===c.cls)?.mechanics?.spellcasting?.spellbookLearning;
@@ -2215,7 +2304,7 @@ return {slots,choices:ledger,remaining:slots.filter(s=>!s.used).length};
 }
 function spellLearningProfile(c){
 const meta=casterMeta(c),mode=meta?.preparation||'none',book=spellBookLearningSlots(c),known=knownSpellCount(c),cantrips=cantripKnownCount(c);
-return {className:c.cls,level:c.level,mode,kind:meta?.kind||'none',ability:spellAbOf(c),maxCircle:maxCircleFor(c),known,knownMax:knownSpellMax(c),cantrips,cantripMax:cantripKnownMax(c),prepared:prepCount(c),prepareMax:prepMax(c),bookChoices:book?.remaining??null,replacements:Math.max(0,+c.spellLearning?.replacements||0),ritual:!!meta?.ritualCasting,recovery:meta?.slotRecovery||'none',campaignFree:magicFreeAccess()};
+return {className:c.cls,level:c.level,mode,kind:meta?.kind||'none',ability:spellAbOf(c),maxCircle:maxCircleFor(c),known,knownMax:knownSpellMax(c),cantrips,cantripMax:cantripKnownMax(c),prepared:prepCount(c),prepareMax:prepMax(c),bookChoices:book?.remaining??null,replacements:Math.max(0,+c.spellLearning?.replacements||0),ritual:!!meta?.ritualCasting,recovery:meta?.slotRecovery||'none',campaignFree:magicFreeAccess(),arcanum:mysticArcanumProfile(c)};
 }
 function archiveSpellClass(c){
 c.spellClassArchives=c.spellClassArchives||{};
@@ -2229,16 +2318,19 @@ c.spellLearning=itemClone(archived.learning||{replacements:0,anyClassChoices:0})
 autoLevelSpells(c,archived.level);return true;
 }
 function bardMagicalSecretsEarned(level){ return [10,14,18].filter(x=>(+level||1)>=x).length*2; }
+function spellEntryUsesKnownQuota(e,sp){return !!(sp&&(+sp.l>0||e?.anyClassKnown));}
 function knownSpellCount(c){
-return (c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&+sp.l>0&&spellEntryCountsAgainstKnown(e)&&spellEntryEligible(c,e,sp); }).length;
+return (c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return spellEntryUsesKnownQuota(e,sp)&&spellEntryCountsAgainstKnown(e)&&spellEntryEligible(c,e,sp); }).length;
 }
 function cantripKnownCount(c){
-return (c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&+sp.l===0&&spellEntryCountsAgainstKnown(e)&&spellEntryEligible(c,e,sp); }).length;
+return (c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return sp&&+sp.l===0&&!spellEntryUsesKnownQuota(e,sp)&&spellEntryCountsAgainstKnown(e)&&spellEntryEligible(c,e,sp); }).length;
 }
 function spellEntryEligible(c,e,sp){
 if(!grimoireActive(sp)) return false;
 if(e&&e.access==='archive')return false;
+if(spellEntryArcanum(e))return mysticArcanumEntryEligible(c,e,sp);
 if(e?.loreSecret&&(c.cls!=='Бард'||c.subcls!=='Коллегия Знаний'||c.level<6||(c.spellbook||[]).filter(row=>row.loreSecret).length>2))return false;
+if(e?.anyClassKnown&&(c.cls!=='Бард'||c.level<10))return false;
 if(e?.subclassSpellGrant&&subclassSpellRule(c,sp)?.kind!=='prepared')return false;
 const m=casterMeta(c);
 if(!m) return spellEntryGranted(e);
@@ -2252,7 +2344,7 @@ function spellEntryQuotaEligible(c,e,sp){
 if(!spellEntryEligible(c,e,sp)) return false;
 const tracked=Array.isArray(c.spellbook);
 if(!tracked||!e||!spellEntryCountsAgainstKnown(e)) return true;
-if(+sp.l===0) return cantripKnownCount(c)<=cantripKnownMax(c);
+if(!spellEntryUsesKnownQuota(e,sp)) return cantripKnownCount(c)<=cantripKnownMax(c);
 if(casterPreparationMode(c)==='known') return knownSpellCount(c)<=knownSpellMax(c);
 return true;
 }
@@ -2282,7 +2374,7 @@ if(+sp.l>0&&+sp.l>maxCircleFor(c)) return {ok:false,reason:'«'+sp.n+'» име�
 return {ok:false,reason:'«'+sp.n+'» не входит в список класса «'+c.cls+'» и не отмечено как полученное от особенности.'};
 }
 if(!spellEntryQuotaEligible(c,e,sp)){
-const max=+sp.l===0?cantripKnownMax(c):knownSpellMax(c),kind=+sp.l===0?'заговоров':'заклинаний';
+const known=spellEntryUsesKnownQuota(e,sp),max=known?knownSpellMax(c):cantripKnownMax(c),kind=known?'заклинаний':'заговоров';
 return {ok:false,reason:'Превышен классовый предел известных '+kind+': максимум '+max+' на '+c.level+' уровне.'};
 }
 return {ok:true};
@@ -2297,6 +2389,7 @@ return casterPreparationMode(c)==='known'||!!e.prep;
 function spellRitualAllowed(c,sp,e,opts){
 opts=opts||{};
 if(!sp||!sp.ritual) return false;
+if(spellEntryArcanum(e))return false;
 if(combat&&combat.active&&!opts.ignoreCombat) return false;
 if(!spellAccessCheck(c,sp,e).ok) return false;
 const meta=casterMeta(c),mode=casterPreparationMode(c);
@@ -2349,15 +2442,18 @@ if(!grimoireActive(sp))return {ok:false,reason:'Эта запись не вхо�
 opts=opts||{}; const m=casterMeta(c);
 if(!m) return {ok:false,reason:'Класс «'+c.cls+'» не имеет заклинательной прогрессии.'};
 if((c.spellbook||[]).some(e=>e.spellId===sp.id&&(e.access!=='archive'||spellEntryGranted(e))))return {ok:false,reason:'Это заклинание уже есть в списке героя; повторный выбор не заменяет другое заклинание.'};
+if(opts.loreSecret&&opts.magicalSecret)return {ok:false,reason:'Выберите один источник изучения заклинания.'};
 if(opts.loreSecret){
 if(loreSecretRemaining(c)<1)return {ok:false,reason:'Нет свободных дополнительных «Тайн магии» Коллегии Знаний.'};
 if(+sp.l>maxCircleFor(c))return {ok:false,reason:'Этот круг недоступен герою.'};
 return {ok:true,special:'loreSecret'};
 }
-const learning=c.spellLearning||{},magicalSecret=c.cls==='Бард'&&+sp.l>0&&learning.anyClassChoices>0;
+const learning=c.spellLearning||{},secretAvailable=c.cls==='Бард'&&c.level>=10&&learning.anyClassChoices>0;
+if(opts.magicalSecret&&!secretAvailable)return {ok:false,reason:'Нет свободных «Тайн магии» барда.'};
+const magicalSecret=secretAvailable&&(!!opts.magicalSecret||(+sp.l>0&&!spellClassListHas(c,sp)));
 if(!opts.granted&&!spellClassListHas(c,sp)&&!magicalSecret) return {ok:false,reason:'«'+sp.n+'» не входит в список класса «'+c.cls+'».'};
 if(+sp.l>0&&+sp.l>maxCircleFor(c)) return {ok:false,reason:'Доступны заклинания не выше '+maxCircleFor(c)+' круга.'};
-if(+sp.l===0&&!opts.granted&&cantripKnownCount(c)>=cantripKnownMax(c))
+if(+sp.l===0&&!magicalSecret&&!opts.granted&&cantripKnownCount(c)>=cantripKnownMax(c))
 return {ok:false,reason:'Лимит известных заговоров достигнут: '+cantripKnownCount(c)+' из '+cantripKnownMax(c)+'.'};
 const replacing=!!(opts.replacement&&c.spellReplacementDraft&&c.spellReplacementDraft.removeId);
 if(replacing){const old=(c.spellbook||[]).find(e=>e.spellId===c.spellReplacementDraft.removeId),oldSpell=old&&spellOf(old.spellId);if(m.preparation!=='known'||!oldSpell||+oldSpell.l===0||+sp.l===0||!spellEntryCountsAgainstKnown(old)||!spellEntryEligible(c,old,oldSpell)||!(+learning.replacements>0))return {ok:false,reason:'Выбор для замены устарел. Выберите известное заклинание заново.'};}
@@ -2369,10 +2465,10 @@ const used=(c.spellbook||[]).filter(e=>e.spellId!==removed&&spellEntryCountsAgai
 if(used>=limit)return {ok:false,reason:'Для этого архетипа основные школы: '+schools.join(', ')+'. Выборы других школ уже использованы ('+limit+').'};
 }
 }
-if(+sp.l>0&&m.preparation==='known'&&!opts.granted&&knownSpellCount(c)>=knownSpellMax(c)&&!replacing)
+if((+sp.l>0||magicalSecret)&&m.preparation==='known'&&!opts.granted&&knownSpellCount(c)>=knownSpellMax(c)&&!replacing)
 return {ok:false,reason:'Лимит известных заклинаний достигнут: '+knownSpellCount(c)+' из '+knownSpellMax(c)+'. Замена выполняется при получении уровня.'};
 if(+sp.l>0&&m.preparation==='book'&&!opts.granted){const book=spellBookLearningSlots(c),slot=book?.slots.find(s=>!s.used&&s.circle>=+sp.l);if(book&&!slot)return {ok:false,reason:'Нет свободного выбора этого круга при развитии героя. Новые заклинания можно переписать из найденного свитка через инвентарь.'};if(slot)return {ok:true,bookLevel:slot.level};}
-return {ok:true,special:magicalSecret&&!spellClassListHas(c,sp)?'magicalSecrets':''};
+return {ok:true,special:magicalSecret?'magicalSecrets':''};
 }
 function syncClassSpellAccess(c){
 const m=casterMeta(c),added=[],removed=[]; if(!m) return {added,removed};
@@ -2408,7 +2504,7 @@ const afterKnown=knownSpellMax(c);
 if(m.preparation==='known'){
 const learning=spellLearningState(c),previous=Math.max(+oldLevel||1,+learning.highestLevel||0),newLevels=Math.max(0,c.level-previous);learning.highestLevel=Math.max(previous,c.level);learning.replacements+=newLevels;
 if(c.cls==='Бард') learning.anyClassChoices+=Math.max(0,bardMagicalSecretsEarned(c.level)-bardMagicalSecretsEarned(previous));
-if((+c.level||1)<(+oldLevel||1)){ learning.replacements=0;learning.anyClassChoices=Math.min(learning.anyClassChoices,bardMagicalSecretsEarned(c.level));delete c.spellReplacementDraft; }
+if((+c.level||1)<(+oldLevel||1)){ learning.replacements=0;delete c.spellReplacementDraft; }
 return {added:[],removed:[],learnChoices:Math.max(0,afterKnown-beforeKnown),replacements:gained,anyClassChoices:learning.anyClassChoices};
 }
 if(m.preparation==='book') return {added:[],removed:[],learnChoices:Math.max(0,(+c.level-(+oldLevel||+c.level))*2)};
@@ -5417,7 +5513,11 @@ fxInvalidate();scheduleSave();renderChars();return true;
 function abilityGameplaySyncSpells(c){
 const grants=new Map();abilityGameplayEntries(c).filter(x=>x.profile.binding==='cantrip'&&x.entry.grantedSpell).forEach(x=>{const sp=spellOf(x.entry.grantedSpell);if(sp&&grimoireActive(sp)&&+sp.l===0)grants.set(sp.id,x.ab.id);});
 c.spellbook=(c.spellbook||[]).filter(e=>!e.abilityGameplayGrant||grants.has(e.spellId));
-for(const [spellId,abilityId] of grants)if(!c.spellbook.some(e=>e.spellId===spellId))c.spellbook.push({spellId,access:'feature',granted:true,alwaysPrepared:true,countsAgainstKnown:false,countsAgainstPreparation:false,prep:true,abilityGameplayGrant:abilityId});
+for(const [spellId,abilityId] of grants){
+const entry=c.spellbook.find(e=>e.spellId===spellId),grant={spellId,access:'feature',granted:true,alwaysPrepared:true,countsAgainstKnown:false,countsAgainstPreparation:false,prep:true,abilityGameplayGrant:abilityId};
+if(!entry)c.spellbook.push(grant);
+else if(entry.access==='archive'&&(entry.retiredArcanumGrant||entry.retiredClassSpellGrant))Object.assign(entry,grant);
+}
 }
 function abilityGameplayPointPool(c,key){
 const providers=abilityGameplayEntries(c).filter(x=>x.profile.role==='resource'&&x.profile.pool===key);if(!providers.length)return null;
@@ -5767,6 +5867,7 @@ if(typeof castLogLine==='function') castLogLine('— бой окончен: сп
 
 function resetCustomCharacterForCombat(c){
 if(!c) return c;
+mysticArcanumRest(c);
 if(c.magicResource)MAGIC_RULES.rest(c);
 c.activeFx=[]; c.fxOff=[]; c.cond=[]; c.hpTemp=0; c.deaths={s:0,f:0};
 c.exhaustion=0; c.hdUsed=0; c.spentRest=0; c.hpPend=false;
@@ -8780,8 +8881,8 @@ if(castFormulaShow()) return;
 }
 const primary=castCtx.primaryTarget||current;
 const primaryRolls=castCtx.rollsByTarget[primary]||rolls;
-if(castSpellApply(castCtx.spellId, castCtx.casterId, primary, castCtx.inv, castCtx.mat, castCtx.slotSel,
-primaryRolls, castCtx.extraTargets, castCtx.rollsByTarget,castCtx.executionInput)) closeCastModal();
+return castSpellFinish(castCtx.spellId, castCtx.casterId, primary, castCtx.inv, castCtx.mat, castCtx.slotSel,
+primaryRolls, castCtx.extraTargets, castCtx.rollsByTarget,castCtx.executionInput);
 }
 function castFormulaBack(){
 if(!castCtx) return;
@@ -8809,6 +8910,8 @@ if(!caster){ setStatus('Наложение доступно из книги за
 const lifecycleCheck=bg3LifecycleActorActionPreflight(caster,'','spell',null,null);
 if(!lifecycleCheck.ok)return bg3LifecycleBlock(lifecycleCheck,'Заклинание «'+sp.n+'»');
 castCtx={kind:'spell', spellId, casterId};
+const arcanumEntry=(caster.spellbook||[]).find(e=>e.spellId===spellId);
+if(spellEntryArcanum(arcanumEntry))castCtx.arcanumToken=mysticArcanumCastToken(caster,sp);
 setCastConfirmCaption('⚡ Наложить');
 setCastTargetLabel('На кого или на что наложить');
 const back=document.getElementById('castBack'); if(!back) return;
@@ -8832,6 +8935,7 @@ else if(sp.l>0&&casterPreparationMode(caster)==='known') info.push('извест
 if(sp.l>0&&caster.spellPrepDraft&&Array.isArray(caster.spellPrepDraft.choices)&&caster.spellPrepDraft.choices.indexOf(sp.id)>=0&&!spellEntryReady(caster,be,sp)) info.push('запланировано после следующего долгого отдыха');
 if(sp.ritual&&combat&&combat.active&&spellRitualAllowed(caster,sp,be,{ignoreCombat:true})) info.push('ритуал требует еще 10 минут и в активном бою недоступен');
 info.push('СЛ спасброска: '+spellDC(caster));
+if(['fingerOfDeath','powerWordStun'].includes(sp.mechanics?.special)&&sp.mechanics.manualNote)info.push('Мастер: '+sp.mechanics.manualNote);
 document.getElementById('castInfo').textContent=info.join(' · ');
 const castRule=spellRuleOf(sp);
 document.getElementById('castTarget').innerHTML=castRule&&castRule.targeting.type==='none'
@@ -8844,9 +8948,11 @@ return it?'<option value="'+e.id+'">'+esc(userFacingItemName(it,'Предмет'
 
 const sw=document.getElementById('castSlotWrap');
 if(sp.l>0&&sw){
-document.getElementById('castResourceLabel').textContent=magicUsesMp()?'Круг заклинания и стоимость MP':'Какой ячейкой наложить';
+document.getElementById('castResourceLabel').textContent=spellEntryArcanum(be)?'Отдельное использование арканума':magicUsesMp()?'Круг заклинания и стоимость MP':'Какой ячейкой наложить';
 const opts=[];
-if(magicUsesMp()){
+if(spellEntryArcanum(be)){
+const plan=mysticArcanumPaymentPlan(caster,sp);opts.push('<option value="'+(+be.arcanumCircle)+':arcanum"'+(!plan.ok?' disabled':'')+'>'+sp.l+' круг · арканум · '+(plan.ok?'1 / 1 до долгого отдыха':'недоступен')+' · без ячейки и MP</option>');
+}else if(magicUsesMp()){
 for(let lv=+sp.l;lv<=maxCircleFor(caster);lv++){const plan=magicPlan(caster,lv);opts.push('<option value="'+lv+'"'+(!plan.ok?' disabled':'')+'>'+lv+' круг'+(lv>sp.l?' · усиление':'')+' — '+MAGIC_RULES.costs[lv]+' MP'+(!plan.ok?' · не хватает MP':'')+'</option>');}
 }else{
 Object.keys(caster.slots||{}).map(Number).sort((a,b)=>a-b).forEach(lv=>{
@@ -8855,14 +8961,14 @@ opts.push('<option value="'+lv+'"'+(caster.slots[lv].cur<=0?' disabled':'')+'>К
 });
 }
 const ritualOk=spellRitualAllowed(caster,sp,be);
-const recipeSlot=recipeTabletopSlot(caster,sp.l);if(recipeSlot)opts.unshift('<option value="'+recipeSlot.recipeSlot.level+':recipe">Круг '+recipeSlot.recipeSlot.level+' — дополнительная ячейка эликсира</option>');
+const recipeSlot=!spellEntryArcanum(be)&&recipeTabletopSlot(caster,sp.l);if(recipeSlot)opts.unshift('<option value="'+recipeSlot.recipeSlot.level+':recipe">Круг '+recipeSlot.recipeSlot.level+' — дополнительная ячейка эликсира</option>');
 if(ritualOk) opts.push('<option value="ritual">Ритуалом — '+(magicUsesMp()?'0 MP':'без ячейки')+', время +10 минут</option>');
 if(!opts.length) opts.push('<option value="" disabled selected>'+(magicUsesMp()?'Нет доступного круга магии':'Нет доступной ячейки')+'</option>');
 const sel=document.getElementById('castSlot');
 sel.innerHTML=opts.join('');
 
 const first=magicUsesMp()?(magicPlan(caster,+sp.l).ok?+sp.l:undefined):Object.keys(caster.slots||{}).map(Number).sort((a,b)=>a-b).find(lv=>lv>=sp.l&&caster.slots[lv].cur>0);
-sel.value=recipeSlot?recipeSlot.recipeSlot.level+':recipe':first!==undefined?String(first):(ritualOk?'ritual':'');
+sel.value=spellEntryArcanum(be)?be.arcanumCircle+':arcanum':recipeSlot?recipeSlot.recipeSlot.level+':recipe':first!==undefined?String(first):(ritualOk?'ritual':'');
 sw.style.display='block';
 castSlotChanged();
 } else if(sw){ sw.style.display='none'; }
@@ -9072,7 +9178,7 @@ return;
 }
 castCtx.mat=undefined;
 if(castFormulaShow()) return;
-const applySpell=()=>{if(castSpellApply(castCtx.spellId, castCtx.casterId, target, inv, undefined, castCtx.slotSel, null, castCtx.extraTargets,null,castCtx.executionInput))closeCastModal();};if(bg3InterruptMaybePrepareCast(castCtx,applySpell))return;applySpell();
+const applySpell=()=>castSpellFinish(castCtx.spellId, castCtx.casterId, target, inv, undefined, castCtx.slotSel, null, castCtx.extraTargets,null,castCtx.executionInput);if(bg3InterruptMaybePrepareCast(castCtx,applySpell))return;return applySpell();
 }
 function castMatBack(){
 document.getElementById('castStep2').style.display='none';
@@ -9086,7 +9192,7 @@ const use=+document.getElementById('castMatQty').value||0;
 if(!entryId){ castShowErr('Выберите предмет-компонент.'); return; }
 castCtx.mat=entryId==='__cover__'?{substitute:true}:(entryId==='__aggregate__'?{aggregate:true}:{entryId,use});
 if(castFormulaShow()) return;
-const applySpell=()=>{if(castSpellApply(castCtx.spellId, castCtx.casterId, castCtx.target, castCtx.inv, castCtx.mat, castCtx.slotSel, null, castCtx.extraTargets,null,castCtx.executionInput))closeCastModal();};if(bg3InterruptMaybePrepareCast(castCtx,applySpell))return;applySpell();
+const applySpell=()=>castSpellFinish(castCtx.spellId, castCtx.casterId, castCtx.target, castCtx.inv, castCtx.mat, castCtx.slotSel, null, castCtx.extraTargets,null,castCtx.executionInput);if(bg3InterruptMaybePrepareCast(castCtx,applySpell))return;return applySpell();
 }
 function castLogLine(txt){
 if(typeof journal==='undefined') return;
@@ -9102,6 +9208,7 @@ if(combat&&combat.active){ combatLog(txt,'action',combatFocusedKey()); if(typeof
 function slotPlanFor(caster,sp,slotSel){
 const bookEntry=(caster.spellbook||[]).find(e=>e.spellId===sp.id),access=spellAccessCheck(caster,sp,bookEntry);
 if(!access.ok) return access;
+if(spellEntryArcanum(bookEntry))return mysticArcanumPaymentPlan(caster,sp,slotSel);
 if(sp.l===0) return {ok:true,mode:'cantrip',lv:0,info:''};
 const recipeChoice=typeof slotSel==='string'&&/^[1-4]:recipe$/.test(slotSel),recipeLevel=recipeChoice?parseInt(slotSel,10):null,recipeSlot=recipeChoice?recipeTabletopSlot(caster,recipeLevel):null;
 if(recipeChoice&&(!recipeSlot||recipeSlot.recipeSlot.level!==recipeLevel||recipeLevel<sp.l||!spellEntryReady(caster,bookEntry,sp)))return {ok:false,reason:'Дополнительная ячейка недоступна для этого заклинания.'};
@@ -9135,6 +9242,7 @@ return {ok:false,reason:'Ячейки '+lv+' круга исчерпаны — �
 return {ok:true,mode:'slot',lv,info:' · ячейка '+lv+' круга'+(lv>sp.l?' (усиление)':'')};
 }
 function commitSlotPlan(caster,p){
+if(p.mode==='arcanum'){commitMysticArcanumPayment(caster,p);return;}
 if(p.mode==='recipe-slot'){const e=recipeTabletopSlot(caster,p.lv);if(!e||e.uid!==p.recipeUid)throw Error('Дополнительная ячейка уже недоступна.');e.recipeSlot.available=false;caster.recipeMeditationSpent=true;return;}
 if(p.mode==='mp'){if(!magicUsesMp())throw new Error('Режим магии изменился до оплаты.');MAGIC_RULES.commit(caster,p);caster.spentRest=(+caster.spentRest||0)+1;return;}
 if(p.mode!=='slot') return;
@@ -9373,6 +9481,10 @@ const otherResources=spellOtherResourcePlan(caster,rule); if(!otherResources.ok)
 const scene=spellScenePreflight(rule,targets,input); if(!scene.ok)return scene;
 const choices=spellChoicePreflight(rule,input); if(!choices.ok)return choices;
 const rollCheck=spellRollPreflight(rule,targets,rolls,rollsByTarget); if(!rollCheck.ok)return rollCheck;
+if(mechanics?.special==='fingerOfDeath'){
+const carriers=targets.map((value,index)=>index===0?rolls:rollsByTarget?.[value]);
+if(carriers.some(row=>!row||row.saveMade!==true||typeof row.saveOk!=='boolean'||!Number.isFinite(row.dmgTotal)))return {ok:false,reason:'До наложения «Перста смерти» нужны результат спасброска Телосложения и сумма 7d8. Ресурс не потрачен.'};
+}
 if(mechanics?.special==='sleep'){
 const die=mechanics.resolution.rolls.find(row=>row.type==='sleep'),count=die?die.cnt+Math.max(0,slot.lv-(die.upcast?.fromSlot||sp.l))*(die.upcast?.perSlot||0):0;
 if(!die||!Number.isInteger(rolls?.sleepTotal)||rolls.sleepTotal<count||rolls.sleepTotal>count*die.sides)return {ok:false,reason:'До наложения «Сна» нужен общий результат '+count+'d'+(die?.sides||8)+'. Ресурс не потрачен.'};
@@ -9405,6 +9517,30 @@ foesDB.push(foe); created.summons.push(id);
 }
 if(created.worldEffects.length) bg3SceneState.revision=(+bg3SceneState.revision||0)+1;
 return created;
+}
+async function mysticArcanumCastApply(...args){
+const [spellId,casterId,target,invEntryId,mat,slotSel,rolls,extraTargets,rollsByTarget,executionInput]=args,c=getCh(casterId),sp=spellOf(spellId);
+const initial=c&&sp&&mysticArcanumPaymentPlan(c,sp,slotSel),opened=castCtx?.kind==='spell'&&castCtx.casterId===casterId&&castCtx.spellId===spellId?castCtx.arcanumToken:null;
+const fail=message=>{setStatus(message,true);castShowErr(message);return {success:false,message};};
+if(!initial?.ok||opened&&opened!==initial.token)return fail(initial?.reason||'Профиль или выбор арканума изменился после открытия окна. Откройте наложение заново.');
+if(!combatActionKernel)return fail('Движок сохранения действий недоступен.');
+const fresh=()=>{
+const actor=getCh(casterId),spell=spellOf(spellId),payment=actor&&spell&&mysticArcanumPaymentPlan(actor,spell,slotSel);
+if(!payment?.ok||payment.token!==initial.token)throw new Error(payment?.reason||'План применения арканума устарел.');
+const plan=spellExecutionPreflight(spell,actor,target,invEntryId,mat,slotSel,rolls,extraTargets,rollsByTarget,executionInput);if(!plan.ok)throw new Error(plan.reason);return plan;
+};
+const result=await combatActionKernel.execute({actionId:'arcanum-cast:'+casterId+':'+initial.circle},{
+resolve:async()=>initial,context:async()=>null,validate:async()=>{fresh();return {allowed:true};},snapshot:async()=>gameActionTransactionSnapshot(),prepare:async()=>fresh(),
+commit:async(_prepared,token)=>token.commit('arcanum-spell',()=>{fresh();if(castSpellApply(...args)!==true)throw new Error('Наложение арканума отменено; использование и последствия сохранены без изменений.');const outcomeNotes=lastCastEvent?.casterId===casterId&&lastCastEvent?.spellId===spellId?lastCastEvent.outcomeNotes||[]:[];return {success:true,spellId,circle:initial.circle,message:'Арканум '+initial.circle+' круга применён и сохранён. '+(outcomeNotes.length?outcomeNotes.join('; ')+'. ':'')+'Следующее использование — после долгого отдыха.'};}),
+consequences:async result=>result,
+persist:async()=>{scheduleSave();clearTimeout(saveTimer);return await runScheduledSave()?{ok:true,receipt:campaignLastPersistenceReceipt}:{ok:false,reason:'Не удалось сохранить арканум. Использование, компоненты и последствия восстановлены.'};},
+rollback:async snapshot=>gameActionTransactionRestore(snapshot),reject:error=>({success:false,message:String(error.message||error)})});
+setStatus(result.message,!result.success);if(!result.success)castShowErr(result.message);renderChars();renderCombat();return result;
+}
+function castSpellFinish(...args){
+const actor=getCh(args[1]),entry=actor?.spellbook?.find(e=>e.spellId===args[0]);
+if(spellEntryArcanum(entry)||castCtx?.arcanumToken||String(args[5]||'').endsWith(':arcanum'))return mysticArcanumCastApply(...args).then(result=>{if(result.success)closeCastModal();return result;});
+const applied=castSpellApply(...args);if(applied)closeCastModal();return applied;
 }
 function castSpellApply(spellId, casterId, target, invEntryId, mat, slotSel, rolls, extraTargets, rollsByTarget, executionInput){
 
@@ -9488,6 +9624,8 @@ if(!immune&&x.hp<=pool){ pool-=x.hp; sleepEligible.add(x.val); }
 plans.forEach((p,i)=>{
 const val=targetVals[i], t=p.targetChar||p.foe, isHero=!!p.targetChar;
 snapshots.push(combatSnapshot(t,!isHero));
+// A legal casting still spends its resource when this spell's HP threshold is not met.
+if(spellMechanics?.special==='powerWordStun'&&+t.hp>150){results.push((t.name||t.n)+': эффекта нет — '+t.hp+' текущих хитов, больше 150');return;}
 const hasOwn=!!(rollsByTarget&&Object.prototype.hasOwnProperty.call(rollsByTarget,val));
 const ownRolls=hasOwn?rollsByTarget[val]:((i===0||shared)?rolls:null);
 if(ownRolls){
@@ -9535,10 +9673,11 @@ rollInfo+=' · лечение +'+ih.plus+' хитов';
 }
 lastCastEvent={castId,casterId:caster.id,spellId:sp.id,usedSlotLvl,round:fxRound,snapshots,contractVersion:SPELL_RULE_SCHEMA_VERSION,
 targets:targetVals.slice(),worldEffects:worldOutcome.worldEffects,summons:worldOutcome.summons,
+outcomeNotes:results.slice(),
 explanation:enginePlan.explanation.concat(['Броски разрешены по каждой цели','Состояние мира изменено атомарно'])};
 recipeTabletopSpellTrigger(caster,sp);
 fxInvalidate(); scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
-setStatus('⚡ «'+sp.n+'» применено к '+names.join(', ')+matPlan.info+slotPlan.info+enginePlan.otherResources.info+rollInfo+'.');
+setStatus('⚡ «'+sp.n+'» применено к '+names.join(', ')+(results.length?' · '+results.join('; '):'')+matPlan.info+slotPlan.info+enginePlan.otherResources.info+rollInfo+'.');
 castLogLine(caster.name+' → '+names.join(', ')+': «'+sp.n+'» (СЛ '+spellDC(caster)+')'+durWhy
 +(results.length?' · '+results.join('; '):'')+matPlan.info+slotPlan.info+enginePlan.otherResources.info+rollInfo);
 targetVals.forEach((v,i)=>{
@@ -18806,9 +18945,9 @@ const off=(o.equipment||{}).OFF_HAND===x.id&&(o.equipment||{}).MAIN_HAND!==x.id&
 if(off) h+=combatActionButton('◇',itemName+' — вторая рука','После действия Атака · без положительного мод. к урону',gameActionCommand('weapon:'+x.id+':offhand',()=>combatWeapon(x.id,mode,'offhand',true),{source:{kind:'equipment',id:x.id},possibleTargets:gameActionTargetPolicy(key,'enemy',1,1,false),requiredRolls:[{formula:'off-hand weapon attack',input:'player'}]}),'offhand',key,downReason);
 });
 } else if(g==='spells'&&entry.kind==='ally'){
-characterSpellEntries(o).forEach(x=>{ const sp=spellOf(x.spellId); if(!sp) return; const cost=combatSpellCost(sp),ready=spellEntryReady(o,x,sp),known=casterPreparationMode(o)==='known',castCheck=ready?canCastCheck(o,sp):{ok:false,reason:'Заклинание не подготовлено.'},turnReady=combatSpellTurnAllowed(sp,cost,key,true),payment=magicUsesMp()&&+sp.l>0?magicPlan(o,+sp.l):{ok:true},
+characterSpellEntries(o).forEach(x=>{ const sp=spellOf(x.spellId); if(!sp) return; const cost=combatSpellCost(sp),ready=spellEntryReady(o,x,sp),known=casterPreparationMode(o)==='known',castCheck=ready?canCastCheck(o,sp):{ok:false,reason:'Заклинание не подготовлено.'},turnReady=combatSpellTurnAllowed(sp,cost,key,true),payment=spellEntryArcanum(x)?slotPlanFor(o,sp):magicUsesMp()&&+sp.l>0?magicPlan(o,+sp.l):{ok:true},
 blocked=downReason||(!ready?'Заклинание не подготовлено.':(!castCheck.ok?(castCheck.reason||'Не выполнены требования заклинания.') :(!payment.ok?payment.reason:(!turnReady?'Ограничение заклинаний бонусным действием не позволяет сотворение.':''))));
-h+=combatActionButton('✦',sp.n,(sp.l?sp.l+' круг':'заговор')+' · '+(x.access==='freeClass'?'список класса':(sp.l?(known?'известно':(ready?'подготовлено':'не подготовлено')):'всегда готово'))+' · '+combatCostLabel(cost)+(magicUsesMp()?' · '+MAGIC_RULES.costs[+sp.l]+' MP':''),gameActionCommand('spell:'+sp.id,()=>combatCastSpell(sp.id),{source:{kind:'spell',id:sp.id},possibleTargets:gameActionTargetPolicy(key,'any',1,Math.max(1,combat.order.length),true),requiredRolls:[{formula:'spell resolution',input:'players'}]}),cost,key,blocked); });
+h+=combatActionButton('✦',sp.n,(sp.l?sp.l+' круг':'заговор')+' · '+(x.access==='freeClass'?'список класса':(sp.l?(known?'известно':(ready?'подготовлено':'не подготовлено')):'всегда готово'))+' · '+combatCostLabel(cost)+(spellEntryArcanum(x)?' · арканум · 1 / долгий отдых':magicUsesMp()?' · '+MAGIC_RULES.costs[+sp.l]+' MP':''),gameActionCommand('spell:'+sp.id,()=>combatCastSpell(sp.id),{source:{kind:'spell',id:sp.id},possibleTargets:gameActionTargetPolicy(key,'any',1,Math.max(1,combat.order.length),true),requiredRolls:[{formula:'spell resolution',input:'players'}]}),cost,key,blocked); });
 bg3Array(o.bg3LearnedSpells).forEach(row=>{const check=bg3LearnedSpellEntryCheck(row),cast=row&&row.castResource,cost=cast&&cast.cost||'action',slot=cast&&+cast.slotLevel||0,
 slotReady=!slot||(magicUsesMp()?magicPlan(o,slot).ok:!!(o.slots&&o.slots[slot]&&(+o.slots[slot].cur||0)>0)),turnReady=check.ok&&(!combat||!combat.active||combatSpellTurnAllowed({id:row.id,l:+row.level||0},cost,key,true));
 h+=combatActionButton('✦',row.label||row.spellId,'BG3 exact · '+(+row.level?row.level+' уровень':'заговор')+' · '+combatCostLabel(cost)+(magicUsesMp()?' · '+(slot?MAGIC_RULES.costs[slot]:0)+' MP':(slot?' · ячейка '+slot:' без ячейки')),
@@ -20134,6 +20273,7 @@ h+='<div class="meta-grid">'
 +'<div><b>Компоненты:</b> '+esc(sp.cm||'—')+'</div><div><b>Длительность:</b> '+esc(sp.d||'—')+'</div>'
 +(sp.c?'<div><b>Классы:</b> '+esc(sp.c)+'</div>':'')+'</div>';
 h+=descBlock(sp.x);
+if(['fingerOfDeath','powerWordStun'].includes(sp.mechanics?.special)&&sp.mechanics.manualNote)h+='<p><b>Мастер:</b> '+esc(sp.mechanics.manualNote)+'</p>';
 if(sp.hi) h+='<div class="props-block"><span class="pt">На больших уровнях:</span> '+esc(sp.hi)+'</div>';
 return h+'</div>';
 }
@@ -27702,6 +27842,8 @@ if(!c.spellLearning||typeof c.spellLearning!=='object'){ c.spellLearning={replac
 return touched;
 }
 if(syncSubclassSpellGrants(c))touched=true;
+if(mysticArcanumSync(c))touched=true;
+if(mysticArcanumRetireLegacyCantrip(c))touched=true;
 if(c.cls==='Бард'&&c.subcls==='Коллегия Знаний'&&c.level>=6)for(const entry of c.spellbook.filter(e=>e.loreSecret)){
 const before=JSON.stringify(entry);Object.assign(entry,{access:'feature',granted:true,countsAgainstKnown:false,source:'Дополнительные тайны магии · Коллегия Знаний'});if(before!==JSON.stringify(entry))touched=true;
 }
@@ -29156,11 +29298,12 @@ return h+'</div>';
 
 
 const bookFlt={q:'',l:'',prep:'',page:0};
-function spellLearningViewToken(c){return gameActionHash({id:c.id,cls:c.cls,subcls:c.subcls,level:c.level,ab:c.ab,spellAb:c.spellAb,book:c.spellbook,learning:c.spellLearning,preparation:c.spellPrepDraft,replacement:c.spellReplacementDraft,magic:campaignMagic,rule:classesDB.find(x=>x.n===c.cls)?.mechanics?.spellcasting});}
+function spellLearningViewToken(c){return gameActionHash({id:c.id,cls:c.cls,subcls:c.subcls,level:c.level,ab:c.ab,spellAb:c.spellAb,book:c.spellbook,learning:c.spellLearning,arcanum:c.mysticArcanum,preparation:c.spellPrepDraft,replacement:c.spellReplacementDraft,magic:campaignMagic,rule:classesDB.find(x=>x.n===c.cls)?.mechanics?.spellcasting});}
 function spellLearningChoiceCheck(c,sp,kind,options){
 if(magicFreeAccess())return {ok:false,reason:'Свободный доступ MP включён для кампании; сохранённые классовые выборы не изменяются.'};
 if(!c||!sp||combat.active||castCtx||rollSpec||magicSwitchBusy)return {ok:false,reason:'Завершите открытое действие и бой перед изменением заклинаний.'};
-if(kind==='learn')return spellAddCheck(c,sp,{replacement:!!c.spellReplacementDraft,loreSecret:!!options?.loreSecret});
+if(kind==='arcanum')return mysticArcanumChoiceCheck(c,sp,options?.circle);
+if(kind==='learn')return spellAddCheck(c,sp,{replacement:!!c.spellReplacementDraft,loreSecret:!!options?.loreSecret,magicalSecret:!!options?.magicalSecret});
 if(kind!=='prepare'||!['book','prepared'].includes(casterPreparationMode(c))||+sp.l===0)return {ok:false,reason:'Этому заклинанию не требуется подготовка.'};
 const e=(c.spellbook||[]).find(row=>row.spellId===sp.id),access=spellAccessCheck(c,sp,e);if(!access.ok)return access;
 if(spellEntryAlwaysPrepared(e))return {ok:false,reason:'Это заклинание всегда подготовлено и не занимает место.'};
@@ -29171,7 +29314,7 @@ function spellLearningPlan(actorId,spellId,kind='learn',options={},expected){
 const c=getCh(actorId),sp=spellOf(spellId);if(!c||!sp)return {ok:false,reason:'Герой или заклинание больше недоступны.'};
 const token=spellLearningViewToken(c);if(expected&&expected!==token)return {ok:false,reason:'Профиль героя изменился. Выберите заклинание заново.'};
 const check=spellLearningChoiceCheck(c,sp,kind,options);if(!check.ok)return check;
-return {ok:true,actorId,spellId,kind,options:{loreSecret:!!options.loreSecret},token,spellToken:gameActionHash(sp)};
+return {ok:true,actorId,spellId:sp.id,kind,options:{loreSecret:!!options.loreSecret,magicalSecret:!!options.magicalSecret,...(kind==='arcanum'?{circle:Number(options.circle)}:{})},token,spellToken:gameActionHash(sp)};
 }
 async function spellLearningCommit(plan){
 if(!plan?.ok||!combatActionKernel){const result={success:false,message:plan?.reason||'Выберите доступное заклинание.'};setStatus(result.message,true);return result;}
@@ -29180,9 +29323,10 @@ const result=await combatActionKernel.execute({actionId:'spell-learning:'+plan.a
 resolve:async()=>plan,context:async()=>null,validate:async()=>{fresh();return {allowed:true};},
 snapshot:async()=>gameActionTransactionSnapshot(),prepare:async()=>fresh(),
 commit:async(_next,token)=>token.commit('spell-selection',()=>{fresh();const c=getCh(plan.actorId),sp=spellOf(plan.spellId);
-if(plan.kind==='learn'){const check=spellLearningChoiceCheck(c,sp,plan.kind,plan.options);if(!check.ok)throw new Error(check.reason);commitSpellLearningSelection(c,sp,check);}
+if(plan.kind==='arcanum')commitMysticArcanumSelection(c,sp,plan.options.circle);
+else if(plan.kind==='learn'){const check=spellLearningChoiceCheck(c,sp,plan.kind,plan.options);if(!check.ok)throw new Error(check.reason);commitSpellLearningSelection(c,sp,check);}
 else{const draft=ensureSpellPreparationDraft(c),ids=new Set(draft.choices);if(ids.has(sp.id))ids.delete(sp.id);else ids.add(sp.id);draft.choices=[...ids];}
-return {success:true,kind:plan.kind,spellId:sp.id,message:plan.kind==='learn'?'Изучено: «'+sp.n+'».':'План подготовки сохранён. Активный список сменится после долгого отдыха.'};}),
+return {success:true,kind:plan.kind,spellId:sp.id,message:plan.kind==='arcanum'?'Выбран арканум '+plan.options.circle+' круга: «'+sp.n+'».':plan.kind==='learn'?'Изучено: «'+sp.n+'».':'План подготовки сохранён. Активный список сменится после долгого отдыха.'};}),
 consequences:async result=>{fxInvalidate();return result;},
 persist:async()=>{scheduleSave();clearTimeout(saveTimer);return await runScheduledSave()?{ok:true,receipt:campaignLastPersistenceReceipt}:{ok:false,reason:'Не удалось сохранить выбор. Книга, подготовка и доступные выборы восстановлены.'};},
 rollback:async snapshot=>gameActionTransactionRestore(snapshot),reject:error=>({success:false,message:String(error.message||error)})});
@@ -29190,6 +29334,27 @@ if(result.success)sheetSearch.sp='';setStatus(result.message,!result.success);re
 }
 function spellLearningSelect(actorId,spellId,kind='learn',options={},expected){return spellLearningCommit(spellLearningPlan(actorId,spellId,kind,options,expected));}
 function spellLearningSubmit(actorId,kind,expected){return spellLearningSelect(actorId,document.getElementById('spell-choice-'+kind)?.value,kind,{},expected);}
+function spellSecretSubmit(actorId,expected){return spellLearningSelect(actorId,document.getElementById('spell-choice-secret')?.value,'learn',{magicalSecret:true},expected);}
+function mysticArcanumSubmit(actorId,circle,expected){return spellLearningSelect(actorId,document.getElementById('arcanum-choice-'+circle)?.value,'arcanum',{circle},expected);}
+function mysticArcanumCandidates(c,circle){return spellsDB.filter(sp=>mysticArcanumChoiceCheck(c,sp,circle).ok);}
+function mysticArcanumManual(sp){return !!(sp&&currentMechanics(sp,'spell')?.mode==='manual'&&(sp.grimoire||sp.catalogSource?.provider==='Open5e'));}
+function mysticArcanumProfileHTML(c){
+const rows=mysticArcanumProfile(c);if(!rows.length)return '';
+const stamp=spellLearningViewToken(c),blocked=!!(combat.active||castCtx||rollSpec||magicSwitchBusy||gameActionInteractionLocked());
+let h='<section aria-label="Таинственный арканум"><h4>Таинственный арканум</h4><p>По одному выбранному заклинанию каждого доступного круга. Каждое используется один раз до долгого отдыха, без ячейки и MP. Короткий отдых их не восстанавливает. Выбор не занимает место среди обычных известных заклинаний.</p>';
+for(const row of rows){
+h+='<div class="props-block"><b>'+row.circle+' круг</b> · ';
+if(row.reason){h+=esc(row.reason)+'</div>';continue;}
+if(!row.unlocked){h+='откроется на '+row.requiredLevel+' уровне колдуна</div>';continue;}
+if(row.spellId){const sp=spellOf(row.spellId);h+=esc(sp?.n||'Карточка больше не доступна')+' · '+(row.spent?'0 / 1 — после долгого отдыха':'1 / 1');
+if(!row.valid)h+='<p>Карточка отсутствует или больше не соответствует выбранному кругу и классу. Выбор и расход сохранены; применение недоступно.</p>';
+else if(mysticArcanumManual(sp))h+='<p>Справочное заклинание: последствия ещё не автоматизированы. Выбор сохранён; автоматическое применение недоступно и использование не тратится.</p>';
+else h+=' <button type="button" class="btn ghost sm"'+(!row.available||blocked?' disabled':'')+' onclick="castSpellFx('+esc(JSON.stringify(row.spellId))+','+esc(JSON.stringify(c.id))+')">Применить арканум '+row.circle+' круга</button>';
+}else{
+const choices=mysticArcanumCandidates(c,row.circle);h+='<label for="arcanum-choice-'+row.circle+'">Выберите арканум '+row.circle+' круга</label><select id="arcanum-choice-'+row.circle+'" style="width:100%;min-width:0;max-width:100%"'+(blocked||!choices.length?' disabled':'')+'><option value="">Выберите заклинание…</option>'+choices.map(sp=>'<option value="'+esc(sp.id)+'">'+esc(sp.n)+(mysticArcanumManual(sp)?' · справочно':'')+'</option>').join('')+'</select><button type="button" class="btn ghost sm"'+(blocked||!choices.length?' disabled':'')+' onclick="mysticArcanumSubmit('+esc(JSON.stringify(c.id))+','+row.circle+','+esc(JSON.stringify(stamp))+')">Выбрать арканум '+row.circle+' круга</button><p class="note-ital">Пометка «справочно» означает, что последствия ещё не автоматизированы; такой выбор сохраняется, но его применение заблокировано.</p>';
+}h+='</div>';
+}return h+'</section>';
+}
 function spellLearningProfileHTML(c){
 const p=spellLearningProfile(c),modeNames={none:'Нет классовых заклинаний',book:'Книга и подготовка',prepared:'Подготовка из списка класса',known:'Известные заклинания'};
 let h='<section class="props-block" aria-label="Изучение заклинаний героя"><h3 class="rubric">'+esc(c.name)+' · '+esc(modeNames[p.mode]||p.mode)+'</h3>';
@@ -29199,12 +29364,17 @@ if(p.mode==='book')h+='<p>Новые записи выбираются в кни
 else if(p.mode==='prepared')h+='<p>Список класса открывается автоматически по уровню. Выберите план из <b>'+p.prepareMax+'</b> заклинаний; он вступит в силу после долгого отдыха. Заклинания подкласса с постоянной подготовкой не занимают места.</p>';
 else h+='<p>Известно <b>'+p.known+' из '+p.knownMax+'</b>; свободно <b>'+Math.max(0,p.knownMax-p.known)+'</b> выборов. Подготовка не нужна. Доступно замен при повышении уровня: <b>'+p.replacements+'</b>. Для замены выберите «↔ Заменить» у прежнего заклинания.</p>';
 h+='<p>Заговоры: <b>'+p.cantrips+' из '+p.cantripMax+'</b>. '+(p.ritual?(p.mode==='book'?'Ритуалы можно использовать прямо из книги без подготовки.':p.mode==='known'?'Ритуал должен быть известен герою.':'Для ритуала заклинание должно быть подготовлено.'):'Класс не даёт ритуального наложения.')+' '+(p.kind==='pact'?'Магия договора восстанавливается на коротком или долгом отдыхе.':'Основной запас магии восстанавливается на долгом отдыхе.')+'</p>';
+h+=mysticArcanumProfileHTML(c);
 if(p.campaignFree)return h+'<p>В кампании включён свободный доступ MP. Классовый профиль и ранее изученные заклинания сохранены; выборы ниже доступны в режиме изучения и подготовки.</p></section>';
 const stamp=spellLearningViewToken(c),blocked=!!(combat.active||castCtx||rollSpec||magicSwitchBusy||gameActionInteractionLocked());
 for(const kind of ['learn',...(p.mode==='known'?[]:['prepare'])]){
 const choices=spellsDB.filter(sp=>grimoireActive(sp)&&spellLearningChoiceCheck(c,sp,kind,{}).ok).sort((a,b)=>a.l-b.l||a.n.localeCompare(b.n,'ru'));
 const label=kind==='learn'?(p.mode==='prepared'?'Выбрать новый заговор':'Выбрать новое заклинание'):'План подготовки после отдыха';
 h+='<div class="f-grid"><div><label for="spell-choice-'+kind+'">'+label+'</label><select id="spell-choice-'+kind+'" style="width:100%;min-width:0;max-width:100%"'+(blocked||!choices.length?' disabled':'')+'><option value="">Выберите из доступных…</option>'+choices.map(sp=>'<option value="'+esc(sp.id)+'">'+(sp.l?sp.l+' круг':'Заговор')+' · '+esc(sp.n)+(kind==='prepare'&&preparedChoiceIds(c,true).has(sp.id)?' · в плане':'')+'</option>').join('')+'</select></div><div><button class="btn ghost sm"'+(blocked||!choices.length?' disabled':'')+' onclick="spellLearningSubmit('+esc(JSON.stringify(c.id))+','+esc(JSON.stringify(kind))+','+esc(JSON.stringify(stamp))+')">'+(kind==='learn'?'Изучить и сохранить':'Изменить план и сохранить')+'</button></div></div>';
+}
+if(c.cls==='Бард'&&bardMagicalSecretsEarned(c.level)){
+const choices=spellsDB.filter(sp=>grimoireActive(sp)&&spellLearningChoiceCheck(c,sp,'learn',{magicalSecret:true}).ok).sort((a,b)=>a.l-b.l||a.n.localeCompare(b.n,'ru'));
+h+='<section aria-label="Тайны магии"><h4>Тайны магии</h4><p>Осталось <b>'+Math.max(0,+c.spellLearning?.anyClassChoices||0)+'</b> выборов из списков любых классов. Можно выбрать и заговор: он займёт место среди известных заклинаний, а не обычных заговоров.</p><label for="spell-choice-secret">Выбрать заклинание через Тайны магии</label><select id="spell-choice-secret" style="width:100%;min-width:0;max-width:100%"'+(blocked||!choices.length?' disabled':'')+'><option value="">Выберите из доступных…</option>'+choices.map(sp=>'<option value="'+esc(sp.id)+'">'+(sp.l?sp.l+' круг':'Заговор')+' · '+esc(sp.n)+'</option>').join('')+'</select><button type="button" class="btn ghost sm"'+(blocked||!choices.length?' disabled':'')+' onclick="spellSecretSubmit('+esc(JSON.stringify(c.id))+','+esc(JSON.stringify(stamp))+')">Выбрать Тайну магии</button></section>';
 }
 return h+'</section>';
 }
@@ -29253,11 +29423,12 @@ if(result.replaced) setStatus('↔ Замена завершена: новое �
 }
 function delBookSpell(spellId){ if(magicFreeAccess())return; const c=cc(); if(!c) return;
 const e=c.spellbook.find(x=>x.spellId===spellId),sp=spellOf(spellId); if(!e) return;
+if(spellEntryArcanum(e)){setStatus('Арканум сохраняет отдельный выбор и расход. По правилам 2014 он не заменяется обычным удалением из книги.',true);return false;}
 if(combat&&combat.active){ setStatus('✕ Книгу и список известных заклинаний нельзя менять во время активного боя.',true); return; }
 if(e.access==='classList'){ setStatus('«'+(sp?sp.n:'Заклинание')+'» входит в полный список класса и не удаляется; просто не включайте его в подготовку.'); return; }
 if(spellEntryAlwaysPrepared(e)){ setStatus('«'+(sp?sp.n:'Заклинание')+'» всегда подготовлено особенностью и не может быть удалено из активного списка.'); return; }
 const eligible=sp&&spellEntryEligible(c,e,sp)&&spellEntryCountsAgainstKnown(e);
-if(eligible&&+sp.l===0&&cantripKnownCount(c)<=cantripKnownMax(c)){
+if(eligible&&+sp.l===0&&(e.anyClassKnown?knownSpellCount(c)<=knownSpellMax(c):cantripKnownCount(c)<=cantripKnownMax(c))){
 setStatus('✕ По базовым правилам 2014 известный заговор не заменяется при отдыхе или повышении уровня. Удаление доступно только для исправления превышенного лимита.',true); return;
 }
 if(eligible&&+sp.l>0&&casterPreparationMode(c)==='known'&&knownSpellCount(c)<=knownSpellMax(c)){
@@ -29343,6 +29514,7 @@ const equippedEntries=new Set(Object.values(c.equipment||{}).filter(Boolean));
 if(equippedEntries.has(e.id)&&rule&&rule.athleticsContextBonus) e.equippedDays=Math.max(0,+e.equippedDays||0)+1;
 });
 Object.keys(c.slots).forEach(l=>{ c.slots[l].cur=c.slots[l].max; });
+mysticArcanumRest(c);
 if(c.magicResource){MAGIC_RULES.rest(c);if(magicUsesMp())magicEnsure(c);}
 if(c.characterBuild){c.characterBuild.slotSpent={};(c.characterBuild.archivedAbilities||[]).forEach(a=>{const db=abilityOf(a.abilityId);if(db?.uses!=null)a.cur=abilityMaxUses(c,db);});}
 c.abilities.forEach(a=>{ const db=abilityOf(a.abilityId); if(db&&db.uses!=null) a.cur=abilityMaxUses(c,db);delete a.choiceLocked; });
@@ -29502,8 +29674,8 @@ return magicUsesMp()?magicPlan(c,+sp.l).ok:lvls.some(lv=>lv>=sp.l && c.slots[lv]
 const ritual=(c.spellbook||[]).filter(e=>{ const sp=spellOf(e.spellId); return spellRitualAllowed(c,sp,e,{ignoreCombat:true}); }).length;
 const spent=+c.spentRest||0;
 if(mode==='known'){
-const known=knownSpellCount(c),knownMax=knownSpellMax(c),granted=Math.max(0,ready.length-known);
-h+='<div class="sd-line'+(known>knownMax?' sd-over':'')+'">Известно заклинаний 1+ круга: <b>'+known+' из '+knownMax+'</b>'+(granted?' · еще '+granted+' от особенностей (в лимит не входят)':'')+'. '+esc(c.cls)+' не готовит отдельный список; замена выполняется при получении уровня.</div>';
+const known=knownSpellCount(c),knownMax=knownSpellMax(c),granted=ready.filter(e=>!spellEntryCountsAgainstKnown(e)).length;
+h+='<div class="sd-line'+(known>knownMax?' sd-over':'')+'">Список известных заклинаний: <b>'+known+' из '+knownMax+'</b>'+(granted?' · еще '+granted+' от особенностей (в лимит не входят)':'')+'. '+esc(c.cls)+' не готовит отдельный список; замена выполняется при получении уровня.</div>';
 const learning=spellLearningState(c),replaceEntry=c.spellReplacementDraft&&(c.spellbook||[]).find(e=>e.spellId===c.spellReplacementDraft.removeId),replaceSpell=replaceEntry&&spellOf(replaceEntry.spellId);
 if(learning.replacements||learning.anyClassChoices||replaceSpell) h+='<div class="sd-line">Доступно при повышении уровня: замен известных заклинаний — <b>'+learning.replacements+'</b>'+(learning.anyClassChoices?' · выборов «Тайн магии» из любого списка — <b>'+learning.anyClassChoices+'</b>':'')+(replaceSpell?' · сейчас заменяется «'+esc(replaceSpell.n)+'» <button class="btn ghost sm" onclick="cancelKnownSpellReplacement()">Отменить</button>':'')+'.</div>';
 }else{
@@ -29610,11 +29782,13 @@ let lastL=-1;
 entries.slice(page*pageSize,(page+1)*pageSize).forEach(x=>{
 if(x.sp.l!==lastL){ lastL=x.sp.l;
 h+='<h3 class="rubric" style="font-size:21px;margin-top:12px">'+(lastL===0?'Заговоры':lastL+' круг')+'</h3>'; }
-const access=spellAccessCheck(c,x.sp,x.e),ready=spellEntryReady(c,x.e,x.sp),ritualReady=spellRitualAllowed(c,x.sp,x.e),castReady=access.ok&&(+x.sp.l===0||ready||ritualReady);
-const castTitle=!access.ok?access.reason:(!castReady?'Не подготовлено: сначала составьте план и завершите долгий отдых':'Наложить заклинание с проверкой '+(magicUsesMp()?'MP':'ячейки')+', компонентов и цели');
+const access=spellAccessCheck(c,x.sp,x.e),ready=spellEntryReady(c,x.e,x.sp),ritualReady=spellRitualAllowed(c,x.sp,x.e),arcanum=spellEntryArcanum(x.e),arcanumPayment=arcanum?slotPlanFor(c,x.sp):null,castReady=access.ok&&(+x.sp.l===0||ready||ritualReady)&&(!arcanum||arcanumPayment.ok&&!mysticArcanumManual(x.sp));
+const castTitle=!access.ok?access.reason:arcanum?(mysticArcanumManual(x.sp)?'Последствия этого справочного заклинания ещё не автоматизированы':arcanumPayment.ok?'Применить отдельное использование арканума, без ячейки и MP':arcanumPayment.reason):(!castReady?'Не подготовлено: сначала составьте план и завершите долгий отдых':'Наложить заклинание с проверкой '+(magicUsesMp()?'MP':'ячейки')+', компонентов и цели');
 let prepControl='';
-if(+x.sp.l>0){
+if(+x.sp.l===0&&x.e.anyClassKnown)prepControl='<span class="type-tag">'+(access.ok?'Тайны магии · место известного заклинания':'архив · недоступно классу')+'</span>';
+else if(+x.sp.l>0){
 if(!access.ok) prepControl='<span class="type-tag">архив · недоступно классу</span>';
+else if(arcanum)prepControl='<span class="type-tag">арканум '+x.e.arcanumCircle+' круга · '+(arcanumPayment.ok?'1 / 1':'0 / 1')+' до долгого отдыха</span>';
 else if(freeMode) prepControl='<span class="type-tag">'+(x.e.access==='freeClass'?'список класса · без подготовки':'от особенности')+'</span>';
 else if(spellEntryAlwaysPrepared(x.e)) prepControl='<span class="type-tag">всегда подготовлено'+(x.e.source?' · '+esc(x.e.source):'')+'</span>';
 else if(knownMode) prepControl='<span class="type-tag">'+(spellEntryGranted(x.e)?'от особенности':(x.e.anyClassKnown?'Тайны магии':'известно'))+'</span>'+(c.spellReplacementDraft&&c.spellReplacementDraft.removeId===x.sp.id?'<span class="wax-tag">выбрано для замены</span>':'');
@@ -29626,13 +29800,13 @@ prepControl='<button class="btn ghost sm prep-btn'+(planned?' on':'')+'" title="
 }
 let removeControl='';
 const countedKnown=access.ok&&spellEntryCountsAgainstKnown(x.e);
-if(!freeMode&&x.e.access!=='classList'&&!spellEntryAlwaysPrepared(x.e)){
+if(!freeMode&&!arcanum&&x.e.access!=='classList'&&!spellEntryAlwaysPrepared(x.e)){
 if(knownMode&&countedKnown&&+x.sp.l>0){
 const remaining=spellLearningState(c).replacements;
 if(knownSpellCount(c)>knownSpellMax(c)) removeControl='<button class="del-x" title="Убрать превышение лимита известных заклинаний" onclick="delBookSpell(\''+x.sp.id+'\')">✕</button>';
 else if(remaining>0) removeControl='<button class="btn ghost sm" title="Заменить при получении уровня; прежнее заклинание останется до выбора нового" onclick="delBookSpell(\''+x.sp.id+'\')">↔ Заменить</button>';
 }else if(knownMode&&countedKnown&&+x.sp.l===0){
-if(cantripKnownCount(c)>cantripKnownMax(c)) removeControl='<button class="del-x" title="Убрать превышение лимита заговоров" onclick="delBookSpell(\''+x.sp.id+'\')">✕</button>';
+if(x.e.anyClassKnown?knownSpellCount(c)>knownSpellMax(c):cantripKnownCount(c)>cantripKnownMax(c)) removeControl='<button class="del-x" title="Убрать превышение лимита '+(x.e.anyClassKnown?'известных заклинаний':'заговоров')+'" onclick="delBookSpell(\''+x.sp.id+'\')">✕</button>';
 }else removeControl='<button class="del-x" title="Вычеркнуть из книги или списка" onclick="delBookSpell(\''+x.sp.id+'\')">✕</button>';
 }
 const extra='<button class="btn ghost sm fx-cast" title="'+esc(castTitle)+'"'+(castReady?' onclick="castSpellFx(\''+x.sp.id+'\',\''+c.id+'\')"':' disabled')+'>⚡ Наложить</button>'

@@ -55,9 +55,9 @@ CI-job, где полный Node-набор уже завершился в об�
 обычном локальном окружении этот флаг игнорируется, поэтому единая команда
 всегда запускает полный набор.
 
-Отдельный обязательный этап Pages — 16 профильных браузерных сценариев:
+Отдельный обязательный этап Pages — 17 профильных браузерных сценариев:
 `characters`, `dialogs`, `action-ui-guard`, `local-persistence`, `public-shell`, `readiness`,
-`gm-reference`, `abilities`, `magic-systems`, `spell-learning-profile`, `grimoire`, `grimoire-workbench`,
+`gm-reference`, `abilities`, `magic-systems`, `spell-learning-profile`, `mystic-arcanum`, `grimoire`, `grimoire-workbench`,
 `game-items`, `item-player-cards`, `game-recipes` и `recipe-tabletop`.
 Команда `qa:integration` не запускает этот этап автоматически.
 

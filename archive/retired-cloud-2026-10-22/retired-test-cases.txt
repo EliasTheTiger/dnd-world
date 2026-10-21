@@ -1,5 +1,24 @@
 
 
+## tests/merchant-ui.test.mjs
+test('merchant state participates in snapshot, export, import and BG3 hydration',()=>{
+  assert.match(html,/harvestedSources,\s*economyState,\s*merchantState,\s*worldState,[^}]*catalogRefs/);
+  assert.match(html,/persist\('dndworld2:merchant-state',merchantState,statusVersion\)/);
+  assert.match(html,/merchantState=normalizeMerchantState\(data\.merchantState\)/);
+  assert.match(html,/chars,\s*journal,\s*combat,\s*harvestedSources,\s*economyState,\s*merchantState,[^}]*items:/);
+  assert.match(html,/merchantState&&merchantState\.instances\|\|\[\]\)\.forEach\(instance=>walk\(instance\.inventory\)\)/);
+});
+
+## tests/chest-ui.test.mjs
+test('chest state survives snapshots, export/import and cloud campaign sync',()=>{
+  assert.match(html,/worldSnapshotPayload\(\)[\s\S]{0,600}chestState/);
+  assert.match(html,/persist\('dndworld2:chest-state',chestState,statusVersion\)/);
+  assert.match(html,/savedWorld\?savedWorld\.chestState:await readJSON\('dndworld2:chest-state'\)/);
+  assert.match(html,/chars, journal, combat, harvestedSources, economyState, merchantState, worldState, chestState, items:/);
+  assert.match(html,/CHEST_CORE\.normalizeState\(data\.chestState\)/);
+  assert.match(html,/CHEST_CORE\.normalizeState\(d\.chestState\)/);
+});
+
 ## tests/effect-engine.test.mjs
 test('выпуск 4.1 объединяет локальную и облачную летопись без возврата незавершенного боя', () => {
   const e = loadEngine();

@@ -143,3 +143,66 @@ test('MP and legacy free settings preserve the automatic class model, pact payme
   assert.deepEqual(plain(c.spellbook),book);assert.equal(a.slotPlanFor(c,spell('Hellish Rebuke'),3).ok,true);assert.equal(a.slotPlanFor(c,spell('Darkness'),2).ok,false);assert.equal(a.magicRules.settings({version:1,mode:'mp',preparation:'known',revision:4}).preparation,'class');
   await a.magicSwitch('slots');assert.equal(c.slots[3].max,2);assert.deepEqual(plain(c.spellbook),book);
 });
+
+test('Bard Magical Secrets ability cards open the personal process and cannot grant a free cantrip',()=>{
+  for(const identity of ['Magical Secrets','Additional Magical Secrets']){
+    const {e,a,c,spell}=world({cls:'Бард',subcls:'Коллегия Знаний',level:10}),abilities=e.abilitiesApi;
+    abilities.characterSyncFeatures(c);
+    const ab=e.state().abilities.find(row=>row.catalogSource?.documentKey==='srd-2014'&&row.open5e?.originalName===identity);assert.ok(ab,identity);
+    let entry=c.abilities.find(row=>row.abilityId===ab.id);if(!entry){entry={abilityId:ab.id};c.abilities.push(entry);}
+    assert.equal(abilities.gameplay.profile(ab).binding,'spellbook');assert.doesNotMatch(abilities.abilityGameplayBindingHTML(c,ab,entry),/Дополнительный фокус/);
+    const before=plain(c);assert.equal(abilities.abilityGameplayBind(c.id,ab.id,spell('Guidance').id),false);assert.deepEqual(plain(c),before);
+  }
+});
+
+test('Magical Secrets cantrips use known-spell credits and leave ordinary Bard cantrips independent',async()=>{
+  const {e,a,l,c,spell}=world({cls:'Бард',level:10}),guidance=spell('Guidance');
+  const ordinary=e.state().spells.filter(sp=>e.grimoireApi.grimoireActive(sp)&&+sp.l===0&&a.spellAddCheck(c,sp).ok);
+  assert.ok(ordinary.length>=l.profile(c).cantripMax);
+  assert.equal((await l.select(c.id,ordinary[0].id)).success,true);assert.equal(c.spellLearning.anyClassChoices,2);assert.equal(l.profile(c).known,0);assert.equal(l.profile(c).cantrips,1);
+  for(const sp of ordinary.slice(1,l.profile(c).cantripMax))c.spellbook.push({spellId:sp.id,access:'known',prep:false});
+  assert.equal(l.profile(c).cantrips,l.profile(c).cantripMax);assert.equal(l.plan(c.id,guidance.id).ok,false,'a foreign cantrip needs an explicit secret choice');
+  assert.equal((await l.select(c.id,guidance.id,'learn',{magicalSecret:true})).success,true);
+  const secret=c.spellbook.find(row=>row.spellId===guidance.id);assert.equal(secret.anyClassKnown,true);assert.equal(c.spellLearning.anyClassChoices,1);
+  assert.equal(l.profile(c).known,1);assert.equal(l.profile(c).cantrips,l.profile(c).cantripMax);assert.equal(a.spellEntryReady(c,secret,guidance),true);
+  const before=plain(c);a.delBookSpell(guidance.id);assert.deepEqual(plain(c),before,'a secret cantrip cannot be freely erased or refunded');
+});
+
+test('Magical Secrets cantrip selection enforces the known-spell quota and cannot bypass stale or failed persistence',async()=>{
+  const {e,a,l,c,spell}=world({cls:'Бард',level:10}),guidance=spell('Guidance'),options={magicalSecret:true};
+  const full=e.state().spells.filter(sp=>e.grimoireApi.grimoireActive(sp)&&+sp.l>0&&+sp.l<=l.profile(c).maxCircle&&String(sp.c).split(/[,;\s]+/).includes('Брд')).slice(0,l.profile(c).knownMax);
+  assert.equal(full.length,l.profile(c).knownMax);c.spellbook=full.map(sp=>({spellId:sp.id,access:'known',prep:false}));
+  assert.equal(l.plan(c.id,guidance.id,'learn',options).ok,false,'a free normal-cantrip place cannot bypass the known-spell quota');
+  c.spellbook.pop();const plan=l.plan(c.id,guidance.id,'learn',options),before=plain(c),restore=l.persistence(async()=>false);assert.equal(plan.ok,true);
+  assert.equal((await l.commit(plan)).success,false);restore();assert.deepEqual(plain(c),before);assert.equal((await l.commit(plan)).success,true);assert.equal((await l.commit(plan)).success,false);
+  assert.equal(l.profile(c).known,l.profile(c).knownMax);assert.equal(l.profile(c).cantrips,0);assert.equal(c.spellLearning.anyClassChoices,1);
+  const secret=c.spellbook.find(row=>row.spellId===guidance.id);assert.equal(a.spellEntryReady(c,secret,guidance),true);
+  c.spellbook.push({spellId:full.at(-1).id,access:'known'});assert.equal(a.spellEntryReady(c,secret,guidance),false,'the secret cantrip also obeys the known-spell quota on access');c.spellbook.pop();
+  await e.loadAll();const loaded=e.state().chars.find(row=>row.id===c.id);assert.equal(l.profile(loaded).known,l.profile(loaded).knownMax);assert.equal(l.profile(loaded).cantrips,0);assert.equal(loaded.spellLearning.anyClassChoices,1);
+  a.setClass('Колдун');assert.equal(a.spellEntryReady(loaded,loaded.spellbook.find(row=>row.spellId===guidance.id),guidance),false);a.setClass('Бард');assert.equal(a.spellEntryReady(loaded,loaded.spellbook.find(row=>row.spellId===guidance.id),guidance),true);assert.equal(loaded.spellLearning.anyClassChoices,1);
+});
+
+test('ordinary Magical Secrets stay inactive below Bard level ten without losing choices or affecting Lore secrets',async()=>{
+  const {e,a,l,c,spell}=world({cls:'Бард',subcls:'Коллегия Знаний',level:10}),guidance=spell('Guidance'),sacred=spell('Sacred Flame'),options={magicalSecret:true};
+  assert.equal((await l.select(c.id,guidance.id,'learn',options)).success,true);assert.equal(c.spellLearning.anyClassChoices,1);
+  const secret=c.spellbook.find(row=>row.spellId===guidance.id),plan=l.plan(c.id,sacred.id,'learn',options);assert.equal(plan.ok,true);
+  a.setLevel(9);const below=plain(c);assert.equal(l.plan(c.id,sacred.id,'learn',options).ok,false);assert.equal((await l.commit(plan)).success,false);assert.deepEqual(plain(c),below);
+  assert.equal(a.spellEntryReady(c,secret,guidance),false);assert.equal(l.profile(c).known,0);assert.equal(c.spellLearning.anyClassChoices,1);
+  a.setLevel(6);assert.equal((await l.select(c.id,sacred.id,'learn',{loreSecret:true})).success,true);assert.equal(a.spellEntryReady(c,c.spellbook.find(row=>row.spellId===sacred.id),sacred),true);assert.equal(c.spellLearning.anyClassChoices,1);
+  assert.equal(await e.saveWorldNow(),true);await e.loadAll();const loaded=e.state().chars.find(row=>row.id===c.id);assert.equal(a.spellEntryReady(loaded,loaded.spellbook.find(row=>row.spellId===guidance.id),guidance),false);
+  a.setLevel(10);assert.equal(a.spellEntryReady(loaded,loaded.spellbook.find(row=>row.spellId===guidance.id),guidance),true);assert.equal(loaded.spellLearning.anyClassChoices,1);assert.equal(l.profile(loaded).known,1);assert.equal(l.profile(loaded).cantrips,0);
+});
+
+test('old Bard ability cantrip grants retire durably without changing legitimate Magical Secrets',async()=>{
+  for(const identity of ['Magical Secrets','Additional Magical Secrets']){
+    const {e,a,l,c,spell}=world({cls:'Бард',subcls:'Коллегия Знаний',level:10}),ab=e.state().abilities.find(row=>row.catalogSource?.documentKey==='srd-2014'&&row.open5e?.originalName===identity),guidance=spell('Guidance'),fireball=spell('Fireball');
+    assert.equal((await l.select(c.id,fireball.id)).success,true);assert.equal((await l.select(c.id,spell('Sacred Flame').id,'learn',{loreSecret:true})).success,true);
+    const legal=plain(c.spellbook),learning=plain(c.spellLearning),old={spellId:guidance.id,access:'feature',granted:true,alwaysPrepared:true,countsAgainstKnown:false,prep:true,abilityGameplayGrant:ab.id,notes:'Старая пометка барда'};
+    c.abilities.push({abilityId:ab.id,grantedSpell:guidance.id});c.spellbook.push(plain(old));a.upgradeSpellcastingState(c);
+    const retired=c.spellbook.find(row=>row.spellId===guidance.id);assert.equal(retired.access,'archive');assert.deepEqual(plain(retired.retiredClassSpellGrant),old);assert.equal(a.spellEntryReady(c,retired,guidance),false);
+    assert.deepEqual(plain(c.spellbook.filter(row=>row.spellId!==guidance.id)),legal);assert.deepEqual(plain(c.spellLearning),learning);
+    assert.equal(await e.saveWorldNow(),true);await e.loadAll();const loaded=e.state().chars.find(row=>row.id===c.id);
+    assert.deepEqual(plain(loaded.spellbook.filter(row=>row.spellId!==guidance.id)),legal);assert.equal(loaded.spellbook.find(row=>row.spellId===guidance.id).notes,old.notes);
+    for(const entry of loaded.spellbook.filter(row=>row.anyClassKnown||row.loreSecret))assert.equal(a.spellEntryReady(loaded,entry,e.grimoireApi.spellOf(entry.spellId)),true);
+  }
+});

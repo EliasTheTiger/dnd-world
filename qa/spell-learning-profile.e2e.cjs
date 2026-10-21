@@ -13,8 +13,9 @@ const server=http.createServer((req,res)=>{
   await page.route('**/*',route=>new URL(route.request().url()).origin===origin?route.continue():route.abort());await page.goto(origin,{waitUntil:'domcontentloaded'});await page.locator('#tabsNav [aria-current="page"]').waitFor({timeout:120000});
   const ids=await page.evaluate(async()=>{
    const wizard=Object.assign(buildBlank(),{id:'learning-wizard',name:'Книга Арины',cls:'Волшебник',level:3,subcls:'',ab:{str:10,dex:10,con:10,int:16,wis:16,cha:16}}),cleric=Object.assign(buildBlank(),{id:'learning-cleric',name:'Молитвы Миры',cls:'Жрец',subcls:'Домен Жизни',level:3});
-   chars=[wizard,cleric];for(const c of chars){characterAdopt(c);applyClassSlots(c);upgradeSpellcastingState(c);}activeCharId=wizard.id;sheetTab='spells';switchTab('chars');renderChars();scheduleSave();await runScheduledSave();
-   return Object.fromEntries(['Magic Missile','Burning Hands','Detect Magic','Guiding Bolt'].map(name=>[name,spellsDB.find(s=>grimoireActive(s)&&GRIMOIRE_RULES.identity(s)===GRIMOIRE_RULES.normalize(name)).id]));
+   const bard=Object.assign(buildBlank(),{id:'learning-bard',name:'Тайны Лиры',cls:'Бард',subcls:'',level:10});
+   chars=[wizard,cleric,bard];for(const c of chars){characterAdopt(c);applyClassSlots(c);upgradeSpellcastingState(c);}activeCharId=wizard.id;sheetTab='spells';switchTab('chars');renderChars();scheduleSave();await runScheduledSave();
+   return Object.fromEntries(['Magic Missile','Burning Hands','Detect Magic','Guiding Bolt','Guidance'].map(name=>[name,spellsDB.find(s=>grimoireActive(s)&&GRIMOIRE_RULES.identity(s)===GRIMOIRE_RULES.normalize(name)).id]));
   });
   const profile=page.getByRole('region',{name:'Изучение заклинаний героя'}),learn=profile.getByRole('button',{name:'Изучить и сохранить',exact:true});
   assert.match(await profile.innerText(),/Книга и подготовка/);assert.equal(await page.locator('#campaign-mp-access').count(),0);
@@ -38,6 +39,21 @@ const server=http.createServer((req,res)=>{
   await page.waitForFunction(()=>!hasUnsavedCampaignChanges());await page.reload({waitUntil:'domcontentloaded'});await page.locator('#tabsNav [aria-current="page"]').waitFor({timeout:120000});
   await page.locator('.char-card').filter({hasText:'Книга Арины'}).click();await page.getByRole('button',{name:'Заклинания',exact:true}).last().click();assert.deepEqual(await page.evaluate(()=>getCh('learning-wizard').spellbook),before);checks.push('learned book and preparation survive local reload');
   await page.getByRole('button',{name:'← К списку героев',exact:true}).click();await page.locator('.char-card').filter({hasText:'Молитвы Миры'}).click();await page.getByRole('button',{name:'Заклинания',exact:true}).last().click();assert.match(await profile.innerText(),/Подготовка из списка класса/);assert.ok(await page.locator('#spell-choice-prepare option').count()>1);assert.ok(await page.locator('#spell-choice-learn option').count()>1);checks.push('cleric receives full class preparation and separate cantrip choices');
+  await page.getByRole('button',{name:'← К списку героев',exact:true}).click();await page.locator('.char-card').filter({hasText:'Тайны Лиры'}).click();await page.getByRole('button',{name:'Заклинания',exact:true}).last().click();
+  const bardCounts=()=>page.evaluate(()=>{const c=getCh('learning-bard');return {secrets:c.spellLearning.anyClassChoices,known:knownSpellCount(c),cantrips:cantripKnownCount(c)};});
+  const bardBefore=await bardCounts();assert.deepEqual(bardBefore,{secrets:2,known:0,cantrips:0});
+  assert.equal(await page.locator('#spell-choice-learn option').evaluateAll((rows,id)=>rows.some(row=>row.value===id),ids.Guidance),false,'a foreign cantrip needs the explicit earned secret choice');
+  await page.locator('#spell-choice-secret').selectOption(ids.Guidance);await page.getByRole('button',{name:'Выбрать Тайну магии',exact:true}).click();
+  await page.waitForFunction(id=>!gameActionInteractionLocked()&&getCh('learning-bard').spellbook.some(entry=>entry.spellId===id&&entry.anyClassKnown),ids.Guidance);
+  const bardAfter=await bardCounts();assert.deepEqual(bardAfter,{secrets:1,known:1,cantrips:0});
+  assert.equal(await page.evaluate(id=>{const c=getCh('learning-bard');return spellEntryReady(c,c.spellbook.find(entry=>entry.spellId===id),spellOf(id));},ids.Guidance),true);
+  assert.equal(await page.locator('body').evaluate(el=>el.scrollWidth<=innerWidth),true,'secret choice fits 320px');
+  await page.getByRole('region',{name:'Тайны магии',exact:true}).scrollIntoViewIfNeeded();await page.screenshot({path:path.join(output,'bard-secret-cantrip-mobile.png')});
+  await page.waitForFunction(()=>!hasUnsavedCampaignChanges());
+  const durableBard=await page.evaluate(async()=>JSON.parse(await store.get(CAMPAIGN_ENVELOPE_KEY)).state.chars.find(c=>c.id==='learning-bard'));
+  assert.equal(durableBard.spellLearning.anyClassChoices,1);assert.equal(durableBard.spellbook.find(entry=>entry.spellId===ids.Guidance).anyClassKnown,true);
+  await page.reload({waitUntil:'domcontentloaded'});await page.locator('#tabsNav [aria-current="page"]').waitFor({timeout:120000});assert.deepEqual(await bardCounts(),bardAfter);
+  assert.equal(await page.evaluate(id=>{const c=getCh('learning-bard');return spellEntryReady(c,c.spellbook.find(entry=>entry.spellId===id),spellOf(id));},ids.Guidance),true);checks.push('a Bard secret cantrip spends one secret and known-spell choice, preserves ordinary cantrip quota, and survives reload');
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,siteRoot:path.relative(repo,root)||'.',checks,errors},null,2));console.log('Personal spell learning browser checks passed ('+checks.length+').');
  }catch(error){if(page)await page.screenshot({path:path.join(output,'failure.png')});throw error;}finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

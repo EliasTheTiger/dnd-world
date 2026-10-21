@@ -1756,7 +1756,7 @@ test('волшебник переписывает свиток атомарно:
   const copied = e.commitScrollCopy(second, 20);
   assert.equal(copied.success, true);
   assert.equal(wizard.inventory.length, 0); assert.equal(e.coinCopperTotal(wizard), 0);
-  assert.deepEqual(plain(wizard.spellbook), [{spellId: 'sp_доспехи_мага', prep: false, access: 'spellbook', source: 'Переписано со свитка'}]);
+  assert.deepEqual(plain(wizard.spellbook), [{spellId: 'sp_доспехи_мага', prep: false, access: 'spellbook', bookCopy: true, bookSource: 'Переписано со свитка', source: 'Переписано со свитка'}]);
 
   const cleric = hero('wrong-class', {cls: 'Жрец', coins: {mm: 0, sm: 0, em: 0, zm: 100, pm: 0},
     spellbook: [], inventory: [{id: 'cleric-scroll', itemId: scroll.id, qty: 1}]});
@@ -5113,7 +5113,7 @@ test('миграция восстанавливает нулевой стары�
   const known=hero('old-bard',{cls:'Бард',level:3,spellbook:[],spellPrepDraft:{choices:['ghost']},spellPrepVersion:0});
   e.setState({chars:[known],classes,spells});e.upgradeSpellcastingState(known);
   assert.equal(known.spellPrepDraft,undefined);
-  assert.deepEqual(plain(known.spellLearning),{replacements:0,anyClassChoices:0});
+  assert.deepEqual(plain(known.spellLearning),{replacements:0,anyClassChoices:0,secretsInitialized:true});
 
   const seeded=e.seedSpellsDB(),roku=e.buildRoku();
   roku.spellbook.forEach(entry=>{if(!entry.alwaysPrepared)entry.prep=false;});

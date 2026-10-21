@@ -124,6 +124,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
       craftPlanFor,commitCraftPlan,inventoryItemQty,combatSnapshotOf,combatSyncChanges,gameContextFor,resetCustomCharacterForCombat,
       castState() { return {ctx:castCtx,spec:(castCtx&&castCtx.spec)||rollSpec}; }, castConfirm, castFormulaConfirm, castDistanceSet,
       buildRoku, buildTorgar, buildSeptih, buildLegerem, buildBlank,
+      arcanumApi:{profile:mysticArcanumProfile,candidates:mysticArcanumCandidates,state:c=>c.mysticArcanum,cast:mysticArcanumCastApply,token:mysticArcanumCastToken,payment:mysticArcanumPaymentPlan,commitPayment:commitMysticArcanumPayment,sync:mysticArcanumSync,html:mysticArcanumProfileHTML,abilityProfile:ab=>ABILITY_GAMEPLAY.profile(ab)},
       learningApi:{profile:spellLearningProfile,html:spellLearningProfileHTML,book:spellBookLearningSlots,plan:spellLearningPlan,commit:spellLearningCommit,select:spellLearningSelect,token:spellLearningViewToken,autoLevel:autoLevelSpells,scrollCopyPlan,commitScrollCopy,
         quiet(){renderChars=()=>{};renderCombat=()=>{};renderSpellsDB=()=>{};renderChests=()=>{};renderMerchants=()=>{};},
         persistence(fn){const previous=runScheduledSave;runScheduledSave=fn;return ()=>{runScheduledSave=previous;};},

@@ -198,7 +198,7 @@ test('integration CI job installs Chromium, avoids the duplicate full suite and 
   assert.match(workflow, /if: always\(\)[\s\S]*?actions\/upload-artifact@v4[\s\S]*?path: qa\/evidence\//);
   assert.match(workflow, /QA_SITE_ROOT: _site\n\s+QA_EXPECTED_COMMIT: \$\{\{ github.sha \}\}\n\s+run: npm run qa:grimoire-workbench/);
   assert.equal(packageJson.scripts['qa:grimoire-workbench'], 'node qa/grimoire-workbench.e2e.cjs');
-  for(const name of ['public-shell','spell-learning','local-persistence']) {
+  for(const name of ['public-shell','spell-learning','mystic-arcanum','local-persistence']) {
     const script=packageJson.scripts['qa:'+name];
     assert.ok(script && fs.existsSync(path.join(root,script.slice('node '.length))),name+' has an executable acceptance runner');
     assert.ok(workflow.includes('npm run qa:'+name),name+' gates deployment');
