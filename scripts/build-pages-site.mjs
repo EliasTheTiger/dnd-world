@@ -12,7 +12,7 @@ const runtimeFiles = ['economy-core.js', 'merchant-core.js', 'campaign-item-art.
 runtimeFiles.push('character-rules.js','magic-rules.js','grimoire-rules.js','hobbyworld-ability-terms.js','ability-rules.js','ability-gameplay.js','recipe-item-links.js','recipe-rules.js','recipe-workbench.js');
 runtimeFiles.push('recipe-tabletop-rules.js','recipe-tabletop-items.js','recipe-tabletop-runtime.js');
 runtimeFiles.push('gm-reference-data.js','gm-reference.js');
-runtimeFiles.push('world-navigation.js');
+runtimeFiles.push('world-navigation.js','dialog-accessibility.js','action-ui-guard.js');
 const RELEASE_PLACEHOLDER = '__DND_WORLD_RELEASE__';
 const PAGES_BASE = '/dnd-world/';
 const OPEN_CATALOG_PATH = 'data/dnd5e/open5e-cc-v1/catalog.js';

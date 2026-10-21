@@ -1,9 +1,9 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
 let chromium;try{({chromium}=require('playwright'));}catch{({chromium}=require(path.resolve(path.dirname(process.execPath),'../node_modules/playwright')));}
-const root=path.resolve(__dirname,'..'),output=path.join(__dirname,'evidence','characters');fs.mkdirSync(output,{recursive:true});
+const repoRoot=path.resolve(__dirname,'..'),root=path.resolve(repoRoot,process.env.QA_SITE_ROOT||'.'),output=path.join(__dirname,'evidence','characters');fs.mkdirSync(output,{recursive:true});
 const server=http.createServer((req,res)=>{
-  const relative=decodeURIComponent(new URL(req.url,'http://localhost').pathname).replace(/^\//,'')||'index.html',file=path.resolve(root,relative);
+  const relative=decodeURIComponent(new URL(req.url,'http://localhost').pathname).replace(/^\/dnd-world(?:\/|$)/,'/').replace(/^\//,'')||'index.html',file=path.resolve(root,relative);
   if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
   fs.stat(file,(error,stat)=>{if(error||!stat.isFile()){res.writeHead(404).end();return;}res.setHeader('content-type',({'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json'})[path.extname(file)]||'application/octet-stream');fs.createReadStream(file).pipe(res);});
 });
@@ -19,6 +19,8 @@ console.log('Page loaded');
 await page.screenshot({path:path.join(output,'00-initial.png'),timeout:15000});
 console.log((await page.locator('body').innerText({timeout:10000})).slice(0,1800));
 const back=page.getByRole('button',{name:'← К списку героев',exact:true}),newHero=page.getByRole('button',{name:'✠ Новый герой',exact:true});
+const activeNavigation=page.locator('#tabsNav [aria-current="page"]');await activeNavigation.waitFor({timeout:120000});
+if(await activeNavigation.getAttribute('data-tab')!=='chars')await page.locator('#tabsNav [data-tab="chars"]').click();
 await back.or(newHero).first().waitFor({timeout:120000});if(await back.isVisible())await back.click();
 console.log('Character list ready');
 const count=await page.locator('.char-card').count();
@@ -84,12 +86,39 @@ await page.waitForFunction(async()=>{
 await page.reload({waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'✠ Новый герой',exact:true}).waitFor({timeout:120000});
 await page.locator('#character-search').fill('Эйра');await page.locator('.char-card:visible').click();assert.equal(await page.locator('#sheet-subrace').inputValue(),'Высший эльф');
 await page.getByRole('button',{name:'Предыстория',exact:true}).click();assert.match(await page.locator('#character-biography').inputValue(),/Личная биография Эйры/);assert.equal(await page.locator('progress').getAttribute('value'),'0');assert.equal(await page.locator('.background-history li').count(),2);
+console.log('Checking HP, death, Hit Dice, level growth and rest on the character sheet');
+await page.getByRole('button',{name:'Характеристики',exact:true}).click();
+await page.getByLabel('Временные хиты',{exact:true}).fill('7');await page.getByLabel('Временные хиты',{exact:true}).press('Tab');
+await page.getByLabel('Текущие хиты',{exact:true}).fill('0');await page.getByLabel('Текущие хиты',{exact:true}).press('Tab');
+assert.equal(await page.getByLabel('Временные хиты',{exact:true}).inputValue(),'7');
+await page.getByRole('button',{name:'✚ Стабилизировать',exact:true}).click();
+assert.equal(await page.getByLabel('Успех спасброска смерти 3',{exact:true}).isChecked(),true);
+await page.getByRole('button',{name:'⚂ Спасбросок от смерти',exact:true}).click();assert.equal(await page.locator('#rollBack').isVisible(),false);
+await page.getByRole('button',{name:'⚁ потратить',exact:true}).click();await page.locator('#rollV0').fill('4');
+await page.getByRole('button',{name:'Рассчитать и применить',exact:true}).click();
+assert.equal(await page.getByLabel('Текущие хиты',{exact:true}).inputValue(),'5');
+assert.equal(await page.getByLabel('Успех спасброска смерти 1',{exact:true}).isChecked(),false);
+assert.equal(await page.getByLabel('Временные хиты',{exact:true}).inputValue(),'7');
+await page.getByLabel('Уровень',{exact:true}).fill('5');await page.getByLabel('Уровень',{exact:true}).press('Tab');
+assert.equal(await page.getByLabel('Максимальные хиты',{exact:true}).inputValue(),'27');assert.equal(await page.getByLabel('Текущие хиты',{exact:true}).inputValue(),'5');
+await page.getByLabel('Опыт',{exact:true}).fill('6500');await page.getByLabel('Опыт',{exact:true}).press('Tab');
+await page.getByRole('button',{name:'☾ Долгий отдых',exact:true}).click();
+assert.equal(await page.getByLabel('Текущие хиты',{exact:true}).inputValue(),'27');assert.equal(await page.getByLabel('Временные хиты',{exact:true}).inputValue(),'0');
+await page.setViewportSize({width:320,height:740});await page.screenshot({path:path.join(output,'08-health-mobile-320.png'),fullPage:true});
+assert.equal(await page.locator('#tab-chars').evaluate(el=>el.scrollWidth<=el.clientWidth),true,'character sheet must fit a 320px viewport');
+console.log('Health mobile geometry passed; waiting for durable save');
+await page.waitForFunction(()=>!hasUnsavedCampaignChanges());console.log('Health save complete; reloading');
+await page.reload({waitUntil:'domcontentloaded'});console.log('Health reload received; locating the saved hero');
+await back.or(newHero).first().waitFor({timeout:120000});if(await back.isVisible())await back.click();
+await page.locator('#character-search').fill('Эйра');await page.locator('.char-card:visible').click();
+assert.equal(await page.getByLabel('Уровень',{exact:true}).inputValue(),'5');assert.equal(await page.getByLabel('Опыт',{exact:true}).inputValue(),'6500');assert.equal(await page.getByLabel('Текущие хиты',{exact:true}).inputValue(),'27');
+await page.getByRole('button',{name:'Предыстория',exact:true}).click();
 await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(output,'07-background-mobile.png'),fullPage:true});assert.equal(await page.locator('.background-panel').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
 await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'← К списку героев',exact:true}).click();await page.getByRole('button',{name:'✠ Новый герой',exact:true}).click();
 await page.screenshot({path:path.join(output,'05-mobile.png'),fullPage:true});
 assert.equal(await page.locator('.character-creator').evaluate(el=>el.scrollWidth<=el.clientWidth),true,'creator must not scroll horizontally on mobile');
 await page.keyboard.press('Escape');assert.equal(await page.locator('#characterCreator').count(),0);
 assert.deepEqual(errors,[],'no unhandled browser exceptions');
-fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,created:'Эйра Лунная',checks:['dependent dropdowns','24 backgrounds','ability assignment','training choices','single creation commit','saved background description','inert biography','milestone inspiration','training course','insufficient funds rollback','development reload','branch effects','unsaved reload protection','durable save before reload','search','cancellation','reload','mobile layout','Escape','no browser exceptions']},null,2));console.log('Characters browser journey passed; screenshots: '+output);
-}finally{await browser.close();server.close();}
+fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,siteRoot:path.relative(repoRoot,root)||'.',created:'Эйра Лунная',checks:['dependent dropdowns','24 backgrounds','ability assignment','training choices','single creation commit','saved background description','inert biography','milestone inspiration','training course','insufficient funds rollback','development reload','branch effects','unsaved reload protection','durable save before reload','search','cancellation','reload','stable death-save refusal','Hit Die waking','temporary HP preservation','average level growth without free healing','long-rest healing','XP and HP reload','320px character sheet','mobile layout','Escape','no browser exceptions']},null,2));console.log('Characters browser journey passed; screenshots: '+output);
+}catch(error){console.error('Character QA failed before cleanup',error);throw error;}finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

@@ -7,7 +7,7 @@ const server=http.createServer((req,res)=>{const relative=decodeURIComponent(new
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+server.address().port,browser=await chromium.launch({headless:true,channel:process.env.QA_BROWSER_CHANNEL||undefined});let page;
  try{
   page=await browser.newPage({viewport:{width:1440,height:1100}});page.setDefaultTimeout(45000);const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.on('dialog',d=>d.accept());await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
-  const ready=async()=>page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
+  const ready=async()=>page.locator('#tabsNav [aria-current="page"]').waitFor({timeout:120000});
   await page.goto(base,{waitUntil:'domcontentloaded'});await ready();await page.locator('#itemsTabButton').click();await page.locator('#bg3ReleaseMetrics[data-catalog-state="ready"]').waitFor({timeout:120000});await page.getByRole('tab',{name:/^Рецепты/}).click();await page.locator('[data-game-recipes="193"]').waitFor();
   assert.equal(await page.getByRole('tab',{name:/^Рецепты/}).innerText(),'Рецепты · 193');
   assert.doesNotMatch(await page.locator('.recipe-workbench').innerText(),/предметов кампании|предметов каталога|Шепчущая маска/);

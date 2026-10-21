@@ -5536,15 +5536,17 @@ test('регрессия 4.6: переписывание свитка атома
   assert.equal(failed.ok, true); assert.equal(failed.success, false); assert.equal(failed.elapsedRounds, 1200);
   assert.equal(e.state().fxRound, 1201); assert.equal(failedCopyist.inventory.length, 0); assert.equal(failedCopyist.activeFx.length, 0);
 
-  const staleCopyist = hero('stale-copyist', {cls: 'Волшебник', level: 3, exhaustion: 1,
-    ab: {str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 10}, skills: {'Магия': {p: 1, m: null}}, spellbook: [],
-    coins: {mm: 0, sm: 0, em: 0, zm: 100, pm: 0}, inventory: [{id: 'stale-scroll', itemId: scrollId, qty: 1}]});
-  e.setState({chars: [staleCopyist], items, spells, fxRound: 9});
-  const stale = e.scrollCopyPlan(staleCopyist, 'stale-scroll');
-  assert.equal(stale.adv, 2, 'истощение дает помеху проверке характеристики');
-  staleCopyist.exhaustion = 0;
-  assert.equal(e.commitScrollCopy(stale, 20, []).ok, false);
-  assert.equal(e.state().fxRound, 9); assert.equal(staleCopyist.inventory[0].qty, 1); assert.equal(e.coinCopperTotal(staleCopyist), 10000);
+  for (const [before, after] of [[1, 0], [0, 1]]) {
+    const staleCopyist = hero('stale-copyist', {cls: 'Волшебник', level: 3, exhaustion: before,
+      ab: {str: 10, dex: 10, con: 10, int: 16, wis: 10, cha: 10}, skills: {'Магия': {p: 1, m: null}}, spellbook: [],
+      coins: {mm: 0, sm: 0, em: 0, zm: 100, pm: 0}, inventory: [{id: 'stale-scroll', itemId: scrollId, qty: 1}]});
+    e.setState({chars: [staleCopyist], items, spells, fxRound: 9});
+    const stale = e.scrollCopyPlan(staleCopyist, 'stale-scroll');
+    assert.equal(stale.adv, before ? 2 : 0, 'истощение дает помеху проверке характеристики');
+    staleCopyist.exhaustion = after;
+    assert.equal(e.commitScrollCopy(stale, 20, []).ok, false);
+    assert.equal(e.state().fxRound, 9); assert.equal(staleCopyist.inventory[0].qty, 1); assert.equal(e.coinCopperTotal(staleCopyist), 10000);
+  }
 
   const incapacitated = hero('incapacitated-copyist', {cls: 'Волшебник', level: 3, hp: 10, cond: ['Бессознательный'],
     coins: {zm: 100}, inventory: [{id: 'blocked-scroll', itemId: scrollId, qty: 1}]});

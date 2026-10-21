@@ -35,6 +35,7 @@
 <link rel="stylesheet" href="styles/gm-reference.css">
 </head>
 <body>
+<div id="actionBusyNotice" class="action-busy-notice" role="status" aria-live="polite" hidden>Сохраняем действие… Изменения будут доступны после завершения записи.</div>
 <a class="skip-link" href="#main-content" onclick="event.preventDefault();document.getElementById('main-content').focus()">Перейти к содержимому</a>
 <div class="wrap">
 <header class="masthead">
@@ -54,7 +55,7 @@
 <button class="die" onclick="roll(12)">d12</button>
 <button class="die" onclick="roll(20)">d20</button>
 <button class="die" onclick="roll(100)">d100</button>
-<input class="dice-note" id="diceNote" placeholder="2d6+3" onkeydown="if(event.key==='Enter')rollNotation()">
+<input class="dice-note" id="diceNote" aria-label="Формула броска" placeholder="2d6+3" onkeydown="if(event.key==='Enter')rollNotation()">
 <button class="die" onclick="rollNotation()">⚁ бросить</button>
 <button class="btn ghost sm adv-0" id="advBtn" title="Преимущество/помеха для бросков d20 с листа" onclick="cycleAdv()">⚖ обычный</button>
 <span id="diceOut">—</span>
@@ -96,32 +97,32 @@
 </main>
 <footer class="colophon">Писано рукою мастера · все в сей книге правится вручную и хранится меж сессиями ❦</footer>
 </div>
-<div id="castBack" class="cast-back" style="display:none" onclick="if(event.target===this)closeCastModal()">
+<div id="castBack" class="cast-back" role="dialog" aria-modal="true" aria-labelledby="castTitle" aria-describedby="castInfo" style="display:none" onclick="if(event.target===this)closeCastModal()">
 <div class="cast-modal">
 <h3 id="castTitle" style="margin:0 0 6px">⚡ Наложить заклинание</h3>
 <div id="castInfo" class="cast-info"></div>
 <div id="castStep1">
 <div id="castSlotWrap" style="display:none;margin-bottom:8px">
-<label id="castResourceLabel" class="lbl">Какой ячейкой наложить</label>
+<label id="castResourceLabel" class="lbl" for="castSlot">Какой ячейкой наложить</label>
 <select id="castSlot" style="width:100%" onchange="castSlotChanged()"></select>
 <div id="castSlotHi" class="note-ital" style="font-size:12.5px;display:none;margin-top:3px"></div>
 </div>
-<label id="castTargetLabel" class="lbl">На кого или на что наложить</label>
+<label id="castTargetLabel" class="lbl" for="castTarget">На кого или на что наложить</label>
 <select id="castTarget" onchange="castTargetChanged()" style="width:100%"></select>
 <div id="castMultiWrap" style="display:none;margin-top:8px">
 <label class="lbl" id="castMultiLabel">Дополнительные союзные цели</label>
 <div id="castMultiTargets" class="chips"></div>
 </div>
 <div id="castWeaponWrap" style="display:none;margin-top:8px">
-<label class="lbl">Оружие, которым идет прием</label>
+<label class="lbl" for="castWeapon">Оружие, которым идет прием</label>
 <select id="castWeapon" style="width:100%"></select>
 </div>
 <div id="castChoiceWrap" style="display:none;margin-top:8px">
-<label id="castChoiceLabel" class="lbl">Выбор эффекта</label>
+<label id="castChoiceLabel" class="lbl" for="castChoice">Выбор эффекта</label>
 <select id="castChoice" style="width:100%"></select>
 </div>
 <div id="castItemWrap" style="display:none;margin-top:8px">
-<label class="lbl">Предмет инвентаря заклинателя</label>
+<label class="lbl" for="castItem">Предмет инвентаря заклинателя</label>
 <select id="castItem" style="width:100%"></select>
 </div>
 <div class="row-line" style="margin-top:14px">
@@ -139,10 +140,10 @@
 </div>
 <div id="castStep2" style="display:none">
 <div id="castMatDesc" class="cast-info" style="border:none;padding:0"></div>
-<label class="lbl">Материальный компонент — предмет из инвентаря</label>
+<label class="lbl" for="castMat">Материальный компонент — предмет из инвентаря</label>
 <select id="castMat" style="width:100%"></select>
 <div class="row-line" style="margin-top:8px;align-items:center">
-<label class="lbl" style="margin:0">Списать, шт.:</label>
+<label class="lbl" for="castMatQty" style="margin:0">Списать, шт.:</label>
 <input id="castMatQty" type="number" min="0" style="width:74px">
 <span class="note-ital" id="castMatAuto" style="font-size:12.5px"></span>
 </div>
@@ -152,10 +153,10 @@
 <button class="btn ghost" onclick="closeCastModal()">Отмена</button>
 </div>
 </div>
-<div id="castErr" class="cast-err" style="display:none"></div>
+<div id="castErr" class="cast-err" role="alert" style="display:none"></div>
 </div>
 </div>
-<div id="showBack" class="cast-back" style="display:none;z-index:72" onclick="if(event.target===this)this.style.display='none'">
+<div id="showBack" class="cast-back" role="dialog" aria-modal="true" aria-labelledby="showTitle" style="display:none;z-index:72" onclick="if(event.target===this)this.style.display='none'">
 <div class="cast-modal">
 <h3 id="showTitle" style="margin:0 0 6px">Записи</h3>
 <div id="showBody" style="white-space:pre-wrap;font-size:15px;max-height:56vh;overflow:auto;padding:6px 2px"></div>
@@ -163,19 +164,19 @@
 <div class="cast-actions"><button class="btn rub" onclick="document.getElementById('showBack').style.display='none'">Закрыть</button></div>
 </div>
 </div>
-<div id="rollBack" class="cast-back" style="display:none;z-index:70" onclick="if(event.target===this)rollCancel()">
+<div id="rollBack" class="cast-back" role="dialog" aria-modal="true" aria-labelledby="rollTitle" aria-describedby="rollNote rollLive" style="display:none;z-index:70" onclick="if(event.target===this)rollCancel()">
 <div class="cast-modal">
 <h3 id="rollTitle" style="margin:0 0 6px">⚂ Результаты бросков</h3>
 <div id="rollNote" class="cast-info"></div>
 <div id="rollRows"></div>
-<div id="rollLive" class="roll-live"></div>
+<div id="rollLive" class="roll-live" role="status" aria-live="polite"></div>
 <div class="row-line" style="margin-top:14px">
 <button class="btn rub" onclick="rollDone()">Рассчитать и применить</button>
 <button class="btn ghost" onclick="rollCancel()">Отмена</button>
 </div>
 </div>
 </div>
-<div id="craftBack" class="cast-back" style="display:none;z-index:71" onclick="if(event.target===this)craftClose()">
+<div id="craftBack" class="cast-back" role="dialog" aria-modal="true" aria-labelledby="craftTitle" aria-describedby="craftInfo" style="display:none;z-index:71" onclick="if(event.target===this)craftClose()">
 <div class="cast-modal" style="max-width:620px">
 <h3 id="craftTitle" style="margin:0 0 6px">🛠 Ремесло</h3>
 <div id="craftInfo" class="cast-info"></div>
@@ -211,11 +212,13 @@
 <script src="scripts/ruleset-registry.js"></script>
 <script src="scripts/persistence-core.js"></script>
 <script src="scripts/action-kernel.js"></script>
+<script src="scripts/action-ui-guard.js"></script>
 <script src="scripts/chest-core.js"></script>
 <script src="scripts/catalog-governance.js"></script>
 <script src="scripts/world-state-core.js"></script>
 <script src="scripts/ui-action-contract.js"></script>
 <script src="scripts/world-navigation.js"></script>
+<script src="scripts/dialog-accessibility.js"></script>
 <script src="scripts/projection-cache.js"></script>
 <script src="scripts/public-item-surface.js"></script>
 <script src="scripts/item-player-copy.js"></script>
@@ -3823,10 +3826,11 @@ if(skipSyncTouch!==true&&typeof syncTouch==='function') syncTouch();
 return true;
 }
 function runScheduledSave(skipSyncTouch){
+if(campaignImportPreparing)return Promise.resolve(false);
 scheduledSaveOperations++;
 const execute=async()=>{
 const pendingWorld=savePendWorld,pendingJournal=savePendJournal,progress={worldSaved:false,journalSaved:false};
-try{return await runScheduledSaveNow(skipSyncTouch,progress);}
+try{if(campaignImportPreparing)return false;return await runScheduledSaveNow(skipSyncTouch,progress);}
 catch(error){if(pendingWorld&&!progress.worldSaved)savePendWorld=true;if(pendingJournal&&!progress.journalSaved)savePendJournal=true;setStatus((progress.worldSaved?'Мир сохранен, но не удалось завершить дополнительные записи: ':'Летопись не сохранена: ')+String(error&&error.message||error)+'.',true);return progress.worldSaved||progress.journalSaved;}
 finally{scheduledSaveOperations--;}
 },queued=scheduledSaveQueue.then(execute,execute);
@@ -4043,8 +4047,11 @@ function bg3RollPromptRestore(checkpoint){
 checkpoint=checkpoint||{active:null,queue:[]};rollSpec=checkpoint.active||null;rollQueue=Array.isArray(checkpoint.queue)?checkpoint.queue.slice():[];
 const back=document.getElementById('rollBack');if(!rollSpec){if(back)back.style.display='none';return;}
 if(back){document.getElementById('rollTitle').textContent=rollSpec.title||'⚂ Результаты бросков';document.getElementById('rollNote').textContent=rollSpec.note||'';
-document.getElementById('rollRows').innerHTML=rollSpec.rows.map((r,i)=>'<div class="roll-row"><label>'+esc(r.label)+'</label><input type="number" id="rollV'+i+'" min="'+(r.min!=null?r.min:1)+'"'+(r.max!=null?' max="'+r.max+'"':'')+' oninput="rollLiveUpd()">'+(r.sub?'<span class="sub">'+esc(r.sub)+'</span>':'')+'</div>').join('');back.style.display='flex';rollLiveUpd();}
+document.getElementById('rollRows').innerHTML=rollPromptRowsHTML(rollSpec.rows);back.style.display='flex';rollLiveUpd();}
 }
+function rollPromptRowsHTML(rows){return rows.map((r,i)=>'<div class="roll-row"><label for="rollV'+i+'">'+esc(r.label)+'</label>'
++'<input type="number" inputmode="numeric" step="1" id="rollV'+i+'" min="'+(r.min!=null?r.min:1)+'"'+(r.max!=null?' max="'+r.max+'"':'')+(r.sub?' aria-describedby="rollHint'+i+'"':'')+' oninput="rollLiveUpd()">'
++(r.sub?'<span class="sub" id="rollHint'+i+'">'+esc(r.sub)+'</span>':'')+'</div>').join('');}
 function rollPromptOpen(spec){
 
 if(Array.isArray(window.__autoRolls)&&window.__autoRolls.length>=spec.rows.length){
@@ -4054,10 +4061,7 @@ try{spec.apply(vals);}finally{rollCompleting=previous;if(!rollCompleting)rollPro
 rollSpec=spec;const back=document.getElementById('rollBack');if(!back){rollSpec=null;rollPromptNext();return false;}
 document.getElementById('rollTitle').textContent=spec.title||'⚂ Результаты бросков';
 document.getElementById('rollNote').textContent=spec.note||'';
-document.getElementById('rollRows').innerHTML=spec.rows.map((r,i)=>
-'<div class="roll-row"><label>'+esc(r.label)+'</label>'
-+'<input type="number" id="rollV'+i+'" min="'+(r.min!=null?r.min:1)+'"'+(r.max!=null?' max="'+r.max+'"':'')+' oninput="rollLiveUpd()">'
-+(r.sub?'<span class="sub">'+esc(r.sub)+'</span>':'')+'</div>').join('');
+document.getElementById('rollRows').innerHTML=rollPromptRowsHTML(spec.rows);
 document.getElementById('rollLive').textContent='…';back.style.display='flex';const f=document.getElementById('rollV0');if(f)setTimeout(()=>f.focus(),50);rollLiveUpd();return true;
 }
 function rollPromptNext(){if(rollSpec||rollCompleting||!rollQueue.length)return false;return rollPromptOpen(rollQueue.shift());}
@@ -4259,8 +4263,9 @@ rows:[{key:'s',label:'Сумма '+cnt+'d'+sides,sub:'от '+cnt+' до '+(cnt*s
 compute:v=>inp.value.trim()+' → '+(v.s+mod2),
 apply:v=>diceOutSet(inp.value.trim()+' → '+(v.s+mod2)+' (кости '+v.s+(mod2?(mod2>0?' +':' ')+mod2:'')+')')});
 }
+let campaignImportBusy=false,campaignImportPreparing=false;
 function dndWorldExportPayload(){
-return {app:'dndworld2', exported:new Date().toISOString(),campaignMagic,recipeState,
+return {app:'dndworld2', exported:new Date().toISOString(),campaignMagic,recipeState,fxRound,
 chars, journal, combat, harvestedSources, economyState, merchantState, worldState, chestState, items:itemsDB, spells:spellsDB, abilities:abilitiesDB, races:racesDB, classes:classesDB, rules:rulesDB, foes:foesDB,
 catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};
 }
@@ -4270,15 +4275,40 @@ const a=document.createElement('a');
 a.href=URL.createObjectURL(blob); a.download='dnd-world-letopis.json'; a.click();
 URL.revokeObjectURL(a.href);
 }
+function validateCampaignImport(data){
+if(!data||!['dndworld','dndworld2'].includes(data.app))return false;
+const arrays=['chars','journal','items','spells','abilities','races','classes','rules','foes','catalogRefs'];
+if(!Array.isArray(data.chars))throw new Error('В летописи отсутствует список персонажей.');
+for(const key of arrays){
+if(data[key]===undefined)continue;
+if(!Array.isArray(data[key]))throw new Error('Поле «'+key+'» должно быть списком.');
+const ids=new Set();
+for(const row of data[key]){
+if(!row||typeof row!=='object'||Array.isArray(row))throw new Error('Некорректная запись в «'+key+'».');
+if(row.id!=null){const id=String(row.id);if(!id.trim()||ids.has(id))throw new Error('Пустой или повторный идентификатор в «'+key+'».');ids.add(id);}
+}
+}
+for(const c of data.chars)for(const key of ['inventory','spellbook','abilities','activeFx'])if(c[key]!==undefined&&!Array.isArray(c[key]))throw new Error('Поле персонажа «'+key+'» должно быть списком.');
+return true;
+}
 async function dndWorldImportPayload(data){
-let catalogWarning='';
+if(!validateCampaignImport(data))return {ok:false,reason:'not-dnd-world'};
+if(campaignImportBusy||combatActionKernel&&combatActionKernel.inFlight.size||rollSpec||rollQueue.length||castCtx)return {ok:false,reason:'Сначала завершите текущее игровое действие.'};
+data=JSON.parse(JSON.stringify(data));
+campaignImportBusy=true;let checkpoint=null,previous=null,identity=null,committed=false,catalogWarning='';
+try{
+clearTimeout(saveTimer);
+if(!await runScheduledSave()||savePendWorld||savePendJournal)return {ok:false,reason:'Текущую летопись не удалось сохранить. Импорт отменен.'};
+previous={...dndWorldExportPayload(),activeCharId,fxRound,savePendWorld,savePendJournal};
+identity=bg3InterruptIdentitySnapshot(Object.values(previous));checkpoint=bg3InterruptWorldCheckpoint([]);
+campaignImportPreparing=true;
 if(data&&data.app==='dndworld2'){
 const importedMagic=MAGIC_RULES.settings(data.campaignMagic);
 for(const c of (data.chars||[])){MAGIC_RULES.slots(c.slots);if(c.magicResource)MAGIC_RULES.validateState(c.magicResource);}
 campaignMagic=importedMagic;recipeState=RECIPE_RULES.state(data.recipeState);
 chars=data.chars||[]; journal=data.journal||[];
 if(typeof bg3InventoryStatusTransitionReset==='function')bg3InventoryStatusTransitionReset();
-combat=normalizeCombatState(data.combat);
+combat=normalizeCombatState(data.combat);fxRound=Number.isSafeInteger(data.fxRound)&&data.fxRound>0?data.fxRound:1;
 harvestedSources=data.harvestedSources&&typeof data.harvestedSources==='object'?data.harvestedSources:{};
 economyState=normalizeEconomyState(data.economyState);economyServiceCache=null;
 merchantState=normalizeMerchantState(data.merchantState);merchantServiceCache=null;activeMerchantId=null;
@@ -4301,7 +4331,7 @@ pruneIncompleteCampaignArsenal();
 grimoireReconcile(spellsDB,chars);
 reconcileAbilityRules(abilitiesDB);
 const importedCatalogRefs=Array.isArray(data.catalogRefs)?data.catalogRefs:[],importedHonourProfile=bg3CatalogHasLegacyHonourRef(importedCatalogRefs),catalogRefsOk=bg3CatalogUseRefs(bg3CatalogStandardRefs(importedCatalogRefs));
-if(!catalogRefsOk)catalogWarning=' Ссылка на каталог предметов в файле некорректна; прежняя кампания не использована.';
+if(!catalogRefsOk)throw new Error('Ссылка на каталог предметов в файле некорректна. Прежняя летопись сохранена.');
 if(catalogRefsOk)chars.forEach(bg3LearnedSpellUpgradeEntries);
 if(typeof combatRepairRuntime==='function') combatRepairRuntime();
 try{if(catalogRefsOk){const profileMigrationNeeded=importedHonourProfile||bg3CatalogHasHonourLearnedSpells(chars),reissue=await bg3CatalogMigrateSameVersionReissue({migrateProfileFrom:profileMigrationNeeded?'honour':''});if(!reissue.ok)throw new Error(reissue.reason);await bg3CatalogHydrateWorld({rethrow:true});const learnedProfile=await bg3CatalogMigrateLearnedHonourToStandard();if(!learnedProfile.ok)catalogWarning=' Обычные правила включены, но часть изученных заклинаний каталога не удалось безопасно перепривязать: '+learnedProfile.reason;else if(profileMigrationNeeded)catalogWarning=' Сохранение переведено на обычные правила.';}}
@@ -4310,20 +4340,38 @@ catch(error){catalogWarning=' Каталог предметов пока нед�
 journal=data.journal||journal;
 (data.chars||[]).forEach(o=>chars.push(upgradeOldChar(o)));
 } else return {ok:false,reason:'not-dnd-world'};
-reconcileAbilityAssignments();
-scheduleSave(); scheduleJournalSave();
-renderChars(); renderCombat(); renderJournal(); renderSpellsDB(); renderItemsDB(); if(typeof renderChests==='function')renderChests(); renderMerchants(); renderAbilitiesDB(); renderRaces(); renderClasses(); renderRules(); renderFoes();
+reconcileAbilityAssignments();activeCharId=null;
+scheduleSave(); scheduleJournalSave();clearTimeout(saveTimer);campaignImportPreparing=false;
+if(!await runScheduledSave())throw new Error('Импорт не удалось сохранить. Прежняя летопись восстановлена.');
+committed=true;
+if(savePendJournal)catalogWarning+=' Журнал пока не сохранен; оставьте страницу открытой и повторите сохранение.';
+try{renderChars(); renderCombat(); renderJournal(); renderSpellsDB(); renderItemsDB(); if(typeof renderChests==='function')renderChests(); renderMerchants(); renderAbilitiesDB(); renderRaces(); renderClasses(); renderRules(); renderFoes();}
+catch(error){catalogWarning+=' Летопись сохранена, но представление не обновилось; перезагрузите страницу.';}
 return {ok:true,catalogWarning};
+}catch(error){
+if(previous&&!committed){
+clearTimeout(saveTimer);bg3CatalogUseRefs(previous.catalogRefs);bg3InterruptIdentityRestore(identity);bg3InterruptWorldRestore(checkpoint);
+campaignMagic=previous.campaignMagic;recipeState=previous.recipeState;chars=previous.chars;journal=previous.journal;combat=previous.combat;harvestedSources=previous.harvestedSources;
+economyState=previous.economyState;merchantState=previous.merchantState;worldState=previous.worldState;chestState=previous.chestState;economyServiceCache=null;merchantServiceCache=null;
+itemsDB=previous.items;spellsDB=previous.spells;abilitiesDB=previous.abilities;racesDB=previous.races;classesDB=previous.classes;rulesDB=previous.rules;foesDB=previous.foes;
+bg3SceneState=previous.bg3SceneState;bg3StoryState=previous.bg3StoryState;bg3TadpoleState=previous.bg3TadpoleState;bg3TreasureState=previous.bg3TreasureState;
+activeCharId=previous.activeCharId;fxRound=previous.fxRound;savePendWorld=previous.savePendWorld;savePendJournal=previous.savePendJournal;fxInvalidate();
+}
+throw error;
+}finally{campaignImportPreparing=false;campaignImportBusy=false;}
 }
 function doImport(inp){
 const f=inp.files&&inp.files[0]; if(!f) return;
 const rd=new FileReader();
 rd.onload=async()=>{
+const surface=document.querySelector('.wrap'),wasInert=surface&&surface.inert;
 try{
 const data=JSON.parse(rd.result);
-const imported=await dndWorldImportPayload(data);if(!imported.ok){alert('Это не летопись D&D World.');return;}
+if(surface){surface.inert=true;surface.setAttribute('aria-busy','true');}
+const imported=await dndWorldImportPayload(data);if(!imported.ok){alert(imported.reason==='not-dnd-world'?'Это не летопись D&D World.':imported.reason);return;}
 alert('Летопись загружена.'+imported.catalogWarning);
-}catch(e){ alert('Свиток поврежден: '+e.message); }
+}catch(e){ alert('Летопись не загружена: '+e.message); }
+finally{if(surface){surface.inert=wasInert;surface.removeAttribute('aria-busy');}}
 };
 rd.readAsText(f); inp.value='';
 }
@@ -4901,8 +4949,13 @@ out.forEach(x=>{ if(x.stackKey&&winners[x.stackKey]!==x) x.stacked=true; });
 
 const ex=+c.exhaustion||0;
 if(ex>0){
+const exhaustionFx=EXHAUST_FX.slice(0,Math.min(6,ex)).map(v=>({stat:'note',mode:'text',value:v}));
+exhaustionFx.push({stat:'check',mode:'dis',value:1},{stat:'init',mode:'dis',value:1});
+if(ex>=2)exhaustionFx.push({stat:'speed',mode:'mul',value:.5});
+if(ex>=3)exhaustionFx.push({stat:'attack',mode:'dis',value:1},{stat:'save',mode:'dis',value:1});
+if(ex>=4)exhaustionFx.push({stat:'hpmax',mode:'mul',value:.5});
 out.push({k:'exhaustion', id:'ex', label:'Истощение (уровень '+ex+')', why:'состояние',
-fx:EXHAUST_FX.slice(0,Math.min(6,ex)).map(v=>({stat:'note',mode:'text',value:v}))});
+fx:exhaustionFx});
 }
 
 if((c.cond||[]).length){
@@ -4929,9 +4982,10 @@ function bg3GithbornMindcrusherWithFreshFx(callback){const outer=bg3GithbornMind
 
 
 function charFxAll(c){
-if(bg3GithbornMindcrusherFreshFxDepth>0){if(bg3GithbornMindcrusherFreshFxCache&&bg3GithbornMindcrusherFreshFxCache.has(c))return bg3GithbornMindcrusherFreshFxCache.get(c);const fresh=charFxAllFresh(c);if(bg3GithbornMindcrusherFreshFxCache)bg3GithbornMindcrusherFreshFxCache.set(c,fresh);return fresh;}
+const exhaustion=+c.exhaustion||0;
+if(bg3GithbornMindcrusherFreshFxDepth>0){const cached=bg3GithbornMindcrusherFreshFxCache&&bg3GithbornMindcrusherFreshFxCache.get(c);if(cached&&cached.exhaustion===exhaustion)return cached.v;const fresh=charFxAllFresh(c);if(bg3GithbornMindcrusherFreshFxCache)bg3GithbornMindcrusherFreshFxCache.set(c,{exhaustion,v:fresh});return fresh;}
 const descriptor=c&&Object.getOwnPropertyDescriptor(c,'__fxC'),cached=descriptor&&Object.prototype.hasOwnProperty.call(descriptor,'value')&&descriptor.value;
-if(cached&&cached.t===fxCacheT)return cached.v;const list=charFxAllFresh(c);try{Object.defineProperty(c,'__fxC',{value:{t:fxCacheT,v:list},writable:true,enumerable:false,configurable:true});}catch(_error){}return list;
+if(cached&&cached.t===fxCacheT&&cached.exhaustion===exhaustion)return cached.v;const list=charFxAllFresh(c);try{Object.defineProperty(c,'__fxC',{value:{t:fxCacheT,exhaustion,v:list},writable:true,enumerable:false,configurable:true});}catch(_error){}return list;
 }
 function fxSum(c,stat){
 return charFxAll(c).filter(f=>f.stat===stat&&f.mode==='add').reduce((a,f)=>a+(+f.value||0),0);
@@ -4957,7 +5011,7 @@ return adv===dis?0:(adv?1:2);
 function speedTotal(c){
 const raw=String(c.speed||'');
 const usesFeet=value=>/(?:фут|\bft\b|\bfeet\b|\bfoot\b)/i.test(String(value||''));
-if(conditionForcesZeroSpeed(effectiveConditions(c))) return '0 '+(usesFeet(raw)?'футов':'м');
+if((+c.exhaustion||0)>=5||conditionForcesZeroSpeed(effectiveConditions(c))) return '0 '+(usesFeet(raw)?'футов':'м');
 const load=(typeof carryWeightState==='function')?carryWeightState(c):{known:true,kg:(typeof carryWeight==='function'?carryWeight(c):0)},
 over=load.kg>Math.round(eAb(c,'str')*7.5*fxMul(c,'carry'));
 const m=raw.replace(',','.').match(/-?\d+(?:\.\d+)?/);
@@ -4984,7 +5038,7 @@ v=Math.max(0,Math.round(v*10)/10);
 let fastest=v,mode='';
 [['speed.fly','полет'],['speed.climb','лазание'],['speed.swim','плавание']].forEach(([stat,label])=>{
 const val=fxSet(c,stat); if(val==null) return;
-const m2=String(val).replace(',','.').match(/-?\d+(?:\.\d+)?/),mv=/равна скорости ходьбы/i.test(String(val))?v:(m2?+m2[0]:0);
+const m2=String(val).replace(',','.').match(/-?\d+(?:\.\d+)?/),mv=/равна скорости ходьбы/i.test(String(val))?v:(m2?+m2[0]:0)*((+c.exhaustion||0)>=2?.5:1);
 if(mv>fastest){ fastest=mv; mode=label; }
 });
 return String(fastest).replace('.',',')+unit+(mode?' ('+mode+'; ходьба '+String(v).replace('.',',')+unit+')':'');
@@ -5005,7 +5059,7 @@ function effectiveSpeed(c){
 const raw=String(c.speed||''), m=raw.match(/(\d+(?:[.,]\d+)?)\s*(м|фут)/i);
 if(!m) return raw;
 const unit=/^фут/i.test(m[2])?'фут':'м', base=parseFloat(m[1].replace(',','.'));
-if(conditionForcesZeroSpeed(effectiveConditions(c))) return raw.replace(m[1],'0');
+if((+c.exhaustion||0)>=5||conditionForcesZeroSpeed(effectiveConditions(c))) return raw.replace(m[1],'0');
 const all=charFxAll(c).filter(f=>f.stat==='speed');
 const parts=all.filter(f=>f.mode==='add');
 const delta=parts.reduce((a,f)=>{
@@ -5871,7 +5925,11 @@ const olds=concEntriesOf(caster.id);
 if(!olds.length) return false;
 const casterName=caster.name||caster.n||'Существо';
 const names=olds.map(o=>o.a.label).filter((v,i,a)=>a.indexOf(v)===i);
-olds.forEach(o=>{ if(!o.foe) detachActiveFx(o.ch,o.a); o.ch.activeFx=o.ch.activeFx.filter(x=>x.uid!==o.a.uid); });
+// The cast owns summons and scene effects as well as concentration markers.
+// Older saved effects may have no castId, so retain their individual cleanup.
+const castIds=new Set(olds.map(o=>o.a.castId).filter(Boolean));
+castIds.forEach(castId=>removeCastGroup(castId));
+olds.filter(o=>!o.a.castId).forEach(o=>{ if(!o.foe) detachActiveFx(o.ch,o.a); o.ch.activeFx=o.ch.activeFx.filter(x=>x.uid!==o.a.uid); });
 fxInvalidate();
 olds.filter(o=>!o.foe).forEach(o=>{ syncStackedGrants(o.ch); o.ch.hp=Math.min(+o.ch.hp||0, eHpMax(o.ch)); });
 scheduleSave(); renderChars(); if(typeof renderFoes==='function') renderFoes();
@@ -8478,14 +8536,14 @@ const CF_ADV=[[0,'\u2696 обычный'],[1,'\u25b2 преимущество'],
 function cfRowHTML(r){
 if(r.autoFail) return '<div class="formula-row"><label>'+esc(r.label)+'</label>'
 +'<span class="formula-part">Автоматический провал: состояние цели не допускает бросок Силы или Ловкости.</span><b id="cft_'+r.key+'"></b></div>';
-let h='<div class="formula-row"><label>'+esc(r.label)+'</label>'
-+'<input type="number" id="cf_'+r.key+'" oninput="castFormulaLive()" min="'+(r.natural?1:0)+'"'+(r.natural?' max="20"':'')
+let h='<div class="formula-row"><label for="cf_'+r.key+'">'+esc(r.label)+'</label>'
++'<input type="number" inputmode="numeric" step="1" id="cf_'+r.key+'" aria-describedby="cfhint_'+r.key+'" oninput="castFormulaLive()" min="'+(r.natural?1:0)+'"'+(r.natural?' max="20"':'')
 +(r.fixed?' value="0" readonly':'')+'>';
 if(r.natural){
 h+='<span class="formula-part" title="Режим рассчитан состояниями и эффектами движка">'+esc((CF_ADV.find(o=>o[0]===(+r.adv||0))||CF_ADV[0])[1])+'</span>'
-+'<input type="number" id="cf_'+r.key+'_2" placeholder="2-й d20" style="display:'+((r.adv||0)?'inline-block':'none')+'" oninput="castFormulaLive()" min="1" max="20">';
++'<input type="number" inputmode="numeric" step="1" id="cf_'+r.key+'_2" aria-label="'+esc(r.label)+' — второй d20" aria-describedby="cfhint_'+r.key+'" placeholder="2-й d20" style="display:'+((r.adv||0)?'inline-block':'none')+'" oninput="castFormulaLive()" min="1" max="20">';
 }
-h+='<span class="formula-part">'+esc(r.hint||'')+'</span><b id="cft_'+r.key+'"></b></div>';
+h+='<span class="formula-part" id="cfhint_'+r.key+'">'+esc(r.hint||'')+'</span><b id="cft_'+r.key+'"></b></div>';
 return h;
 }
 function castFormulaShow(){
@@ -16429,10 +16487,15 @@ savePendWorld=true;savePendJournal=true;clearTimeout(saveTimer);return runSchedu
 }
 function syncMessageData(msg){if(msg&&msg.payload&&typeof msg.payload==='object')return msg.payload;if(msg&&typeof msg.j==='string')return JSON.parse(msg.j);throw new Error('облачное сообщение не содержит payload');}
 function syncObserveRevision(ch,msg){const revision=PERSISTENCE_CORE?PERSISTENCE_CORE.cloudRevision(msg):0;ch.remoteRevision=revision;lsSet('dndworld2:syncrev:'+ch.key,String(revision));return revision;}
-function syncApplyRemote(ch,msg){
+function syncApplyRemote(ch,msg,options){
+const replaceLocal=!!(options&&options.replaceLocal);
+if(campaignImportBusy||gameActionInteractionLocked()||!replaceLocal&&(ch.pendingConflict||ch.dirtyParentRevision!=null||lsGet('dndworld2:dirty:'+ch.key)==='1'||hasUnsavedCampaignChanges())){
+ch.pending=msg;ch.pendingConflict=true;clearTimeout(ch.retryTimer);
+syncStatus('Облако: конфликт ('+ch.name+') — есть локальные изменения. Переподключитесь и выберите нужную версию.','err');return false;
+}
 const ae=document.activeElement;
 const typing=ae && (ae.tagName==='INPUT'||ae.tagName==='TEXTAREA') && ae.closest && ae.closest('.leaf');
-if(typing){
+if(typing&&!replaceLocal){
 ch.pending=msg;
 clearTimeout(ch.retryTimer);
 ch.retryTimer=setTimeout(()=>{ const m=ch.pending; ch.pending=null; if(m) syncApplyRemote(ch,m); },2500);
@@ -16441,6 +16504,7 @@ return;
 try{
 const d=syncMessageData(msg);
 ch.applyData(d);
+ch.pending=null;ch.pendingConflict=false;clearTimeout(ch.retryTimer);
 if(typeof bg3InventoryStatusTransitionReset==='function')bg3InventoryStatusTransitionReset();
 ch.lastAt=msg.at||Date.now();
 syncObserveRevision(ch,msg);ch.dirtyParentRevision=null;lsSet('dndworld2:syncparent:'+ch.key,'');
@@ -16448,7 +16512,8 @@ lsSet('dndworld2:synclast:'+ch.key,String(ch.lastAt)); lsSet('dndworld2:dirty:'+
 syncPersistLocal();
 syncStatus('Облако: получены изменения ('+ch.name+') ✓','ok');
 setStatus('Летопись обновлена из облака ✓');
-}catch(e){ syncStatus('Облако: не удалось разобрать данные ('+ch.name+')','err'); }
+return true;
+}catch(e){ syncStatus('Облако: не удалось разобрать данные ('+ch.name+')','err');return false; }
 }
 
 
@@ -16456,16 +16521,20 @@ function syncTouch(){
 if(!syncCfg||!syncCfg.on) return;
 syncChans.forEach(ch=>{
 if(!ch.url()) return;
+ch.localChangeVersion=(+ch.localChangeVersion||0)+1;
 if(ch.dirtyParentRevision==null){ch.dirtyParentRevision=ch.remoteRevision;lsSet('dndworld2:syncparent:'+ch.key,String(ch.dirtyParentRevision));}
-if(!syncOn){ lsSet('dndworld2:dirty:'+ch.key,'1'); return; }
+lsSet('dndworld2:dirty:'+ch.key,'1');
+if(!syncOn)return;
 clearTimeout(ch.pushTimer);
 ch.pushTimer=setTimeout(()=>syncPushNow(ch),1200);
 });
 }
 async function syncPushNow(ch){
+if(campaignImportBusy||gameActionInteractionLocked()||ch.pendingConflict)return false;
 const u=ch.url(); if(!u||!syncOn) return false;
 try{
 const token=await syncAuthToken(false);
+if(campaignImportBusy||gameActionInteractionLocked()||ch.pendingConflict)return false;
 if(syncNeedsOwnerAuth()&&!token) throw new Error('требуется вход владельца');
 syncStatus('Облако: отправляю ('+ch.name+')…');
 const target=syncUrlWithAuth(u,token),currentResponse=await fetch(target,{headers:{'X-Firebase-ETag':'true'}});
@@ -16473,17 +16542,21 @@ if(!currentResponse.ok)throw new Error('HTTP '+currentResponse.status);
 const remote=await currentResponse.json(),etag=currentResponse.headers&&currentResponse.headers.get?currentResponse.headers.get('etag'):null,
 parent=ch.dirtyParentRevision==null?ch.remoteRevision:ch.dirtyParentRevision,
 plan=PERSISTENCE_CORE?PERSISTENCE_CORE.cloudCasPlan(remote,parent):{ok:true,parentRevision:0,revision:1};
+if(campaignImportBusy||gameActionInteractionLocked()||ch.pendingConflict)return false;
 if(!plan.ok){ch.pending=remote;syncStatus('Облако: конфликт ('+ch.name+') — удалённая ревизия '+plan.actualRevision+', ожидалась '+plan.expectedRevision+'. Выберите версию при подключении.','err');return false;}
-const payload=ch.payloadOf(),p=PERSISTENCE_CORE?PERSISTENCE_CORE.createCloudMessage(payload,{by:syncClientId,parentRevision:plan.parentRevision,transactionId:'cloud-'+ch.key+'-'+Date.now(),at:Date.now()}):{by:syncClientId,at:Date.now(),payload};
+const localChangeVersion=+ch.localChangeVersion||0,payload=ch.payloadOf(),p=PERSISTENCE_CORE?PERSISTENCE_CORE.createCloudMessage(payload,{by:syncClientId,parentRevision:plan.parentRevision,transactionId:'cloud-'+ch.key+'-'+Date.now(),at:Date.now()}):{by:syncClientId,at:Date.now(),payload};
 p.j=JSON.stringify(payload);
 const headers={'Content-Type':'application/json'};if(etag)headers['if-match']=etag;
 const r=await fetch(target,{method:'PUT',headers,body:JSON.stringify(p)});
 if(r.status===412){syncStatus('Облако: конфликт ('+ch.name+') — данные изменились во время записи. Локальные изменения не потеряны.','err');return false;}
 if(!r.ok) throw new Error('HTTP '+r.status);
-ch.lastAt=p.at;ch.remoteRevision=Number.isSafeInteger(p.revision)?p.revision:plan.revision;ch.dirtyParentRevision=null;lsSet('dndworld2:syncparent:'+ch.key,'');
+ch.lastAt=p.at;ch.remoteRevision=Number.isSafeInteger(p.revision)?p.revision:plan.revision;
+const newerLocalChanges=campaignImportBusy||gameActionInteractionLocked()||(+ch.localChangeVersion||0)!==localChangeVersion;
+ch.dirtyParentRevision=newerLocalChanges?ch.remoteRevision:null;lsSet('dndworld2:syncparent:'+ch.key,newerLocalChanges?String(ch.remoteRevision):'');
 lsSet('dndworld2:syncrev:'+ch.key,String(ch.remoteRevision));
-lsSet('dndworld2:synclast:'+ch.key,String(p.at)); lsSet('dndworld2:dirty:'+ch.key,'');
-syncStatus('Облако: сохранено ('+ch.name+') ✓','ok');
+lsSet('dndworld2:synclast:'+ch.key,String(p.at)); lsSet('dndworld2:dirty:'+ch.key,newerLocalChanges?'1':'');
+if(newerLocalChanges){clearTimeout(ch.pushTimer);ch.pushTimer=setTimeout(()=>syncPushNow(ch),1200);}
+syncStatus(newerLocalChanges?'Облако: предыдущая запись сохранена; новые изменения ожидают отправки ('+ch.name+').':'Облако: сохранено ('+ch.name+') ✓',newerLocalChanges?'':'ok');
 return true;
 }catch(e){ syncStatus('Облако: ошибка отправки ('+ch.name+') — '+e.message,'err'); return false; }
 }
@@ -16530,7 +16603,8 @@ let take=true;
 if(interactive){
 take=window.confirm('В облаке уже есть данные («'+ch.name+'», запись от '+new Date(cloud.at).toLocaleString()+').\n\nОК — взять из облака (заменит данные на этом устройстве).\nОтмена — заменить облако данными этого устройства.');
 }
-if(take) syncApplyRemote(ch,cloud); else await syncPushNow(ch);
+if(take) syncApplyRemote(ch,cloud,{replaceLocal:!!interactive});
+else {ch.pendingConflict=false;ch.pending=null;ch.dirtyParentRevision=ch.remoteRevision;lsSet('dndworld2:syncparent:'+ch.key,String(ch.dirtyParentRevision));await syncPushNow(ch);}
 } else if(dirty){ await syncPushNow(ch); }
 } else {
 await syncPushNow(ch);
@@ -16619,14 +16693,14 @@ function openSyncModal(){
 syncLoadCfg();
 let m=document.getElementById('syncModal');
 if(!m){
-m=document.createElement('div'); m.id='syncModal'; m.className='sync-overlay hidden';
+m=document.createElement('div'); m.id='syncModal'; m.className='sync-overlay hidden';m.setAttribute('role','dialog');m.setAttribute('aria-modal','true');m.setAttribute('aria-labelledby','syncModalTitle');
 m.innerHTML=
 '<div class="sync-box">'+
-'<div class="sync-head">☁ Облачная летопись</div>'+
+'<div class="sync-head" id="syncModalTitle">☁ Облачная летопись</div>'+
 '<div class="sync-sub"><b>Своды мира</b> — предметы и снаряжение, заклинания, способности, народы, призвания, справочник мастера — общие для всего сайта и синхронизируются безусловно, вне кампаний. <b>Персонажи и журнал</b> живут в кампании и синхронизируются между устройствами с одинаковым ключом.</div>'+
-'<label class="sync-lbl">Ссылка на базу данных (Firebase Realtime Database)</label>'+
+'<label class="sync-lbl" for="syncUrlInp">Ссылка на базу данных (Firebase Realtime Database)</label>'+
 '<input id="syncUrlInp" class="sync-inp" placeholder="https://ваш-проект-default-rtdb.europe-west1.firebasedatabase.app">'+
-'<label class="sync-lbl">Ключ кампании — для персонажей и журнала (можно оставить main)</label>'+
+'<label class="sync-lbl" for="syncRoomInp">Ключ кампании — для персонажей и журнала (можно оставить main)</label>'+
 '<input id="syncRoomInp" class="sync-inp" placeholder="main">'+
 '<div id="syncAuthState" class="sync-status">Проверяю защищенный вход…</div>'+
 '<div class="sync-btns">'+
@@ -16844,6 +16918,7 @@ document.getElementById('tab-classes').innerHTML = h;
 
 
 let merchantTradeBusy=false;
+function merchantTradeSetBusy(value){merchantTradeBusy=!!value;if(merchantTradeBusy)merchantUiMessage='Сохраняем сделку…';try{if(merchantTradeBusy)setStatus(merchantUiMessage);renderMerchants();}catch(error){setStatus(merchantUiMessage+' Не удалось обновить окно торговли. Откройте раздел заново.',true);}}
 function merchantCurrent(){return (merchantState.instances||[]).find(row=>row.id===activeMerchantId)||null;}
 function merchantTemplateOf(instance){const api=globalThis.DndMerchants;return api&&instance?(api.DEFAULT_MERCHANT_TEMPLATES||[]).find(row=>row.id===instance.templateId):null;}
 function merchantDomKey(value){let hash=2166136261;for(const ch of String(value||'')){hash^=ch.charCodeAt(0);hash=Math.imul(hash,16777619);}return (hash>>>0).toString(36);}
@@ -16868,7 +16943,7 @@ function merchantSetMultiplier(side,value){const instance=merchantCurrent(),raw=
 async function merchantSetMoney(currencyId,value){
 const instance=merchantCurrent(),service=economyService(),raw=String(value||'').trim();if(!instance||!service||!/^\d+$/.test(raw)){merchantSetMessage('Количество монет должно быть неотрицательным целым числом.',true);renderMerchants();return;}
 if(String(instance.wallet.balances[currencyId]||0)===String(BigInt(raw)))return;const reason=window.prompt('Причина изменения кассы «'+instance.name+'»:','Решение мастера');if(reason==null){renderMerchants();return;}if(!String(reason).trim()){merchantSetMessage('Для ручного изменения кассы нужна причина.',true);renderMerchants();return;}
-const requestKey='merchant-wallet-adjust:'+instance.wallet.id+':'+instance.wallet.version+':'+currencyId+':'+raw,result=await service.manualAdjust(instance.wallet,{currencyId,newAmount:raw,userId:economyUserId(),reason:String(reason).trim(),idempotencyKey:requestKey});if(!result.ok){merchantSetMessage(merchantMessage(result),true);renderMerchants();return;}merchantTouch(instance);merchantSetMessage('Касса торговца изменена и записана в денежный журнал.');renderMerchants();
+const requestKey='merchant-wallet-adjust:'+instance.wallet.id+':'+instance.wallet.version+':'+currencyId+':'+raw,result=await economyCommitMutation(requestKey,async()=>{const changed=await service.manualAdjust(instance.wallet,{currencyId,newAmount:raw,userId:economyUserId(),reason:String(reason).trim(),idempotencyKey:requestKey});if(changed.ok){instance.revision++;instance.updatedAt=new Date().toISOString();}return changed;});if(!result.ok){merchantSetMessage(merchantMessage(result),true);renderMerchants();return;}merchantSetMessage('Касса торговца изменена и записана в денежный журнал.');renderMerchants();
 }
 function merchantSetStockQty(itemId,value){const instance=merchantCurrent(),entry=instance&&(instance.inventory||[]).find(row=>row.itemId===itemId),qty=Number(value);if(!entry||String(value).trim()===''||!Number.isSafeInteger(qty)||qty<0){merchantSetMessage('Остаток должен быть неотрицательным целым числом.',true);renderMerchants();return;}entry.quantity=qty;merchantTouch(instance);renderMerchants();}
 function merchantToggleAvailability(itemId){const instance=merchantCurrent(),entry=instance&&(instance.inventory||[]).find(row=>row.itemId===itemId);if(!entry)return;entry.available=entry.available===false;instance.itemAvailability[itemId]=entry.available;merchantTouch(instance);renderMerchants();}
@@ -16886,15 +16961,15 @@ if(![buy,sale].every(raw=>/^\d+(?:\.\d{1,2})?$/.test(raw)&&Number(raw)<=10000)){
 instance.relationships[charId]={reputation:g('merchantRelTier').value,purchaseBasisPoints:String(Math.round(Number(buy)*100)),saleBasisPoints:String(Math.round(Number(sale)*100))};merchantTouch(instance);renderMerchants();
 }
 async function merchantBuy(itemId){
-if(merchantTradeBusy)return;const instance=merchantCurrent(),character=getCh(merchantTradeCharacterId),qtyEl=document.getElementById('merchantBuyQty_'+merchantDomKey(itemId)),qty=Number(qtyEl&&qtyEl.value),service=merchantService();if(!instance||!character||!service){merchantSetMessage('Выберите персонажа для сделки.',true);renderMerchants();return;}merchantTradeBusy=true;
-try{const result=await service.buy({instance,character,characterAccount:economyAccountFor(character),itemId,quantity:qty,requestId:'merchant-buy-'+uid(),userId:economyUserId(),reason:'Покупка у '+instance.name});if(!result.ok){merchantSetMessage(merchantMessage(result),true);return;}fxInvalidate();scheduleSave();merchantSetMessage(character.name+' покупает '+userFacingItemName(itemOf(itemId),'предмет')+' ×'+qty+' за '+merchantFormatMinor(result.quote.totalMinor)+'.');}
-catch(error){merchantSetMessage(error.message||error,true);}finally{merchantTradeBusy=false;renderMerchants();if(activeWorldTab==='chars'&&activeCharId)renderChars();}
+if(merchantTradeBusy)return;const instance=merchantCurrent(),character=getCh(merchantTradeCharacterId),qtyEl=document.getElementById('merchantBuyQty_'+merchantDomKey(itemId)),qty=Number(qtyEl&&qtyEl.value),service=merchantService();if(!instance||!character||!service){merchantSetMessage('Выберите персонажа для сделки.',true);renderMerchants();return;}merchantTradeSetBusy(true);
+try{const result=await economyCommitMutation('merchant-buy:'+instance.id+':'+character.id,()=>service.buy({instance,character,characterAccount:economyAccountFor(character),itemId,quantity:qty,requestId:'merchant-buy-'+uid(),userId:economyUserId(),reason:'Покупка у '+instance.name}));if(!result.ok){merchantSetMessage(merchantMessage(result),true);return;}fxInvalidate();scheduleSave();merchantSetMessage(character.name+' покупает '+userFacingItemName(itemOf(itemId),'предмет')+' ×'+qty+' за '+merchantFormatMinor(result.quote.totalMinor)+'.');}
+catch(error){merchantSetMessage(error.message||error,true);}finally{merchantTradeSetBusy(false);if(activeWorldTab==='chars'&&activeCharId)renderChars();}
 }
 async function merchantSell(){
 if(merchantTradeBusy)return;const instance=merchantCurrent(),character=getCh(merchantTradeCharacterId),select=document.getElementById('merchantSellItem'),qtyEl=document.getElementById('merchantSellQty'),selected=merchantSellSelection(),itemId=selected&&selected.itemId,qty=Number(qtyEl&&qtyEl.value),service=merchantService();if(!instance||!character||!service||!itemId){merchantSetMessage('Выберите предмет персонажа для продажи.',true);renderMerchants();return;}
 let masterOverride=null,quote;try{quote=service.quote(instance,character,itemId,'sale',qty);}catch(error){merchantSetMessage(error.message||error,true);renderMerchants();return;}const guarded=service._guard(character,itemId,qty,'merchant-sale',selected.id);if(!guarded.ok){merchantSetMessage(merchantMessage(guarded),true);return;}if(quote.ok){const afford=economyService().canAfford(instance.wallet,{amountMinor:quote.totalMinor});if(!afford.ok){const confirmed=window.confirm('В кассе торговца не хватает '+merchantFormatMinor(afford.shortfallMinor)+'.\n\nЯвно разрешить мастеру покрыть нехватку? Разрешение, автор и причина будут записаны в журнале.');if(!confirmed){merchantSetMessage('Продажа отменена: у торговца недостаточно денег.',true);renderMerchants();return;}const reason=window.prompt('Причина разрешения мастера:','Сюжетное решение');if(!reason||!String(reason).trim()){merchantSetMessage('Без записанной причины разрешение недействительно.',true);renderMerchants();return;}masterOverride={confirmed:true,authorizedBy:economyUserId(),reason:String(reason).trim()};}}
-merchantTradeBusy=true;try{const result=await service.sell({instance,character,characterAccount:economyAccountFor(character),itemId,entryId:selected.id,quantity:qty,requestId:'merchant-sale-'+uid(),userId:economyUserId(),reason:'Продажа торговцу '+instance.name,masterOverride});if(!result.ok){merchantSetMessage(merchantMessage(result),true);return;}fxInvalidate();scheduleSave();merchantSetMessage(character.name+' продаёт '+userFacingItemName(itemOf(itemId),'предмет')+' ×'+qty+' за '+merchantFormatMinor(result.quote.totalMinor)+'.');}
-catch(error){merchantSetMessage(error.message||error,true);}finally{merchantTradeBusy=false;renderMerchants();if(activeWorldTab==='chars'&&activeCharId)renderChars();}
+merchantTradeSetBusy(true);try{const result=await economyCommitMutation('merchant-sale:'+instance.id+':'+character.id,()=>service.sell({instance,character,characterAccount:economyAccountFor(character),itemId,entryId:selected.id,quantity:qty,requestId:'merchant-sale-'+uid(),userId:economyUserId(),reason:'Продажа торговцу '+instance.name,masterOverride}));if(!result.ok){merchantSetMessage(merchantMessage(result),true);return;}fxInvalidate();scheduleSave();merchantSetMessage(character.name+' продаёт '+userFacingItemName(itemOf(itemId),'предмет')+' ×'+qty+' за '+merchantFormatMinor(result.quote.totalMinor)+'.');}
+catch(error){merchantSetMessage(error.message||error,true);}finally{merchantTradeSetBusy(false);if(activeWorldTab==='chars'&&activeCharId)renderChars();}
 }
 function merchantBaseQuote(it,side,context){
 const api=globalThis.DndEconomy,model=itemEconomyOf(it);if(!api||!model)return {ok:false};
@@ -16927,7 +17002,7 @@ function merchantPriceSet(itemId,side,value){const instance=merchantCurrent(),en
 function merchantPriceInput(value){return value==null?'':(BigInt(value)/100n).toString()+'.'+(BigInt(value)%100n).toString().padStart(2,'0');}
 function renderMerchantDetail(instance){
 const source=merchantTemplateOf(instance),character=getCh(merchantTradeCharacterId)||chars[0]||null;if(character)merchantTradeCharacterId=character.id;const q=esc(JSON.stringify(instance.id)),panel=merchantUiPanel,rel=character&&instance.relationships[character.id]||{};
-let h='<div class="trade-workspace"><header class="trade-heading"><div><button id="merchantBackButton" class="btn ghost sm" onclick="merchantBack()">← Все торговцы</button><h2>'+esc(instance.name)+'</h2><p>'+esc(source.profession)+(instance.region?' · '+esc(instance.region):'')+'</p></div><span class="trade-badge">'+instance.inventory.filter(e=>e.quantity>0&&e.available!==false).length+' товаров в продаже</span></header>';
+let h='<div class="trade-workspace" aria-busy="'+(merchantTradeBusy?'true':'false')+'"><header class="trade-heading"><div><button id="merchantBackButton" class="btn ghost sm" onclick="merchantBack()">← Все торговцы</button><h2>'+esc(instance.name)+'</h2><p>'+esc(source.profession)+(instance.region?' · '+esc(instance.region):'')+'</p></div><span class="trade-badge">'+instance.inventory.filter(e=>e.quantity>0&&e.available!==false).length+' товаров в продаже</span></header>';
 h+=(merchantUiMessage?'<div role="status" class="trade-notice '+(merchantUiMessage.startsWith('✕')?'error':'')+'">'+esc(merchantUiMessage)+'</div>':'');
 h+=tradeTabs('merchant',panel,[['trade','Торговля'],['stock','Ассортимент'],['settings','Настройки мастера'],['journal','Журнал']]);
 if(panel==='trade'){
@@ -16946,7 +17021,7 @@ h+='<section class="merchant-panel"><h3>Торговец и цены</h3>'+merch
 return h+'</div>';
 }
 function renderMerchants(){
-const box=document.getElementById('tab-merchants');if(!box||!tradeRenderBegin('merchant',box))return;try{const current=merchantCurrent();if(current){const open=[...(box.querySelectorAll?.('details[open]')||[])].map(e=>e.dataset?.tradeDetails||e.querySelector('summary')?.textContent);box.innerHTML=renderMerchantDetail(current);(box.querySelectorAll?.('details')||[]).forEach(e=>{e.open=open.includes(e.dataset?.tradeDetails||e.querySelector('summary')?.textContent);});if(merchantUiPanel==='trade'){merchantSellPreview();for(const e of current.inventory)merchantBuyPreview(e.itemId);merchantStockFilter(merchantStockSearch);}return;}
+const box=document.getElementById('tab-merchants');if(!box||!tradeRenderBegin('merchant',box))return;try{const current=merchantCurrent();if(current){const open=[...(box.querySelectorAll?.('details[open]')||[])].map(e=>e.dataset?.tradeDetails||e.querySelector('summary')?.textContent);box.innerHTML=renderMerchantDetail(current);(box.querySelectorAll?.('details')||[]).forEach(e=>{e.open=open.includes(e.dataset?.tradeDetails||e.querySelector('summary')?.textContent);});if(merchantUiPanel==='trade'){merchantSellPreview();for(const e of current.inventory)merchantBuyPreview(e.itemId);merchantStockFilter(merchantStockSearch);}if(merchantTradeBusy)(box.querySelectorAll?.('button,input,select')||[]).forEach(control=>{control.disabled=true;});return;}
 const templates=globalThis.DndMerchants.DEFAULT_MERCHANT_TEMPLATES;
 let h='<div class="trade-workspace"><header class="trade-heading"><div><p class="trade-eyebrow">Лавки вашего мира</p><h2>Торговцы</h2><p>Подготовьте ассортимент и проведите сделку с героем.</p></div><span class="trade-badge">'+merchantState.instances.length+' торговцев</span></header>'+(merchantUiMessage?'<div class="trade-notice" role="status">'+esc(merchantUiMessage)+'</div>':'')+'<details class="trade-create"'+(!merchantState.instances.length?' open':'')+'><summary>+ Новый торговец</summary><div class="trade-form">'+tradeField('Профессия','<select id="merchantCreateTemplate" onchange="merchantCreatePreview()">'+tradeOptions(templates.map(t=>[t.id,t.profession]),'general-store')+'</select>')+tradeField('Имя торговца','<input id="merchantCreateName" placeholder="Например, Бринн Меднобород">')+tradeField('Местоположение','<input id="merchantCreateRegion" placeholder="Например, рынок Невервинтера">')+'</div><div id="merchantTemplatePreview"></div><details class="trade-details"><summary>Сюжетные условия</summary>'+tradeField('Флаги через запятую','<input id="merchantCreateFlags" placeholder="Условия вашей кампании">')+'</details><button id="merchantCreateButton" class="btn rub" onclick="merchantCreate()">Создать торговца</button></details><div class="trade-card-grid">';
 for(const instance of merchantState.instances){h+='<button class="trade-world-card" onclick="merchantOpen('+esc(JSON.stringify(instance.id))+')"><span class="trade-eyebrow">'+esc(merchantTemplateOf(instance).profession)+'</span><h3>'+esc(instance.name)+'</h3><p>'+esc(instance.region||'Местоположение не указано')+'</p><footer><span>'+instance.inventory.filter(e=>e.quantity>0).length+' товаров</span><b>'+merchantWalletTotal(instance)+'</b></footer></button>';}
@@ -18118,6 +18193,13 @@ const e=document.getElementById('combatInitTotal_'+combatDomKey(key)),o=combatAc
 const n=+v,modi=o?(kind==='ally'?initTotal(o):foeAbMod(o,'dex')):0;
 if(e) e.textContent=(Number.isInteger(n)&&n>=1&&n<=20)?String(n+modi):'—';
 }
+function combatTransitionCommit(apply){
+const checkpoint=bg3InterruptWorldCheckpoint([]),previousActiveCharId=activeCharId;
+try{if(apply()!==false)return true;}
+catch(error){setStatus('✕ Переход хода отменен: '+String(error&&error.message||error),true);}
+bg3InterruptWorldRestore(checkpoint);activeCharId=previousActiveCharId;fxInvalidate();
+renderChars();renderFoes();renderCombat();return false;
+}
 function combatStart(entries,name){
 if(combat.active){ setStatus('✕ Текущий бой нужно сначала завершить.',true); return false; }
 combatEnsureSetup();
@@ -18138,6 +18220,7 @@ if(order.length<2||!order.some(x=>x.kind==='ally')||!order.some(x=>x.kind==='foe
 setStatus('✕ Для боя выберите минимум одного героя и одного противника.',true); return false;
 }
 order.sort((a,b)=>(b.initiative-a.initiative)||(a.seq-b.seq));
+if(!combatTransitionCommit(()=>{
 order.filter(e=>e.kind==='foe').forEach(e=>foeResetActionState(foeOf(e.id)));
 const history=(combat.history||[]).slice();
 if((combat.log||[]).length) history.unshift({id:combat.id||'combat_'+uid(),name:combat.name||'Схватка',startedAt:combat.startedAt,endedAt:combat.endedAt,log:combat.log.slice()});
@@ -18149,7 +18232,9 @@ combat.snapshots={}; order.forEach(e=>{ combat.snapshots[combatEntryKey(e)]=comb
 combatLog('Бой «'+combat.name+'» начат. Инициатива: '+order.map(e=>combatActorName(combatEntryKey(e))+' '+e.nat+(e.mod?fmtMod(e.mod):'')+' = '+e.initiative).join('; '),'round');
 const tied={}; order.forEach(e=>(tied[e.initiative]=tied[e.initiative]||[]).push(e));
 Object.keys(tied).forEach(k=>{ if(tied[k].length>1) combatLog('Ничья инициативы '+k+': '+tied[k].map(e=>combatActorName(combatEntryKey(e))).join(', ')+'. Мастер может переставить их стрелками.','round'); });
-combatBeginTurn(); scheduleSave(); renderCombat(); return true;
+return combatBeginTurn();
+}))return false;
+scheduleSave(); renderCombat(); return true;
 }
 function combatClearStartEffects(key){
 const o=combatActorByKey(key); if(!o) return;
@@ -18201,9 +18286,12 @@ let idx=old,wrapped=false,found=-1,pendingExpiry=null;
 for(let i=0;i<combat.order.length;i++){ idx=(idx+1)%combat.order.length; if(idx===0) wrapped=true; if(combatActorHasTurn(combatEntryKey(combat.order[idx]))){ found=idx; break; } }
 if(wrapped){pendingExpiry=bg3StatusLifecycleExpiryPreflight(fxRound+1);if(!pendingExpiry.ok){setStatus('✕ '+pendingExpiry.reason+'; turn/round not committed.',true);return false;}}
 if(found<0){ setStatus('✕ Нет дееспособных участников.',true); return false; }
+if(!combatTransitionCommit(()=>{
 combatClearEndEffects(oldKey); combatLog('Ход завершен: '+combatActorName(oldKey),'round',oldKey);
-if(wrapped){ combat.round++; if(advanceFxRound(1,pendingExpiry)===false){combat.round--;return false;} combatLog('Раунд '+combat.round+' начат.','round'); }
-combat.turnIndex=found; combatBeginTurn(); scheduleSave(); renderCombat(); return true;
+if(wrapped){ combat.round++; if(advanceFxRound(1,pendingExpiry)===false)return false; combatLog('Раунд '+combat.round+' начат.','round'); }
+combat.turnIndex=found;return combatBeginTurn();
+}))return false;
+scheduleSave(); renderCombat(); return true;
 }
 function combatRepeatSaveQueue(key){
 const o=combatActorByKey(key); if(!o) return [];
@@ -18645,7 +18733,7 @@ function combatDeathSave(){
 const key=combatCurrentKey(),e=combatEntryByKey(key),o=combatActorByKey(key); if(!e||e.kind!=='ally'||!o||(+o.hp||0)>0) return false;
 if((+(o.deaths&&o.deaths.f)||0)>=3){ setStatus('✕ '+o.name+' погиб: спасброски смерти больше не делаются.',true); return false; }
 if((+(o.deaths&&o.deaths.s)||0)>=3){ setStatus(o.name+' стабилизирован: спасбросок не нужен.'); return false; }
-activeCharId=o.id; deathSaveRoll(); return true;
+activeCharId=o.id; return deathSaveRoll()!==false;
 }
 function combatEquipCost(it){ const p=itemProfile(it); if(p.kind==='armor') return 'long'; if(p.kind==='shield') return 'action'; return 'object'; }
 function combatToggleEquipForActor(key,entryId){
@@ -19026,7 +19114,10 @@ return '<div class="combatant '+(key===combatCurrentKey()?'current ':'')+(!comba
 const GAME_CONTEXT_SCHEMA='dnd-world-game-context/1',ACTION_DEFINITION_SCHEMA='dnd-world-action-definition/1',
 ACTION_EVALUATION_SCHEMA='dnd-world-action-evaluation/1',ACTION_RESULT_SCHEMA='dnd-world-action-result/1';
 let gameActionDefinitions=new Map(),gameActionRendered=[],gameActionLastResult=null,gameActionInFlight=new Set();
-const ACTION_KERNEL_CORE=globalThis.DndWorldActions||null,combatActionKernel=ACTION_KERNEL_CORE?new ACTION_KERNEL_CORE.ActionKernel():null;
+function gameActionInteractionState(busy){const notice=document.getElementById('actionBusyNotice');if(notice)notice.hidden=!busy;}
+function gameActionInteractionLocked(){return !!combatActionKernel?.inFlight.size;}
+function gameActionManualEditAllowed(){if(!gameActionInteractionLocked())return true;gameActionInteractionState(true);return false;}
+const ACTION_KERNEL_CORE=globalThis.DndWorldActions||null,combatActionKernel=ACTION_KERNEL_CORE?new ACTION_KERNEL_CORE.ActionKernel({onBusyChange:gameActionInteractionState}):null;
 const UI_ACTION_CORE=globalThis.DndWorldUIActions||null,gameUiActionRegistry=UI_ACTION_CORE?new UI_ACTION_CORE.ActionHandlerRegistry():null;
 if(gameUiActionRegistry)gameUiActionRegistry.register('game-action-execute',(payload)=>gameActionExecute(payload.actionId,payload.evaluationToken));
 function gameActionClone(value){
@@ -19129,16 +19220,28 @@ if(result&&(!result.userMessages.some(Boolean)||!result.auditData.reasonCode))mi
 function gameActionTransactionSnapshot(){
 const comprehensive=typeof bg3InterruptWorldCheckpoint==='function'?bg3InterruptWorldCheckpoint([]):null,
 transientIdentity=typeof bg3InterruptIdentitySnapshot==='function'?bg3InterruptIdentitySnapshot([castCtx,rollSpec]):null;
-return {comprehensive,transientIdentity,chars:comprehensive?null:gameActionClone(chars),journal:comprehensive?null:gameActionClone(journal),foesDB:comprehensive?null:gameActionClone(foesDB),combat:comprehensive?null:gameActionClone(combat),
-harvestedSources:comprehensive?null:gameActionClone(harvestedSources),bg3SceneState:comprehensive?null:gameActionClone(bg3SceneState),chestState:gameActionClone(chestState),campaignMagic:gameActionClone(campaignMagic),activeCharId,fxRound,lastCastEvent,castCtx,rollSpec,worldSnapshotRevision,campaignEnvelopeRevision};
+return {comprehensive,transientIdentity,economyIdentity:bg3InterruptIdentitySnapshot([economyState,merchantState]),economyRef:economyState,merchantRef:merchantState,economyState:gameActionClone(economyState),merchantState:gameActionClone(merchantState),chars:comprehensive?null:gameActionClone(chars),journal:comprehensive?null:gameActionClone(journal),foesDB:comprehensive?null:gameActionClone(foesDB),combat:comprehensive?null:gameActionClone(combat),
+harvestedSources:comprehensive?null:gameActionClone(harvestedSources),bg3SceneState:comprehensive?null:gameActionClone(bg3SceneState),chestState:gameActionClone(chestState),campaignMagic:gameActionClone(campaignMagic),activeCharId,fxRound,lastCastEvent,castCtx,rollSpec};
 }
 function gameActionTransactionRestore(snapshot){
+if(snapshot.economyState){const restored=bg3InterruptIdentityRestore(snapshot.economyIdentity);economyState=restored?snapshot.economyRef:snapshot.economyState;merchantState=restored?snapshot.merchantRef:snapshot.merchantState;economyServiceCache=null;merchantServiceCache=null;}
 if(snapshot.campaignMagic)campaignMagic=MAGIC_RULES.settings(snapshot.campaignMagic);
 if(snapshot.comprehensive)bg3InterruptWorldRestore(snapshot.comprehensive);
 else{chars=snapshot.chars;journal=snapshot.journal;foesDB=snapshot.foesDB;combat=normalizeCombatState(snapshot.combat);harvestedSources=snapshot.harvestedSources;bg3SceneState=bg3SceneNormalizeState(snapshot.bg3SceneState);lastCastEvent=snapshot.lastCastEvent;}
 if(snapshot.transientIdentity&&typeof bg3InterruptIdentityRestore==='function')bg3InterruptIdentityRestore(snapshot.transientIdentity);
-chestState=CHEST_CORE?CHEST_CORE.normalizeState(snapshot.chestState):snapshot.chestState;activeCharId=snapshot.activeCharId;fxRound=snapshot.fxRound;castCtx=snapshot.castCtx;rollSpec=snapshot.rollSpec;worldSnapshotRevision=snapshot.worldSnapshotRevision;campaignEnvelopeRevision=snapshot.campaignEnvelopeRevision;
+chestState=CHEST_CORE?CHEST_CORE.normalizeState(snapshot.chestState):snapshot.chestState;activeCharId=snapshot.activeCharId;fxRound=snapshot.fxRound;castCtx=snapshot.castCtx;rollSpec=snapshot.rollSpec;
+// Storage revisions and receipts outlive gameplay rollback: an earlier queued save may have committed while this action awaited persistence.
 if(typeof bg3GithbornMindcrusherTrustCharacters==='function')bg3GithbornMindcrusherTrustCharacters(chars);fxInvalidate();renderCombat();if(typeof renderChests==='function')renderChests();
+}
+async function economyCommitMutation(actionId,apply){
+return combatActionKernel.execute({actionId},{
+resolve:async()=>({actionId}),context:async()=>null,validate:async()=>({allowed:true}),snapshot:async()=>gameActionTransactionSnapshot(),prepare:async()=>null,
+commit:async(_prepared,token)=>token.commit('economy',async()=>{const result=await apply();if(!result||result.ok!==true)throw Object.assign(new Error(result&&result.message||result&&result.reason||'Операция отклонена.'),{code:result&&result.reason||'ECONOMY_REJECTED',result});return result;}),
+consequences:async result=>result,
+persist:async()=>{scheduleSave();clearTimeout(saveTimer);const saved=await runScheduledSave();return saved?{ok:true,receipt:campaignLastPersistenceReceipt}:{ok:false,code:'FAILED_TO_PERSIST',reason:'Не удалось сохранить операцию. Предметы, монеты и журнал восстановлены.'};},
+rollback:async snapshot=>gameActionTransactionRestore(snapshot),
+reject:error=>error.result||{ok:false,reason:error.code||'ECONOMY_REJECTED',message:error.code==='ACTION_IN_FLIGHT'?'Другое действие уже выполняется. Дождитесь сохранения.':String(error.message||error)}
+});
 }
 function gameActionStateChanges(before,after){
 const keys=['resources','conditions','inventory','equipment','activeEffects','currentScene','environment','allies','enemies'],changes=[];
@@ -19419,7 +19522,13 @@ return askRolls({title:'▣ '+CHEST_ACTION_META[action][1]+': '+row.name,note:'�
 }
 function chestAddCreatureToCombat(foe,natural,chest){if(!foe||!combat.active)return false;const key='foe:'+foe.id;if(combatEntryByKey(key))return true;if(!Number.isInteger(natural)||natural<1||natural>20)return false;const currentKey=combatCurrentKey(),modi=foeAbMod(foe,'dex');combat.order.push({kind:'foe',id:foe.id,nat:natural,mod:modi,initiative:natural+modi,reactionUsed:false,seq:combat.order.length});combat.order.sort((a,b)=>(b.initiative-a.initiative)||(a.seq-b.seq));combat.turnIndex=Math.max(0,combat.order.findIndex(entry=>combatEntryKey(entry)===currentKey));combat.snapshots[key]=combatSnapshotOf(combatEntryByKey(key));combatLog('Из «'+chest.name+'» появляется '+foe.n+'; инициатива '+natural+(modi?fmtMod(modi):'')+' = '+(natural+modi)+'.','round',key);return true;}
 function chestClaimLoot(row,actor){
-const container=chestContainer(row),loot=container&&container.loot;if(!actor||!loot||loot.status!=='approved'||!loot.approved||loot.claimedByActorId)return {items:0,copper:0};let items=0;for(const award of loot.approved.items||[]){if(!itemOf(award.itemId))throw new Error('Утверждённый Item ID больше не существует: '+award.itemId);let entry=(actor.inventory||[]).find(item=>item.itemId===award.itemId&&!item.inside&&item.valueCp==null&&item.valueGp==null&&!item.notes);if(entry)entry.qty=(+entry.qty||0)+award.qty;else{actor.inventory=actor.inventory||[];actor.inventory.push({id:'loot_'+uid(),itemId:award.itemId,qty:award.qty,notes:'Добыча из «'+row.name+'»'});}items+=award.qty;}const money=loot.approved.currency||{},coins=actor.coins=actor.coins||{mm:0,sm:0,em:0,zm:0,pm:0};for(const [source,target] of [['cp','mm'],['sp','sm'],['ep','em'],['gp','zm'],['pp','pm']])coins[target]=(BigInt(String(coins[target]||0))+BigInt(String(money[source]||0))).toString();actor.economyVersion=(+actor.economyVersion||0)+1;economyRecordOperation('loot',actor,String(money.totalCopper||0),{chestId:row.id},economyUserId(),'Добыча из «'+row.name+'»');loot.status='claimed';loot.claimedByActorId=actor.id;return {items,copper:+money.totalCopper||0};
+const container=chestContainer(row),loot=container&&container.loot;if(!actor||!loot||loot.status!=='approved'||!loot.approved||loot.claimedByActorId)return {items:0,copper:0};
+const inventory=gameActionClone(actor.inventory||[]),coins=Object.assign({mm:0,sm:0,em:0,zm:0,pm:0},actor.coins||{});let items=0;
+for(const award of loot.approved.items||[]){if(!itemOf(award.itemId))throw new Error('Утверждённый Item ID больше не существует: '+award.itemId);if(!Number.isSafeInteger(award.qty)||award.qty<=0)throw new Error('Количество добычи должно быть положительным целым числом.');
+let entry=inventory.find(item=>item.itemId===award.itemId&&Object.keys(item).every(key=>['id','itemId','qty','notes'].includes(key))&&!item.notes);
+if(entry){if(!Number.isSafeInteger(entry.qty)||entry.qty<0||!Number.isSafeInteger(entry.qty+award.qty))throw new Error('Стопка предметов повреждена или слишком велика.');entry.qty+=award.qty;}else{const base='loot_'+uid();let id=base,n=1;while(inventory.some(item=>item.id===id))id=base+'_'+n++;inventory.push({id,itemId:award.itemId,qty:award.qty,notes:'Добыча из «'+row.name+'»'});}items+=award.qty;}
+const money=loot.approved.currency||{};let copper=0n;for(const [source,target,rate] of [['cp','mm',1],['sp','sm',10],['ep','em',50],['gp','zm',100],['pp','pm',1000]]){if(!/^\d+$/.test(String(coins[target]))||!/^\d+$/.test(String(money[source]??0)))throw new Error('Монеты добычи и кошелька должны быть целыми неотрицательными числами.');const amount=BigInt(String(money[source]??0));coins[target]=(BigInt(String(coins[target]))+amount).toString();copper+=amount*BigInt(rate);}
+const existing=new Map((actor.inventory||[]).map(entry=>[entry.id,entry]));actor.inventory=inventory.map(next=>{const original=existing.get(next.id);if(original){original.qty=next.qty;return original;}return next;});actor.coins=coins;actor.economyVersion=(+actor.economyVersion||0)+1;economyRecordOperation('loot',actor,copper.toString(),{chestId:row.id},economyUserId(),'Добыча из «'+row.name+'»');loot.status='claimed';loot.claimedByActorId=actor.id;return {items,copper:Number(copper)};
 }
 function chestApplyPlayerResolution(id,action,actorKey,values){
 const fresh=chestOf(id),actor=combatActorByKey(actorKey),available=CHEST_CORE.evaluateAction(fresh,action,{actorId:actor&&actor.id,actorAlive:!!actor&&(+actor.hp||0)>0,actorHasTools:chestActorHasTools(actor)}),cost=chestActionCost(action);if(!available.allowed){setStatus('✕ '+available.explanation,true);renderChests();return false;}if(values.expectedRevision!=null&&values.expectedRevision!==fresh.revision){setStatus('Сундук изменился после начала действия. Повторите попытку.',true);return false;}if(combat.active&&!combatCanSpendPure(cost,actorKey)){setStatus('✕ '+combatSpendEvaluation(cost,actorKey).explanation,true);renderChests();return false;}if(!chestValidateResolution(fresh,action,values)){setStatus('Введите все фактические броски и урон в допустимых пределах.',true);return false;}const snapshot=gameActionTransactionSnapshot();try{if(combat.active&&cost!=='free'&&!combatSpend(cost,'Сундук: '+CHEST_ACTION_META[action][1],actorKey))throw new Error('Ресурс действия не удалось закоммитить.');const outcome=CHEST_CORE.applyAction(fresh,action,{actorId:actor.id,actorAlive:(+actor.hp||0)>0,total:values.total,damage:values.damage});if(!outcome.ok)throw Object.assign(new Error(outcome.reason||outcome.code),{code:outcome.code});let row=outcome.chest,extra='';if(outcome.event.requiresCombatEngine){const foe=chestEnsureCreature(row);if(!foe)throw new Error('Экземпляр существа не создан.');if(combat.active&&!chestAddCreatureToCombat(foe,values.creatureInitiative,row))throw new Error('Для появления существа требуется фактический d20 инициативы.');extra=' Существо создано как полноценный участник боевого движка.';}if(outcome.event.trapTriggered){const physical=chestPhysical(row),saveTotal=(+values.saveNatural||0)+chestSaveBonus(actor,physical.trap.saveAbility||'dex'),raw=Math.max(0,+values.trapDamage||0),damage=saveTotal>=physical.trap.saveDC?(physical.trap.saveEffect==='none'?0:Math.floor(raw/2)):raw;applyDamageTo(actorKey,damage,chestDamageType(physical.trap.damageType),'ловушка сундука «'+row.name+'»',{sourceKind:'trap'});extra+=' Ловушка: спасбросок '+saveTotal+' против СЛ '+physical.trap.saveDC+', урон '+damage+'.';}if(action==='claim'&&row.kind==='container'){const claimed=chestClaimLoot(row,actor);extra+=' Выдано предметов: '+claimed.items+', монет: '+Math.round(claimed.copper)/100+' зм.';}const index=chestState.instances.findIndex(item=>item.id===row.id);chestState.instances[index]=CHEST_CORE.normalizeChest(row);chestState.revision++;chestRecordEvent('CHEST_ACTION_RESOLVED',row,{actorId:actor.id,action,success:outcome.success,code:outcome.code,values:gameActionClone(values)});fxInvalidate();scheduleSave();renderChars();renderFoes();renderCombat();renderChests();setStatus((outcome.success?'◇ ':'✕ ')+outcome.message+extra,!outcome.success);return true;}catch(error){gameActionTransactionRestore(snapshot);setStatus('✕ Действие с сундуком отменено: '+String(error&&error.message||error)+'. Все изменения откачены.',true);renderChests();return false;}
@@ -28076,18 +28185,24 @@ return {known,kg:Math.round(w*1000)/1000};
 }
 function carryWeight(c){const state=carryWeightState(c);return state.known?state.kg:null;}
 function spendHitDie(){
-const c=cc(); if(!c) return;
+const c=cc(); if(!c) return false;
+if(magicSwitchBusy||combat.active||castCtx||rollSpec){setStatus('Завершите открытое действие и активный бой перед тратой кости хитов.',true);return false;}
+if((+c.hp||0)<=0&&(+c.deaths?.f||0)>=3){setStatus('Погибший герой не может восстанавливать хиты отдыхом.',true);return false;}
+if(charFxAll(c).some(f=>f.stat==='healing.block'&&f.mode==='set'&&f.value)){setStatus('Действующий эффект запрещает восстанавливать хиты.',true);return false;}
 const hd=classOf(c).hd||8;
-if(c.hdUsed>=c.level){ setStatus('Кости хитов исчерпаны — нужен долгий отдых.'); return; }
+if(c.hdUsed>=c.level){ setStatus('Кости хитов исчерпаны — нужен долгий отдых.'); return false; }
 const con=eMod(c,'con');
-askRolls({title:'⚂ Кость хитов — '+c.name, note:'Игрок бросает d'+hd+'; лечение = бросок '+(con>=0?'+ '+con:'− '+Math.abs(con))+' (Телосложение), минимум 1.',
+const context=()=>JSON.stringify([c.cls,c.level,c.hdUsed,c.hp,c.hpMax,c.ab,c.deaths,c.cond,c.activeFx,c.equipment]),openedContext=context();
+return askRolls({title:'⚂ Кость хитов — '+c.name, note:'Игрок бросает d'+hd+'; лечение = бросок '+(con>=0?'+ '+con:'− '+Math.abs(con))+' (Телосложение), минимум 0.',
 rows:[{key:'r',label:'d'+hd,min:1,max:hd}],
-compute:v=>'Лечение: '+v.r+(con?(con>0?' + '+con:' − '+Math.abs(con)):'')+' = +'+Math.max(1,v.r+con)+' хитов',
+compute:v=>'Лечение: '+v.r+(con?(con>0?' + '+con:' − '+Math.abs(con)):'')+' = +'+Math.max(0,v.r+con)+' хитов',
 apply:v=>{
-const heal=Math.max(1,v.r+con);
-c.hdUsed=(+c.hdUsed||0)+1; c.hp=Math.min((typeof eHpMax==='function')?eHpMax(c):c.hpMax,(+c.hp||0)+heal);
+if(getCh(c.id)!==c||magicSwitchBusy||combat.active||castCtx||context()!==openedContext){setStatus('Состояние героя изменилось. Откройте трату кости хитов заново.',true);return false;}
+const heal=Math.max(0,v.r+con),healed=heal>0?applyHealTo('ally:'+c.id,heal,'Кость хитов'):null;
+if(healed?.blocked){setStatus('✕ '+healed.reason,true);return false;}
+c.hdUsed=(+c.hdUsed||0)+1;
 diceOutSet('Кость хитов: d'+hd+' → '+v.r+(con?(con>0?' + '+con:' − '+Math.abs(con)):'')+' = +'+heal+' хитов','var(--ok)');
-scheduleSave(); renderChars();
+scheduleSave(); renderChars();renderCombat();return true;
 }});
 }
 function returnHitDie(){ const c=cc(); if(!c) return; c.hdUsed=Math.max(0,(+c.hdUsed||0)-1); scheduleSave(); renderChars(); }
@@ -28135,6 +28250,7 @@ dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();
 function shortRest(recoveryChoice){
 const c=cc(); if(!c) return;
 if(magicSwitchBusy||combat.active||castCtx||rollSpec){setStatus('Завершите открытое действие и активный бой перед отдыхом.',true);return false;}
+if((+c.hp||0)<=0&&(+c.deaths?.f||0)>=3){setStatus('Погибший герой не может восстанавливать ресурсы отдыхом.',true);return false;}
 const feature=MAGIC_RULES.recoveryFeature(c),eligible=feature&&!c[feature.key];let recovery=null;
 if(eligible&&recoveryChoice===undefined){
 if(magicUsesMp()){
@@ -28367,7 +28483,13 @@ if(!CHARACTER_RULES)return;
 characterAdopt(c);if(!c.characterBuild)return;
 const prev=c.characterBuild.applied,next=characterSnapshot(c);
 AB_KEYS.forEach(k=>{c.ab[k]=Math.max(1,Math.min(30,(+c.ab[k]||10)+(next.ab[k]||0)-(prev.ab[k]||0)));});
-const baseDelta=prev.classHp!=null&&characterBaseHp(c)!=null?characterBaseHp(c)-prev.classHp:(mod(c.ab.con)-prev.conMod)*c.level;
+let baseDelta;
+if(prev.classHp!=null&&characterBaseHp(c)!=null)baseDelta=characterBaseHp(c)-prev.classHp;
+else{
+const conDelta=mod(c.ab.con)-prev.conMod,build=c.characterBuild,gains=build.hpGains||{},pending=characterPendingHpLevels(c),known=Object.keys(gains).filter(level=>+level<=c.level&&!pending.includes(+level));
+baseDelta=conDelta*(c.level-pending.length-known.length);
+if(conDelta){build.hpGainBases=build.hpGainBases||{};for(const level of known){if(build.hpGainBases[level]==null)build.hpGainBases[level]=gains[level]-prev.conMod;const gain=Math.max(1,build.hpGainBases[level]+mod(c.ab.con));baseDelta+=gain-gains[level];gains[level]=gain;}}
+}
 const delta=baseDelta+next.hpPerLevel*c.level-prev.hpPerLevel*prev.level;
 c.hpMax=Math.max(1,(+c.hpMax||1)+delta);c.hp=Math.max(0,Math.min(eHpMax(c),+c.hp||0));
 const t=characterTraining(c);
@@ -28647,9 +28769,12 @@ function updC(key,val){ const c=cc(); if(!c) return;if(['subrace','subcls','bg',
 function updNum(key,val){ const c=cc(); if(!c) return; c[key]=+val||0; scheduleSave(); }
 function setClass(v){
 const c=cc(); if(!c||c.cls===v) return;
-if(!classesDB.some(cls=>cls.n===v))return;
+const nextClass=classesDB.find(cls=>cls.n===v);if(!nextClass)return;
+const archivedProgress=c.characterBuild?.hpProgressionArchive?.[v],changedHitDie=classOf(c).hd!==nextClass.hd,replaceManual=c.hpProgression?.method==='manual'&&changedHitDie&&!archivedProgress;
+if(replaceManual&&!confirm('Новый класс использует d'+nextClass.hd+' вместо d'+classOf(c).hd+'. Пересчитать хиты по фиксированному приросту нового класса? Старые ручные броски сохранятся для возврата к прежнему классу.')){renderChars();return false;}
 characterBeforeEdit(c);
 const old=c.cls;
+if(c.hpProgression){c.characterBuild.hpProgressionArchive=c.characterBuild.hpProgressionArchive||{};c.characterBuild.hpProgressionArchive[old]=itemClone(c.hpProgression);if(archivedProgress)c.hpProgression=itemClone(archivedProgress);else if(replaceManual)c.hpProgression={method:'average',rolls:[]};c.hpPend=c.hpProgression.method==='manual'&&(c.hpProgression.rolls||[]).length<c.level-1;}
 characterArchiveSubclassSpells(c,c.subcls);
 if(c.characterBuild){characterArchiveFeatures(c,'class',old);characterArchiveFeatures(c,'class',old+' ('+c.subcls+')');}
 (c.spellbook||[]).forEach(e=>{ if(!spellEntryGranted(e)){ e.access='archive';e.prep=false; } });
@@ -28658,17 +28783,24 @@ c.spellLearning={replacements:0,anyClassChoices:v==='Бард'?bardMagicalSecret
 if(typeof applyClassSlots==='function') applyClassSlots(c);
 if(typeof syncClassSpellAccess==='function') syncClassSpellAccess(c);
 if(typeof upgradeSpellcastingState==='function') upgradeSpellcastingState(c);
-setStatus('Класс изменен: '+old+' → '+v+'. Ячейки и доступный список пересчитаны; заклинания прежнего класса сохранены как архивные, но не могут накладываться без отдельной особенности.');
+setStatus('Класс изменен: '+old+' → '+v+'. '+(replaceManual?'Хиты пересчитаны по фиксированному приросту нового класса. ':'')+'Ячейки и доступный список пересчитаны; заклинания прежнего класса сохранены как архивные, но не могут накладываться без отдельной особенности.');
 characterFinishEdit(c);
+return true;
 }
 function setRace(v){ const c=cc(); if(!c||c.race===v||!racesDB.some(r=>r.n===v)) return;characterBeforeEdit(c);if(c.characterBuild)characterArchiveFeatures(c,'racial',c.race); c.race=v; c.subrace='';c.ancestry='';if(c.buildChoices){c.buildChoices.abilities=[];c.buildChoices.raceSkills=[];c.buildChoices.languages=[];c.buildChoices.tools=[];}
 const r=racesDB.find(x=>x.n===v); if(r&&r.sp) c.speed=r.sp;
 characterFinishEdit(c); }
 function setLevel(v){
 const c=cc(); if(!c||!Number.isInteger(Number(v))||+v<1||+v>20) return;characterBeforeEdit(c); const old=c.level,next=+v; if(next===old) return;
+const pending=c.hpProgression?[]:characterPendingHpLevels(c);
 c.level=next;
-if(!c.hpProgression&&next<old&&c.characterBuild){const gains=c.characterBuild.hpGains||{};for(let level=next+1;level<=old;level++){if(gains[level]){c.hpMax=Math.max(1,c.hpMax-gains[level]);delete gains[level];}}}
-c.hpPend=c.hpProgression?c.hpProgression.method==='manual'&&(c.hpProgression.rolls||[]).length<next-1:next>old;
+if(!c.hpProgression&&c.characterBuild){
+const gains=c.characterBuild.hpGains||{};
+if(next<old)for(let level=next+1;level<=old;level++){if(gains[level]){c.hpMax=Math.max(1,c.hpMax-gains[level]);delete gains[level];delete c.characterBuild.hpGainBases?.[level];}}
+if(next>old)for(let level=old+1;level<=next;level++)if(!gains[level]&&!pending.includes(level))pending.push(level);
+c.characterBuild.pendingHpLevels=pending.filter(level=>level<=next);
+}
+c.hpPend=c.hpProgression?c.hpProgression.method==='manual'&&(c.hpProgression.rolls||[]).length<next-1:characterPendingHpLevels(c).length>0;
 if(CHARACTER_RULES&&next<CHARACTER_RULES.subclassLevel(classOf(c))&&c.subcls){characterArchiveSubclassSpells(c,c.subcls);if(c.characterBuild)characterArchiveFeatures(c,'class',c.cls+' ('+c.subcls+')');c.subcls='';}
 const r=typeof autoLevelSpells==='function'?autoLevelSpells(c,old):{added:[],removed:[],learnChoices:0};
 if(typeof applyClassSlots==='function') applyClassSlots(c);
@@ -28677,8 +28809,10 @@ const choice=r.learnChoices?(' Доступно новых выбранных з
 setStatus('Уровень изменен: '+old+' → '+next+'. Ячейки, круги и лимиты пересчитаны.'+choice);
 characterFinishEdit(c);
 }
-function setXp(v){ const c=cc(); if(!c) return; c.xp=Math.max(0,+v||0); scheduleSave(); renderChars(); }
+function setXp(v){const c=cc();if(!c||String(v).trim()===''||!Number.isSafeInteger(Number(v))||+v<0){setStatus('Опыт: укажите целое неотрицательное число.',true);return false;}c.xp=+v;scheduleSave();renderChars();return true;}
+function setTempHp(v){const c=cc();if(!c||String(v).trim()===''||!Number.isSafeInteger(Number(v))||+v<0){setStatus('Временные хиты: укажите целое неотрицательное число.',true);return false;}c.hpTemp=+v;scheduleSave();renderChars();renderCombat();return true;}
 function setHp(v){
+if(!gameActionManualEditAllowed())return false;
 const c=cc(); if(!c) return;
 if(!Number.isInteger(Number(v))||String(v).trim()==='')return false;
 const before=+c.hp||0, next=Math.max(0,Math.min(eHpMax(c),+v||0));
@@ -28711,6 +28845,11 @@ if(!confirm('Откатить '+c.name+' на уровень назад ('+c.lev
 setLevel(c.level-1);c.xp=Math.min(c.xp,XP_TABLE[c.level+1]-1);scheduleSave();renderChars();
 }
 function levelUp(){const c=cc();if(!c||c.level>=20)return;setLevel(c.level+1);}
+function characterPendingHpLevels(c){
+if(c.hpProgression)return [];
+const pending=c.characterBuild?.pendingHpLevels;
+return Array.isArray(pending)?[...new Set(pending.filter(level=>Number.isInteger(level)&&level>=2&&level<=c.level))].sort((a,b)=>a-b):(c.hpPend?[c.level]:[]);
+}
 function applyHp(){
 const c=cc();if(!c||!c.hpPend)return false;
 const raw=document.getElementById('hpGain').value,v=Number(raw),hd=classOf(c).hd;
@@ -28720,7 +28859,10 @@ if(v<1||v>hd)return false;c.hpProgression.rolls.push(v);characterSync(c);
 c.hpPend=c.hpProgression.rolls.length<c.level-1;
 }else{
 if(v<1||v>Math.max(1,hd+mod(c.ab.con)))return false;
-c.hpMax+=v;c.hpPend=false;c.characterBuild.hpGains=c.characterBuild.hpGains||{};c.characterBuild.hpGains[c.level]=v;
+characterAdopt(c);const pending=characterPendingHpLevels(c),level=pending.shift();if(!level)return false;
+c.hpMax+=v;c.characterBuild.hpGains=c.characterBuild.hpGains||{};c.characterBuild.hpGains[level]=v;
+c.characterBuild.hpGainBases=c.characterBuild.hpGainBases||{};c.characterBuild.hpGainBases[level]=v-mod(c.ab.con);
+c.characterBuild.pendingHpLevels=pending;c.hpPend=pending.length>0;
 }
 scheduleSave();renderChars();return true;
 }
@@ -28762,28 +28904,28 @@ let h='<div class="row-line" style="margin-bottom:8px"><button class="btn ghost 
 +'<button class="del-x" title="Удалить героя" onclick="delChar(\''+c.id+'\')">✕</button></div>';
 
 h+='<div class="panel"><div class="sheet-head">'
-+'<div style="flex:2;min-width:200px"><label class="lbl">Имя героя</label><input style="width:100%;font-family:var(--disp);font-size:26px;color:var(--rubric)" value="'+esc(c.name)+'" oninput="updC(\'name\',this.value)"></div>'
-+'<div><label class="lbl">Народ</label><select onchange="setRace(this.value)">'+raceOpts(c.race)+'</select></div>'
++'<div style="flex:2;min-width:200px"><label class="lbl" for="sheet-name">Имя героя</label><input id="sheet-name" style="width:100%;font-family:var(--disp);font-size:26px;color:var(--rubric)" value="'+esc(c.name)+'" oninput="updC(\'name\',this.value)"></div>'
++'<div><label class="lbl" for="sheet-race">Народ</label><select id="sheet-race" onchange="setRace(this.value)">'+raceOpts(c.race)+'</select></div>'
 +'<div><label class="lbl" for="sheet-subrace">Ветвь народа</label><select id="sheet-subrace" '+(!CHARACTER_RULES.branchOptions(characterRace(c)).length?'disabled ':'')+'onchange="updC(\'subrace\',this.value)">'+subraceOpts(c.race,c.subrace)+'</select></div>'
 +(c.race==='Драконорожденный'?'<div><label class="lbl" for="sheet-ancestry">Драконий предок</label><select id="sheet-ancestry" onchange="updC(\'ancestry\',this.value)">'+characterOptions(CHARACTER_RULES.ancestry.map(a=>a[0]),c.ancestry)+'</select></div>':'')
-+'<div><label class="lbl">Призвание</label><select onchange="setClass(this.value)">'+clsOpts(c.cls)+'</select></div>'
++'<div><label class="lbl" for="sheet-class">Призвание</label><select id="sheet-class" onchange="setClass(this.value)">'+clsOpts(c.cls)+'</select></div>'
 +'<div><label class="lbl" for="sheet-subclass">Традиция / архетип</label><select id="sheet-subclass" '+(c.level<CHARACTER_RULES.subclassLevel(classOf(c))?'disabled ':'')+'onchange="updC(\'subcls\',this.value)">'+subclassOpts(c)+'</select><small class="character-field-help">'+esc(classOf(c).subT||'')+'</small></div>'
-+'<div><label class="lbl">Предыстория</label><select onchange="updC(\'bg\',this.value)">'+bgOpts(c.bg)+'</select></div>'
-+'<div><label class="lbl">Мировоззрение</label><select onchange="updC(\'align\',this.value)">'+alignOpts(c.align)+'</select></div>'
-+'<div><label class="lbl">Уровень</label><input type="number" min="1" max="20" style="width:64px" value="'+c.level+'" onchange="setLevel(this.value)"></div>'
-+'<div><label class="lbl">Опыт</label><input type="number" min="0" style="width:90px" value="'+c.xp+'" onchange="setXp(this.value)">'
++'<div><label class="lbl" for="sheet-background">Предыстория</label><select id="sheet-background" onchange="updC(\'bg\',this.value)">'+bgOpts(c.bg)+'</select></div>'
++'<div><label class="lbl" for="sheet-alignment">Мировоззрение</label><select id="sheet-alignment" onchange="updC(\'align\',this.value)">'+alignOpts(c.align)+'</select></div>'
++'<div><label class="lbl" for="sheet-level">Уровень</label><input id="sheet-level" type="number" min="1" max="20" step="1" style="width:64px" value="'+c.level+'" onchange="setLevel(this.value)"></div>'
++'<div><label class="lbl" for="sheet-xp">Опыт</label><input id="sheet-xp" type="number" min="0" step="1" style="width:90px" value="'+c.xp+'" onchange="setXp(this.value)">'
 +(c.level<20?'<div style="font-size:12px;color:var(--ink-faint)">до '+(c.level+1)+' ур.: '+XP_TABLE[c.level+1]+'</div>':'')+'</div>'
 +'</div>'+characterIdentityNotes(c);
 if(c.hpPend) h+='<div class="row-line" style="background:var(--parch-2);border:1px dashed var(--rubric);padding:8px 10px;margin-bottom:8px">'
-+'<span>'+(c.hpProgression?.method==='manual'?'Введите результат следующей кости d'+classOf(c).hd+' без модификатора Телосложения.':'Новый уровень! Бросьте d'+classOf(c).hd+' и впишите прибавку к хитам: кость + Телосложение '+fmtMod(mod(c.ab.con))+', минимум 1.')+'</span>'
-+'<input type="number" id="hpGain" style="width:70px"><button class="btn rub sm" onclick="applyHp()">Вписать</button></div>';
++'<span>'+(c.hpProgression?.method==='manual'?'Введите результат следующей кости d'+classOf(c).hd+' без модификатора Телосложения.':'Уровень '+characterPendingHpLevels(c)[0]+' (осталось '+characterPendingHpLevels(c).length+'). Бросьте d'+classOf(c).hd+' и впишите прибавку к хитам: кость + Телосложение '+fmtMod(mod(c.ab.con))+', минимум 1.')+'</span>'
++'<input type="number" id="hpGain" aria-label="Прибавка хитов за уровень" min="1" step="1" style="width:70px"><button class="btn rub sm" onclick="applyHp()">Вписать</button></div>';
 
 h+='<div class="combat-grid">'
 +'<div class="cbox"><div class="cl">♥ Хиты</div><div class="hp-wide"><input aria-label="Текущие хиты" type="number" min="0" value="'+c.hp+'" onchange="setHp(this.value)"> / <input aria-label="Максимальные хиты" type="number" min="1" value="'+c.hpMax+'" onchange="characterSetHpMax(this.value)"></div>'
 +'<div class="hp-btns" style="justify-content:center" title="Кнопки проводят урон и лечение через общий движок состояний"><button class="mini-btn" title="Получить 5 урона" onclick="hpDelta(-5)">−5</button><button class="mini-btn" title="Получить 1 урон" onclick="hpDelta(-1)">−1</button><button class="mini-btn" title="Восстановить 1 хит" onclick="hpDelta(1)">+1</button><button class="mini-btn" title="Восстановить 5 хитов" onclick="hpDelta(5)">+5</button></div>'
 +((fxSum(c,'hpmax')||fxSum(c,'hp'))?('<div class="fx-line '+((fxSum(c,'hpmax')+fxSum(c,'hp'))>=0?'fx-plus':'fx-minus')+'">✦ с эффектами макс. '+eHpMax(c)+(fxSum(c,'hp')?' · к текущим +'+fxSum(c,'hp'):'')+' · '+fxParts(c,'hpmax').concat(fxParts(c,'hp')).map(p=>esc(p.label)).filter((v,i,a)=>a.indexOf(v)===i).join(', ')+'</div>'):'')
 +'</div>'
-+'<div class="cbox"><div class="cl">Врем. хиты</div><input type="number" value="'+c.hpTemp+'" onchange="updNum(\'hpTemp\',this.value)"></div>'
++'<div class="cbox"><div class="cl">Врем. хиты</div><input type="number" aria-label="Временные хиты" min="0" step="1" value="'+c.hpTemp+'" onchange="setTempHp(this.value)"></div>'
 +'<div class="cbox"><div class="cl">🛡 Класс доспеха</div><div class="cv">'+acTotal(c)+'</div>'
 +'<div class="cb-sub">авто '+acAuto(c)+' · <input class="ovr" type="text" placeholder="свой" value="'+(c.acOverride!=null?c.acOverride:'')+'" onchange="setAcOverride(this.value)"></div></div>'
 +'<div class="cbox"><div class="cl">⚡ Инициатива</div><button class="cv roll" title="Бросить инициативу" onclick="rollCheck(\'Инициатива\','+initTotal(c)+',\'init\')">⚁ '+fmtMod(initTotal(c))+'</button>'
@@ -28834,7 +28976,13 @@ const fxb=(typeof fxSkillBonus==='function')?fxSkillBonus(c,sk[0]):0;
 if(rec.m!=null) return {v:rec.m+fxb, manual:true, p:rec.p, fxb};
 return {v:eMod(c,sk[1])+rec.p*PROF[c.level]+fxb+jack, manual:false, p:rec.p, fxb};
 }
-function setExhaustion(v){ const c=cc(); if(!c) return; c.exhaustion=Math.max(0,Math.min(6,+v||0)); scheduleSave(); renderChars(); }
+function setExhaustion(v){
+const c=cc(),level=Number(v);if(!c||String(v).trim()===''||!Number.isInteger(level)||level<0||level>6){setStatus('Истощение: укажите целую степень от 0 до 6.',true);return false;}
+const before=+c.hp||0;c.exhaustion=level;fxInvalidate();c.hp=Math.min(before,eHpMax(c));
+if(level===6){c.hp=0;c.deaths={s:0,f:3};c.cond=normalizeConditions((c.cond||[]).concat(['Бессознательный']));breakConcentration(c,'шестая степень истощения');setStatus('Шестая степень истощения: герой погибает.',true);}
+if(c.hp!==before)hpEventAdvance(c);
+scheduleSave();renderChars();renderCombat();return true;
+}
 function toggleCond(n){ const c=cc(); if(!c) return;
 const i=c.cond.indexOf(n);if(i<0)recipeTabletopInterruptSleep(c,[{stat:'condition',value:n}]); if(i>=0) c.cond.splice(i,1); else c.cond.push(n);
 if(i<0 && typeof ACTION_BLOCK_CONDS!=='undefined' && ACTION_BLOCK_CONDS.indexOf(n)>=0 && typeof breakConcentration==='function')
@@ -28847,37 +28995,45 @@ return r>=10?{text:'d20 '+r+' — успех (нужно 10 и выше).', kind
 :{text:'d20 '+r+' — провал (нужно 10 и выше).', kind:'f'};
 }
 function deathSaveRoll(){
-const c=cc(); if(!c) return;
-if((+c.hp||0)>0){ setStatus('Спасброски от смерти делаются только при 0 хитов.', true); return; }
-askRolls({title:'⚂ Спасбросок от смерти — '+c.name,
+const c=cc(); if(!c) return false;
+if(magicSwitchBusy||castCtx||rollSpec){setStatus('Сначала завершите или отмените открытое действие.',true);return false;}
+if((+c.hp||0)>0){ setStatus('Спасброски от смерти делаются только при 0 хитов.', true); return false; }
+if((+c.deaths?.f||0)>=3){setStatus('Герой погиб: спасброски смерти больше не делаются.',true);return false;}
+if((+c.deaths?.s||0)>=3){setStatus('Герой стабилизирован: спасбросок не нужен.');return false;}
+if(combat.active&&(combatCurrentKey()!=='ally:'+c.id||!combat.turn||combat.turn.deathSaveDone)){setStatus('Спасбросок смерти доступен один раз в свой ход.',true);return false;}
+const context=()=>JSON.stringify([c.hp,c.deaths,combat.active,combat.id,combat.round,combatCurrentKey(),combat.turn?.deathSaveDone]),openedContext=context(),openedTurn=combat.turn;
+return askRolls({title:'⚂ Спасбросок от смерти — '+c.name,
 note:'Чистый d20 без модификаторов. 10 и выше — успех, 9 и ниже — провал. Три успеха — герой стабилизирован, три провала — смерть. 20 — приходит в себя с 1 хитом, 1 — сразу два провала.',
 rows:[{key:'r', label:'d20', min:1, max:20}],
 compute:v=>deathVerdict(v.r).text,
 apply:v=>{
+if(getCh(c.id)!==c||magicSwitchBusy||castCtx||context()!==openedContext||combat.active&&combat.turn!==openedTurn){setStatus('Состояние героя или ход боя изменились. Откройте спасбросок заново.',true);return false;}
 const d=deathVerdict(v.r);
 c.deaths=c.deaths||{s:0,f:0};
 let out=d.text;
 if(d.kind==='up'){
-c.hp=1; c.deaths={s:0,f:0};
-c.cond=normalizeConditions(c.cond).filter(x=>x!=='Бессознательный');
-out+=' Герой в сознании.';
+const healed=applyHealTo('ally:'+c.id,1,'Спасбросок от смерти: 20');
+out=healed?.blocked?'d20 20 — '+healed.reason+'. Герой остается при 0 хитов.':out+' Герой в сознании.';
 } else if(d.kind==='f2') c.deaths.f=Math.min(3,(c.deaths.f||0)+2);
 else if(d.kind==='f')  c.deaths.f=Math.min(3,(c.deaths.f||0)+1);
 else                   c.deaths.s=Math.min(3,(c.deaths.s||0)+1);
+if(combat.active)combat.turn.deathSaveDone=true;
 if(c.deaths.f>=3) out+=' Три провала — герой погибает.';
-else if(c.deaths.s>=3) out+=' Три успеха — герой стабилизирован (без сознания, но жив).';
+else if(c.deaths.s>=3){c.deaths.f=0;out+=' Три успеха — герой стабилизирован (без сознания, но жив).';}
 diceOutSet('Спасбросок от смерти: '+out, d.kind==='up'||d.kind==='s'?'var(--ok)':'var(--rubric)');
 setStatus('⚂ '+c.name+' — спасбросок от смерти: '+out);
 castLogLine('⚂ '+c.name+': спасбросок от смерти — '+out);
-scheduleSave(); renderChars();
+scheduleSave(); renderChars();renderCombat();return true;
 }});
 }
 function stabilizeChar(){
-const c=cc(); if(!c) return;
+const c=cc(); if(!c) return false;
+if((+c.hp||0)>0||(+c.deaths?.f||0)>=3){setStatus('Стабилизировать можно только живого героя при 0 хитов.',true);return false;}
 c.deaths={s:3,f:0};
+c.cond=normalizeConditions(c.cond);if(!c.cond.includes('Бессознательный'))c.cond.push('Бессознательный');
 setStatus('✚ '+c.name+' стабилизирован — спасброски от смерти прекращаются.');
 castLogLine('✚ '+c.name+' стабилизирован');
-scheduleSave(); renderChars();
+scheduleSave(); renderChars();renderCombat();return true;
 }
 function setDeath(k,i,on){ const c=cc(); if(!c) return; c.deaths[k]=on?i:i-1; scheduleSave(); renderChars(); }
 
@@ -28923,9 +29079,9 @@ h+='<div class="skill-row'+(b.p>0?' trained':'')+'">'
 });
 h+='</div><p class="note-ital" style="font-size:13.5px;margin-top:6px">Кликните на индикатор: Нет владения → Владение → Эксперт · Кликните на бонус для ручного редактирования · ✱ — ручной бонус</p>';
 h+='<div class="exh-row"><span style="font-family:var(--disp);color:var(--rubric)">Уровень истощения</span>'
-+'<button class="mini-btn" onclick="setExhaustion('+(c.exhaustion-1)+')">−</button>'
-+'<input type="range" min="0" max="6" value="'+c.exhaustion+'" oninput="setExhaustion(this.value)">'
-+'<button class="mini-btn" onclick="setExhaustion('+(c.exhaustion+1)+')">+</button>'
++'<button class="mini-btn" aria-label="Уменьшить истощение" '+(c.exhaustion<=0?'disabled ':'')+'onclick="setExhaustion('+(c.exhaustion-1)+')">−</button>'
++'<input type="range" aria-label="Степень истощения" min="0" max="6" step="1" value="'+c.exhaustion+'" oninput="setExhaustion(this.value)">'
++'<button class="mini-btn" aria-label="Увеличить истощение" '+(c.exhaustion>=6?'disabled ':'')+'onclick="setExhaustion('+(c.exhaustion+1)+')">+</button>'
 +'<b style="font-family:var(--disp);font-size:20px;min-width:20px;text-align:center">'+c.exhaustion+'</b></div>';
 h+=fxPanelHTML(c);
 h+='<div class="two-col" style="margin-top:14px"><div><h3 class="rubric" style="font-size:20px">Состояния и болезни</h3><div class="chips">'
@@ -28934,8 +29090,8 @@ h+='<div class="two-col" style="margin-top:14px"><div><h3 class="rubric" style="
 +'<input type="text" value="'+esc((c.diseases||[]).join(', '))+'" placeholder="например, канализационная чума" oninput="updCsv(\'diseases\',this.value)">'
 +'<p class="note-ital" style="font-size:12.5px;margin:4px 0 0">Именованные болезни доступны как отдельные цели для «Малого восстановления».</p>'
 +'</div><div><h3 class="rubric" style="font-size:20px">Спасброски от смерти</h3><div class="death-row">'
-+'<span>Успехи:</span>'+[1,2,3].map(i=>'<input type="checkbox"'+(c.deaths.s>=i?' checked':'')+' onchange="setDeath(\'s\','+i+',this.checked)">').join('')
-+'<span style="margin-left:12px">Провалы:</span>'+[1,2,3].map(i=>'<input type="checkbox"'+(c.deaths.f>=i?' checked':'')+' onchange="setDeath(\'f\','+i+',this.checked)">').join('')
++'<span>Успехи:</span>'+[1,2,3].map(i=>'<input type="checkbox" aria-label="Успех спасброска смерти '+i+'"'+(c.deaths.s>=i?' checked':'')+' onchange="setDeath(\'s\','+i+',this.checked)">').join('')
++'<span style="margin-left:12px">Провалы:</span>'+[1,2,3].map(i=>'<input type="checkbox" aria-label="Провал спасброска смерти '+i+'"'+(c.deaths.f>=i?' checked':'')+' onchange="setDeath(\'f\','+i+',this.checked)">').join('')
 +'</div><div class="row-line" style="margin-top:6px">'
 +'<button class="btn ghost sm" title="Бросок d20 без модификаторов с разбором по правилам" onclick="deathSaveRoll()">⚂ Спасбросок от смерти</button>'
 +'<button class="btn ghost sm" title="Стабилизировать (успешная Медицина или лечение)" onclick="stabilizeChar()">✚ Стабилизировать</button>'
@@ -28991,6 +29147,7 @@ const e=c.inventory.find(x=>x.id===entryId); if(!e) return;
 e.notes=''; scheduleSave(); renderChars(); }
 function invDel(entryId){ const c=cc(); const e=c.inventory.find(x=>x.id===entryId); if(!e) return;
 const it=itemOf(e.itemId);
+if(c.inventory.some(child=>child.inside===entryId)){setStatus('Сначала выньте содержимое из удаляемого контейнера.',true);return false;}
 const carrier=bg3InventoryStatusTransitionCarrier(c,e);if(carrier){bg3InventoryStatusTransitionRemovalOpen(c.id,entryId);return;}
 const transitionGuard=bg3InventoryMutationGuard(c,[{entryId:e.id,qty:Math.max(1,Math.floor(+e.qty||1))}],{context:'inventory-delete'});if(!transitionGuard.ok){setStatus('✕ '+transitionGuard.reason,true);return;}
 if(!confirm('Убрать «'+userFacingItemName(it,'предмет')+'» из инвентаря?')) return;
@@ -29069,7 +29226,7 @@ if(String(c.coins&&c.coins[k]||0)===String(BigInt(raw)))return true;
 const reason=window.prompt('Причина ручной корректировки кошелька '+c.name+':','Решение мастера');
 if(reason==null){renderChars();return false;}
 if(!String(reason).trim()){setStatus('✕ Для ручной корректировки нужна причина.',true);renderChars();return false;}
-try{const account=economyAccountFor(c),requestKey='character-wallet-adjust:'+account.id+':'+account.version+':'+k+':'+raw,result=await service.manualAdjust(account,{currencyId:k,newAmount:raw,userId:economyUserId(),reason:String(reason).trim(),idempotencyKey:requestKey});
+try{const account=economyAccountFor(c),requestKey='character-wallet-adjust:'+account.id+':'+account.version+':'+k+':'+raw,result=await economyCommitMutation(requestKey,()=>service.manualAdjust(account,{currencyId:k,newAmount:raw,userId:economyUserId(),reason:String(reason).trim(),idempotencyKey:requestKey}));
 if(!result.ok){setStatus('✕ '+String(result.message||result.reason||'Корректировка не выполнена.'),true);renderChars();return false;}
 scheduleSave();renderChars();return true;
 }catch(error){setStatus('✕ '+String(error&&error.message||error),true);renderChars();return false;}
@@ -29077,7 +29234,7 @@ scheduleSave();renderChars();return true;
 async function economyChangeWallet(){
 const c=cc(),service=economyService();if(!c||!service)return false;
 const reason=window.prompt('Причина размена монет:','Размен у торговца');if(reason==null)return false;
-const account=economyAccountFor(c),result=await service.makeChange(account,{userId:economyUserId(),reason:String(reason).trim(),idempotencyKey:'character-wallet-change:'+account.id+':'+account.version});
+const account=economyAccountFor(c),result=await economyCommitMutation('character-wallet-change:'+account.id,()=>service.makeChange(account,{userId:economyUserId(),reason:String(reason).trim(),idempotencyKey:'character-wallet-change:'+account.id+':'+account.version}));
 if(!result.ok){setStatus('✕ '+String(result.message||result.reason||'Размен не выполнен.'),true);return false;}
 scheduleSave();renderChars();return true;
 }
@@ -29153,7 +29310,7 @@ if(economyExchangeBusy)return false;economyExchangeClearError();const el=economy
 if(!plan.ok)return economyExchangeShowError(plan.reason);const reason=String(el.reason&&el.reason.value||'').trim();if(!reason)return economyExchangeShowError('Укажите причину обмена для денежного журнала.');
 const account=economyAccountFor(plan.c);if(!account)return economyExchangeShowError('Кошелёк героя недоступен.');
 const requestKey='character-wallet-exchange:'+account.id+':'+account.version+':'+plan.from+':'+plan.amount+':'+plan.to;economyExchangeSetBusy(true);let result;
-try{result=await plan.service.exchange(account,{currencyId:plan.from,amount:plan.amount},plan.to,'reject',{userId:economyUserId(),reason,idempotencyKey:requestKey});}
+try{result=await economyCommitMutation(requestKey,()=>plan.service.exchange(account,{currencyId:plan.from,amount:plan.amount},plan.to,'reject',{userId:economyUserId(),reason,idempotencyKey:requestKey}));}
 catch(error){economyExchangeSetBusy(false);return economyExchangeShowError(String(error&&error.message||'Сервис валюты завершился с ошибкой до коммита.'));}
 if(!result||!result.ok){economyExchangeSetBusy(false);return economyExchangeShowError(economyExchangeFailureMessage(result,plan));}
 economyExchangeSetBusy(false);economyExchangeClose();scheduleSave();renderChars();setStatus('✓ '+plan.c.name+': обменено '+plan.amount+' '+plan.fromCurrency.abbr+' на '+plan.received+' '+plan.toCurrency.abbr+'.');return true;
@@ -30145,6 +30302,12 @@ return '<div class="panel"><div class="f-grid">'
 /* ═══════════════ ЗАПУСК ═══════════════ */
 (async function init(){
 if(typeof window.addEventListener==='function')window.addEventListener('beforeunload',campaignBeforeUnload);
+if(globalThis.DndWorldActionUi)DndWorldActionUi.create({document,isBusy:gameActionInteractionLocked,onBlocked:()=>gameActionInteractionState(true)}).start();
+if(globalThis.DndWorldDialogs)DndWorldDialogs.create({window,document,dialogs:[
+{id:'castBack',close:closeCastModal},{id:'showBack',close:()=>{document.getElementById('showBack').style.display='none';}},
+{id:'rollBack',close:rollCancel},{id:'craftBack',close:craftClose},{id:'economyExchangeBack',close:economyExchangeClose},
+{id:'syncModal',close:closeSyncModal},{id:'characterCreator',close:characterCreatorClose}
+]}).start();
 if(RULESET_CORE&&!await rulesetLoadManifest())return;
 await loadAll();
 if(typeof applyStructuredReleaseMigration==='function') await applyStructuredReleaseMigration();

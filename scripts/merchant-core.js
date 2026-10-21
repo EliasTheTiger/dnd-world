@@ -38,11 +38,13 @@
   function clone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
   function text(value) { return String(value == null ? '' : value).trim(); }
   function positiveInteger(value, fallback) {
+    if(value!=null&&typeof value!=='number'&&typeof value!=='string')throw coded('invalid-request','Количество должно быть положительным целым числом.');
     const parsed = Number(value == null ? fallback : value);
     if (!Number.isSafeInteger(parsed) || parsed <= 0) throw coded('invalid-request', 'Количество должно быть положительным целым числом.');
     return parsed;
   }
   function nonNegativeInteger(value, fallback) {
+    if(value!=null&&typeof value!=='number'&&typeof value!=='string')throw coded('invalid-request','Количество должно быть неотрицательным целым числом.');
     const parsed = Number(value == null ? fallback : value);
     if (!Number.isSafeInteger(parsed) || parsed < 0) throw coded('invalid-request', 'Значение должно быть неотрицательным целым числом.');
     return parsed;
@@ -155,16 +157,16 @@
   function inventorySnapshot(owner){return {inventory:clone(owner.inventory||[]),equipment:clone(owner.equipment||{})};}
   function inventoryRestore(owner,snapshot){owner.inventory=clone(snapshot.inventory);if (owner.equipment&&typeof owner.equipment==='object')owner.equipment=clone(snapshot.equipment);}
   function stockEntry(instance,itemId){return (instance.inventory||[]).find(row=>row.itemId===itemId);}
-  function characterQuantity(character,itemId){return (character.inventory||[]).filter(row=>row.itemId===itemId).reduce((sum,row)=>sum+Math.max(0,Number(row.qty)||0),0);}
+  function characterQuantity(character,itemId){return (character.inventory||[]).filter(row=>row.itemId===itemId).reduce((sum,row)=>sum+nonNegativeInteger(row.qty,0),0);}
   function addCharacterItem(character,itemId,quantity,idFactory){
-    const inventory=character.inventory||(character.inventory=[]),existing=inventory.find(row=>row.itemId===itemId&&!row.inside&&row.valueCp==null&&row.valueGp==null);
-    if(existing)existing.qty=Math.max(0,Number(existing.qty)||0)+quantity;
-    else inventory.push({id:'inv_trade_'+text(idFactory()).replace(/[^a-z0-9_-]/gi,'_'),itemId,qty:quantity,notes:''});
+    const inventory=character.inventory||(character.inventory=[]),existing=inventory.find(row=>row.itemId===itemId&&Object.keys(row).every(key=>['id','itemId','qty','notes'].includes(key))&&!row.notes);
+    if(existing){const qty=nonNegativeInteger(existing.qty,0)+quantity;if(!Number.isSafeInteger(qty))throw coded('invalid-request','Стопка предметов слишком велика.');existing.qty=qty;}
+    else {const base='inv_trade_'+text(idFactory()).replace(/[^a-z0-9_-]/gi,'_');let id=base,index=1;while(inventory.some(row=>row.id===id))id=base+'_'+index++;inventory.push({id,itemId,qty:quantity,notes:''});}
   }
   function removeCharacterItem(character,removals){
     for(const removal of removals){const index=(character.inventory||[]).findIndex(row=>row.id===removal.entryId&&row.itemId===removal.itemId),row=character.inventory[index];if(!row||row.qty<removal.qty)throw coded('stale-state');row.qty-=removal.qty;if(row.qty===0){character.inventory.splice(index,1);for(const slot of Object.keys(character.equipment||{}))if(character.equipment[slot]===row.id)delete character.equipment[slot];}}
   }
-  function addMerchantStock(instance,itemId,quantity){const existing=stockEntry(instance,itemId);if(existing)existing.quantity+=quantity;else instance.inventory.push({itemId,quantity,available:true,buyPriceOverrideMinor:null,salePriceOverrideMinor:null});}
+  function addMerchantStock(instance,itemId,quantity){const existing=stockEntry(instance,itemId);if(existing){const total=nonNegativeInteger(existing.quantity,0)+quantity;if(!Number.isSafeInteger(total))throw coded('invalid-request','Запас торговца слишком велик.');existing.quantity=total;}else instance.inventory.push({itemId,quantity,available:true,buyPriceOverrideMinor:null,salePriceOverrideMinor:null});}
 
   class MerchantService {
     constructor(options) {
@@ -210,12 +212,12 @@
     }
     _duplicate(requestId){return this.journal.some(row=>row&&row.requestId===requestId);}
     _recordSeed(kind,input,quote,override){return {schemaVersion:MERCHANT_TRANSACTION_SCHEMA,id:'merchant-tx-'+this.idFactory(),requestId:input.requestId,kind,at:this.clock(),merchantId:input.instance.id,characterId:input.character.id,itemId:input.itemId,quantity:quote.quantity,unitMinor:quote.unitMinor,totalMinor:quote.totalMinor,status:'committed',userId:text(input.userId||'system'),reason:text(input.reason),masterOverride:override?clone(override):null,economyOperationId:null};}
-    _guard(character,itemId,quantity,context,entryId){const rows=(character.inventory||[]).filter(row=>row.itemId===itemId&&(!entryId||row.id===entryId));let left=quantity,removals=[];for(const row of rows){const take=Math.min(left,Math.max(0,Number(row.qty)||0));if(take===Number(row.qty)&&(character.inventory||[]).some(child=>child.inside===row.id))return failResult('inventory-guard',{message:'Сначала выньте содержимое из продаваемого контейнера.'});if(take)removals.push({entryId:row.id,itemId,qty:take});left-=take;if(!left)break;}if(left)return failResult('seller-item-missing');const checked=this.inventoryGuard(character,removals,{context});return checked&&checked.ok!==false?{ok:true,removals}:failResult('inventory-guard',{details:checked});}
+    _guard(character,itemId,quantity,context,entryId){const rows=(character.inventory||[]).filter(row=>row.itemId===itemId&&(!entryId||row.id===entryId));let left=quantity,removals=[];for(const row of rows){const take=Math.min(left,nonNegativeInteger(row.qty,0));if(take===Number(row.qty)&&(character.inventory||[]).some(child=>child.inside===row.id))return failResult('inventory-guard',{message:'Сначала выньте содержимое из продаваемого контейнера.'});if(take)removals.push({entryId:row.id,itemId,qty:take});left-=take;if(!left)break;}if(left)return failResult('seller-item-missing');const checked=this.inventoryGuard(character,removals,{context});return checked&&checked.ok!==false?{ok:true,removals}:failResult('inventory-guard',{details:checked});}
     buy(input){
       const value=input||{};return this._withInstance(value.instance,async()=>{try{
         if(!value.instance||!value.character||!value.characterAccount||!text(value.requestId))return failResult('invalid-request');if(this._duplicate(value.requestId))return failResult('duplicate-request');
         const item=this.itemResolver(text(value.itemId));if(!item)return failResult('unknown-item');const stock=stockEntry(value.instance,item.id),qty=positiveInteger(value.quantity,1);
-        if(!stock||stock.quantity<qty)return failResult('out-of-stock');if(stock.available===false||value.instance.itemAvailability&&value.instance.itemAvailability[item.id]===false)return failResult('item-unavailable');
+        if(!stock||nonNegativeInteger(stock.quantity,0)<qty)return failResult('out-of-stock');if(stock.available===false||value.instance.itemAvailability&&value.instance.itemAvailability[item.id]===false)return failResult('item-unavailable');
         const quote=this.quote(value.instance,value.character,item.id,'purchase',qty);if(!quote.ok)return quote;const seed=this._recordSeed('purchase',Object.assign({},value,{itemId:item.id}),quote,null),beforeInventory=inventorySnapshot(value.character),beforeStock=clone(value.instance.inventory),journalLength=this.journal.length,revision=value.instance.revision;
         const consequence=()=>{if(value.instance.revision!==revision)throw coded('stale-state');const beforeInventory=inventorySnapshot(value.character),beforeStock=clone(value.instance.inventory),journalLength=this.journal.length,updatedAt=value.instance.updatedAt;try{const fresh=stockEntry(value.instance,item.id);if(!fresh||fresh.quantity<qty||fresh.available===false)throw coded('stale-state');fresh.quantity-=qty;addCharacterItem(value.character,item.id,qty,this.idFactory);value.instance.revision++;value.instance.updatedAt=this.clock();this.journal.push(seed);return()=>{inventoryRestore(value.character,beforeInventory);value.instance.inventory=clone(beforeStock);value.instance.revision=revision;value.instance.updatedAt=updatedAt;this.journal.length=journalLength;};}catch(error){inventoryRestore(value.character,beforeInventory);value.instance.inventory=clone(beforeStock);value.instance.revision=revision;value.instance.updatedAt=updatedAt;this.journal.length=journalLength;throw error;}};
         const result=await this.economy.purchase({buyer:value.characterAccount,merchant:value.instance.wallet,price:{amountMinor:quote.totalMinor},itemId:item.id,quantity:qty,userId:value.userId,reason:value.reason||'Покупка у торговца',idempotencyKey:value.requestId,metadata:{requestId:value.requestId,merchantId:value.instance.id},consequence});

@@ -59,11 +59,14 @@ jobs:
           DND_WORLD_SKIP_FULL_SUITE: '1'
           QA_SITE_ROOT: _site
         run: npm run qa:integration
-      - name: Check the grimoire on the built Pages candidate
+      - name: Check magic systems and the grimoire on the built Pages candidate
         env:
           QA_SITE_ROOT: _site
           QA_EXPECTED_COMMIT: ${{ github.sha }}
-        run: npm run qa:grimoire-workbench
+        run: |
+          npm run qa:magic
+          npm run qa:grimoire
+          npm run qa:grimoire-workbench
       - name: Check abilities on the built Pages candidate
         env:
           QA_SITE_ROOT: _site
@@ -73,6 +76,18 @@ jobs:
         env:
           QA_SITE_ROOT: _site
         run: npm run qa:reference
+      - name: Check character creation, recovery and keyboard dialogs
+        env:
+          QA_SITE_ROOT: _site
+        run: |
+          npm run qa:characters
+          npm run qa:dialogs
+          npm run qa:action-guard
+          npm run qa:import-export
+      - name: Check every section on a narrow mobile viewport
+        env:
+          QA_SITE_ROOT: _site
+        run: npm run qa:readiness
       - name: Check the unified game items and saved inventories
         env:
           QA_SITE_ROOT: _site

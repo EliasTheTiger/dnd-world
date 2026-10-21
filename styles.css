@@ -150,3 +150,19 @@
 .skip-link:focus{transform:translateY(0)}
 .skip-link:not(:focus){clip-path:inset(50%)}
 #tabsNav button:focus-visible,.skip-link:focus-visible{outline:3px solid var(--rubric,#822f25);outline-offset:3px}
+
+/* Keep sheet controls and initiative entry usable on narrow phones. */
+@media(max-width:420px){
+ .save-grid,.skill-grid,.combat-setup-grid{grid-template-columns:minmax(0,1fr)}
+ .save-pill,.skill-row,.combat-setup-card{min-width:0}
+ .skill-row>span:nth-child(2){min-width:0;overflow-wrap:anywhere}
+ .skill-row>.roll-sm,.skill-row>.bonus-btn{flex-shrink:0}
+ .exh-row{flex-wrap:wrap}
+ .exh-row>span:first-child{flex-basis:100%}
+ .exh-row input[type=range]{min-width:0;width:0}
+ .combat-setup-row{grid-template-columns:20px minmax(0,1fr) 52px 36px}
+ .combat-setup-row>*{min-width:0;overflow-wrap:anywhere}
+ .combat-setup-row input[type=number]{width:100%;max-width:100%}
+ details.classfold summary{flex-wrap:wrap}
+}
+:root .action-busy-notice{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:2147483647;max-width:calc(100vw - 24px);width:max-content;padding:12px 18px;border:2px solid var(--rubric);border-radius:8px;background:var(--paper,#fff8e8);color:var(--ink,#241a13);box-shadow:0 4px 20px #0004;font-size:16px;pointer-events:none;}

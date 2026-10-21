@@ -7,7 +7,7 @@ const server=http.createServer((req,res)=>{const relative=decodeURIComponent(new
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const base='http://127.0.0.1:'+server.address().port,browser=await chromium.launch({headless:true,channel:process.env.QA_BROWSER_CHANNEL||undefined});let page;
  try{
   page=await browser.newPage({viewport:{width:1440,height:1100}});page.setDefaultTimeout(45000);const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.on('dialog',d=>d.accept());await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
-  const ready=async()=>page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
+  const ready=async()=>page.locator('#tabsNav [aria-current="page"]').waitFor({timeout:120000});
   await page.goto(base,{waitUntil:'domcontentloaded'});await ready();
   // Provision a local acceptance world. Every action below uses rendered controls.
   await page.evaluate(()=>{const c=buildBlank(),t=buildBlank();c.id='native-crafter';c.name='Алхимик';c.inventory=[{id:'flash',itemId:DND_RECIPE_TABLETOP_ITEMS.byStats.OBJ_Bomb_Sunflash,qty:2},{id:'mucus',itemId:DND_RECIPE_TABLETOP_ITEMS.byStats.OBJ_CrawlerMucus,qty:2},{id:'dagger',itemId:'it_кинжал',qty:1}];c.equipment={};c.activeFx=[];t.id='native-target';t.name='Страж';t.activeFx=[];t.ab={str:10,dex:10,con:10,int:10,wis:10,cha:10};chars=[c,t];foesDB=[];combat=blankCombat();activeCharId=c.id;sheetTab='inventory';switchTab('chars');renderChars();});

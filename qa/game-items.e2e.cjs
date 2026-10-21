@@ -10,7 +10,7 @@ const server=http.createServer((req,res)=>{const relative=decodeURIComponent(new
     const errors=[],alerts=[];page.on('pageerror',e=>(errors.push(e.message),console.log('PAGE ERROR',e.message)));page.on('dialog',async d=>{alerts.push(d.message());await d.accept();});
     await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
     await page.goto(base,{waitUntil:'domcontentloaded'});
-    await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
+    await page.locator('#tabsNav [aria-current="page"]').waitFor({timeout:120000});
     await page.locator('#itemsTabButton').click();
     await page.locator('#bg3ReleaseMetrics[data-catalog-state="ready"]').waitFor({timeout:120000});
     const total=Number(await page.locator('#bg3ReleaseMetrics').getAttribute('data-user-items'));
@@ -38,7 +38,7 @@ const server=http.createServer((req,res)=>{const relative=decodeURIComponent(new
     await page.waitForFunction(id=>getCh('game-items-hero').inventory.some(e=>e.itemId===id),id);
     const entryBefore=await page.evaluate(()=>JSON.parse(JSON.stringify(getCh('game-items-hero').inventory)));
     await page.evaluate(()=>runScheduledSave());await page.reload({waitUntil:'domcontentloaded'});
-    await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
+    await page.locator('#tabsNav [aria-current="page"]').waitFor({timeout:120000});
     await page.locator('#itemsTabButton').click();await page.locator('#bg3ReleaseMetrics[data-catalog-state="ready"]').waitFor({timeout:120000});
     updated=await page.evaluate(id=>JSON.parse(JSON.stringify(gameItemDefinition(id))),id);assert.equal(updated.desc,'Кинжал хранителя. Запись мастера сохраняется в моей игре.');assert.deepEqual(updated.mechanics,original.mechanics);
     assert.deepEqual(await page.evaluate(()=>getCh('game-items-hero').inventory),entryBefore);
@@ -55,7 +55,7 @@ const server=http.createServer((req,res)=>{const relative=decodeURIComponent(new
     assert.deepEqual(await page.evaluate(()=>getCh('game-items-hero').inventory.map(e=>({itemId:e.itemId,qty:e.qty}))),[{itemId:id,qty:2}]);
     assert.equal(await page.evaluate(id=>itemWorkspaceCanonicalRows().some(r=>r.id===id),id),false);
     await page.evaluate(()=>runScheduledSave());await page.reload({waitUntil:'domcontentloaded'});
-    await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
+    await page.locator('#tabsNav [aria-current="page"]').waitFor({timeout:120000});
     assert.equal(await page.evaluate(id=>gameItemDefinition(id).archived,id),true);assert.equal(await page.evaluate(()=>getCh('game-items-hero').inventory[0].qty),2);
     assert.deepEqual(errors,[]);
     fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,total,itemId:id,checks:['single game total','uniform editor','lossless imported rules','persistent edits and inventories','single inventory search','shared grant and stacking','archive preserves owned instances across reload'],errors},null,2));

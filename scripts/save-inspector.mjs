@@ -1,15 +1,25 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
+import persistence from './persistence-core.js';
 
-export const WORLD_SNAPSHOT_SCHEMA = 'dnd-world-world-snapshot/1';
-export const CAMPAIGN_ENVELOPE_SCHEMA = 'dnd-world-campaign-envelope/1';
-export const CLOUD_CHANNEL_SCHEMA = 'dnd-world-cloud-channel/1';
+export const WORLD_SNAPSHOT_SCHEMA = persistence.WORLD_SNAPSHOT_SCHEMA;
+export const CAMPAIGN_ENVELOPE_SCHEMA = persistence.ENVELOPE_SCHEMA;
+export const CLOUD_CHANNEL_SCHEMA = persistence.CLOUD_SCHEMA;
 
 const REQUIRED_WORLD_ARRAYS = ['chars', 'items', 'spells', 'abilities', 'races', 'classes', 'rules', 'foes'];
 
 function object(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+}
+
+function string(value) { return typeof value === 'string' ? value : ''; }
+
+function list(value, field, issues) {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value;
+  issues.push({code:'INVALID_LIST', field});
+  return [];
 }
 
 function parse(raw) {
@@ -22,55 +32,87 @@ function parse(raw) {
 function uniqueIds(rows, kind, issues) {
   const ids = new Set();
   for (let index = 0; index < (Array.isArray(rows) ? rows.length : 0); index++) {
-    const id = String(rows[index] && rows[index].id || '').trim();
-    if (!id) issues.push({code:'MISSING_ID', kind, index});
+    const row = object(rows[index]);
+    if (!row) { issues.push({code:'INVALID_RECORD', kind, index}); continue; }
+    const id = string(row.id).trim();
+    if (!id) issues.push({code:row.id == null || row.id === '' ? 'MISSING_ID' : 'INVALID_ID', kind, index});
     else if (ids.has(id)) issues.push({code:'DUPLICATE_ID', kind, id});
     else ids.add(id);
   }
   return ids;
 }
 
-function inspectReferences(state, issues) {
+function inspectReferences(state, envelope, issues) {
   const itemIds = uniqueIds(state.items, 'item', issues);
   const spellIds = uniqueIds(state.spells, 'spell', issues);
   const abilityIds = uniqueIds(state.abilities, 'ability', issues);
   const charIds = uniqueIds(state.chars, 'character', issues);
   const foeIds = uniqueIds(state.foes, 'foe', issues);
 
-  for (const character of state.chars || []) {
-    const owner = String(character && character.id || 'unknown-character');
-    for (const entry of character && character.inventory || []) {
-      const itemId = String(entry && entry.itemId || '');
-      if (!itemId) issues.push({code:'MISSING_REFERENCE', owner, field:'inventory.itemId', value:itemId});
-      else if (!itemId.startsWith('bg3:item:') && !itemIds.has(itemId)) issues.push({code:'UNRESOLVED_REFERENCE', owner, field:'inventory.itemId', value:itemId});
-    }
-    for (const entry of character && character.spellbook || []) {
-      const spellId = String(entry && (entry.spellId || entry.id) || '');
-      if (spellId && !spellIds.has(spellId) && !spellId.startsWith('bg3:')) issues.push({code:'UNRESOLVED_REFERENCE', owner, field:'spellbook.spellId', value:spellId});
-    }
-    for (const entry of character && character.abilities || []) {
-      const abilityId = String(entry && entry.abilityId || '');
-      if (abilityId && !abilityIds.has(abilityId)) issues.push({code:'UNRESOLVED_REFERENCE', owner, field:'abilities.abilityId', value:abilityId});
+  for (const kind of ['races', 'classes', 'rules']) uniqueIds(state[kind], kind, issues);
+  const catalogs = new Map();
+  for (const [field, value] of [['catalogRefs', state.catalogRefs], ['envelope.catalogRefs', envelope && envelope.catalogRefs]]) {
+    for (const [index, entry] of list(value, field, issues).entries()) {
+      if (!object(entry) || !string(entry.id).trim() || !string(entry.version).trim()) {
+        issues.push({code:'INVALID_CATALOG_REFERENCE', field, index}); continue;
+      }
+      const pin = {id:entry.id, version:entry.version, profile:string(entry.profile), manifestSha256:string(entry.manifestSha256)};
+      if (catalogs.has(entry.id) && JSON.stringify(catalogs.get(entry.id)) !== JSON.stringify(pin)) issues.push({code:'CONFLICTING_CATALOG_PIN', field, id:entry.id});
+      catalogs.set(entry.id, pin);
     }
   }
-
-  for (const entry of state.combat && state.combat.order || []) {
-    const id = String(entry && entry.id || '');
-    const known = entry && entry.kind === 'ally' ? charIds.has(id) : foeIds.has(id);
-    if (id && !known) issues.push({code:'UNRESOLVED_REFERENCE', owner:'combat.order', field:String(entry.kind || 'actor'), value:id});
+  const catalogReferences = [];
+  let checkedLocal = 0;
+  const reference = (entry, field, owner, ids, kind) => {
+    const value = string(entry).trim();
+    if (!value) { issues.push({code:'MISSING_REFERENCE', owner, field, value}); return; }
+    if (ids.has(value)) { checkedLocal++; return; }
+    const namespace = value.split(':')[0];
+    // A namespace identifies where to look; it does not prove this definition exists.
+    if ((namespace === 'bg3' || catalogs.has(namespace)) && value.includes(':')) {
+      catalogReferences.push({owner, field, value, kind, catalogId:namespace, pinned:catalogs.has(namespace)});
+      if (!catalogs.has(namespace)) issues.push({code:'MISSING_CATALOG_PIN', owner, field, value, catalogId:namespace});
+    } else issues.push({code:'UNRESOLVED_REFERENCE', owner, field, value});
+  };
+  for (const character of state.chars) {
+    if (!object(character)) continue;
+    const owner = string(character.id) || 'unknown-character';
+    for (const [key, idKey, ids, kind] of [['inventory', 'itemId', itemIds, 'item'], ['spellbook', 'spellId', spellIds, 'spell'], ['abilities', 'abilityId', abilityIds, 'ability']]) {
+      for (const [index, entry] of list(character[key], owner+'.'+key, issues).entries()) {
+        if (!object(entry)) { issues.push({code:'INVALID_RECORD', owner, field:key, index}); continue; }
+        reference(entry[idKey] || (key === 'spellbook' ? entry.id : ''), key+'.'+idKey, owner, ids, kind);
+      }
+    }
   }
-
-  return {items:itemIds.size, spells:spellIds.size, abilities:abilityIds.size, characters:charIds.size, foes:foeIds.size};
+  if (state.combat != null && !object(state.combat)) issues.push({code:'INVALID_RECORD', field:'combat'});
+  for (const [index, entry] of list(object(state.combat) && state.combat.order, 'combat.order', issues).entries()) {
+    if (!object(entry)) { issues.push({code:'INVALID_RECORD', field:'combat.order', index}); continue; }
+    if (!['ally', 'foe'].includes(entry.kind)) { issues.push({code:'INVALID_ACTOR_KIND', field:'combat.order', index}); continue; }
+    const id = string(entry.id).trim();
+    const known = entry.kind === 'ally' ? charIds.has(id) : foeIds.has(id);
+    if (!id) issues.push({code:'MISSING_REFERENCE', owner:'combat.order', field:entry.kind, value:id});
+    else if (!known) issues.push({code:'UNRESOLVED_REFERENCE', owner:'combat.order', field:entry.kind, value:id});
+    else checkedLocal++;
+  }
+  const catalogPending = catalogs.size > 0 || catalogReferences.length > 0;
+  return {
+    counts:{items:itemIds.size, spells:spellIds.size, abilities:abilityIds.size, characters:charIds.size, foes:foeIds.size},
+    references:{status:catalogPending ? 'partial' : issues.length ? 'needs-attention' : 'checked', checkedLocal,
+      catalogStatus:catalogPending ? 'unverified' : 'not-referenced', catalogs:[...catalogs.values()], catalogReferences}
+  };
 }
 
 function normalizePerKey(value) {
   const row = object(value);
-  if (!row || !Object.keys(row).some(key => key.startsWith('dndworld2:'))) return null;
+  if (!row || row.schemaVersion != null || !REQUIRED_WORLD_ARRAYS.some(key => Object.hasOwn(row, 'dndworld2:'+key))) return null;
+  const errors = [];
   const read = (key, fallback) => {
+    if (!Object.hasOwn(row, key)) return fallback;
     const parsed = parse(row[key]);
+    if (!parsed.ok) errors.push({code:'CORRUPT_LEGACY_KEY', field:key, error:parsed.error});
     return parsed.ok ? parsed.value : fallback;
   };
-  return {
+  const state = {
     schemaVersion:WORLD_SNAPSHOT_SCHEMA,
     snapshotRevision:0,
     chars:read('dndworld2:chars', []), items:read('dndworld2:items', []), spells:read('dndworld2:spells', []),
@@ -78,14 +120,18 @@ function normalizePerKey(value) {
     rules:read('dndworld2:rules', []), foes:read('dndworld2:foes', []), combat:read('dndworld2:combat', null),
     journal:read('dndworld2:journal', []), catalogRefs:read('dndworld2:catalog-refs', [])
   };
+  return {state, errors};
 }
 
 function unwrapCloud(value) {
   const row = object(value);
-  if (!row || typeof row.j !== 'string') return null;
-  const parsed = parse(row.j);
+  if (!row || (row.schemaVersion !== CLOUD_CHANNEL_SCHEMA && (row.schemaVersion != null || !Object.hasOwn(row, 'j')))) return null;
+  const current = row.schemaVersion === CLOUD_CHANNEL_SCHEMA;
+  const payload = current ? row.payload : row.j;
+  if (payload == null || (!current && typeof payload !== 'string')) return {ok:false, error:'cloud channel has no valid payload'};
+  const parsed = parse(payload);
   if (!parsed.ok) return parsed;
-  return {ok:true, value:parsed.value, cloud:{by:String(row.by || ''), at:Number(row.at || 0), revision:Number(row.revision || 0)}};
+  return {ok:true, value:parsed.value, cloud:{by:string(row.by), at:row.at ?? 0, revision:row.revision ?? 0, integrity:'unverified'}};
 }
 
 export function inspectSave(raw, options = {}) {
@@ -100,27 +146,62 @@ export function inspectSave(raw, options = {}) {
   }
 
   const perKey = normalizePerKey(value);
-  if (perKey) { value = perKey; format = format || 'legacy-per-key'; }
+  if (perKey) {
+    if (perKey.errors.length) return {schemaVersion:'dnd-world-save-inspection/1', source:options.source || '', status:'corrupt', error:'legacy save contains invalid serialized fields', issues:perKey.errors};
+    value = perKey.state; format = format || 'legacy-per-key';
+  }
 
   const row = object(value);
   if (!row) return {schemaVersion:'dnd-world-save-inspection/1', source:options.source || '', status:'incompatible', error:'save root must be an object', issues:[]};
 
   let state = row;
-  if (row.schemaVersion === CAMPAIGN_ENVELOPE_SCHEMA) {
+  const isEnvelope = row.schemaVersion === CAMPAIGN_ENVELOPE_SCHEMA;
+  if (isEnvelope) {
     if (!object(row.state)) return {schemaVersion:'dnd-world-save-inspection/1', source:options.source || '', status:'corrupt', format:'campaign-envelope', error:'campaign envelope has no state object', issues:[]};
     state = row.state; format = format || 'campaign-envelope';
   } else if (row.schemaVersion === WORLD_SNAPSHOT_SCHEMA) format = format || 'world-snapshot';
-  else if (format !== 'legacy-per-key') return {schemaVersion:'dnd-world-save-inspection/1', source:options.source || '', status:'incompatible', format:'unknown', error:'unsupported schema '+String(row.schemaVersion || '(missing)'), issues:[]};
+  else if (format !== 'legacy-per-key') return {schemaVersion:'dnd-world-save-inspection/1', source:options.source || '', status:'incompatible', format:'unknown', error:'unsupported schema '+(string(row.schemaVersion) || '(missing)'), issues:[]};
+
+  if (isEnvelope && state.schemaVersion != null && state.schemaVersion !== WORLD_SNAPSHOT_SCHEMA) return {schemaVersion:'dnd-world-save-inspection/1', source:options.source || '', status:'incompatible', format, error:'unsupported campaign state schema', issues:[]};
 
   const missingArrays = REQUIRED_WORLD_ARRAYS.filter(key => !Array.isArray(state[key]));
   if (missingArrays.length) return {schemaVersion:'dnd-world-save-inspection/1', source:options.source || '', status:'corrupt', format, error:'missing required arrays: '+missingArrays.join(', '), issues:[]};
 
-  const issues = [], counts = inspectReferences(state, issues);
+  const issues = [], {counts, references} = inspectReferences(state, isEnvelope ? row : null, issues);
+  list(state.journal, 'journal', issues);
+  if (isEnvelope) list(row.rulesetRefs, 'envelope.rulesetRefs', issues);
+  if (!isEnvelope && row.snapshotRevision != null && (!Number.isSafeInteger(row.snapshotRevision) || row.snapshotRevision < 0)) issues.push({code:'INVALID_REVISION', field:'snapshotRevision'});
+  const malformed = issues.some(issue => ['INVALID_LIST', 'INVALID_RECORD', 'INVALID_ID', 'INVALID_CATALOG_REFERENCE', 'INVALID_ACTOR_KIND', 'INVALID_REVISION'].includes(issue.code));
   return {
-    schemaVersion:'dnd-world-save-inspection/1', source:options.source || '', status:issues.length ? 'needs-attention' : 'ok', format,
-    revision:Number(row.revision ?? row.snapshotRevision ?? (cloud && cloud.revision) ?? 0), parentRevision:Number(row.parentRevision ?? -1),
-    campaignId:String(row.campaignId || ''), checksum:String(row.checksum || ''), cloud, counts, issues
+    schemaVersion:'dnd-world-save-inspection/1', source:options.source || '', status:malformed ? 'corrupt' : issues.length ? 'needs-attention' : isEnvelope ? 'unverified' : 'ok', format,
+    revision:row.revision ?? row.snapshotRevision ?? (cloud && cloud.revision) ?? 0, parentRevision:row.parentRevision ?? -1,
+    campaignId:string(row.campaignId), checksum:string(row.checksum), cloud, counts, issues, references,
+    integrity:{status:malformed ? 'corrupt' : 'unverified', scope:isEnvelope ? 'campaign-envelope' : 'legacy-payload',
+      reason:isEnvelope ? 'Use inspectSaveVerified to verify the campaign checksum.' : 'This format has no campaign checksum.'}
   };
+}
+
+// Preserve the synchronous inspection API; trust verdicts require this async API.
+export async function inspectSaveVerified(raw, options = {}) {
+  const report = inspectSave(raw, options);
+  report.validationStatus = report.status === 'unverified' ? 'ok' : report.status;
+  if (!report.integrity) report.integrity = {status:report.status === 'corrupt' ? 'corrupt' : 'unverified'};
+  if (!['ok', 'unverified', 'needs-attention'].includes(report.status)) return report;
+  const parsed = parse(raw), cloudResult = unwrapCloud(parsed.value);
+  const envelope = cloudResult ? cloudResult.value : parsed.value;
+  if (envelope.schemaVersion !== CAMPAIGN_ENVELOPE_SCHEMA) { report.status = 'unverified'; return report; }
+  let verified;
+  try { verified = await persistence.verifyEnvelope(envelope); }
+  catch (error) { verified = {ok:false, code:error.code || 'VERIFICATION_FAILED', reason:String(error.message || error)}; }
+  if (!verified.ok) {
+    report.status = 'corrupt';
+    report.integrity = {status:'corrupt', scope:'campaign-envelope', code:verified.code, reason:verified.reason};
+    report.issues.push({code:verified.code, field:'envelope', error:verified.reason});
+    return report;
+  }
+  report.status = 'verified';
+  report.integrity = {status:'verified', scope:'campaign-envelope', algorithm:'SHA-256'};
+  return report;
 }
 
 export function inspectFile(file) {
@@ -131,10 +212,18 @@ export function inspectFile(file) {
   return inspectSave(raw, {source:absolute});
 }
 
+export async function inspectFileVerified(file) {
+  const absolute = path.resolve(file);
+  let raw;
+  try { raw = fs.readFileSync(absolute, 'utf8'); }
+  catch (error) { return {schemaVersion:'dnd-world-save-inspection/1', source:absolute, status:error && error.code === 'ENOENT' ? 'missing' : 'unreadable', error:String(error && error.message || error), issues:[], integrity:{status:'unverified'}}; }
+  return inspectSaveVerified(raw, {source:absolute});
+}
+
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const files = process.argv.slice(2);
-  const report = files.length ? files.map(inspectFile) : [inspectSave('', {source:'stdin-not-supported'})];
+  const report = files.length ? await Promise.all(files.map(inspectFileVerified)) : [await inspectSaveVerified('', {source:'stdin-not-supported'})];
   process.stdout.write(JSON.stringify(report.length === 1 ? report[0] : report, null, 2)+'\n');
-  if (report.some(row => !['ok', 'needs-attention'].includes(row.status))) process.exitCode = 1;
+  if (report.some(row => !['verified', 'unverified'].includes(row.status))) process.exitCode = 1;
 }

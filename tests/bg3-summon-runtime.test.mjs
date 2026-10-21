@@ -1015,9 +1015,12 @@ function summonBlockInterruptFixture() {
 
 async function summonWorld({row = RUNTIME_ROWS[0], profile = 'standard', qty = 2, activeFx = [],
   extraActors = [], foes = [], combat = null, actorOverrides = {}} = {}) {
-  let randomCalls = 0;
+  let randomCalls = 0, preparingFixture = true, identitySequence = 0;
   const randomStacks = [];
   const engine = loadEngine(() => {
+    // uid() uses randomness for identity, never for dice. Seed unique fixture IDs
+    // before enabling the gameplay randomness detector; constant 0.5 collided.
+    if (preparingFixture) return ++identitySequence / 100000;
     randomCalls++;
     randomStacks.push(new Error('unexpected summon Math.random').stack);
     return 0.5;
@@ -1031,12 +1034,15 @@ async function summonWorld({row = RUNTIME_ROWS[0], profile = 'standard', qty = 2
   });
   actor.bg3ClassDescription = plain(engine.bg3WizardProfileBinding(''));
   actor.bg3ClassDescription.classLevel = actor.level;
-  engine.setState({chars: [actor, ...extraActors], classes: engine.seedClassesDB(), foes,
+  const classes = engine.seedClassesDB();
+  assert.equal(new Set(classes.map(row => row.id)).size, classes.length, 'fixture class IDs must be unique');
+  engine.setState({chars: [actor, ...extraActors], classes, foes,
     activeCharId: actor.id, fxRound: 7, combat: combat || undefined});
   assert.equal(engine.bg3CatalogUseRefs([{id: 'bg3', version: current.catalogVersion, profile,
     manifestSha256: current.manifestSha256}]), true);
   randomCalls = 0;
   randomStacks.length = 0;
+  preparingFixture = false;
   return {engine, actor, row, profile, entryId, useId: row.useIds[profile],
     randomCalls: () => randomCalls, randomStacks};
 }

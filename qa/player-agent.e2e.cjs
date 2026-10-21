@@ -370,7 +370,14 @@ async function step(definition, action) {
   }
 }
 
+async function awaitActionIdle(timeout = 30000) {
+  // An ordinary user action starts after the visible save guard releases interaction.
+  // Deliberate blocked/double clicks are tested separately without this helper.
+  await page.locator('#actionBusyNotice').waitFor({ state: 'hidden', timeout });
+}
+
 async function clickButton(name, options = {}) {
+  await awaitActionIdle(options.timeout || 30000);
   const button = page.getByRole('button', { name, exact: options.exact !== false }).filter({ visible: true });
   if (await button.count() === 0) throw new QaFailure(`Кнопка «${name}» отсутствует.`);
   const target = button.first();
@@ -388,6 +395,8 @@ async function clickButton(name, options = {}) {
     }
   }
   await target.click();
+  await awaitActionIdle(options.timeout || 30000);
+  if (tabId) await page.locator(`#tab-${tabId}`).waitFor({ state: 'visible', timeout: options.timeout || 30000 });
   await page.waitForTimeout(options.waitMs || 250);
 }
 
@@ -443,6 +452,7 @@ async function clickCardButton(card, pattern) {
 }
 
 async function fillVisibleRolls(values) {
+  await awaitActionIdle();
   const modal = page.locator('#rollBack:visible .cast-modal, #castBack:visible .cast-modal, [role="dialog"]:visible').last();
   if (!await modal.count()) throw new QaFailure('Форма ручного ввода костей не появилась.');
   const inputs = modal.locator('input[type="number"]:visible');
@@ -1004,7 +1014,7 @@ async function runJourney() {
     if (!await sellItem.count()) throw new QaFailure('У торговца нет выбора предмета для продажи.');
     await sellItem.selectOption({ label: 'Книга по истории ×1' });
     await page.locator('#merchantSellButton').filter({ visible: true }).click();
-    await page.waitForTimeout(350);
+    await page.locator('#tab-merchants .trade-workspace[aria-busy="false"]').waitFor({state:'visible', timeout:30000});
     const refreshedSell = page.locator('#merchantSellItem').filter({ visible: true });
     const remainingOptions = await refreshedSell.locator('option').allTextContents();
     if (remainingOptions.some(label => label.trim() === 'Книга по истории ×1')) throw new QaFailure('После подтвержденной продажи книга осталась в инвентаре героя.');
@@ -1025,7 +1035,7 @@ async function runJourney() {
     const incenseBuy = incenseRow.getByRole('button', { name: 'Купить', exact: true });
     if (!await incenseBuy.count() || await incenseBuy.isDisabled()) throw new QaFailure('Контрольная покупка благовоний недоступна без ясной причины.');
     await incenseBuy.click();
-    await page.waitForTimeout(350);
+    await page.locator('#tab-merchants .trade-workspace[aria-busy="false"]').waitFor({state:'visible', timeout:30000});
     const incenseAfter = await merchantStock('Благовония');
     if (incenseAfter !== incenseBefore - 1) throw new QaFailure(`Покупка не уменьшила остаток благовоний ровно на один: ${incenseBefore} → ${incenseAfter}.`);
 
@@ -1100,7 +1110,7 @@ async function runJourney() {
     const confirmBox = await page.locator('#economyExchangeConfirm').boundingBox();
     if (!confirmBox) throw new QaFailure('Кнопка подтверждения обмена не имеет видимой области для двойного нажатия.');
     await page.mouse.dblclick(confirmBox.x + confirmBox.width / 2, confirmBox.y + confirmBox.height / 2, { delay: 20 });
-    await page.waitForTimeout(350);
+    await page.locator('#economyExchangeBack[aria-busy="false"]').waitFor({state:'attached', timeout:30000});
     if (await exchangeBack.isVisible()) {
       const refusal = (await page.locator('#economyExchangeErr').innerText().catch(() => '')).trim();
       throw new QaFailure(`Подтверждённый обмен не закрыл форму${refusal ? `: ${refusal}` : ' и не объяснил отказ'}.`);
