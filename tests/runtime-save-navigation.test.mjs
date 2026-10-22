@@ -8,6 +8,21 @@ function unload(engine) {
   return event;
 }
 
+function deferred() {
+  let resolve;
+  const promise=new Promise(done=>{resolve=done;});
+  return {promise,resolve};
+}
+
+function holdMirror(engine,key='dndworld2:items') {
+  const entered=deferred(),release=deferred();
+  const previous=engine.saveSafety.setStorageWriter(async(name,value)=>{
+    if(name===key){entered.resolve();await release.promise;}
+    return previous(name,value);
+  });
+  return {entered:entered.promise,release:release.resolve};
+}
+
 test('immediate navigation warns about pending character edits and starts their save', async () => {
   const engine = loadRuntimeIntegrationEngine();
   engine.setState({chars:[{id:'edited-hero',name:'Эйра',subrace:'Высший эльф'}]});
@@ -107,4 +122,114 @@ test('an ancillary exception after a durable save cannot roll back a campaign ac
   engine.saveSafety.setStorageWriter(previous);
   assert.equal(await engine.runScheduledSave(),true);
   assert.equal(engine.saveSafety.pending(),false);
+});
+
+test('Saved is published only after all compatibility writes finish, alongside the navigation guard', async () => {
+  const engine=loadRuntimeIntegrationEngine();
+  engine.setState({chars:[{id:'edited-hero',name:'Эйра'}]});
+  const hold=holdMirror(engine);
+  engine.saveSafety.scheduleWorld();
+  assert.equal(engine.saveSafety.status().busy,'true','debounced edits are already pending');
+  const saving=engine.runScheduledSave();
+  await hold.entered;
+  assert.equal(engine.persistenceState().receipt.status,'committed','the authoritative envelope has already completed');
+  assert.equal(engine.saveSafety.pending(),true);
+  assert.equal(unload(engine).prevented,true);
+  assert.doesNotMatch(engine.saveSafety.status().text,/Сохранено/,'successful early keys must not announce full completion');
+  assert.equal(engine.saveSafety.status().busy,'true');
+  hold.release();
+  assert.equal(await saving,true);
+  assert.deepEqual({...engine.saveSafety.status()},{text:'Сохранено ✓',busy:'false'});
+  assert.equal(unload(engine).prevented,false);
+});
+
+test('a queued empty operation completes the preceding successful save status', async () => {
+  const engine=loadRuntimeIntegrationEngine(),hold=holdMirror(engine);
+  engine.saveSafety.scheduleWorld();
+  const first=engine.runScheduledSave();
+  await hold.entered;
+  const second=engine.runScheduledSave();
+  assert.equal(engine.saveSafety.state().operations,2);
+  hold.release();
+  assert.deepEqual(await Promise.all([first,second]),[true,true]);
+  assert.deepEqual({...engine.saveSafety.status()},{text:'Сохранено ✓',busy:'false'});
+});
+
+for(const throws of [false,true])test(`a queued empty operation cannot hide an ancillary ${throws?'exception':'write rejection'}`, async () => {
+  const engine=loadRuntimeIntegrationEngine(),entered=deferred(),release=deferred();
+  const previous=engine.saveSafety.setStorageWriter(async(key,value)=>{
+    if(key==='dndworld2:items'){
+      entered.resolve();await release.promise;
+      if(throws)throw new Error('mirror unavailable');
+      return false;
+    }
+    return previous(key,value);
+  });
+  engine.saveSafety.scheduleWorld();
+  const first=engine.runScheduledSave();
+  await entered.promise;
+  const second=engine.runScheduledSave();
+  release.resolve();
+  assert.deepEqual(await Promise.all([first,second]),[true,true],'a durable world is not rolled back for a failed mirror');
+  assert.equal(engine.saveSafety.pending(),false);
+  assert.equal(engine.saveSafety.status().busy,'false');
+  assert.match(engine.saveSafety.status().text,throws?/не удалось завершить дополнительные записи/:/Хранилище недоступно/);
+  assert.doesNotMatch(engine.saveSafety.status().text,/Сохранено ✓/);
+  engine.saveSafety.setStorageWriter(previous);
+  engine.saveSafety.scheduleWorld();
+  assert.equal(await engine.runScheduledSave(),true);
+  assert.deepEqual({...engine.saveSafety.status()},{text:'Сохранено ✓',busy:'false'},'an actual successful retry can clear the storage error');
+});
+
+test('failed journal retries retain their error and busy state until the journal is durable', async () => {
+  const engine=loadRuntimeIntegrationEngine();
+  engine.setState({journal:[{id:'new-note',text:'Новая запись'}]});
+  const previous=engine.saveSafety.setStorageWriter(async(key,value)=>key==='dndworld2:journal'?false:previous(key,value));
+  engine.saveSafety.scheduleJournal();
+  assert.equal(await engine.runScheduledSave(),false);
+  assert.equal(await engine.runScheduledSave(),false);
+  assert.equal(engine.saveSafety.status().busy,'true');
+  assert.match(engine.saveSafety.status().text,/Хранилище недоступно/);
+  engine.saveSafety.setStorageWriter(previous);
+  assert.equal(await engine.runScheduledSave(),true);
+  assert.deepEqual({...engine.saveSafety.status()},{text:'Сохранено ✓',busy:'false'});
+});
+
+test('an edit made during an older write stays pending until its own queued save completes', async () => {
+  const engine=loadRuntimeIntegrationEngine(),entered=[deferred(),deferred()],release=[deferred(),deferred()];
+  const hero={id:'edited-hero',name:'Первое имя'};
+  engine.setState({chars:[hero]});
+  let writes=0;
+  const previous=engine.saveSafety.setStorageWriter(async(key,value)=>{
+    if(key==='dndworld2:items'){const at=writes++;entered[at].resolve();await release[at].promise;}
+    return previous(key,value);
+  });
+  engine.saveSafety.scheduleWorld();
+  const first=engine.runScheduledSave();
+  await entered[0].promise;
+  hero.name='Следующее имя';
+  engine.saveSafety.scheduleWorld();
+  const second=engine.runScheduledSave();
+  release[0].resolve();
+  await entered[1].promise;
+  assert.equal(await first,true);
+  assert.deepEqual({...engine.saveSafety.status()},{text:'Сохраняем изменения…',busy:'true'});
+  assert.equal(unload(engine).prevented,true);
+  release[1].resolve();
+  assert.equal(await second,true);
+  assert.equal(JSON.parse(await engine.storeGet('dndworld2:campaign-envelope')).state.chars[0].name,hero.name);
+  assert.deepEqual({...engine.saveSafety.status()},{text:'Сохранено ✓',busy:'false'});
+});
+
+test('a newer gameplay refusal survives successful persistence while readiness becomes idle', async () => {
+  const engine=loadRuntimeIntegrationEngine(),hold=holdMirror(engine);
+  engine.saveSafety.scheduleWorld();
+  const saving=engine.runScheduledSave();
+  await hold.entered;
+  engine.saveSafety.message('Сейчас ход другого участника.',true);
+  const empty=engine.runScheduledSave();
+  hold.release();
+  assert.deepEqual(await Promise.all([saving,empty]),[true,true]);
+  assert.deepEqual({...engine.saveSafety.status()},{text:'Сейчас ход другого участника.',busy:'false'});
+  assert.equal(unload(engine).prevented,false);
 });

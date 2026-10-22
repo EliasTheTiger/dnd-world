@@ -155,6 +155,8 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
       saveSafety:{
         scheduleWorld(){scheduleSave(true);},scheduleJournal:scheduleJournalSave,beforeUnload:campaignBeforeUnload,
         pending:hasUnsavedCampaignChanges,
+        status(){const el=document.getElementById('saveStatus');return {text:el.textContent,busy:el.attributes['aria-busy']};},
+        message:setStatus,
         state(){return {world:savePendWorld,journal:savePendJournal,operations:scheduledSaveOperations};},
         setStorageWriter(write){const previous=store.set;store.set=write;return previous;},
       },

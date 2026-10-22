@@ -58,7 +58,7 @@
 <button class="tab" data-tab="rules" onclick="switchTab('rules')">Справочник</button>
 </nav>
 <main class="leaf" id="main-content" tabindex="-1">
-<div class="save-status" id="saveStatus"></div>
+<div class="save-status" id="saveStatus" aria-busy="false"></div>
 <div id="diceOut" class="game-roll-result" role="status" aria-live="polite"></div>
 <div id="tab-chars"></div>
 <div id="tab-combat" class="hidden"></div>
@@ -3847,10 +3847,9 @@ const el=document.getElementById('saveStatus');
 if(el){ el.textContent=t; el.classList.toggle('err',!!err); }
 return ++saveStatusVersion;
 }
-async function persist(key,val,expectedStatusVersion){
+async function persist(key,val,progress){
 const ok=await store.set(key, JSON.stringify(val));
-if(!ok)setStatus('Хранилище недоступно. Оставьте страницу открытой и повторите сохранение.',true);
-else if(expectedStatusVersion==null||saveStatusVersion===expectedStatusVersion)setStatus('Сохранено ✓');
+if(!ok){progress.storageFailed=true;setStatus('Хранилище недоступно. Оставьте страницу открытой и повторите сохранение.',true);}
 return ok;
 }
 const WORLD_SNAPSHOT_SCHEMA='dnd-world-world-snapshot/1';
@@ -3881,13 +3880,15 @@ classes:classesDB,rules:rulesDB,foes:foesDB,fxRound,combat,harvestedSources,econ
 function validWorldSnapshot(value){return !!(value&&value.schemaVersion===WORLD_SNAPSHOT_SCHEMA&&Array.isArray(value.chars)&&Array.isArray(value.items)
 &&Array.isArray(value.spells)&&Array.isArray(value.abilities)&&Array.isArray(value.races)&&Array.isArray(value.classes)&&Array.isArray(value.rules)&&Array.isArray(value.foes));}
 let savePendWorld=false, savePendJournal=false;
-let scheduledSaveQueue=Promise.resolve(true),scheduledSaveOperations=0;
+let scheduledSaveQueue=Promise.resolve(true),scheduledSaveOperations=0,saveCompletionStatusVersion=null;
 async function runScheduledSaveNow(progress){
 progress=progress||{};
 const w=savePendWorld, j=savePendJournal;
 savePendWorld=savePendJournal=false;
 const statusVersion=pendingSaveStatusVersion==null?saveStatusVersion:pendingSaveStatusVersion;
 if(pendingSaveStatusVersion===statusVersion)pendingSaveStatusVersion=null;
+progress.hasWork=w||j;progress.statusVersion=statusVersion;
+if(progress.hasWork)saveCompletionStatusVersion=null;
 if(w){
 const snapshot=worldSnapshotPayload();let envelopeCommitted=false;
 if(campaignEnvelopeRepository){
@@ -3896,46 +3897,57 @@ rulesetRefs:typeof rulesetActiveRefs==='function'?rulesetActiveRefs():[],catalog
 if(!envelopeResult.ok){savePendWorld=true;if(j)savePendJournal=true;const persistenceReason=String(envelopeResult.reason||envelopeResult.code||'неизвестная ошибка').replace(/[.!?]+\s*$/,'');setStatus(envelopeResult.conflict?'Сохранение отклонено: данные были изменены в другом окне. Перезагрузите страницу перед повтором.':'Не удалось сохранить изменения: '+persistenceReason+'.',true);return false;}
 campaignEnvelopeRevision=envelopeResult.receipt.revision;campaignLastPersistenceReceipt=envelopeResult.receipt;envelopeCommitted=true;progress.worldSaved=true;
 }
-const snapshotOk=await persist('dndworld2:world-snapshot',snapshot,statusVersion);
+const snapshotOk=await persist('dndworld2:world-snapshot',snapshot,progress);
 if(!snapshotOk&&!envelopeCommitted){savePendWorld=true;if(j)savePendJournal=true;return false;}
 if(snapshotOk)progress.worldSaved=true;
-await persist('dndworld2:chars',chars,statusVersion);
-await persist('dndworld2:items',itemsDB,statusVersion);
-await persist('dndworld2:spells',spellsDB,statusVersion);
-await persist('dndworld2:abilities',abilitiesDB,statusVersion);
-await persist('dndworld2:races',racesDB,statusVersion);
-await persist('dndworld2:classes',classesDB,statusVersion);
-await persist('dndworld2:rules',rulesDB,statusVersion);
-await persist('dndworld2:foes',foesDB,statusVersion);
-await persist('dndworld2:fxround',fxRound,statusVersion);
-await persist('dndworld2:combat',combat,statusVersion);
-await persist('dndworld2:harvested-sources',harvestedSources,statusVersion);
-await persist('dndworld2:economy-state',economyState,statusVersion);
-await persist('dndworld2:merchant-state',merchantState,statusVersion);
-await persist('dndworld2:chest-state',chestState,statusVersion);
-await persist('dndworld2:catalog-refs',bg3CatalogStandardRefs(bg3CatalogRefs()),statusVersion);
-await persist('dndworld2:bg3-scene-state',bg3SceneState,statusVersion);
-await persist('dndworld2:bg3-story-state',bg3StoryState,statusVersion);
-await persist('dndworld2:bg3-tadpole-state',bg3TadpoleState,statusVersion);
-await persist('dndworld2:bg3-treasure-state',bg3TreasureState,statusVersion);
+await persist('dndworld2:chars',chars,progress);
+await persist('dndworld2:items',itemsDB,progress);
+await persist('dndworld2:spells',spellsDB,progress);
+await persist('dndworld2:abilities',abilitiesDB,progress);
+await persist('dndworld2:races',racesDB,progress);
+await persist('dndworld2:classes',classesDB,progress);
+await persist('dndworld2:rules',rulesDB,progress);
+await persist('dndworld2:foes',foesDB,progress);
+await persist('dndworld2:fxround',fxRound,progress);
+await persist('dndworld2:combat',combat,progress);
+await persist('dndworld2:harvested-sources',harvestedSources,progress);
+await persist('dndworld2:economy-state',economyState,progress);
+await persist('dndworld2:merchant-state',merchantState,progress);
+await persist('dndworld2:chest-state',chestState,progress);
+await persist('dndworld2:catalog-refs',bg3CatalogStandardRefs(bg3CatalogRefs()),progress);
+await persist('dndworld2:bg3-scene-state',bg3SceneState,progress);
+await persist('dndworld2:bg3-story-state',bg3StoryState,progress);
+await persist('dndworld2:bg3-tadpole-state',bg3TadpoleState,progress);
+await persist('dndworld2:bg3-treasure-state',bg3TreasureState,progress);
 }
 if(j){
-if(await persist('dndworld2:journal',journal,statusVersion))progress.journalSaved=true;
+if(await persist('dndworld2:journal',journal,progress))progress.journalSaved=true;
 else{savePendJournal=true;if(!progress.worldSaved)return false;}
 }
 return true;
 }
 function runScheduledSave(){
-scheduledSaveOperations++;
+scheduledSaveOperations++;updateSavePendingStatus();
 const execute=async()=>{
 const pendingWorld=savePendWorld,pendingJournal=savePendJournal,progress={worldSaved:false,journalSaved:false};
-try{return await runScheduledSaveNow(progress);}
+let completed=false;
+try{completed=await runScheduledSaveNow(progress);return completed;}
 catch(error){if(pendingWorld&&!progress.worldSaved)savePendWorld=true;if(pendingJournal&&!progress.journalSaved)savePendJournal=true;setStatus((progress.worldSaved?'Мир сохранен, но не удалось завершить дополнительные записи: ':'Не удалось сохранить изменения: ')+String(error&&error.message||error)+'.',true);return progress.worldSaved||progress.journalSaved;}
-finally{scheduledSaveOperations--;}
+finally{
+// A trailing empty queue entry may finish the last successful write, but cannot
+// acquire a new status version and hide a storage error or a later game message.
+if(progress.hasWork&&completed&&!progress.storageFailed)saveCompletionStatusVersion=progress.statusVersion;
+scheduledSaveOperations--;updateSavePendingStatus();
+if(!hasUnsavedCampaignChanges()){
+if(saveCompletionStatusVersion!==null&&saveCompletionStatusVersion===saveStatusVersion)setStatus('Сохранено ✓');
+saveCompletionStatusVersion=null;
+}
+}
 },queued=scheduledSaveQueue.then(execute,execute);
 scheduledSaveQueue=queued.catch(()=>false);return queued;
 }
 function hasUnsavedCampaignChanges(){return savePendWorld||savePendJournal||scheduledSaveOperations>0;}
+function updateSavePendingStatus(){const el=document.getElementById('saveStatus');if(el&&typeof el.setAttribute==='function')el.setAttribute('aria-busy',String(hasUnsavedCampaignChanges()));}
 function campaignBeforeUnload(event){
 if(!hasUnsavedCampaignChanges())return;
 event.preventDefault();event.returnValue='';
@@ -3946,11 +3958,13 @@ function scheduleSave(skipCombatSync){
 if(skipCombatSync!==true&&typeof combatSyncChanges==='function') combatSyncChanges();
 savePendWorld=true;
 clearTimeout(saveTimer); pendingSaveStatusVersion=setStatus('Сохраняем изменения…');
+updateSavePendingStatus();
 saveTimer=setTimeout(runScheduledSave,600);
 }
 function scheduleJournalSave(){
 savePendJournal=true;
 clearTimeout(saveTimer); pendingSaveStatusVersion=setStatus('Сохраняем изменения…');
+updateSavePendingStatus();
 saveTimer=setTimeout(runScheduledSave,600);
 }
 async function readJSON(key){

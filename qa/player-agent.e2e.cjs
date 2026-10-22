@@ -486,6 +486,21 @@ async function assertNoSaveFailure(context) {
   if (match) throw new QaFailure(`${context}: ${match[0]}`);
 }
 
+async function awaitSavedCampaign(context) {
+  await awaitActionIdle();
+  // This is the same visible completion signal available to a player. A delay
+  // or the absence of an error alone does not prove that all writes finished.
+  await page.waitForFunction(() => {
+    const status = document.getElementById('saveStatus');
+    const failed = status && status.classList.contains('err') && /Не удалось сохранить изменения|Сохранение отклонено|Хранилище недоступно|не удалось завершить дополнительные записи/i.test(status.textContent);
+    return Boolean(status && (failed || status.getAttribute('aria-busy') === 'false'));
+  }, null, { timeout: 30000 });
+  const status = page.locator('#saveStatus');
+  if (/(?:^|\s)err(?:\s|$)/.test(await status.getAttribute('class') || '') && /Не удалось сохранить изменения|Сохранение отклонено|Хранилище недоступно|не удалось завершить дополнительные записи/i.test(await status.innerText())) {
+    throw new QaFailure(`${context}: ${await status.innerText()}`);
+  }
+}
+
 async function combatCurrentActor() {
   await clickButton('⚔ Бой');
   const actor = page.locator('main .combat-stage-head .who');
@@ -1332,7 +1347,7 @@ async function runJourney() {
       throw new QaFailure('Базовый UI-снимок не содержит торговца, четырех сценовых сундуков или одного мимика.');
     }
     walletCheckpoint = checkpointBaseline.roku.wallet;
-    await assertNoSaveFailure('Перед reload checkpoint #1');
+    await awaitSavedCampaign('Перед reload checkpoint #1');
 
     // Checkpoint #1: a full reload after combat, commerce, loot and consumable commits.
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -1349,9 +1364,8 @@ async function runJourney() {
     if (!await playerField.count()) throw new QaFailure('В «Записях» нового героя нет видимого поля «Игрок» для межсессионного маркера.');
     await playerField.fill(recordMarker);
     await playerField.blur();
-    await page.waitForTimeout(1200);
     if (await playerField.inputValue() !== recordMarker) throw new QaFailure('Новый маркер не закрепился в видимом поле до второго reload.');
-    await assertNoSaveFailure('Новый UI-маркер перед reload checkpoint #2');
+    await awaitSavedCampaign('Новый UI-маркер перед reload checkpoint #2');
 
     // Checkpoint #2: a later reload after a new visible mutation committed between sessions.
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 30000 });

@@ -63,18 +63,33 @@ const server=http.createServer((req,res)=>{
     await page.locator('.char-card').filter({hasText:fixture.snapshot.chars[0].name}).click();
     assert.equal(await page.getByRole('spinbutton',{name:'Текущие хиты',exact:true}).inputValue(),'7');
     const previousRevision=await page.evaluate(()=>campaignEnvelopeRevision);
+    await page.waitForFunction(()=>!hasUnsavedCampaignChanges());
+    await page.evaluate(()=>{
+      const write=store.set.bind(store);let held=false;
+      store.set=async(key,value)=>{
+        if(key==='dndworld2:items'&&!held){held=true;window.__qaMirrorEntered=true;await new Promise(resolve=>{window.__qaReleaseMirror=resolve;});}
+        return write(key,value);
+      };
+    });
     await page.locator('#sheet-name').fill('Септих — продолжаем игру');
     assert.equal(await page.locator('#sheet-name').inputValue(),'Септих — продолжаем игру');
-    await page.waitForFunction(revision=>!hasUnsavedCampaignChanges()&&campaignLastPersistenceReceipt?.revision>revision,previousRevision);
+    await page.waitForFunction(()=>window.__qaMirrorEntered===true);
+    assert.doesNotMatch(await page.locator('#saveStatus').innerText(),/Сохранено\s*✓/);
+    assert.equal(await page.locator('#saveStatus').getAttribute('aria-busy'),'true');
+    assert.equal(await page.evaluate(revision=>hasUnsavedCampaignChanges()&&campaignLastPersistenceReceipt?.revision>revision,previousRevision),true);
+    await page.evaluate(()=>window.__qaReleaseMirror());
+    await page.locator('#saveStatus[aria-busy="false"]').waitFor();
+    assert.equal(await page.locator('#saveStatus').innerText(),'Сохранено ✓');
+    checks.push('a delayed compatibility write keeps the visible save indicator busy until the complete queue finishes');
     const durable=await page.evaluate(async()=>JSON.parse(await store.get('dndworld2:campaign-envelope')));
     assert.equal(durable.state.chars[0].name,'Септих — продолжаем игру');
     await page.reload({waitUntil:'domcontentloaded'});
     await page.locator('.char-card').first().waitFor({timeout:120000});
     verify(await session(),true);checks.push('normal character edit durably saves and the same session survives a real reload');
-    assert.deepEqual(errors,[]);assert.deepEqual(cloudRequests,[]);assert.deepEqual(failedLocalResponses,[]);
+    assert.deepEqual(errors,[]);assert.deepEqual(cloudRequests,[]);assert.deepEqual(failedLocalResponses,[]);assert.deepEqual(navigationPrompts,[]);
     await page.screenshot({path:path.join(output,'same-party-after-reload.png'),fullPage:true});
     fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:true,siteRoot:root,checks,errors,cloudRequests,failedLocalResponses,navigationPrompts},null,2));
-    console.log('Single local campaign preservation: 3/3 PASS');
+    console.log('Single local campaign preservation: 4/4 PASS');
   }catch(error){console.error(await page.evaluate(()=>({pending:hasUnsavedCampaignChanges(),world:savePendWorld,journal:savePendJournal,operations:scheduledSaveOperations,names:chars.map(c=>[c.id,c.name]),saved:JSON.parse(localStorage.getItem('dndworld2:campaign-envelope')||'null')?.state.chars.map(c=>[c.id,c.name]),status:document.getElementById('saveStatus').textContent})).catch(()=>null));fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({ok:false,checks,errors,cloudRequests,failedLocalResponses,failure:String(error.stack||error)},null,2));await page.screenshot({path:path.join(output,'failure.png'),fullPage:true}).catch(()=>{});throw error;}
   finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});
