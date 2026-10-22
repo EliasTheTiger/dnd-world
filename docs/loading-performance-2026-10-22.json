@@ -216,7 +216,7 @@
       },
       "releaseMarker": "Base commit used for the local uncommitted candidate; source SHA below identifies the exact tested application."
     },
-    "dependencyInstall": "Clean npm ci succeeded; 0 vulnerabilities",
+    "dependencyInstall": "Clean npm ci with npm 11.19.1 succeeded; 0 vulnerabilities. Regenerated optional cross-platform lock metadata after initial GitHub install rejected missing fsevents; dependency versions unchanged.",
     "diffCheck": "passed"
   },
   "sourceSha256": "eba8b5d5292ba69c72815fd81ae95253f129393396d5b523ff160235857101ed"

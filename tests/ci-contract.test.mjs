@@ -190,7 +190,12 @@ test('strict browser summary validation fails closed for every acceptance signal
 
 test('integration CI job installs Chromium, avoids the duplicate full suite and gates Pages build', () => {
   assert.match(workflow, /\n  integration:\n    needs: test\n[\s\S]*?run: npm ci/);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(root,'package-lock.json'),'utf8')).packages[''].devDependencies['brotli-dec-wasm'],'2.3.0','delivery decoder is locked for clean CI installs');
+  const lock=JSON.parse(fs.readFileSync(path.join(root,'package-lock.json'),'utf8'));
+  assert.equal(lock.packages[''].devDependencies['brotli-dec-wasm'],'2.3.0','delivery decoder is locked for clean CI installs');
+  for(const [name,entry] of Object.entries(lock.packages)){
+    if(name){assert.match(entry.resolved,/^https:\/\/registry\.npmjs\.org\//,name+' has a registry source');assert.match(entry.integrity,/^sha512-/,name+' has pinned integrity');}
+    for(const dependency of Object.keys({...entry.dependencies,...entry.optionalDependencies}))assert.ok(lock.packages['node_modules/'+dependency],dependency+' is locked even when optional on another OS');
+  }
   assert.match(workflow, /\n  integration:\n[\s\S]*?npx playwright install --with-deps chromium/);
   assert.match(workflow, /\n  integration:\n[\s\S]*?node scripts\/build-pages-site\.mjs/);
   assert.match(workflow, /release\.commit!==process\.env\.GITHUB_SHA/);
