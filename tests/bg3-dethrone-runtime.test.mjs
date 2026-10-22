@@ -558,6 +558,12 @@ function loadDethroneRuntimeEngine(random) {
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'recipe-tabletop-rules.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'recipe-tabletop-items.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'recipe-tabletop-runtime.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-core.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-conditions.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-summons.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-runtime.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-long-cast.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'character-rules.js'), 'utf8'), context);
   vm.runInContext(source, context);
   const runtime = context.__bg3DethroneRuntime;
   runtime.setPromptResults = values => { promptResults = [...values]; };

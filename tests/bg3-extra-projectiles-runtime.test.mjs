@@ -524,6 +524,11 @@ function loadFailClosedEngine(random) {
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-workbench.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-core.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-conditions.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-summons.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-runtime.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-long-cast.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source, context);
   vm.runInContext('renderMerchants=()=>{};renderChests=()=>{};', context);
   return context.__bg3ExtraProjectileFailClosed;
@@ -658,6 +663,11 @@ function loadArrowRuntimeEngine(random) {
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-workbench.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-core.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-conditions.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-summons.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-runtime.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-long-cast.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source, context);
   vm.runInContext('renderMerchants=()=>{};renderChests=()=>{};', context);
   return context.__bg3ArrowRuntime;

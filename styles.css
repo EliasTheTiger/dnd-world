@@ -152,6 +152,9 @@
 #tabsNav button:focus-visible,.skip-link:focus-visible{outline:3px solid var(--rubric,#822f25);outline-offset:3px}
 
 .game-roll-result:empty{display:none}
+.arcanum-controls{display:flex;flex-wrap:wrap;gap:8px;max-width:100%;overflow-wrap:anywhere}.arcanum-controls .uses-box{white-space:normal;max-width:100%}.arcanum-controls button{white-space:normal;max-width:100%}
+.combat-layout>*{min-width:0}.combat-focus,.combatant{min-width:0;max-width:100%;box-sizing:border-box}.combat-panel select{min-width:0;max-width:100%;box-sizing:border-box}.combat-hp-controls{grid-template-columns:58px repeat(3,minmax(0,1fr))}.combat-hp-controls button{min-width:0;white-space:normal;overflow-wrap:anywhere}
+@media(max-width:640px){.combat-layout{grid-template-columns:minmax(0,1fr)}.combat-actions{grid-template-columns:repeat(auto-fit,minmax(min(145px,100%),1fr))}.combat-panel select{width:100%}}
 .game-roll-result:not(:empty){margin:0 0 12px;padding:8px 10px;border-left:3px solid var(--gold);overflow-wrap:anywhere}
 .combat-setup-card h3{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline;line-height:1.3;margin-bottom:8px}
 .combat-setup-card h3 small{font-size:14px;font-weight:400;white-space:normal;overflow-wrap:anywhere}

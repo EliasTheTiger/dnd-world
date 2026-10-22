@@ -883,6 +883,12 @@ function loadEngine(random = () => 0, fetchImpl = null) {
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/recipe-rules.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts/recipe-workbench.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'data/dnd5e/srd51-spell-facts.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-core.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-conditions.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-summons.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-runtime.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-long-cast.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'character-rules.js'), 'utf8'), context);
   vm.runInContext(source, context);
   vm.runInContext('renderMerchants=()=>{};renderChests=()=>{};', context);
   return context.__bg3SummonRuntimeAudit;

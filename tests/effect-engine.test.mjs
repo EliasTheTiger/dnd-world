@@ -480,6 +480,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-tabletop-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-tabletop-items.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-tabletop-runtime.js', import.meta.url), 'utf8'), context);
+  for(const name of ['arcanum-core','arcanum-summons','arcanum-conditions','arcanum-runtime','arcanum-long-cast'])vm.runInContext(fs.readFileSync(new URL('../scripts/'+name+'.js',import.meta.url),'utf8'),context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-workbench.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);

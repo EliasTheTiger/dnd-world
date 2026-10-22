@@ -69,6 +69,9 @@ function loadEngine() {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts/recipe-tabletop-rules.js'), 'utf8'), sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts/recipe-tabletop-items.js'), 'utf8'), sandbox);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts/recipe-tabletop-runtime.js'), 'utf8'), sandbox);
+  for (const filename of ['arcanum-core.js', 'arcanum-summons.js', 'arcanum-conditions.js', 'arcanum-runtime.js', 'arcanum-long-cast.js']) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts', filename), 'utf8'), sandbox, { filename });
+  }
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'data/dnd5e/srd51-spell-facts.js'), 'utf8'), sandbox);
   vm.runInContext(source, sandbox);
   return sandbox.__engine;

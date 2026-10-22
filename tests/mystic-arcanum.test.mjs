@@ -20,6 +20,16 @@ async function learn(w,circle,name=names[circle]){
   const result=await w.l.select(w.c.id,sp.id,'arcanum',{circle});assert.equal(success(result),true,JSON.stringify(result));return sp;
 }
 function payment(w){return plain({slots:w.c.slots,magic:w.c.magicResource||null,slotSpent:w.c.characterBuild?.slotSpent||null});}
+
+test('profile permits arcanum casting on its available combat action while keeping selection locked',async()=>{
+  const w=world({hp:80,hpMax:80});await learn(w,6,'Conjure Fey');w.e.combatLifecycleApi.quiet();
+  assert.equal(w.e.combatStart([{kind:'ally',id:w.c.id,nat:20},{kind:'foe',id:w.e.state().foes[0].id,nat:1}],'Арканум в бою'),true,w.e.elementText('saveStatus'));
+  const castButton=()=>w.api.html(w.c).match(/<button[^>]*>Применить арканум 6 круга<\/button>/)?.[0];
+  assert.ok(castButton());assert.doesNotMatch(castButton(),/ disabled/);
+  assert.match(w.api.html(w.c),/<select id="arcanum-choice-7"[^>]* disabled/);
+  assert.equal(w.e.combatSpend('action','Потраченное действие','ally:'+w.c.id),true);assert.match(castButton(),/ disabled/);
+  assert.equal(w.e.combatNextTurn(),true);assert.match(castButton(),/ disabled/);
+});
 function castRolls(w,sp,target=w.target,values={}){
   const spec=w.e.rollSpecOf(sp,{kind:'spell',caster:w.c,slotLvl:sp.l,target:w.e.targetInfoOf('ally:'+target.id)}),input={};
   for(const line of spec.rows)input[line.key]=values[line.key]??(line.type==='save'?1:line.cnt||1);
@@ -56,7 +66,7 @@ test('Finger of Death cannot spend a use or deal damage without the required CON
 for(const kind of ['slots','arcanum'])test('Power Word Stun uses current HP only and spends its '+kind+' resource even above 150 HP',async()=>{
   for(const hp of [150,151]){
     const w=await preparedSpell('Power Word Stun',kind);w.target.hp=hp;w.target.hpMax=200;w.target.hpTemp=50;w.target.cond=['Сбитый с ног'];
-    w.a.castSpellFx(w.sp.id,w.c.id);assert.match(w.e.elementText('castInfo'),/Повторный спасбросок Телосложения.*вручную/);w.e.closeCastModal();
+    w.a.castSpellFx(w.sp.id,w.c.id);assert.doesNotMatch(w.e.elementText('castInfo'),/учитываются вручную/);w.e.closeCastModal();
     const rolls=castRolls(w,w.sp),before=plain(w.target);assert.equal(rolls.saveMade,false,'initial stun has no save');
     const result=await w.apply(rolls);assert.equal(success(result),true);assert.equal(w.target.hp,hp);assert.equal(w.target.hpTemp,50);assert.ok(w.e.effectiveConditions(w.target).includes('Сбитый с ног'));
     assert.equal(w.e.effectiveConditions(w.target).includes('Ошеломленный'),hp===150);
@@ -219,10 +229,10 @@ test('malformed persisted daily-use state is blocked rather than being reset to 
   assert.equal(w.l.plan(w.c.id,w.spell(names[6]).id,'arcanum',{circle:6}).ok,false);
 });
 
-test('bad targets and manual-only catalogue spells fail closed before daily use, HP or other resources change',async()=>{
+test('bad targets and missing sixth-circle components or facts fail before daily use, HP or other resources change',async()=>{
   const w=world({level:13}),six=await learn(w,6),seven=await learn(w,7),before=plain([w.c,w.target]);
   assert.equal(success(await cast(w,seven,{target:'ally:no-such-target'})),false);assert.deepEqual(plain([w.c,w.target]),before);
-  assert.equal(success(await cast(w,six,{rolls:{}})),false,'arcanum access cannot invent an unimplemented spell effect');assert.deepEqual(plain([w.c,w.target]),before);
+  assert.equal(success(await cast(w,six,{rolls:{}})),false,'arcanum access cannot invent components or willing-touch facts');assert.deepEqual(plain([w.c,w.target]),before);
 });
 
 test('a rejected durable cast restores target HP and its daily resource and can then be retried',async()=>{
