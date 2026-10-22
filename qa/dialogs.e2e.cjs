@@ -30,7 +30,7 @@ const server=http.createServer((req,res)=>{
   await die.click();
   const dialog=page.getByRole('dialog',{name:'⚂ Инициатива',exact:true}),input=dialog.getByRole('spinbutton',{name:'d20',exact:true});
   await input.waitFor();await input.focus();
-  await input.press('Shift+Tab');assert.equal(await focused(dialog.getByRole('button',{name:'Отмена',exact:true})),true);
+  await input.press('Shift+Tab');await page.waitForTimeout(100);assert.equal(await focused(dialog.getByRole('button',{name:'Отмена',exact:true})),true);
   await page.keyboard.press('Tab');assert.equal(await focused(input),true);
   assert.equal(await page.locator('.wrap').evaluate(el=>el.inert),true);checks.push('dialog has name, labeled dice and keyboard focus remains inside');
   await input.fill('21');await dialog.getByRole('button',{name:'Рассчитать и применить'}).click();

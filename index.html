@@ -4187,7 +4187,7 @@ document.getElementById('rollTitle').textContent=spec.title||'⚂ Результ
 document.getElementById('rollNote').textContent=spec.note||'';
 const decline=document.getElementById('rollDecline');if(decline)decline.style.display=typeof spec.onDecline==='function'?'':'none';
 document.getElementById('rollRows').innerHTML=rollPromptRowsHTML(spec.rows);
-document.getElementById('rollLive').textContent='…';back.style.display='flex';const f=document.getElementById('rollV0');if(f)setTimeout(()=>f.focus(),50);rollLiveUpd();return true;
+document.getElementById('rollLive').textContent='…';back.style.display='flex';const f=document.getElementById('rollV0');if(f&&typeof f.focus==='function')f.focus();rollLiveUpd();return true;
 }
 function rollPromptNext(){if(rollSpec||rollCompleting||!rollQueue.length)return false;return rollPromptOpen(rollQueue.shift());}
 function askShow(o){
