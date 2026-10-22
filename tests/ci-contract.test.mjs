@@ -189,7 +189,8 @@ test('strict browser summary validation fails closed for every acceptance signal
 });
 
 test('integration CI job installs Chromium, avoids the duplicate full suite and gates Pages build', () => {
-  assert.match(workflow, /\n  integration:\n    needs: test\n[\s\S]*?run: npm install/);
+  assert.match(workflow, /\n  integration:\n    needs: test\n[\s\S]*?run: npm ci/);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(root,'package-lock.json'),'utf8')).packages[''].devDependencies['brotli-dec-wasm'],'2.3.0','delivery decoder is locked for clean CI installs');
   assert.match(workflow, /\n  integration:\n[\s\S]*?npx playwright install --with-deps chromium/);
   assert.match(workflow, /\n  integration:\n[\s\S]*?node scripts\/build-pages-site\.mjs/);
   assert.match(workflow, /release\.commit!==process\.env\.GITHUB_SHA/);
@@ -198,7 +199,7 @@ test('integration CI job installs Chromium, avoids the duplicate full suite and 
   assert.match(workflow, /if: always\(\)[\s\S]*?actions\/upload-artifact@v4[\s\S]*?path: qa\/evidence\//);
   assert.match(workflow, /QA_SITE_ROOT: _site\n\s+QA_EXPECTED_COMMIT: \$\{\{ github.sha \}\}\n\s+run: npm run qa:grimoire-workbench/);
   assert.equal(packageJson.scripts['qa:grimoire-workbench'], 'node qa/grimoire-workbench.e2e.cjs');
-  for(const name of ['public-shell','spell-learning','mystic-arcanum','local-persistence']) {
+  for(const name of ['public-shell','spell-learning','mystic-arcanum','local-persistence','loading','delivery-failures','release-navigation']) {
     const script=packageJson.scripts['qa:'+name];
     assert.ok(script && fs.existsSync(path.join(root,script.slice('node '.length))),name+' has an executable acceptance runner');
     assert.ok(workflow.includes('npm run qa:'+name),name+' gates deployment');

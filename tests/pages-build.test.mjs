@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync, readdirSync, statSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync, mkdtempSync, mkdirSync, writeFileSync, copyFileSync, cpSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -65,19 +65,34 @@ test('Pages build validates and publishes only the current immutable catalog', (
   const versionedIndex = readFileSync(new URL(`../_site/releases/${release}/index.html`, import.meta.url), 'utf8');
   const releaseManifest = JSON.parse(readFileSync(new URL('../_site/release.json', import.meta.url), 'utf8'));
   assert.equal(builtIndex, versionedIndex);
-  assert.match(builtIndex, new RegExp(`href="/dnd-world/styles/treasure-workspaces\\.css\\?release=${release}"`));
-  assert.match(builtIndex, new RegExp(`href="/dnd-world/styles/gm-reference\\.css\\?release=${release}"`));
+  assert.match(builtIndex, /href="\/dnd-world\/styles\/treasure-workspaces\.css\?v=[0-9a-f]{64}"/u);
+  assert.match(builtIndex, /href="\/dnd-world\/styles\/gm-reference\.css\?v=[0-9a-f]{64}"/u);
   assert.match(readFileSync(new URL('../_site/styles/treasure-workspaces.css', import.meta.url), 'utf8'), /\.trade-workspace/);
   assert.doesNotMatch(builtIndex, /__DND_WORLD_RELEASE__/);
   assert.match(builtIndex, new RegExp(`<meta name="dnd-world-release" content="${release}">`));
   assert.match(builtIndex, /<base href="\/dnd-world\/">/);
-  assert.match(builtIndex, new RegExp(`href="/dnd-world/styles\\.css\\?release=${release}"`));
-  for (const path of [...report.runtime, 'data/dnd5e/open5e-cc-v1/catalog.js', 'data/dnd5e/srd51-spell-facts.js']) {
-    assert.match(builtIndex, new RegExp(`src="/dnd-world/${path.replaceAll('.', '\\.')}\\?release=${release}"`), `${path} must be release-addressed`);
+  assert.match(builtIndex, /href="\/dnd-world\/styles\.css\?v=[0-9a-f]{64}"/u);
+  const sourceIndex = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const orderedSources = [...sourceIndex.matchAll(/<script src="([^"]+)"><\/script>/gu)].map(([,path])=>path);
+  assert.deepEqual(report.delivery.flatMap(asset=>asset.sources), [...orderedSources, 'index.html#application']);
+  assert.ok(Buffer.byteLength(builtIndex)<40000, 'HTML must not carry the multi-megabyte engine');
+  assert.ok(builtIndex.indexOf('<script data-delivery-bootstrap>')<builtIndex.indexOf('<link'), 'downloads start before any external stylesheet can block the loader');
+  assert.match(builtIndex, /<link[^>]+fonts\.googleapis\.com[^>]+media="print"[^>]+onload="this\.media='all'"/u, 'decorative fonts cannot block the first playable frame');
+  assert.ok(report.delivery.length<=10, 'startup must avoid dozens of separate runtime requests');
+  for (const asset of report.delivery) {
+    const code = readFileSync(new URL(`../_site/${asset.path}`, import.meta.url));
+    assert.equal(createHash('sha256').update(code).digest('hex'), asset.hash);
+    assert.equal(createHash('sha256').update(code).digest('base64'), asset.integrity.slice(7));
+    assert.ok(builtIndex.includes(`"url":"/dnd-world/${asset.path}"`));
+    assert.ok(builtIndex.includes(`"sha256":"${asset.hash}"`));
+    for (const path of asset.sources) {
+      const original = path==='index.html#application' ? sourceIndex.match(/<script>\s*([\s\S]*?)<\/script>/u)[1] : readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+      assert.ok(code.toString().includes(original), `${path} must retain its exact game code`);
+    }
   }
   for (const [, path] of builtIndex.matchAll(/<(?:script|link)\b[^>]*(?:src|href)="([^"?#]+\.(?:js|css))[^"]*"/gu)) {
     if (/^https?:/u.test(path)) continue;
-    assert.ok(builtIndex.includes(`"${path}?release=${release}"`), `${path} must not retain stale assets after a release`);
+    assert.ok(/\/delivery\/[0-9a-f]{64}\.js$/u.test(path) || builtIndex.includes(`"${path}?v=`), `${path} must be content-addressed`);
   }
   assert.deepEqual(releaseManifest, {
     schemaVersion: 'dnd-world-release/1',
@@ -113,9 +128,12 @@ test('Pages preflight rejects a missing runtime tag without replacing the previo
   for (const path of privatePaths) write(path, 'historical diagnostic evidence');
   const runtimePaths = [`data/bg3/${version}/mechanics-coverage.json`, `data/bg3/${version}/rule-program-coverage.json`, `data/bg3/${version}/source/gold-values.json`, 'data/dnd5e/SRD51-NOTICE.md'];
   for (const path of runtimePaths) write(path, 'required runtime contract or notice');
-  const index = `<head><meta name="dnd-world-release" content="__DND_WORLD_RELEASE__">${tags.map(([tag])=>tag).join('\n')}</head>`;
+  const index = `<head><meta name="dnd-world-release" content="__DND_WORLD_RELEASE__"></head><body>${tags.map(([tag])=>tag+(tag.startsWith('<script')?'</script>':'')).join('\n')}<script>'use strict'; globalThis.fixtureReady=true;</script></body>`;
   write('index.html', index);
   copyFileSync(new URL('../scripts/build-pages-site.mjs', import.meta.url), join(fixture, 'scripts/build-pages-site.mjs'));
+  copyFileSync(new URL('../scripts/pages-delivery.mjs', import.meta.url), join(fixture, 'scripts/pages-delivery.mjs'));
+  copyFileSync(new URL('../scripts/compressed-delivery.js', import.meta.url), join(fixture, 'scripts/compressed-delivery.js'));
+  cpSync(new URL('../node_modules/brotli-dec-wasm', import.meta.url), join(fixture, 'node_modules/brotli-dec-wasm'), {recursive:true});
   write('_site/index.html', 'previous working release');
   const run = (...args) => spawnSync(process.execPath, ['scripts/build-pages-site.mjs', ...args], {
     cwd:fixture, encoding:'utf8', env:{...process.env, DND_WORLD_RELEASE:'1234567890abcdef1234567890abcdef12345678'},
@@ -150,7 +168,7 @@ test('cached canonical page replaces itself with the newly deployed versioned re
   const requests = [];
   const context = {
     URL,
-    location: {hostname: 'eliasthetiger.github.io', origin: 'https://eliasthetiger.github.io', href: 'https://eliasthetiger.github.io/dnd-world/'},
+    location: {hostname: 'eliasthetiger.github.io', origin: 'https://eliasthetiger.github.io', href: 'https://eliasthetiger.github.io/dnd-world/', replace(value){written.push(value);}},
     document: {
       open() { written.push('open'); },
       write(value) { written.push(value); },
@@ -171,7 +189,14 @@ test('cached canonical page replaces itself with the newly deployed versioned re
     `https://eliasthetiger.github.io/dnd-world/releases/${newRelease}/index.html`,
   ]);
   assert.ok(requests.every(url => new URL(url).origin === context.location.origin), 'release bootstrap must not depend on a rate-limited cross-origin API');
-  assert.equal(written[0], 'open');
-  assert.match(written[1], /new release/);
-  assert.equal(written[2], 'close');
+  assert.deepEqual(written, [`https://eliasthetiger.github.io/dnd-world/releases/${newRelease}/index.html`]);
+  assert.equal(context.DND_WORLD_RELOADING,true);
+
+  // A pre-delivery cached page may already have written the new HTML into its
+  // live realm. The new bootstrap must navigate without executing new globals.
+  written.length=0;requests.length=0;
+  context.DND_WORLD_RELEASE=oldRelease;
+  vm.runInNewContext(bootstrap.replaceAll('__DND_WORLD_RELEASE__',newRelease),context);
+  assert.deepEqual(written,[`https://eliasthetiger.github.io/dnd-world/releases/${newRelease}/index.html`]);
+  assert.deepEqual(requests,[]);
 });

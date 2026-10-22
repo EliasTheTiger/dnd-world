@@ -26,13 +26,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Install pinned build and test dependencies
+        run: npm ci
       - name: Run every runtime and catalog test
         run: node --test tests/*.test.*
 
   integration:
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -41,7 +43,7 @@ jobs:
         with:
           node-version: 24
       - name: Install QA dependencies
-        run: npm install
+        run: npm ci
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
       - name: Build the exact Pages candidate under test
@@ -86,6 +88,15 @@ jobs:
           QA_SITE_ROOT: _site
           QA_EXPECTED_COMMIT: ${{ github.sha }}
         run: npm run qa:public-shell
+      - name: Check cold and warm loading with saved characters and combat
+        env:
+          QA_SITE_ROOT: _site
+          QA_EXPECTED_COMMIT: ${{ github.sha }}
+          QA_EXPECT_COMPRESSED_DELIVERY: '1'
+        run: |
+          npm run qa:loading
+          npm run qa:delivery-failures
+          npm run qa:release-navigation
       - name: Check Mystic Arcanum choices, casting and recovery
         env:
           QA_SITE_ROOT: _site
@@ -162,7 +173,9 @@ jobs:
           node scripts/build-bg3-item-presentation.mjs --check
           node scripts/build-bg3-placement-browser.mjs --check
       - name: Build current-only site artifact
-        run: node scripts/build-pages-site.mjs
+        run: |
+          npm ci
+          node scripts/build-pages-site.mjs
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:

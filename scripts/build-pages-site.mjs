@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { prepareDelivery } from './pages-delivery.mjs';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dataRoot = join(repositoryRoot, 'data', 'bg3');
@@ -51,7 +52,7 @@ function releaseId() {
   return commit;
 }
 
-function renderPublishedIndex(source, release) {
+async function renderPublishedIndex(source, release, catalogPaths) {
   let rendered = source.replaceAll(RELEASE_PLACEHOLDER, release);
   const assets = [
     { attribute: 'href', path: 'styles.css' },
@@ -65,11 +66,17 @@ function renderPublishedIndex(source, release) {
   for (const asset of assets) {
     const original = `${asset.attribute}="${asset.path}"`;
     invariant(rendered.includes(original), `index.html is missing published asset: ${asset.path}`);
-    rendered = rendered.replaceAll(original, `${asset.attribute}="${PAGES_BASE}${asset.path}?release=${release}"`);
+  }
+
+  const delivery = await prepareDelivery(rendered, repositoryRoot, PAGES_BASE, catalogPaths);
+  rendered = delivery.html;
+  for (const asset of assets.filter(asset => asset.attribute === 'href')) {
+    const hash = sha256(await readFile(join(repositoryRoot, asset.path)));
+    rendered = rendered.replaceAll(`href="${asset.path}"`, `href="${PAGES_BASE}${asset.path}?v=${hash}"`);
   }
 
   invariant(rendered.includes('<head>'), 'index.html is missing <head>');
-  return rendered.replace('<head>', `<head>\n<base href="${PAGES_BASE}">`);
+  return {renderedIndex:rendered.replace('<head>', `<head>\n<base href="${PAGES_BASE}">`), deliveryAssets:delivery.assets, deliveryGenerated:delivery.generated};
 }
 
 async function inspectTree(root) {
@@ -139,7 +146,9 @@ async function validateInputs() {
   const indexSource = await readFile(indexPath, 'utf8');
   invariant(indexSource.includes(RELEASE_PLACEHOLDER), 'index.html is missing the release placeholder');
   const release = releaseId();
-  const renderedIndex = renderPublishedIndex(indexSource, release);
+  const catalogPaths = [`data/bg3/${version}/manifest.json`, `data/bg3/ui/${version}-item-presentation/manifest.json`];
+  if(manifest.entrypoints?.searchIndex)catalogPaths.push(`data/bg3/${version}/${manifest.entrypoints.searchIndex}`);
+  const {renderedIndex, deliveryAssets, deliveryGenerated} = await renderPublishedIndex(indexSource, release, catalogPaths);
   const releaseManifest = `${JSON.stringify({
     schemaVersion: 'dnd-world-release/1',
     commit: release,
@@ -149,11 +158,12 @@ async function validateInputs() {
   const styleBytes = (await stat(join(repositoryRoot, 'styles.css'))).size;
   const currentBytes = (await stat(currentPath)).size;
   const runtimeBytes = (await Promise.all(runtimeFiles.map(name => stat(join(repositoryRoot, 'scripts', name))))).reduce((sum, row) => sum + row.size, 0);
-  const bytes = measurements.reduce((sum, row) => sum + row.bytes, indexBytes + styleBytes + currentBytes + runtimeBytes + Buffer.byteLength(releaseManifest));
-  const files = measurements.reduce((sum, row) => sum + row.files, 6 + runtimeFiles.length);
+  const deliveryBytes = [...deliveryAssets,...deliveryGenerated].reduce((sum, asset) => sum + Buffer.byteLength(asset.code), 0);
+  const bytes = measurements.reduce((sum, row) => sum + row.bytes, indexBytes + styleBytes + currentBytes + runtimeBytes + deliveryBytes + Buffer.byteLength(releaseManifest));
+  const files = measurements.reduce((sum, row) => sum + row.files, 6 + runtimeFiles.length + deliveryAssets.length + deliveryGenerated.length);
   invariant(bytes < 10_000_000_000, 'current Pages artifact exceeds the 10 GB upload limit');
 
-  return { currentPath, version, catalogRoot, uiRoot, uiNames, files, bytes, renderedIndex, releaseManifest, release };
+  return { currentPath, version, catalogRoot, uiRoot, uiNames, files, bytes, renderedIndex, releaseManifest, release, deliveryAssets, deliveryGenerated };
 }
 
 async function buildSite(inputs) {
@@ -161,6 +171,8 @@ async function buildSite(inputs) {
   await mkdir(join(outputRoot, 'data', 'bg3', 'ui'), { recursive: true });
   await mkdir(join(outputRoot, 'releases', inputs.release), { recursive: true });
   await mkdir(join(outputRoot, 'scripts'), { recursive: true });
+  await mkdir(join(outputRoot, 'scripts', 'delivery'), { recursive: true });
+  for (const asset of [...inputs.deliveryAssets,...inputs.deliveryGenerated]) await writeFile(join(outputRoot, asset.path), asset.code);
   await writeFile(join(outputRoot, 'index.html'), inputs.renderedIndex);
   await writeFile(join(outputRoot, 'releases', inputs.release, 'index.html'), inputs.renderedIndex);
   await writeFile(join(outputRoot, 'release.json'), inputs.releaseManifest);
@@ -190,5 +202,6 @@ process.stdout.write(`${JSON.stringify({
   files: inputs.files,
   bytes: inputs.bytes,
   runtime: runtimeFiles.map(name => `scripts/${name}`),
+  delivery: inputs.deliveryAssets.map(({path, hash, integrity, sources}) => ({path, hash, integrity, sources})),
   ui: inputs.uiNames,
 }, null, 2)}\n`);

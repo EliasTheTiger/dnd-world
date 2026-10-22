@@ -11,8 +11,16 @@
 <script data-release-bootstrap>
 (() => {
   const embedded = '__DND_WORLD_RELEASE__';
+  const previous = globalThis.DND_WORLD_RELEASE;
   globalThis.DND_WORLD_RELEASE = embedded;
   if (typeof location === 'undefined' || location.hostname !== 'eliasthetiger.github.io' || !/^[0-9a-f]{40}$/u.test(embedded)) return;
+  // Older cached releases used document.write. Leave that realm before any
+  // new classic scripts can collide with its existing lexical bindings.
+  if (/^[0-9a-f]{40}$/u.test(String(previous || '')) && previous !== embedded) {
+    globalThis.DND_WORLD_RELOADING = true;
+    location.replace(new URL('/dnd-world/releases/' + embedded + '/index.html', location.origin).href);
+    return;
+  }
   const releaseManifest = new URL('/dnd-world/release.json', location.origin);
   fetch(releaseManifest, {cache: 'no-store'}).then(response => response.ok ? response.json() : null).then(release => {
     const latest = String(release && release.commit || '').toLowerCase();
@@ -21,15 +29,14 @@
     return fetch(versioned, {cache: 'no-store'}).then(response => response.ok ? response.text() : '').then(html => {
       const marker = '<meta name="dnd-world-release" content="' + latest + '">';
       if (!html.includes(marker)) return;
-      document.open();
-      document.write(html);
-      document.close();
+      globalThis.DND_WORLD_RELOADING = true;
+      location.replace(versioned.href);
     });
   }).catch(() => {});
 })();
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="styles/treasure-workspaces.css">
 <link rel="stylesheet" href="styles/gm-reference.css">
@@ -1607,7 +1614,7 @@ spellLearning:{replacements:0,anyClassChoices:0}
 }
 async function ensureTorgar(){
 const flag=await store.get('dndworld2:torgar');
-if(flag==='1') return;
+if(flag==='1'&&chars.some(c=>c.id==='char_torgar')) return;
 const torgRemap={'Трутница':'it_tinderbox_t','Набор целителя (10 исп.)':'it_healer_kit_t'};
 const torgOldIds={};
 itemsDB.forEach(o=>{ if(torgRemap[o.n] && o.id!==torgRemap[o.n]) torgOldIds[o.id]=torgRemap[o.n]; });
@@ -1780,7 +1787,7 @@ val:'В, С, М (алмаз стоимостью не менее 50 зм)'}
 
 async function ensureSeptih(){
 const flag=await store.get('dndworld2:septih');
-if(flag==='1') return;
+if(flag==='1'&&chars.some(c=>c.id==='char_septih')) return;
 
 if(!racesDB.some(r=>r.n==='Чейнджлинг')) racesDB.push(JSON.parse(JSON.stringify(CHANGELING_RACE)));
 
@@ -1975,7 +1982,7 @@ persona:{tr:'',id:'',bd:'',fl:'',ap:''}
 
 async function ensureLegerem(){
 const flag=await store.get('dndworld2:legerem');
-if(flag==='1') return;
+if(flag==='1'&&chars.some(c=>c.id==='char_legerem')) return;
 LEGEREM_ITEMS.forEach(it=>{
 if(!itemsDB.some(o=>o.id===it.id)){
 const o=Object.assign({},it);
@@ -3886,10 +3893,11 @@ function worldSnapshotPayload(){const snapshotRevision=++worldSnapshotRevision,p
 classes:classesDB,rules:rulesDB,foes:foesDB,fxRound,combat,harvestedSources,economyState,merchantState,worldState,chestState,catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};return PROJECTION_CORE?PROJECTION_CORE.stripDerived(payload):payload;}
 function validWorldSnapshot(value){return !!(value&&value.schemaVersion===WORLD_SNAPSHOT_SCHEMA&&Array.isArray(value.chars)&&Array.isArray(value.items)
 &&Array.isArray(value.spells)&&Array.isArray(value.abilities)&&Array.isArray(value.races)&&Array.isArray(value.classes)&&Array.isArray(value.rules)&&Array.isArray(value.foes));}
-let savePendWorld=false, savePendJournal=false;
+let savePendWorld=false, savePendJournal=false,campaignSeedPending=false;
 let scheduledSaveQueue=Promise.resolve(true),scheduledSaveOperations=0,saveCompletionStatusVersion=null;
 async function runScheduledSaveNow(progress){
 progress=progress||{};
+if(campaignSeedPending)return false;
 const w=savePendWorld, j=savePendJournal;
 savePendWorld=savePendJournal=false;
 const statusVersion=pendingSaveStatusVersion==null?saveStatusVersion:pendingSaveStatusVersion;
@@ -4048,6 +4056,8 @@ const savedWorld=validWorldSnapshot(savedWorldRaw)?savedWorldRaw:null;
 // Validate existing party bytes before any catalogue migration can queue a save.
 const savedChars=savedWorld?savedWorld.chars:await readSavedParty('dndworld2:chars');
 const oldChars=Array.isArray(savedChars)?null:await readSavedParty('dndworld:chars');
+const hasSavedParty=Array.isArray(savedChars)||Array.isArray(oldChars);
+campaignSeedPending=!hasSavedParty;
 campaignMagic=MAGIC_RULES.settings(savedWorld&&savedWorld.campaignMagic);
 recipeState=RECIPE_RULES.state(savedWorld&&savedWorld.recipeState);
 worldState=WORLD_STATE_CORE?WORLD_STATE_CORE.normalize(savedWorld&&savedWorld.worldState||WORLD_STATE_CORE.blank('default')):(savedWorld&&savedWorld.worldState||worldState);
@@ -4079,7 +4089,6 @@ enrichAllTags();
 await store.set('dndworld2:tagver','2');
 scheduleSave();
 }
-const hasSavedParty=Array.isArray(savedChars)||Array.isArray(oldChars);
 chars=Array.isArray(savedChars)?savedChars:Array.isArray(oldChars)?oldChars.map(upgradeOldChar):[buildRoku()];
 if(typeof bg3InventoryStatusTransitionReset==='function')bg3InventoryStatusTransitionReset();
 let bg3LearnedStateTouched=false;chars.forEach(c=>{ if(typeof upgradeChar3==='function') upgradeChar3(c);if(bg3LearnedSpellUpgradeEntries(c))bg3LearnedStateTouched=true; });bg3GithbornMindcrusherTrustCharacters(chars);
@@ -4117,6 +4126,9 @@ const bg3ProfileMigrationNeeded=bg3HonourProfileMigrated||bg3CatalogHasHonourLea
 if(!bg3Reissue.ok)setStatus('Обновлённая публикация каталога не прошла проверку; сохранённая ссылка не изменена.',true);
 if(!bg3LearnedProfile.ok)setStatus('Обычные правила включены, но часть изученных заклинаний каталога не удалось безопасно перепривязать: '+bg3LearnedProfile.reason,true);
 if(bg3Reissue.ok&&bg3LearnedProfile.ok&&!bg3Catalog.error&&bg3World.ok){if(bg3ProfileMigrationNeeded)scheduleSave();setStatus(campaignEnvelopeReadOnlyFallback?'Данные загружены · режим только для чтения · хранилище недоступно. Оставьте страницу открытой.':'Данные загружены · обычные правила',campaignEnvelopeReadOnlyFallback);}
+// A new party must be durable before its first interactive screen. Interrupted
+// seed flags alone never prove that the corresponding heroes were saved.
+if(!hasSavedParty){campaignSeedPending=false;clearTimeout(saveTimer);await runScheduledSave();}
 }
 
 
@@ -26546,7 +26558,7 @@ if(byItem.size!==payload.items.length||detailCount!==+storage.detailItemCount)th
 }
 async function bg3ItemPresentationEnsure(){
 if(!bg3ItemPresentationEligible())return null;if(bg3ItemPresentation.root)return bg3ItemPresentation.root;if(bg3ItemPresentation.loading)return bg3ItemPresentation.loading;const epoch=bg3Catalog.epoch;
-const core=(async()=>{const payload=await bg3FetchPinnedJSON(BG3_ITEM_PRESENTATION_BASE+'manifest.json',BG3_ITEM_PRESENTATION_MANIFEST_SHA256,'reload');bg3CatalogAssertEpoch(epoch);const root=bg3ItemPresentationValidateRoot(payload);bg3ItemPresentation.root=root;bg3ItemPresentation.byItem=root.byItem;bg3ItemPresentation.detailFiles=root.detailFiles;bg3ItemPresentation.searchFiles=root.searchFiles;bg3ItemPresentation.error='';return root;})();bg3ItemPresentation.loading=core;
+const core=(async()=>{const payload=await bg3FetchPinnedJSON(BG3_ITEM_PRESENTATION_BASE+'manifest.json',BG3_ITEM_PRESENTATION_MANIFEST_SHA256,'reload-on-mismatch');bg3CatalogAssertEpoch(epoch);const root=bg3ItemPresentationValidateRoot(payload);bg3ItemPresentation.root=root;bg3ItemPresentation.byItem=root.byItem;bg3ItemPresentation.detailFiles=root.detailFiles;bg3ItemPresentation.searchFiles=root.searchFiles;bg3ItemPresentation.error='';return root;})();bg3ItemPresentation.loading=core;
 try{return await core;}catch(error){if(epoch===bg3Catalog.epoch)bg3ItemPresentation.error=String(error&&error.message||error);throw error;}finally{if(bg3ItemPresentation.loading===core)bg3ItemPresentation.loading=null;}
 }
 function bg3ItemPresentationValidateDetail(payload,descriptor,root){
@@ -26555,14 +26567,14 @@ return payload;
 }
 async function bg3ItemPresentationLoadDetail(itemId){
 const root=await bg3ItemPresentationEnsure();if(!root)return null;const meta=root.byItem.get(String(itemId||''));if(!meta||meta.detailShard==null)return null;if(bg3ItemPresentation.details.has(meta.itemId))return bg3ItemPresentation.details.get(meta.itemId);const shard=meta.detailShard;if(bg3ItemPresentation.detailPromises.has(shard))return bg3ItemPresentation.detailPromises.get(shard).then(()=>bg3ItemPresentation.details.get(meta.itemId)||null);const descriptor=root.detailFiles.get(shard),epoch=bg3Catalog.epoch;
-if(bg3ItemPresentation.detailErrors.has(shard))throw new Error(bg3ItemPresentation.detailErrors.get(shard));const core=(async()=>{const payload=await bg3FetchPinnedJSON(BG3_ITEM_PRESENTATION_BASE+descriptor.path,descriptor.sha256,'reload');bg3CatalogAssertEpoch(epoch);bg3ItemPresentationValidateDetail(payload,descriptor,root);bg3ItemPresentation.detailShards.set(shard,payload);for(const item of payload.items)bg3ItemPresentation.details.set(item.itemId,item);bg3ItemPresentation.detailErrors.delete(shard);return payload;})();bg3ItemPresentation.detailPromises.set(shard,core);try{await core;return bg3ItemPresentation.details.get(meta.itemId)||null;}catch(error){if(epoch===bg3Catalog.epoch)bg3ItemPresentation.detailErrors.set(shard,String(error&&error.message||error));throw error;}finally{if(bg3ItemPresentation.detailPromises.get(shard)===core)bg3ItemPresentation.detailPromises.delete(shard);}
+if(bg3ItemPresentation.detailErrors.has(shard))throw new Error(bg3ItemPresentation.detailErrors.get(shard));const core=(async()=>{const payload=await bg3FetchPinnedJSON(BG3_ITEM_PRESENTATION_BASE+descriptor.path,descriptor.sha256,'reload-on-mismatch');bg3CatalogAssertEpoch(epoch);bg3ItemPresentationValidateDetail(payload,descriptor,root);bg3ItemPresentation.detailShards.set(shard,payload);for(const item of payload.items)bg3ItemPresentation.details.set(item.itemId,item);bg3ItemPresentation.detailErrors.delete(shard);return payload;})();bg3ItemPresentation.detailPromises.set(shard,core);try{await core;return bg3ItemPresentation.details.get(meta.itemId)||null;}catch(error){if(epoch===bg3Catalog.epoch)bg3ItemPresentation.detailErrors.set(shard,String(error&&error.message||error));throw error;}finally{if(bg3ItemPresentation.detailPromises.get(shard)===core)bg3ItemPresentation.detailPromises.delete(shard);}
 }
 function bg3ItemPresentationValidateSearch(payload,descriptor,root,profile,seen,docs){
 if(!payload||payload.schemaVersion!==BG3_ITEM_PRESENTATION_SEARCH_SCHEMA||payload.catalogVersion!==root.raw.catalogVersion||payload.sourceBuildId!==root.raw.sourceBuildId||payload.shard!==descriptor.shard||!Array.isArray(payload.rows)||+payload.rowCount!==payload.rows.length||payload.rows.length!==descriptor.count||profile!==BG3_GAME_RULES_PROFILE)throw new Error('часть расширенного поиска presentation-проекции повреждена');for(const raw of payload.rows){if(!Array.isArray(raw)||raw.length!==3)throw new Error('неверная строка расширенного поиска');const [itemIndex,description,standard]=raw,meta=root.raw.items[itemIndex]&&root.byItem.get(root.raw.items[itemIndex][0]),nullable=value=>value==null||typeof value==='string';if(!Number.isInteger(itemIndex)||!meta||seen.has(itemIndex)||!nullable(description)||!nullable(standard)||standard==null)throw new Error('неверный itemIndex расширенного поиска');seen.add(itemIndex);docs.set(meta.itemId,((description||'')+' '+(standard||'')).trim());}return payload;
 }
 async function bg3ItemPresentationEnsureSearch(){
 const root=await bg3ItemPresentationEnsure();if(!root)return new Map();if(bg3ItemPresentation.searchReady)return bg3ItemPresentation.searchDocs;if(bg3ItemPresentation.searchLoading)return bg3ItemPresentation.searchLoading;const epoch=bg3Catalog.epoch,profile=bg3Catalog.preferredProfile||'standard',seen=new Set(),docs=new Map(),descriptors=[...root.searchFiles.values()].sort((a,b)=>a.shard.localeCompare(b.shard));
-const core=(async()=>{const payloads=await Promise.all(descriptors.map(descriptor=>bg3FetchPinnedJSON(BG3_ITEM_PRESENTATION_BASE+descriptor.path,descriptor.sha256,'reload').then(payload=>({payload,descriptor}))));bg3CatalogAssertEpoch(epoch);for(const row of payloads)bg3ItemPresentationValidateSearch(row.payload,row.descriptor,root,profile,seen,docs);if(seen.size!==root.raw.items.length)throw new Error('расширенный поиск не покрывает точный набор предметов');bg3ItemPresentation.searchDocs=docs;bg3ItemPresentation.searchReady=true;bg3ItemPresentation.searchError='';return docs;})();bg3ItemPresentation.searchLoading=core;
+const core=(async()=>{const payloads=await Promise.all(descriptors.map(descriptor=>bg3FetchPinnedJSON(BG3_ITEM_PRESENTATION_BASE+descriptor.path,descriptor.sha256,'reload-on-mismatch').then(payload=>({payload,descriptor}))));bg3CatalogAssertEpoch(epoch);for(const row of payloads)bg3ItemPresentationValidateSearch(row.payload,row.descriptor,root,profile,seen,docs);if(seen.size!==root.raw.items.length)throw new Error('расширенный поиск не покрывает точный набор предметов');bg3ItemPresentation.searchDocs=docs;bg3ItemPresentation.searchReady=true;bg3ItemPresentation.searchError='';return docs;})();bg3ItemPresentation.searchLoading=core;
 try{return await core;}catch(error){if(epoch===bg3Catalog.epoch)bg3ItemPresentation.searchError=String(error&&error.message||error);throw error;}finally{if(bg3ItemPresentation.searchLoading===core)bg3ItemPresentation.searchLoading=null;}
 }
 function bg3ItemPresentationRefresh(){if(activeWorldTab!=='itemsdb')return;const field=document.getElementById('bg3CatalogSearchInput'),focused=field&&document.activeElement===field,start=focused&&Number.isInteger(field.selectionStart)?field.selectionStart:null,end=focused&&Number.isInteger(field.selectionEnd)?field.selectionEnd:null;renderItemsDB();if(focused)bg3CatalogRestoreFilterFocus('bg3CatalogSearchInput',start,end);}
@@ -26653,7 +26665,7 @@ if(PUBLIC_ITEM_SURFACE&&PUBLIC_ITEM_SURFACE.containsForbiddenBranding(query))ret
 const ranked=[];
 for(const row of itemWorkspaceCanonicalRows()){
 if(f.taxonomy&&itemWorkspaceTaxonomyKey(row)!==f.taxonomy||f.rarity&&row.rarity!==f.rarity||f.tag&&!itemWorkspaceTagMatches(row.tags,f.tag))continue;
-const doc=itemWorkspaceDocument(row),rank=itemSearchRank(row.name,row.id,row.statsId,doc,q);
+const rank=q?itemSearchRank(row.name,row.id,row.statsId,itemWorkspaceDocument(row),q):20;
 if(q&&rank>=99)continue;ranked.push({row,rank});
 }
 const rarityRank={'обычный':0,'необычный':1,'редкий':2,'очень редкий':3,'легендарный':4,'артефакт':5};
@@ -30021,12 +30033,13 @@ if(globalThis.DndWorldDialogs)DndWorldDialogs.create({window,document,dialogs:[
 {id:'rollBack',close:rollCancel},{id:'craftBack',close:craftClose},{id:'economyExchangeBack',close:economyExchangeClose},
 {id:'characterCreator',close:characterCreatorClose}
 ]}).start();
-if(RULESET_CORE&&!await rulesetLoadManifest())return;
+if(RULESET_CORE&&!await rulesetLoadManifest()){if(globalThis.DndWorldDelivery)globalThis.DndWorldDelivery.fail();return;}
 await loadAll();
 renderRaces(); renderClasses(); renderRules();
 renderChars(); renderCombat(); renderJournal(); renderSpellsDB(); renderItemsDB(); renderMerchants(); renderAbilitiesDB(); renderFoes();
 if(globalThis.DndWorldNavigation){worldNavigation=DndWorldNavigation.create({window,document,onNavigate:switchTab});worldNavigation.start();}
 if(bg3CatalogNeedsProductionRecovery())switchTab('itemsdb');
+if(globalThis.DndWorldDelivery)globalThis.DndWorldDelivery.ready();
 
 
 

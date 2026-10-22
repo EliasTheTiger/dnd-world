@@ -1,0 +1,223 @@
+{
+  "schemaVersion": "dnd-world-loading-audit/1",
+  "date": "2026-10-22",
+  "baseCommit": "f8d8875e581b74518665fce8bb86c0a8dab983a4",
+  "scope": [
+    "First and repeat page loading",
+    "Spell and item catalog loading",
+    "Existing saved campaign, combat and spellcasting preservation"
+  ],
+  "changes": [
+    "Lossless content-addressed Brotli delivery with verified original-file fallback",
+    "Concurrent downloads, ordered classic-script execution and inert controls until campaign recovery",
+    "Nonblocking decorative fonts",
+    "Pinned HTTP caching for item presentation with reload on mismatch",
+    "Empty-query search avoids description processing",
+    "Atomic first-party creation and safe navigation from older cached releases"
+  ],
+  "invariants": [
+    "No storage keys or campaign schema changes",
+    "No character reset or new campaign creation",
+    "No gameplay RNG introduced",
+    "Published source code and static catalog bytes are reconstructed exactly",
+    "Engineering tests and audit records remain outside the public site"
+  ],
+  "controlled": {
+    "method": "3 cold and 3 warm isolated Chromium contexts per version; 1.5 Mbit/s, 150 ms; external fonts blocked through CDP, no request interception; real HTTP caching",
+    "before": {
+      "cold": {
+        "heroReadyMs": 13312,
+        "spellCatalogReadyMs": 13347,
+        "itemCatalogReadyMs": 20704,
+        "itemCatalogOpenMs": 7351,
+        "transferBytes": 3367463
+      },
+      "warm": {
+        "heroReadyMs": 1337,
+        "spellCatalogReadyMs": 1358,
+        "itemCatalogReadyMs": 2415,
+        "itemCatalogOpenMs": 1067,
+        "transferBytes": 86109
+      }
+    },
+    "after": {
+      "cold": {
+        "heroReadyMs": 9855,
+        "spellCatalogReadyMs": 9889,
+        "itemCatalogReadyMs": 15378,
+        "itemCatalogOpenMs": 5489,
+        "transferBytes": 2383586
+      },
+      "warm": {
+        "heroReadyMs": 1248,
+        "spellCatalogReadyMs": 1277,
+        "itemCatalogReadyMs": 1684,
+        "itemCatalogOpenMs": 407,
+        "transferBytes": 2168
+      }
+    },
+    "sourceFiles": {
+      "before": "loading-controlled-before-isolated.json",
+      "after": "loading-controlled-after-isolated.json"
+    }
+  },
+  "delayedFont": {
+    "ok": true,
+    "readyMs": 1925,
+    "grimoireReadyMs": 1960,
+    "fontRequestedAt": 22,
+    "fontAnsweredAt": 20030,
+    "chars": [
+      "char_roku",
+      "char_torgar",
+      "char_septih",
+      "char_legerem"
+    ],
+    "errors": []
+  },
+  "preservation": {
+    "data": "Synthetic saved parties, never a real browser profile",
+    "checks": [
+      "Saved hero IDs, HP, inventory, slots, spellbook, arcanum, notes, journal, backup and unfinished combat turn",
+      "Real character editing and manually entered damage survive reload",
+      "A minute-long arcanum resumes after reload without spending a second action in the same turn",
+      "Fresh startup survives immediate reload and an autosave firing midway through party creation",
+      "Missing, corrupted, syntax-invalid and throwing assets cannot read or replace a campaign",
+      "Legacy document.write upgrade and modern navigation enter a fresh JS realm without changing save bytes"
+    ],
+    "deliveryFailureScenarios": 28,
+    "releaseUpgradeScenarios": 2
+  },
+  "validation": {
+    "fullNodeSuite": {
+      "tests": 3792,
+      "passed": 3789,
+      "failed": 2,
+      "skipped": 1,
+      "durationMs": 909514.9851,
+      "failures": "Two CI workflow contract assertions; fixed and re-run with all 7 CI contract tests passing. No gameplay test failures.",
+      "publicationGate": "The current complete Node suite must pass in GitHub Actions before deployment."
+    },
+    "builtBrowserMatrix": {
+      "passed": true,
+      "suites": 21,
+      "cases": [
+        {
+          "name": "characters",
+          "durationMs": 33484,
+          "passed": true
+        },
+        {
+          "name": "dialogs",
+          "durationMs": 3032,
+          "passed": true
+        },
+        {
+          "name": "action-ui-guard",
+          "durationMs": 2645,
+          "passed": true
+        },
+        {
+          "name": "local-persistence",
+          "durationMs": 6540,
+          "passed": true
+        },
+        {
+          "name": "public-shell",
+          "durationMs": 3752,
+          "passed": true
+        },
+        {
+          "name": "spell-learning-profile",
+          "durationMs": 10130,
+          "passed": true
+        },
+        {
+          "name": "mystic-arcanum",
+          "durationMs": 12562,
+          "passed": true
+        },
+        {
+          "name": "arcanum-completion",
+          "durationMs": 98206,
+          "passed": true
+        },
+        {
+          "name": "readiness",
+          "durationMs": 4415,
+          "passed": true
+        },
+        {
+          "name": "gm-reference",
+          "durationMs": 7229,
+          "passed": true
+        },
+        {
+          "name": "abilities",
+          "durationMs": 15632,
+          "passed": true
+        },
+        {
+          "name": "magic-systems",
+          "durationMs": 11546,
+          "passed": true
+        },
+        {
+          "name": "grimoire",
+          "durationMs": 5479,
+          "passed": true
+        },
+        {
+          "name": "grimoire-workbench",
+          "durationMs": 8722,
+          "passed": true
+        },
+        {
+          "name": "game-items",
+          "durationMs": 8466,
+          "passed": true
+        },
+        {
+          "name": "item-player-cards",
+          "durationMs": 21975,
+          "passed": true
+        },
+        {
+          "name": "game-recipes",
+          "durationMs": 12080,
+          "passed": true
+        },
+        {
+          "name": "recipe-tabletop",
+          "durationMs": 4591,
+          "passed": true
+        },
+        {
+          "name": "loading-performance",
+          "durationMs": 6841,
+          "passed": true
+        },
+        {
+          "name": "delivery-failure",
+          "durationMs": 14245,
+          "passed": true
+        },
+        {
+          "name": "release-navigation",
+          "durationMs": 11412,
+          "passed": true
+        }
+      ],
+      "artifactUnchanged": true,
+      "artifact": {
+        "files": 9184,
+        "bytes": 628015233,
+        "sha256": "5c0c294836701d28f63f6ac217a7c467a782de42e4aee718730dba67856228c8"
+      },
+      "releaseMarker": "Base commit used for the local uncommitted candidate; source SHA below identifies the exact tested application."
+    },
+    "dependencyInstall": "Clean npm ci succeeded; 0 vulnerabilities",
+    "diffCheck": "passed"
+  },
+  "sourceSha256": "eba8b5d5292ba69c72815fd81ae95253f129393396d5b523ff160235857101ed"
+}

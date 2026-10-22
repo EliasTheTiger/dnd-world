@@ -84,6 +84,8 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         damage:applyDamageTo, effects:holderFxEntries, fallDamage:characterFallDamage,
         prepareActor:bg3LifecycleEnsureActionReady,
         async load(){await bg3CatalogEnsureIndex();await bg3ItemPresentationEnsure();},
+        presentationDetail:bg3ItemPresentationLoadDetail, presentationSearch:bg3ItemPresentationEnsureSearch, resetPresentation:bg3ItemPresentationReset,
+        searchDocumentMetrics(filters){const original=itemWorkspaceDocument;let documents=0;itemWorkspaceDocument=row=>{documents++;return original(row);};try{return {rows:itemWorkspaceSearch(filters),documents};}finally{itemWorkspaceDocument=original;}},
         install(index, presentation, loaded=[]) {
           bg3Catalog.epoch++;bg3Catalog.index=index;
           bg3Catalog.summaries=new Map(index.items.map(row=>[row.id,row]));

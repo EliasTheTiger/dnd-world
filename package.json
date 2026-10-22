@@ -8,6 +8,9 @@
     "qa:dialogs": "node qa/dialogs.e2e.cjs",
     "qa:action-guard": "node qa/action-ui-guard.e2e.cjs",
     "qa:local-persistence": "node qa/local-persistence.e2e.cjs",
+    "qa:loading": "node qa/loading-performance.e2e.cjs",
+    "qa:delivery-failures": "node qa/delivery-failure.e2e.cjs",
+    "qa:release-navigation": "node qa/release-navigation.e2e.cjs",
     "qa:public-shell": "node qa/public-shell.e2e.cjs",
     "qa:spell-learning": "node qa/spell-learning-profile.e2e.cjs",
     "qa:mystic-arcanum": "node qa/mystic-arcanum.e2e.cjs",
@@ -22,6 +25,7 @@
     "qa:player:headed": "node qa/player-agent.e2e.cjs --headed"
   },
   "devDependencies": {
+    "brotli-dec-wasm": "2.3.0",
     "playwright": "1.62.1"
   }
 }
