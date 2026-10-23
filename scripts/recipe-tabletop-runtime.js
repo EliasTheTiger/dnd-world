@@ -372,7 +372,8 @@ function recipeTabletopMove(c,distance,mode='walk',running=false,difficult=false
  if(!c||!Number.isFinite(distance)||distance<=0||!['walk','long','high'].includes(mode))return {ok:false,reason:'Укажите положительную дистанцию и способ передвижения.'};
  if(mode!=='walk'&&distance>recipeTabletopJump(c,running)[mode]+1e-8)return {ok:false,reason:'Прыжок превышает доступную дальность.'};
  if(conditionForcesZeroSpeed(effectiveConditions(c)))return {ok:false,reason:'Состояние не позволяет двигаться.'};
- const cost=distance*(difficult&&!recipeTabletopFlag(c,'terrain.difficult.ignore')?2:1)+(running&&mode!=='walk'?3:0);
+ const terrain=difficult||(typeof artificerBasicInGrease==='function'&&artificerBasicInGrease(c)&&mode==='walk'&&c.artificerMovementMode!=='fly');
+ const cost=distance*(terrain&&!recipeTabletopFlag(c,'terrain.difficult.ignore')?2:1)+(running&&mode!=='walk'?3:0);
  if(combat.active){if(combatCurrentKey()!=='ally:'+c.id||cost+(+combat.turn.movementUsed||0)>combatMoveMax()+1e-8)return {ok:false,reason:'Недостаточно оставшегося движения в свой ход.'};combat.turn.movementUsed=(+combat.turn.movementUsed||0)+cost;}
  itemLog(c,(mode==='walk'?'Перемещение':mode==='long'?'Прыжок в длину':'Прыжок вверх')+': '+distance+' м; затраты движения '+cost+' м.');scheduleSave();renderCombat();return {ok:true,cost};
 }

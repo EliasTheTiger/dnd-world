@@ -13,6 +13,7 @@
     "qa:release-navigation": "node qa/release-navigation.e2e.cjs",
     "qa:public-shell": "node qa/public-shell.e2e.cjs",
     "qa:spell-learning": "node qa/spell-learning-profile.e2e.cjs",
+    "qa:alchemist": "node scripts/alchemist-browser-qa.mjs",
     "qa:mystic-arcanum": "node qa/mystic-arcanum.e2e.cjs",
     "qa:arcanum-completion": "node qa/arcanum-completion.e2e.cjs",
     "qa:readiness": "node qa/readiness.e2e.cjs",

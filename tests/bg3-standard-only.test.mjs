@@ -1,3 +1,4 @@
+import {loadArtificerScripts} from './helpers/artificer-script-loader.cjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -88,6 +89,7 @@ function loadStandardOnlyAudit() {
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
+  loadArtificerScripts(context);
   vm.runInContext(source, context, {filename: 'index.html#bg3-standard-only'});
   return context.__bg3StandardOnlyAudit;
 }

@@ -1,0 +1,238 @@
+{
+  "schemaVersion": "dnd-world-alchemist-party-browser-audit/1",
+  "date": "2026-10-23",
+  "candidate": "source working tree",
+  "browser": {
+    "ok": true,
+    "release": "__DND_WORLD_RELEASE__",
+    "checks": [
+      "Five heroes; legal half-elf Alchemist 3, HP24, AC15, prepared4+subclass2, cantrips2, held tool focus, two infusions and matching racial language/skill choices.",
+      "Twelve UI renames survive reload without resource changes.",
+      "Cancelled d6 causes no changes; rest healing elixir consumes one flask, heals 2+3+INT3, returns the empty flask.",
+      "Chosen resilience spends one slot; +1 AC and spent slot survive reload.",
+      "Held alchemist supplies satisfy casting focus; Cure Wounds heals 3+INT3 and spends exactly one slot.",
+      "Preparation stays active until long rest; rest commits four choices, replenishes slots and expires the elixir AC bonus.",
+      "Removing starter rations remains permanent after reload; the migration never refills them.",
+      "Abilities and inventory fit 390px and 320px mobile viewports.",
+      "Fire Bolt spends the action, no slot, uses entered d20/d10, and the live encounter survives reload.",
+      "Detect Magic asks for scene facts, uses one slot and maintains concentration; inspecting an aura costs the combat action and no extra slot.",
+      "Grease asks for the area, all creatures and physical saves; spends one slot, knocks the failed target prone, and refuses to advance on a cancelled repeat save. The next entered save advances once without another slot.",
+      "The public catalog finds the ordinary 100 gp Identify pearl with its priced-component card; it is never granted to Liora for free.",
+      "Archive names find the same unique Lightning Lure and Tasha’s Caustic Brew cards in the 351-spell catalog without changing the character.",
+      "Fire Bolt asks for an object’s name, AC, HP, flammability, held status, range and clear path; entered d20=15 and d10=7 reduce HP15 to8 and ignite it. Damage and fire survive reload; confirmed extinguishing survives a second reload without changing character resources."
+    ],
+    "dialogs": [
+      {
+        "message": "Кто выпивает эликсир\n1. Алхимик проверки 11 — выпить самому",
+        "type": "prompt",
+        "answer": "1"
+      },
+      {
+        "message": "Какой эликсир создать\n1. Исцеление\n2. Быстрота\n3. Устойчивость\n4. Смелость\n5. Полёт\n6. Преображение",
+        "type": "prompt",
+        "answer": "3"
+      },
+      {
+        "message": "Потратить ячейку\n1. 1 круг — осталось 3",
+        "type": "prompt",
+        "answer": "1"
+      },
+      {
+        "message": "Кто выпивает эликсир\n1. Алхимик проверки 11 — выпить самому",
+        "type": "prompt",
+        "answer": "1"
+      },
+      {
+        "message": "Убрать «Рацион (1 день)» из инвентаря?",
+        "type": "confirm",
+        "answer": ""
+      },
+      {
+        "message": "Место и описание эффекта",
+        "type": "prompt",
+        "answer": "Комната с руническим камнем"
+      },
+      {
+        "message": "Препятствия не мешают именно этому заклинанию; его особые ограничения учтены (да/нет)",
+        "type": "prompt",
+        "answer": "да"
+      },
+      {
+        "message": "Мастер: в пределах 30 футов есть обнаружимая магия (с учётом препятствий и сокрытия) (да/нет)",
+        "type": "prompt",
+        "answer": "да"
+      },
+      {
+        "message": "Дистанция до исследуемой ауры, м",
+        "type": "prompt",
+        "answer": "3"
+      },
+      {
+        "message": "Цель видима (да/нет)",
+        "type": "prompt",
+        "answer": "да"
+      },
+      {
+        "message": "Магию закрывают 30 см камня, 2,5 см металла, свинец или 90 см дерева/земли, либо особая защита (да/нет)",
+        "type": "prompt",
+        "answer": "нет"
+      },
+      {
+        "message": "Мастер: аура и школа магии, либо «магии нет»",
+        "type": "prompt",
+        "answer": "Синяя аура, ограждение"
+      },
+      {
+        "message": "Место квадрата скользкого жира 10 × 10 футов (3 × 3 м):",
+        "type": "prompt",
+        "answer": "Пол у двери"
+      },
+      {
+        "message": "Расстояние до центра области, м",
+        "type": "prompt",
+        "answer": "4"
+      },
+      {
+        "message": "До области свободный путь; жир покрывает землю (да/нет)",
+        "type": "prompt",
+        "answer": "да"
+      },
+      {
+        "message": "Все существа в квадрате на земле: номера через запятую (0 — область пуста).\n1. Лиора Меднолист\n2. Гоблин-разведчик",
+        "type": "prompt",
+        "answer": "selected from displayed choices"
+      },
+      {
+        "message": "Гоблин-разведчик: Скользкий жир — спасбросок Ловкость",
+        "type": "prompt",
+        "answer": "1"
+      },
+      {
+        "message": "Лиора Меднолист заканчивает ход на земле в области «Пол у двери» (да/нет)",
+        "type": "prompt",
+        "answer": "нет"
+      },
+      {
+        "message": "Гоблин-разведчик заканчивает ход на земле в области «Пол у двери» (да/нет)",
+        "type": "prompt",
+        "answer": "да"
+      },
+      {
+        "message": "Гоблин-разведчик: Скользкий жир — спасбросок Ловкость",
+        "type": "prompt",
+        "answer": null
+      },
+      {
+        "message": "Гоблин-разведчик заканчивает ход на земле в области «Пол у двери» (да/нет)",
+        "type": "prompt",
+        "answer": "да"
+      },
+      {
+        "message": "Гоблин-разведчик: Скользкий жир — спасбросок Ловкость",
+        "type": "prompt",
+        "answer": "20"
+      },
+      {
+        "message": "Название предмета и его место в сцене (для отличия от похожих предметов)",
+        "type": "prompt",
+        "answer": "Деревянный ящик у ворот"
+      },
+      {
+        "message": "КД предмета",
+        "type": "prompt",
+        "answer": "12"
+      },
+      {
+        "message": "Текущие хиты предмета по решению мастера",
+        "type": "prompt",
+        "answer": "15"
+      },
+      {
+        "message": "Этот предмет горючий (да/нет)",
+        "type": "prompt",
+        "answer": "да"
+      },
+      {
+        "message": "Этот предмет сейчас кто-либо несёт или носит (да/нет)",
+        "type": "prompt",
+        "answer": "нет"
+      },
+      {
+        "message": "Расстояние до предмета, м",
+        "type": "prompt",
+        "answer": "6"
+      },
+      {
+        "message": "До предмета нет полного укрытия (да/нет)",
+        "type": "prompt",
+        "answer": "да"
+      },
+      {
+        "message": "Мастер подтверждает: пожар у «Деревянный ящик у ворот» уже погашен в сцене (да/нет)",
+        "type": "prompt",
+        "answer": "да"
+      }
+    ],
+    "errors": [],
+    "failedLocal": []
+  },
+  "automatedChecks": {
+    "partyStarter": {
+      "passed": 21,
+      "failed": 0
+    },
+    "isolatedRuntimeLoaders": {
+      "passed": 355,
+      "failed": 0
+    },
+    "previousEffectEngineFailures": {
+      "passed": 6,
+      "failed": 0
+    },
+    "persistenceAndCiContract": {
+      "passed": 27,
+      "failed": 0
+    },
+    "archiveBaselineRegressions": {
+      "passed": 46,
+      "failed": 0
+    },
+    "archiveWorldContract": {
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "report": "qa/alchemist-party-report.md",
+  "runner": "scripts/alchemist-browser-qa.mjs",
+  "screenshots": "qa/evidence/alchemist/",
+  "publishedToSite": false,
+  "publicPearlCatalog": {
+    "passed": true,
+    "query": "Жемчужина (100 зм)",
+    "matches": 1,
+    "classification": "Материалы · обычный",
+    "costGp": 100,
+    "grantedToLiora": false,
+    "screenshot": "qa/evidence/alchemist/pearl-catalog.png"
+  },
+  "fireBoltObject": {
+    "passed": true,
+    "label": "Деревянный ящик у ворот",
+    "ac": 12,
+    "hpBefore": 15,
+    "physicalD20": 15,
+    "physicalD10": 7,
+    "hpAfter": 8,
+    "flammable": true,
+    "heldOrWorn": false,
+    "distanceM": 6,
+    "clearPath": true,
+    "fireSurvivesReload": true,
+    "confirmedExtinguishingSurvivesReload": true,
+    "characterResourcesUnchanged": true,
+    "screenshots": [
+      "qa/evidence/alchemist/fire-bolt-object-burning.png",
+      "qa/evidence/alchemist/fire-bolt-object-extinguished.png"
+    ]
+  }
+}

@@ -19,7 +19,7 @@ test('24 backgrounds are distinct, sourced and expose real training, including t
   assert.deepEqual(plain(a.backgrounds.find(b=>b.n==='Следователь').skills),['Анализ','Проницательность']);
 });
 test('every class has its own dropdown and the 2014 subclass level',()=>{
-  const {e,a}=world();const levels={Варвар:3,Бард:3,Воин:3,Волшебник:2,Друид:2,Жрец:1,Колдун:1,Монах:3,Паладин:3,Плут:3,Следопыт:3,Чародей:1};
+  const {e,a}=world();const levels={Варвар:3,Бард:3,Воин:3,Волшебник:2,Друид:2,Жрец:1,Колдун:1,Монах:3,Паладин:3,Плут:3,Следопыт:3,Чародей:1,Изобретатель:3};
   for(const cls of e.catalogs.classes){assert.equal(a.rules.subclassLevel(cls),levels[cls.n]);assert.ok(a.rules.subclassOptions(cls).length);}
   assert.ok(a.rules.subclassOptions(e.catalogs.classes.find(c=>c.n==='Воин')).includes('Боевой мастер'));
 });
@@ -193,7 +193,7 @@ test('changing an invalid legacy wizard archetype archives old school grants and
   a.characterSelectValue('subcls','Школа Иллюзий');const spell=c.spellbook.find(e=>e.spellId==='sp_evoc_allies');
   assert.equal(spell.access,'archive');assert.equal(spell.prep,false);assert.equal(spell.granted,undefined);
 });
-test('creation matrix validates all 12 classes at levels 1–20 across every core race and all 24 backgrounds',()=>{
+test('creation matrix validates all 13 classes at levels 1–20 across every core race and all 24 backgrounds',()=>{
   const {e,a}=world(),seenRaces=new Set(),seenBackgrounds=new Set();let count=0;
   for(const [i,cls]of e.catalogs.classes.entries())for(let level=1;level<=20;level++){
     const race=e.catalogs.races[(i+level)%e.catalogs.races.length],branches=a.rules.branchOptions(race),subclasses=a.rules.subclassOptions(cls);
@@ -201,10 +201,12 @@ test('creation matrix validates all 12 classes at levels 1–20 across every cor
     if(race.n==='Драконорожденный')d.ancestry='Красный';
     const p=a.rules.origin(d,race);d.buildChoices.abilities=a.rules.keys.filter(k=>!p.exclude.includes(k)).slice(0,p.abilityChoices);if(p.featChoices)d.buildChoices.feat='Крепкий';
     const t=a.characterTraining(d),used=new Set(t.fixed);for(const g of t.groups){const chosen=g.options.filter(s=>!used.has(s)).slice(0,g.count);d.buildChoices[g.key]=chosen;chosen.forEach(s=>used.add(s));}
-    const tools=new Set();d.buildChoices.tools=t.toolChoices.map(options=>{const selected=options.find(v=>!tools.has(v));tools.add(selected);return selected;});
+    const tools=new Set();d.buildChoices.tools=[];
+    // Selecting an existing Alchemist proficiency unlocks its replacement choice.
+    for(let ti=0;ti<a.characterTraining(d).toolChoices.length;ti++){const options=a.characterTraining(d).toolChoices[ti],selected=options.find(v=>!tools.has(v));tools.add(selected);d.buildChoices.tools.push(selected);}
     d.buildChoices.languages=a.rules.languages.filter(v=>!p.languages.includes(v)).slice(0,a.characterTraining(d).languageChoices);
     assert.deepEqual(plain(a.characterCreatorErrors(d)),[],`${cls.n} ${level} / ${race.n} / ${d.bg}`);
     assert.ok(a.characterCreationPreview(d).hpMax>=level);seenRaces.add(race.n);seenBackgrounds.add(d.bg);count++;
   }
-  assert.equal(count,240);assert.equal(seenRaces.size,9);assert.equal(seenBackgrounds.size,24);
+  assert.equal(count,260);assert.equal(seenRaces.size,9);assert.equal(seenBackgrounds.size,24);
 });

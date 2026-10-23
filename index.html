@@ -209,6 +209,9 @@
 <script src="scripts/item-player-copy.js"></script>
 <script src="scripts/character-rules.js"></script>
 <script src="scripts/magic-rules.js"></script>
+<script src="scripts/artificer-rules.js"></script>
+<script src="scripts/artificer-catalog.js"></script>
+<script src="scripts/party-starter.js"></script>
 <script src="scripts/gm-reference-data.js"></script>
 <script src="scripts/gm-reference.js"></script>
 <script src="scripts/grimoire-rules.js"></script>
@@ -224,6 +227,12 @@
 <script src="scripts/arcanum-conditions.js"></script>
 <script src="scripts/arcanum-runtime.js"></script>
 <script src="scripts/arcanum-long-cast.js"></script>
+<script src="scripts/artificer-spell-runtime.js"></script>
+<script src="scripts/artificer-utility-runtime.js"></script>
+<script src="scripts/artificer-basic-spells.js"></script>
+<script src="scripts/artificer-elixir-runtime.js"></script>
+<script src="scripts/artificer-runtime.js"></script>
+<script src="scripts/party-starter-runtime.js"></script>
 <script src="scripts/recipe-rules.js"></script>
 <script src="scripts/recipe-workbench.js"></script>
 <script src="data/dnd5e/srd51-spell-facts.js"></script>
@@ -352,6 +361,7 @@ tr:['Драконье наследие: выберите дракона-пред
 const CHARACTER_RULES=globalThis.DndCharacterRules||null;
 const MAGIC_RULES=globalThis.DND_MAGIC_RULES||null;
 let campaignMagic={version:1,mode:'slots',preparation:'class',revision:0};
+let partyUpdates={};
 function magicUsesMp(){return campaignMagic.mode==='mp';}
 function magicFreeAccess(){return false;}
 function magicClassKey(c){return [c.cls,c.subcls,c.level].join('|');}
@@ -1337,6 +1347,9 @@ sp.grimoire.engineRevision=GRIMOIRE_RULES.revision;
 });
 rows.forEach(grimoireCombatCorrections);
 rows.forEach(arcanumReconcileSpell);
+rows.forEach(artificerSpellReconcile);
+rows.forEach(artificerUtilityReconcile);
+rows.forEach(artificerBasicReconcile);
 (party||[]).forEach(c=>GRIMOIRE_RULES.migrateCharacter(c,rows));return rows;
 }
 function grimoireCanonicalId(id){return GRIMOIRE_RULES.resolveId(spellsDB,id);}
@@ -2066,6 +2079,7 @@ const SPELL_X_PATCHES = {
 
 
 const CASTER_META = {
+'Изобретатель':{abbr:'Изб',kind:'artificer',ability:'int',preparation:'prepared',listAccess:'classList',slotRecovery:'long',ritualCasting:true},
 'Волшебник':{abbr:'Влш',kind:'full',ability:'int',preparation:'book',listAccess:'spellbook',slotRecovery:'long',ritualCasting:true},
 'Жрец':{abbr:'Жрц',kind:'full',ability:'wis',preparation:'prepared',listAccess:'classList',slotRecovery:'long',ritualCasting:true},
 'Друид':{abbr:'Дрд',kind:'full',ability:'wis',preparation:'prepared',listAccess:'classList',slotRecovery:'long',ritualCasting:true},
@@ -2112,6 +2126,7 @@ const SPELLS_KNOWN_2014 = {
 'Следопыт':[0,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11]
 };
 const CANTRIPS_KNOWN_2014 = {
+'Изобретатель':[2,2,2,2,2,2,2,2,2,3,3,3,3,4,4,4,4,4,4,4],
 'Волшебник':[3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5],
 'Жрец':[3,3,3,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5],
 'Друид':[2,2,2,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4],
@@ -2155,6 +2170,7 @@ return fallback?Object.assign({edition:'2014'},fallback):null;
 }
 function maxCircleFor(c){
 const m=casterMeta(c); if(!m) return 0;
+if(m.kind==='artificer')return DndArtificerRules.slots(c.level).length;
 if(m.kind==='third')return slotsRowFor(c).length;
 if(m.kind==='pact'){ const p=PACT_SLOTS[c.level]; return p?p[0]:0; }
 if(m.kind==='half') return c.level>=2? Math.ceil(c.level/4) : 0;
@@ -2162,6 +2178,7 @@ return Math.min(9, Math.ceil(c.level/2));
 }
 function slotsRowFor(c){
 const m=casterMeta(c); if(!m) return [];
+if(m.kind==='artificer')return DndArtificerRules.slots(c.level);
 if(m.kind==='third')return CHARACTER_RULES.thirdSlots[c.level]||[];
 if(m.kind==='pact'){
 const p=PACT_SLOTS[c.level]; if(!p) return [];
@@ -2417,6 +2434,7 @@ return !!(e&&spellEntryReady(c,e,sp));
 
 function prepMax(c){
 const m=casterMeta(c); if(!m) return 0;
+if(m.kind==='artificer')return Math.max(1,Math.floor(c.level/2)+eMod(c,'int'));
 if(m.preparation==='known'||maxCircleFor(c)===0) return 0;
 const lvlPart=m.kind==='half'? Math.max(1,Math.floor(c.level/2)) : c.level;
 return Math.max(1, lvlPart + eMod(c, spellAbOf(c)));
@@ -2511,6 +2529,7 @@ return {added,removed};
 
 
 function autoLevelSpells(c, oldLevel){
+artificerCantripLevel(c,oldLevel);
 const m=casterMeta(c); if(!m) return {added:[],removed:[],learnChoices:0};
 const gained=Math.max(0,(+c.level||1)-(+oldLevel||+c.level||1));
 const beforeKnown=SPELLS_KNOWN_2014[c.cls]?SPELLS_KNOWN_2014[c.cls][Math.max(0,Math.min(19,(+oldLevel||1)-1))]:0;
@@ -3720,6 +3739,7 @@ return {armor:armorRules,weapons,skills:{choose:+count||0,from:list,any:/люб�
 }
 function classSpellcastingRule(c){
 const map={
+'Изобретатель':['artificer','int','Изб','prepared','classList','long',true],
 'Волшебник':['full','int','Влш','book','spellbook','long',true],
 'Жрец':['full','wis','Жрц','prepared','classList','long',true],
 'Друид':['full','wis','Дрд','prepared','classList','long',true],
@@ -3732,7 +3752,7 @@ const map={
 const x=map[c.n];
 if(!x) return {kind:'none',ability:'',abbreviation:'',preparation:'none',listAccess:'none',slotRecovery:'none',ritualCasting:false,edition:'2014'};
 return {kind:x[0],ability:x[1],abbreviation:x[2],preparation:x[3],listAccess:x[4],slotRecovery:x[5],ritualCasting:x[6],edition:'2014',
-preparationChange:x[3]==='known'?'levelUp':'longRest',preparationFormula:x[3]==='book'?'level + ability':(x[3]==='prepared'?(x[0]==='half'?'floor(level / 2) + ability':'level + ability'):'none'),
+preparationChange:x[3]==='known'?'levelUp':'longRest',preparationFormula:x[3]==='book'?'level + ability':(x[3]==='prepared'?(['half','artificer'].includes(x[0])?'floor(level / 2) + ability':'level + ability'):'none'),
 knownSpellsByLevel:(SPELLS_KNOWN_2014[c.n]||[]).slice(),cantripsByLevel:(CANTRIPS_KNOWN_2014[c.n]||[]).slice(),
 spellbookLearning:c.n==='Волшебник'?{level1:6,perWizardLevel:2,copyingAllowed:true}:null};
 }
@@ -3783,7 +3803,7 @@ if(!Array.isArray(m.subraces)) out.push('subraces должен быть масс
 } else {
 if(!Number.isInteger(+m.hitDie)||+m.hitDie<4) out.push('hitDie должен быть допустимой костью хитов');
 if(!m.proficiencies||!m.proficiencies.armor||!m.proficiencies.weapons) out.push('proficiencies не структурированы');
-if(!m.spellcasting||!['none','full','half','pact'].includes(m.spellcasting.kind)) out.push('spellcasting не структурирован');
+if(!m.spellcasting||!['none','full','half','pact','artificer'].includes(m.spellcasting.kind)) out.push('spellcasting не структурирован');
 else if(m.spellcasting.kind!=='none'){
 if(!['book','prepared','known'].includes(m.spellcasting.preparation)) out.push('spellcasting.preparation должен быть book, prepared или known');
 if(!['spellbook','classList','known'].includes(m.spellcasting.listAccess)) out.push('spellcasting.listAccess должен быть spellbook, classList или known');
@@ -3799,7 +3819,7 @@ if(!Array.isArray(m.subclasses)) out.push('subclasses должен быть ма
 return out;
 }
 function seedRacesDB(){ return RACES_SEED.map(r=>upgradeRace(Object.assign(JSON.parse(JSON.stringify(r)),{id:'race_'+uid()}))); }
-function seedClassesDB(){ return CLASSES_SEED.map(c=>upgradeClass(Object.assign(JSON.parse(JSON.stringify(c)),{id:'cls_'+uid()}))); }
+function seedClassesDB(){ return CLASSES_SEED.concat([DndWorldPartyStarter.classDefinition()]).map(c=>upgradeClass(Object.assign(JSON.parse(JSON.stringify(c)),{id:'cls_'+uid()}))); }
 let activeCharId=null, sheetTab='stats';
 let saveTimer=null,saveStatusVersion=0,pendingSaveStatusVersion=null;
 const memStore={};
@@ -3889,7 +3909,7 @@ const queued=campaignEnvelopeCasQueue.then(operation);campaignEnvelopeCasQueue=q
 };
 const campaignEnvelopeRepository=PERSISTENCE_CORE?new PERSISTENCE_CORE.EnvelopeRepository({adapter:campaignEnvelopeAdapter,key:CAMPAIGN_ENVELOPE_KEY,backupKey:CAMPAIGN_ENVELOPE_BACKUP_KEY}):null;
 let worldSnapshotRevision=0;
-function worldSnapshotPayload(){const snapshotRevision=++worldSnapshotRevision,payload={schemaVersion:WORLD_SNAPSHOT_SCHEMA,snapshotRevision,campaignMagic,recipeState,chars,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,
+function worldSnapshotPayload(){const snapshotRevision=++worldSnapshotRevision,payload={schemaVersion:WORLD_SNAPSHOT_SCHEMA,snapshotRevision,campaignMagic,partyUpdates,recipeState,chars,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,
 classes:classesDB,rules:rulesDB,foes:foesDB,fxRound,combat,harvestedSources,economyState,merchantState,worldState,chestState,catalogRefs:bg3CatalogStandardRefs(bg3CatalogRefs()),bg3SceneState,bg3StoryState,bg3TadpoleState,bg3TreasureState};return PROJECTION_CORE?PROJECTION_CORE.stripDerived(payload):payload;}
 function validWorldSnapshot(value){return !!(value&&value.schemaVersion===WORLD_SNAPSHOT_SCHEMA&&Array.isArray(value.chars)&&Array.isArray(value.items)
 &&Array.isArray(value.spells)&&Array.isArray(value.abilities)&&Array.isArray(value.races)&&Array.isArray(value.classes)&&Array.isArray(value.rules)&&Array.isArray(value.foes));}
@@ -4059,6 +4079,7 @@ const oldChars=Array.isArray(savedChars)?null:await readSavedParty('dndworld:cha
 const hasSavedParty=Array.isArray(savedChars)||Array.isArray(oldChars);
 campaignSeedPending=!hasSavedParty;
 campaignMagic=MAGIC_RULES.settings(savedWorld&&savedWorld.campaignMagic);
+partyUpdates=itemClone(savedWorld&&savedWorld.partyUpdates||{});
 recipeState=RECIPE_RULES.state(savedWorld&&savedWorld.recipeState);
 worldState=WORLD_STATE_CORE?WORLD_STATE_CORE.normalize(savedWorld&&savedWorld.worldState||WORLD_STATE_CORE.blank('default')):(savedWorld&&savedWorld.worldState||worldState);
 chestState=CHEST_CORE?CHEST_CORE.normalizeState(savedWorld?savedWorld.chestState:await readJSON('dndworld2:chest-state')):(savedWorld&&savedWorld.chestState||chestState);
@@ -4074,6 +4095,7 @@ racesDB   = savedWorld?savedWorld.races:(await readJSON('dndworld2:races'))     
 classesDB = savedWorld?savedWorld.classes:(await readJSON('dndworld2:classes'))   || seedClassesDB();
 rulesDB   = savedWorld?savedWorld.rules:(await readJSON('dndworld2:rules'))     || [];
 foesDB    = savedWorld?savedWorld.foes:(await readJSON('dndworld2:foes'))      || seedFoesDB();
+ensurePartyStarterCatalogs();
 itemsDB.forEach(upgradeItem);
 spellsDB.forEach(upgradeSpell);
 abilitiesDB.forEach(upgradeAbility);
@@ -4128,6 +4150,8 @@ if(!bg3LearnedProfile.ok)setStatus('Обычные правила включен
 if(bg3Reissue.ok&&bg3LearnedProfile.ok&&!bg3Catalog.error&&bg3World.ok){if(bg3ProfileMigrationNeeded)scheduleSave();setStatus(campaignEnvelopeReadOnlyFallback?'Данные загружены · режим только для чтения · хранилище недоступно. Оставьте страницу открытой.':'Данные загружены · обычные правила',campaignEnvelopeReadOnlyFallback);}
 // A new party must be durable before its first interactive screen. Interrupted
 // seed flags alone never prove that the corresponding heroes were saved.
+const partyUpdate=await applyPartyStarterUpdate();
+if(!partyUpdate.ok)setStatus('Дополнение отряда пока не сохранено. Существующие персонажи сохранены; обновление повторится при следующем открытии сайта.',true);
 if(!hasSavedParty){campaignSeedPending=false;clearTimeout(saveTimer);await runScheduledSave();}
 }
 
@@ -4878,6 +4902,7 @@ fxInvalidate(); scheduleSave(); renderChars();
 function charFxSources(c){
 upgradeActiveEffects(c);
 const out=[];
+out.push(...artificerFxSources(c));
 if(CHARACTER_RULES&&c.characterBuild)out.push(...characterOriginFx(c));
 const off=c.fxOff||[];
 const eq=c.equipment||{}, wornEntry=new Set(Object.values(eq).filter(Boolean));
@@ -5305,6 +5330,7 @@ return Math.round(n);
 }
 function endTriggeredSpellEffects(c,trigger){
 if(!c) return;
+if(trigger==='attack')artificerSanctuaryBreak(c);
 const gone=(c.activeFx||[]).filter(a=>(a.k==='spell'||a.k==='use')&&((a.breakOn||[]).indexOf(trigger)>=0
 ||(!a.mechanicsVersion&&!(a.breakOn||[]).length&&normSpellName(a.label)==='невидимость'&&(trigger==='attack'||trigger==='spell'))));
 if(!gone.length) return;
@@ -5325,9 +5351,12 @@ fxInvalidate(); syncStackedGrants(c); scheduleSave(); renderChars();
 }
 function consumeOutcomeRollFx(caster,targetVal,rolls,boundTi,attackKind){
 if(!rolls) return;
+if(attackKind==='weapon'&&castCtx?.kind!=='spell')artificerSanctuaryCommitAttack(caster,targetVal,rolls);
 const elementalInfusion=bg3ElementalInfusionWeaponAttackPlanFor(caster,rolls,attackKind);if(!elementalInfusion.ok)throw new Error(elementalInfusion.reason);
 if(!elementalInfusion.notTriggered){const committed=bg3ElementalInfusionWeaponAttackCommit(elementalInfusion);if(!committed.ok)throw new Error(committed.reason);}
 consumeRollFx(caster,rolls.consumeCasterFx||[]);
+artificerAbsorbAttackConsume(caster,rolls);
+artificerSpellWeaponRollConsumed(caster,rolls,attackKind);
 const ti=boundTi||targetInfoOf(targetVal);
 if(ti.kind==='ally'&&ti.obj) consumeRollFx(ti.obj,rolls.consumeTargetFx||[]);
 else if(ti.kind==='foe'&&ti.obj&&(rolls.consumeTargetFx||[]).length){
@@ -6268,6 +6297,7 @@ return {free:false,focus,wornFocus};
 }
 function canCastCheck(caster, sp){
 const comp=parseComponents(sp);
+if(caster.cls==='Изобретатель')comp.m=true;
 if(magicSwitchBusy)return {ok:false,comp,reason:'Дождитесь сохранения системы магии кампании.'};
 const cond=effectiveConditions(caster);
 const blockAct=ACTION_BLOCK_CONDS.filter(n=>cond.indexOf(n)>=0)[0];
@@ -6289,14 +6319,14 @@ const somatic=holderFxRules(caster,'casting.somatic');
 if(somatic.some(f=>f.mode==='set'&&!f.value))
 return {ok:false, comp, reason:'Соматический компонент (С): руки скованы действующим эффектом.'};
 const h=freeHandInfo(caster);
-if(!h.free&&!hasWarCaster(caster)&&!(comp.m&&h.focus)){
+if(!h.free&&!hasWarCaster(caster)&&!(comp.m&&(h.focus||artificerSpellFocus(caster)))){
 return {ok:false, comp, reason:'Соматический компонент (С): обе руки заняты ('+handOccupants(caster).join(', ')+'). Фокус в руке заменяет жесты только там, где у заклинания есть и М; иначе нужна свободная рука или черта «Боевой заклинатель».'};
 }
 }
 if(comp.m){
 const h=freeHandInfo(caster);
 const replaceable=matConsumeFor(sp)===0&&!materialCostFor(sp,comp);
-if(!h.free&&!((h.focus||h.wornFocus)&&replaceable))
+if(!h.free&&!((h.focus||h.wornFocus||artificerSpellFocus(caster))&&replaceable)&&!artificerBladeMaterialHeld(caster,sp))
 return {ok:false, comp, reason:'Материальный компонент (М): обе руки заняты. Для расходуемого или стоимостного компонента нужна свободная рука; обычный компонент заменяется фокусом в руке или видимым носимым священным символом.'};
 }
 return {ok:true, comp};
@@ -6336,6 +6366,7 @@ const p=it&&itemProfile(it),classes=p&&p.focus&&p.focus.classes;
 return !Array.isArray(classes)||!classes.length?isFocusItem(it):classes.indexOf(caster&&caster.cls)>=0;
 }
 function materialCover(caster){
+if(caster.cls==='Изобретатель')return artificerSpellFocus(caster);
 const eq=caster.equipment||{}, handIds=[eq.MAIN_HAND,eq.OFF_HAND].filter(Boolean);
 let held=null, pouch=null, carriedFocus=null;
 (caster.inventory||[]).forEach(e=>{
@@ -7403,6 +7434,7 @@ if(!applied.ok){delete castCtx.inlineSaveDecisions[key];castShowErr(applied.reas
 return spec;
 }
 function appendCombatReactionRows(spec,ti){
+artificerAbsorbAugmentSpec(spec);
 if(!spec||!spec.meta||!combat||!combat.active||!ti||ti.kind!=='ally'||!ti.obj) return spec;
 if(!spec.rows.some(r=>r.type==='atk')||!spec.rows.some(r=>r.type==='dmg')) return spec;
 const weaponDamage=spec.meta.kind==='weapon'||(spec.meta.kind==='foe'&&spec.meta.damageSource==='weapon');
@@ -7503,9 +7535,10 @@ const targetFx=ti&&ti.kind==='ally'&&ti.obj?charFxAll(ti.obj)
 const incoming=targetFx.filter(f=>f.stat==='incoming.attack');
 const targetTrueVision=globalThis.DND_ARCANUM_CORE.visionCapabilities(targetFx,measured,theirs);
 const revealed=targetFx.some(f=>f.stat==='visibility.revealed'&&f.mode==='set'&&+f.value);
+const ownRevealed=ownFx.some(f=>f.stat==='visibility.revealed'&&f.mode==='set'&&+f.value);
 const adv=[],dis=[],mineRules=activeConditionRules(mine),targetRules=activeConditionRules(theirs);
 mineRules.forEach(c=>{
-if(c.rules.selfAttack==='adv'&&!(c.rules.visibility==='hidden'&&(targetFx.some(f=>f.stat==='vision.invisible'&&f.value)||targetTrueVision.seeInvisible)&&!theirs.includes('Ослепленный'))) adv.push('атакующий: '+c.name);
+if(c.rules.selfAttack==='adv'&&!(c.rules.visibility==='hidden'&&(ownRevealed||(targetFx.some(f=>f.stat==='vision.invisible'&&f.value)||targetTrueVision.seeInvisible)&&!theirs.includes('Ослепленный')))) adv.push('атакующий: '+c.name);
 if(c.rules.selfAttack==='dis') dis.push('атакующий: '+c.name);
 });
 if(!casterIsFoe&&(+caster.exhaustion||0)>=3) dis.push('истощение 3 уровня');
@@ -7516,7 +7549,7 @@ if(c.rules.incomingAttack==='dis'&&!revealed&&!(c.rules.visibility==='hidden'&&(
 const targetIncapacitated=targetRules.some(c=>c.rules.incapacitated);
 const hostileTarget=!!ti&&((casterIsFoe&&ti.kind==='ally')||(!casterIsFoe&&ti.kind==='foe'));
 if(opts.mode==='ranged'&&(opts.within5===true&&hostileTarget||opts.threatenedWithin5===true)&&!targetIncapacitated
-&&!targetRules.some(c=>c.rules.vision===false)&&!mineRules.some(c=>c.rules.visibility==='hidden'))
+&&!targetRules.some(c=>c.rules.vision===false)&&(!mineRules.some(c=>c.rules.visibility==='hidden')||ownRevealed))
 dis.push('дальнобойная атака рядом с видящим дееспособным противником');
 if(opts.mode==='ranged'&&opts.rangeBand==='long') dis.push('дальняя дистанция оружия');
 targetRules.forEach(c=>{
@@ -7528,7 +7561,16 @@ if(opts.within5===false&&byDistance.beyond5==='dis') dis.push('цель: '+c.nam
 const targetKey=ti&&ti.kind&&ti.id?ti.kind+':'+ti.id:'';
 ownFx.filter(f=>f.stat==='attack.targetExcept'&&f.mode==='dis'&&String(f.value||'')!==targetKey)
 .forEach(f=>dis.push(f.label||'провокация: атака не по защищаемой цели'));
-incoming.forEach(f=>(f.mode==='adv'?adv:dis).push(f.label||'действующий эффект цели'));
+incoming.forEach(f=>{
+// Faerie Fire grants advantage only to an attacker who can see the target.
+// Resolve the originating spell so saved effects from earlier versions obey
+// the same restriction without rewriting the campaign's active effects.
+if(f.mode==='adv'&&mineRules.some(c=>c.rules.vision===false)){
+const source=f.sourceUid&&(ti?.obj?.activeFx||[]).find(entry=>entry.uid===f.sourceUid),spell=source?.k==='spell'&&spellOf(source.id);
+if(spell&&!spell.custom&&spell.grimoire?.translation!=='custom'&&spell.mechanics?.origin!=='editor'&&(spell.grimoire?.english==='Faerie Fire'||normSpellName(spell.n)==='огонь фей'))return;
+}
+(f.mode==='adv'?adv:dis).push(f.label||'действующий эффект цели');
+});
 if(ti?.kind==='ally'&&ti.obj&&!targetRules.some(c=>c.rules.incapacitated)&&charAbilityRuleEntries(ti.obj).some(x=>x.rules?.denyAttackAdvantage))adv.length=0;
 const autoCrit=opts.within5===true&&targetRules.some(c=>c.rules.autoCritWithin5);
 const requiresDistance=(trueVision.requiresDistance&&theirs.includes('Невидимый')||targetTrueVision.requiresDistance&&mine.includes('Невидимый'))||opts.within5==null&&(opts.mode==='ranged'
@@ -7561,7 +7603,7 @@ const weapon=itemProfile(it).weapon||{},damage=weaponDamageOf(it);
 const useDex=weapon.ranged||(weapon.finesse&&eMod(c,'dex')>=eMod(c,'str'));
 const m=useDex?eMod(c,'dex'):eMod(c,'str');
 const hasProf=(typeof weaponProfHas==='function')?weaponProfHas(c,it):true;
-const wb=weaponBonusOf(it), duel=duelingBonusOf(c,it,{entryId:e.id});
+const wb=artificerWeaponBonus(c,e.id,weaponBonusOf(it)), duel=duelingBonusOf(c,it,{entryId:e.id});
 out.push({n:userFacingItemName(it,'Оружие')+(hasProf?'':' (без владения)')+' · из сумки', entryId:e.id, itemId:it.id,
 atk:m+(hasProf?PROF[c.level]:0)+fxSum(c,'atk')+wb.atk, dmg:it.dmg||'', dt:it.dmgType||'',
 damage,m:m+(+damage.mod||0)+fxSum(c,'dmg')+wb.dmg+duel, abn:useDex?'Лов':'Сил', abKey:useDex?'dex':'str', mode:weapon.ranged?'ranged':'melee',
@@ -7573,7 +7615,7 @@ if(!w.abKey) w.abKey=/лов/i.test(String(w.abn||''))?'dex':'str';
 const entry=w.entryId&&invEntryOf(c,w.entryId),it=itemOf(w.itemId||(entry&&entry.itemId));
 if(it){
 w.damage=w.damage||weaponDamageOf(it);
-w.damageTags=weaponDamageTraitsOf(it);
+w.damageTags=weaponDamageTraitsOf(it);if(artificerWeaponMagical(c,w.entryId))w.damageTags.magical=true;
 } else w.damageTags=w.damageTags||{magical:false,silvered:false,adamantine:false};
 });
 return out;
@@ -7936,7 +7978,7 @@ meta.saveAffectsDamage=false;
 }
 if(caster&&weapon&&weapon.unarmed)bg3LifecycleAppendDamageExtras(caster,'',ti,{rows,meta},'unarmed',weapon.damage&&weapon.damage.type||weapon.dt||'дробящий');
 else if(caster&&weapon&&!isSpell&&opts.forceAttack)bg3LifecycleAppendDamageExtras(caster,String(opts.entryId||weapon.entryId||''),ti,{rows,meta},'weapon',weapon.damage&&weapon.damage.type||weapon.dt||'рубящий');
-return finalizeRollSpec({rows,meta},{kind,id:rec&&rec.id||'',name:rec&&rec.n||''});
+return finalizeRollSpec(artificerAbsorbAttackSpec({rows,meta}),{kind,id:rec&&rec.id||'',name:rec&&rec.n||''});
 }
 function rollSpecOf(rec,opts){
 if(opts?.kind==='ability')rec=abilityGameplayResolve(rec,opts.caster);
@@ -7946,6 +7988,7 @@ try{
 const kind=opts&&opts.kind||'spell';
 const mechanics=rec&&typeof currentMechanics==='function'?currentMechanics(rec,kind):rec&&rec.mechanics;
 const spec=mechanics&&mechanics.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&mechanics.mode!=='legacy'?structuredRollSpecOf(rec,opts||{}):legacyRollSpecOf(rec,opts||{});
+if(opts?.weapon?.unarmed)artificerElixirAugmentUnarmed(opts.caster,spec);
 if(opts?.caster&&(kind==='spell'||opts.weapon?.unarmed)){recipeTabletopAugmentSpec(opts.caster,rec,spec.meta.target,spec,opts.weapon?.unarmed?'unarmed':'spell',opts);finalizeRollSpec(spec,spec.contract?.source);}
 if(rollInspirationExclusions.size)spec.meta.inspirationExcludedUids=[...rollInspirationExclusions];
 return spec;
@@ -8176,7 +8219,7 @@ if(v[r.key]==null) return;
 if(r.type==='other') out.notes.push(String(r.label).replace(/:.*$/,'')+': '+(v[r.key]+(r.mod||0)));
 else if(r.type==='res') out.notes.push(String(r.label).replace(/:.*$/,'')+' '+v[r.key]);
 });
-return recipeTabletopOutcome(spec,v,out);
+return recipeTabletopOutcome(spec,v,artificerAbsorbOutcome(spec,artificerSanctuaryOutcome(spec,out)));
 }
 
 /* Единый предохранитель для заклинаний, способностей и предметов. Старые
@@ -8239,7 +8282,8 @@ const ti=boundTi||targetInfoOf(targetVal);
 if(!ti.obj||!(amount>0)) return null;
 let d=amount, absorbed=0;
 const o=ti.obj;
-if(ctx&&ctx.sourceKind==='fall'&&holderFxFlag(o,'damage.fall.immune'))return {name:ti.name,hp:o.hp,hpMax:ti.hpMax,down:false,dead:false,deathFails:0,damage:0,absorbed:0,immune:true,sourceKind:'fall'};
+if(ctx&&ctx.sourceKind==='fall'&&holderFxFlag(o,'damage.fall.immune')){artificerFeatherLanded(o);return {name:ti.name,hp:o.hp,hpMax:ti.hpMax,down:false,dead:false,deathFails:0,damage:0,absorbed:0,immune:true,sourceKind:'fall'};}
+if(ctx?.sourceActorKey&&ctx.sourceActorKey!==targetVal)artificerSanctuaryBreak(combatActorByKey(ctx.sourceActorKey));
 const downedSources=ti.kind==='ally'&&(+o.hp||0)>0?bg3LifecycleHolderStatusEventSourceRows(o,'DOWNED'):[],
 downedCheckpoint=downedSources.length?bg3InterruptWorldCheckpoint([]):null;
 recipeTabletopDamage(o,amount,ctx?.fireDamage>0?'огонь':dtype);
@@ -8324,6 +8368,7 @@ res.undeadFortitude={target:o,hpEventSeq,dc:(+rule.dcBase||5)+amount,mod:foeSave
 }
 }
 }
+if(ti.kind==='ally'&&res.dead)artificerCreatorDied(o);
 return res;
 }
 /* Стойкость нежити не бросает кость за игрока. Урон уже проведен атомарно,
@@ -8422,7 +8467,9 @@ if(!uses.length||bg3InterruptRuntime.reactionCommittedCarriers.has(rolls)) retur
 const plans=[],canSpend=(cost,actorKey)=>pure===true?combatCanSpendPure(cost,actorKey,false):combatCanSpend(cost,actorKey,true);
 for(const u of uses){
 const actor=combatActorByKey(u.actorKey);
-if(u.kind==='item-save'){
+if(u.kind==='artificer-absorb'){
+const checked=artificerAbsorbReactionPlan(u);if(!checked.ok)return {ok:false,plans:[],reason:checked.reason};plans.push(checked);
+}else if(u.kind==='item-save'){
 const entry=actor&&invEntryOf(actor,u.entryId),it=entry&&itemOf(entry.itemId),use=it&&itemUseOf(it,u.useId),equipped=actor&&Object.values(actor.equipment||{}).indexOf(entry&&entry.id)>=0;
 if(!actor||!entry||!it||!use||use.special!=='sealResolve'||!equipped||entry.sealResolveUsed
 ||use.requirements&&use.requirements.attuned&&!entry.att||!combat.active||!canSpend('reaction',u.actorKey,true))
@@ -8467,14 +8514,14 @@ const plans=rows.reduce((all,row)=>all.concat(row.plans),[]),budget=outcomeReact
 }
 function preflightOutcomeReactions(rolls,target,pure){
 const plan=outcomeReactionPlan(rolls,pure===true);
-if(plan.ok){if(rolls&&rolls.attackMade===true&&typeof rolls.hit==='boolean'&&target){const old=rolls.bg3StatusAttackedPlan,eventId=old&&old.targetKey===String(target)?old.eventId:'bg3-status:on-attacked:'+castUid(),statusPlan=bg3StatusLifecycleOnAttackedPreflight(String(target),{attack:true,hit:rolls.hit,eventId},eventId);
+if(plan.ok){if(rolls&&rolls.attackMade===true&&typeof rolls.hit==='boolean'&&target&&targetInfoOf(target).kind!=='object'){const old=rolls.bg3StatusAttackedPlan,eventId=old&&old.targetKey===String(target)?old.eventId:'bg3-status:on-attacked:'+castUid(),statusPlan=bg3StatusLifecycleOnAttackedPreflight(String(target),{attack:true,hit:rolls.hit,eventId},eventId);
 if(!statusPlan.ok){setStatus('\u2715 '+statusPlan.reason,true);castShowErr&&castShowErr(statusPlan.reason);return false;}if(statusPlan.plans.length)rolls.bg3StatusAttackedPlan=statusPlan;else delete rolls.bg3StatusAttackedPlan;}return true;}
 setStatus('✕ '+plan.reason,true); castShowErr&&castShowErr(plan.reason); return false;
 }
 function preflightOutcomeReactionsMany(carriers){const plan=outcomeReactionPlanMany(carriers);if(plan.ok){for(const carrier of bg3Array(carriers)){const rolls=carrier&&carrier.rolls||carrier,target=carrier&&carrier.target||rolls&&rolls.bg3Target;if(rolls&&target&&!preflightOutcomeReactions(rolls,target))return false;}return true;}
 setStatus('✕ '+plan.reason,true);castShowErr&&castShowErr(plan.reason);return false;}
 function commitOutcomeReactionPlans(plans){for(const p of plans){if(combatSpend('reaction',p.u.label+(p.u.amount!=null?' (урон −'+p.u.amount+')':''),p.u.actorKey)===false)return false;
-if(p.kind==='item')p.ch.cur=Math.max(0,(+p.ch.cur||0)-1);else if(p.kind==='item-save')p.entry.sealResolveUsed=true;else p.entry.cur=Math.max(0,(p.entry.cur==null?p.cur:+p.entry.cur)-1);}return true;}
+if(p.kind==='artificer-absorb')artificerAbsorbReactionCommit(p);else if(p.kind==='item')p.ch.cur=Math.max(0,(+p.ch.cur||0)-1);else if(p.kind==='item-save')p.entry.sealResolveUsed=true;else p.entry.cur=Math.max(0,(p.entry.cur==null?p.cur:+p.entry.cur)-1);}return true;}
 function commitOutcomeReactions(rolls){
 if(!rolls||bg3InterruptRuntime.reactionCommittedCarriers.has(rolls)) return true;
 if(!Array.isArray(rolls.reactionUses)||!rolls.reactionUses.length) return true;
@@ -8591,6 +8638,7 @@ return h;
 }
 function castFormulaShow(){
 if(!castCtx) return false;
+if(castCtx.executionInput?.sanctuaryLost)return false;
 const rec=castRollRec(), isFoe=castCtx.kind==='foe';
 const caster=isFoe?null:getCh(castCtx.casterId), actor=isFoe?foeOf(castCtx.foeId):caster;
 if(!rec||!actor) return false;
@@ -8621,8 +8669,10 @@ Object.assign({projectileWeaponEntryId:castCtx.itemProjectileWeaponEntryId,eleme
 slotLvl:lv, target:ti, weapon, pool, entryId:weapon&&weapon.entryId||'',forceAttack:!!(castCtx.kind==='ability'&&abilityCombatRules(rec).forceAttack)},distanceOpts));
 if(!spec)return false;
 if(spec.meta&&spec.meta.bg3LifecycleFormulaError){castShowErr(spec.meta.bg3LifecycleFormulaError);return false;}
+try{if(!artificerSanctuaryPrepareSpec(spec))return true;}catch(error){castShowErr(error.message==='cancelled'?'Проверка Убежища отменена.':error.message);return true;}
 appendCombatReactionRows(spec,ti);
 prepareInlineSaveItems(spec,ti);
+try{artificerAbsorbPrepare(spec);}catch(error){castShowErr(error.message==='cancelled'?'Выбор реакции отменён.':error.message);return false;}
 finalizeRollSpec(spec,spec.contract&&spec.contract.source);
 const elementalProjectileDraft=bg3LifecycleRuntime&&bg3LifecycleRuntime.elementalInfusionProjectileSpecs&&bg3LifecycleRuntime.elementalInfusionProjectileSpecs.get(spec);if(elementalProjectileDraft){
 const meta=spec.meta||{},expectedIndex=elementalProjectileDraft.index,metadataExact=meta.target===elementalProjectileDraft.ti&&meta.target&&meta.target.obj===elementalProjectileDraft.targetRef&&meta.target.kind+':'+meta.target.id===elementalProjectileDraft.targetKey
@@ -8711,6 +8761,8 @@ return out;
 }
 function validateFormulaValues(spec,v,res){
 const errors=formulaContractErrors(spec);
+if(res?.artificerAbsorbError)errors.push(res.artificerAbsorbError);
+if(res?.artificerSanctuaryError)errors.push(res.artificerSanctuaryError);
 const ti=spec&&spec.meta&&spec.meta.target||{};
 const needsStructuredTarget=(spec&&spec.rows||[]).some(r=>['atk','save','tcheck','dmg','heal','temp','sleep','threshold','bg3status'].includes(r.type));
 if(needsStructuredTarget&&!ti.known)
@@ -8959,7 +9011,10 @@ const caster=getCh(casterId);
 if(!caster){ setStatus('Наложение доступно из книги заклинаний героя.'); return; }
 const lifecycleCheck=bg3LifecycleActorActionPreflight(caster,'','spell',null,null);
 if(!lifecycleCheck.ok)return bg3LifecycleBlock(lifecycleCheck,'Заклинание «'+sp.n+'»');
+const combatKey='ally:'+caster.id,combatCost=combat.active?combatSpellCost(sp):null;
+if(combat.active&&(!combatSpellTurnAllowed(sp,combatCost,combatKey)||!combatCanSpend(combatCost,combatKey)))return false;
 castCtx={kind:'spell', spellId, casterId};
+if(combat.active)Object.assign(castCtx,{combatActorKey:combatKey,combatCost,combatLabel:'Заклинание «'+sp.n+'»',combatCommitted:false});
 const arcanumEntry=(caster.spellbook||[]).find(e=>e.spellId===spellId);
 if(spellEntryArcanum(arcanumEntry))castCtx.arcanumToken=mysticArcanumCastToken(caster,sp);
 setCastConfirmCaption('⚡ Наложить');
@@ -9075,7 +9130,11 @@ if(obstacles.totalCoverBlocks&&facts.totalCover==null){const raw=window.prompt('
 }
 if((rule.environment.requiredTags||[]).length&&!input.environmentTags){const raw=window.prompt('Признаки текущего окружения через запятую:',rule.environment.requiredTags.join(', '));if(raw==null)return {ok:false,cancelled:true};input.environmentTags=String(raw).split(',').map(x=>x.trim()).filter(Boolean);}
 for(const choice of rule.choices||[]){if(input.choices[choice.key]!=null)continue;const opts=(choice.options||[]).map((x,i)=>(i+1)+'. '+(x.label||x.value||x)).join('\n'),raw=window.prompt((choice.label||choice.key)+(opts?'\n'+opts:''),'');if(raw==null)return {ok:false,cancelled:true};const index=parseInt(raw,10),selected=(choice.options||[])[index-1];input.choices[choice.key]=selected?(selected.value||selected):raw;}
-return arcanumCollectInput(sp,targets,input);
+const sanctuaryInput=artificerSanctuaryCollect(sp,targets,input);if(!sanctuaryInput.ok)return sanctuaryInput;if(input.sanctuaryLost)return {ok:true,input};
+const arcanumInput=arcanumCollectInput(sp,targets,input);if(!arcanumInput.ok)return arcanumInput;
+const artificerInput=artificerSpellCollectInput(sp,targets,arcanumInput.input);if(!artificerInput.ok)return artificerInput;
+const utilityInput=artificerUtilityCollectInput(sp,targets,artificerInput.input);if(!utilityInput.ok)return utilityInput;
+return artificerBasicCollectInput(sp,targets,utilityInput.input);
 }
 function castConfirm(){
 if(!castCtx) return;
@@ -9417,7 +9476,7 @@ return 'снято состояние «'+removable[0]+'»';
 return 'болезнь/подходящее состояние выбирается мастером';
 }
 if((special==='stabilize'||(!mechanics&&n==='уход за умирающим'))&&target.hp===0){
-target.deaths={s:0,f:0};
+target.deaths={s:3,f:0};
 return 'цель стабилизирована с 0 хитов';
 }
 return '';
@@ -9516,6 +9575,7 @@ return {ok:false,reason:'Неверное правило призыва '+i+'.'}
 return {ok:true,effects,summons};
 }
 function spellExecutionPreflight(sp,caster,target,invEntryId,mat,slotSel,rolls,extraTargets,rollsByTarget,input){
+const artificerFocus=artificerSpellFocusCheck(caster);if(!invEntryId&&!artificerFocus.ok)return artificerFocus;
 const mechanics=currentMechanics(sp,'spell');
 if(mechanics&&mechanics.mode==='manual'&&(sp.grimoire||sp.catalogSource&&sp.catalogSource.provider==='Open5e'))return {ok:false,reason:'«'+sp.n+'» доступно в каталоге, но его последствия не автоматизированы: '+(mechanics.manualNote||'нужен явный обработчик движка')};
 const rule=spellRuleOf(sp),errors=spellRuleErrors(rule);
@@ -9530,24 +9590,28 @@ const material=materialPlanFor(caster,sp,cast.comp,mat); if(!material.ok)return 
 const otherResources=spellOtherResourcePlan(caster,rule); if(!otherResources.ok)return otherResources;
 const scene=spellScenePreflight(rule,targets,input); if(!scene.ok)return scene;
 const choices=spellChoicePreflight(rule,input); if(!choices.ok)return choices;
-const rollCheck=spellRollPreflight(rule,targets,rolls,rollsByTarget); if(!rollCheck.ok)return rollCheck;
-if(mechanics?.special==='fingerOfDeath'){
+const sanctuary=artificerSanctuarySpellPreflight(sp,caster,targets,input);if(!sanctuary.ok)return sanctuary;
+const rollCheck=sanctuary.lost?{ok:true}:spellRollPreflight(rule,targets,rolls,rollsByTarget); if(!rollCheck.ok)return rollCheck;
+if(!sanctuary.lost&&mechanics?.special==='fingerOfDeath'){
 const carriers=targets.map((value,index)=>index===0?rolls:rollsByTarget?.[value]);
 if(carriers.some(row=>!row||row.saveMade!==true||typeof row.saveOk!=='boolean'||!Number.isFinite(row.dmgTotal)))return {ok:false,reason:'До наложения «Перста смерти» нужны результат спасброска Телосложения и сумма 7d8. Ресурс не потрачен.'};
 }
-if(mechanics?.special==='sleep'){
+if(!sanctuary.lost&&mechanics?.special==='sleep'){
 const die=mechanics.resolution.rolls.find(row=>row.type==='sleep'),count=die?die.cnt+Math.max(0,slot.lv-(die.upcast?.fromSlot||sp.l))*(die.upcast?.perSlot||0):0;
 if(!die||!Number.isInteger(rolls?.sleepTotal)||rolls.sleepTotal<count||rolls.sleepTotal>count*die.sides)return {ok:false,reason:'До наложения «Сна» нужен общий результат '+count+'d'+(die?.sides||8)+'. Ресурс не потрачен.'};
 }
-if(mechanics?.special==='magicMissile'){
+if(!sanctuary.lost&&mechanics?.special==='magicMissile'){
 const carriers=targets.map((value,i)=>i===0?rolls:rollsByTarget?.[value]),total=slot.lv+2,die=carriers[0]?.magicMissile?.die;
 if(!Number.isInteger(die)||die<1||die>4||carriers.some(row=>!row?.magicMissile||row.magicMissile.die!==die||row.magicMissile.total!==total||!Number.isInteger(row.magicMissile.darts)||row.magicMissile.darts<1||row.dmgRaw!==(die+1)*row.magicMissile.darts)||carriers.reduce((sum,row)=>sum+row.magicMissile.darts,0)!==total)return {ok:false,reason:'Нужны один общий d4 и распределение всех '+total+' стрел между целями. Ресурс не потрачен.'};
 for(let i=0;i<carriers.length;i++){const row=carriers[i],holder=plans[i].targetChar||plans[i].foe;if(!holder)return {ok:false,reason:'Стрелам нужна цель-существо.'};const expected=holderFxFlag(holder,'spell.magicMissileImmune')?0:dmgAfterTraits(holder,die+1,'силовое поле',{magical:true}).amount*row.magicMissile.darts;if(row.dmgTotal!==expected)return {ok:false,reason:'Защита цели изменилась или урон стрел не подтверждён. Перестройте формулу.'};}
 }
 const consequences=spellWorldConsequencePlan(rule); if(!consequences.ok)return consequences;
-const arcanum=arcanumPreflight(sp,caster,targets,slot.lv,rolls,rollsByTarget,input);if(!arcanum.ok)return arcanum;
+const arcanum=sanctuary.lost?{ok:true,handled:false}:arcanumPreflight(sp,caster,targets,slot.lv,rolls,rollsByTarget,input);if(!arcanum.ok)return arcanum;
+const artificerSpell=sanctuary.lost?{ok:true,handled:false}:artificerSpellPreflight(sp,caster,targets,slot.lv,rolls,rollsByTarget,input);if(!artificerSpell.ok)return artificerSpell;
+const artificerUtility=artificerUtilityPreflight(sp,caster,targets,slot.lv,rolls,rollsByTarget,input,slot);if(!artificerUtility.ok)return artificerUtility;
+const artificerBasic=artificerBasicPreflight(sp,caster,targets,input);if(!artificerBasic.ok)return artificerBasic;
 const usedSlotLvl=slot.lv||sp.l,isConc=spellNeedsConcentration(sp,usedSlotLvl);
-return {ok:true,rule,cast,slot,targets,plans,material,otherResources,scene,choices,consequences,arcanum,usedSlotLvl,isConc,
+return {ok:true,rule,cast,slot,targets,plans,material,otherResources,scene,choices,consequences,arcanum,artificerSpell,artificerUtility,artificerBasic,sanctuary,usedSlotLvl,isConc,
 explanation:['Доступ и подготовка проверены','Компоненты и ресурсы зарезервированы','Цели и сцена допустимы','Последствия подготовлены без изменения мира']};
 }
 function spellCommitWorldConsequences(plan,sp,caster,castId,dur){
@@ -9589,7 +9653,7 @@ rollback:async snapshot=>gameActionTransactionRestore(snapshot),reject:error=>({
 setStatus(result.message,!result.success);if(!result.success)castShowErr(result.message);renderChars();renderCombat();return result;
 }
 function castSpellFinish(...args){
-if(combat.active&&['conjureFey','createUndead'].includes(arcanumSpecial(spellOf(args[0])))&&!args[9]?.arcanum?.longCast)return arcanumLongCastStart(args);
+if(combat.active&&arcanumLongCastSupported(spellOf(args[0]))&&!args[9]?.arcanum?.longCast)return arcanumLongCastStart(args);
 const actor=getCh(args[1]),entry=actor?.spellbook?.find(e=>e.spellId===args[0]);
 if(spellEntryArcanum(entry)||castCtx?.arcanumToken||String(args[5]||'').endsWith(':arcanum'))return mysticArcanumCastApply(...args).then(result=>{if(result.success)closeCastModal();return result;});
 const applied=castSpellApply(...args);if(applied)closeCastModal();return applied;
@@ -9633,11 +9697,14 @@ commitSlotPlan(caster,slotPlan);
 const spent=commitMaterialPlan(caster,matPlan);
 if(!spent.ok)throw new Error(spent.reason||'spell material commit failed');
 commitSpellOtherResources(caster,enginePlan.otherResources);
+artificerSanctuaryCommitPlan(enginePlan.sanctuary);
 if(!interruptSpellBlocked&&!commitOutcomeReactionsMany(reactionRolls))throw new Error('aggregate outcome reaction commit failed');
 /* Одноразовые кости эффектов списываются только после успешного общего
 префлайта каста. Отмена до коммита не меняет ни один лист. */
 if(!interruptSpellBlocked){consumeOutcomeRollFx(caster,target,rolls);extras.forEach(v=>consumeOutcomeRollFx(caster,v,rollsByTarget&&rollsByTarget[v]));}
 endTriggeredSpellEffects(caster,'spell');
+if(!enginePlan.sanctuary.lost&&artificerSanctuarySpellAffectsEnemy(sp,caster,enginePlan.targets,executionInput))artificerSanctuaryBreak(caster);
+if(enginePlan.sanctuary.lost){castLogLine(caster.name+': «'+sp.n+'» потеряно из-за Убежища; ресурс и действие израсходованы.');return bg3SourceTransactionFinish(interruptPermit,transactionLabel);}
 if(isConc&&concLabelOf(caster)) breakConcentration(caster,'начато новое заклинание концентрации «'+sp.n+'»');
 if(interruptSpellBlocked){setStatus('⚡ «'+sp.n+'» сотворено, но заблокировано подготовленной реакцией; '+(magicUsesMp()?'MP':'ячейка')+', компоненты и действие израсходованы.');castLogLine(caster.name+': «'+sp.n+'» — заблокировано реакцией');return bg3SourceTransactionFinish(interruptPermit,transactionLabel);}
 const specialHandler=spellSpecialHandler(sp);
@@ -9652,6 +9719,9 @@ const durWhy=(isConc?' · концентрация':'')+(sp.d&&!/мгновен�
 const lastingFx=spellFxForCast(sp,usedSlotLvl).filter(f=>!(f.stat==='hp'&&f.mode==='add'));
 const dur=durationSpecOf(sp,usedSlotLvl);
 if(enginePlan.arcanum.handled){arcanumCommitCast(enginePlan,sp,caster,castId);arcanumLongCastCompleted(caster.id,executionInput);return bg3SourceTransactionFinish(interruptPermit,transactionLabel);}
+if(enginePlan.artificerSpell.handled){artificerSpellCommitCast(enginePlan,sp,caster,castId);arcanumLongCastCompleted(caster.id,executionInput);return bg3SourceTransactionFinish(interruptPermit,transactionLabel);}
+if(enginePlan.artificerUtility.handled){artificerUtilityCommitCast(enginePlan,sp,caster,castId);arcanumLongCastCompleted(caster.id,executionInput);return bg3SourceTransactionFinish(interruptPermit,transactionLabel);}
+if(enginePlan.artificerBasic.handled){artificerBasicCommitCast(enginePlan,sp,caster,castId);return bg3SourceTransactionFinish(interruptPermit,transactionLabel);}
 const worldOutcome=spellCommitWorldConsequences(enginePlan,sp,caster,castId,dur);
 
 
@@ -9689,7 +9759,7 @@ if(bit) rollBits.push((t.name||t.n)+bit);
 такого результата не считается провалом спасброска и не дает эффекта. */
 const allowed=sleepSpell&&rolls&&rolls.sleepTotal!=null?sleepEligible.has(val)
 :(ownRolls?outcomeAllowsEffect(ownRolls):(!rolls||shared));
-if(isHero&&allowed){
+if(allowed&&(isHero||spellMechanics?.special==='stabilize')){
 const immediate=applyImmediateSpell(sp,caster,t,usedSlotLvl);
 if(immediate) results.push(t.name+': '+immediate);
 }
@@ -14516,20 +14586,21 @@ return e.ch;
 }
 function itemNeedsAttune(it){ return itemSpec(it).attune; }
 function attunedEntries(c){
-return (c.inventory||[]).filter(e=>{ const it=itemOf(e.itemId); return it&&itemNeedsAttune(it)&&e.att; });
+return (c.inventory||[]).filter(e=>{ const it=itemOf(e.itemId); return it&&(itemNeedsAttune(it)||artificerNeedsAttune(c,e))&&artificerEntryAttuned(c,e); });
 }
 function toggleAttuneForActor(actorId,entryId){
 const c=getCh(String(actorId||'')); if(!c) return false;
 const e=(c.inventory||[]).find(x=>x.id===entryId); if(!e) return;
 const it=itemOf(e.itemId); if(!it) return;
 const itemName=userFacingItemName(it,'Предмет');
-if(e.att){ e.att=false; setStatus('✵ Настройка на «'+itemName+'» разорвана.'); }
+if(artificerEntryAttuned(c,e)){ e.att=false; setStatus('✵ Настройка на «'+itemName+'» разорвана.'); }
 else{
 if(attunedEntries(c).length>=ATTUNE_LIMIT){
 setStatus('✕ Больше '+ATTUNE_LIMIT+' настроенных предметов держать нельзя — разорвите настройку с другим.', true); return;
 }
 e.att=true; setStatus('✵ «'+itemName+'» настроен — свойства предмета вступили в силу.');
 }
+artificerAttunementChanged(c,e);
 fxInvalidate(); scheduleSave(); renderChars();
 return true;
 }
@@ -15581,14 +15652,15 @@ back.style.display='flex';
 }
 function weaponSpecOf(caster, it, ti, opts){
 opts=opts||{};
-const pr=itemProfile(it), w=pr.weapon||{},damage=weaponDamageOf(it),damageTraits=weaponDamageTraitsOf(it);
+const pr=artificerWeaponProfile(caster,opts.entryId,itemProfile(it)), w=pr.weapon||{},damage=weaponDamageOf(it),damageTraits=weaponDamageTraitsOf(it);
+if(artificerWeaponMagical(caster,opts.entryId))damageTraits.magical=true;
 if(opts.entryId&&holderFxRules(caster,'bg3.weapon.magical').some(f=>f.value?.entryId===opts.entryId))damageTraits.magical=true;
 const useDex=w.ranged||(w.finesse&&eMod(caster,'dex')>=eMod(caster,'str'));
 const abm=useDex?eMod(caster,'dex'):eMod(caster,'str');
 const dmgAb=opts.offhand&&!charAbilityRuleEntries(caster).some(x=>x.rules?.twoWeaponFighting)?Math.min(0,abm):abm;
 const hasProf=(typeof weaponProfHas==='function')?weaponProfHas(caster,it):true;
 const legalTwo=!!(opts.two&&w.versatile&&(!opts.entryId||weaponCanUseTwoHands(caster,opts.entryId)));
-const wb=weaponBonusOf(it), duel=duelingBonusOf(caster,it,Object.assign({},opts,{two:legalTwo}));
+const wb=artificerWeaponBonus(caster,opts.entryId,weaponBonusOf(it)), duel=duelingBonusOf(caster,it,Object.assign({},opts,{two:legalTwo}));
 const atk=abm+(hasProf?PROF[caster.level]:0)+fxSum(caster,'atk')+fxSum(caster,'weapon.atk')+weaponScopedAttackBonus(caster,opts.entryId)+wb.atk;
 const fixed=!damage.sides?(+damage.mod||0):0;
 let cnt=+damage.cnt||0, sides=+damage.sides||0, flat=+damage.mod||0;
@@ -15652,7 +15724,7 @@ label:'Базовый яд: сумма 1d4',hint:'только после поп
 }
 bg3LifecycleAppendDamageExtras(caster,opts.entryId,ti,{rows,meta},'weapon',damage.type);
 bg3LifecycleAugmentWeaponSpec(caster,opts.entryId,ti,{rows,meta});
-return finalizeRollSpec(recipeTabletopAugmentSpec(caster,it,ti,{rows,meta},'weapon',opts),{kind:'weapon',id:it&&it.id||'',name:it&&it.n||''});
+return finalizeRollSpec(artificerAbsorbAttackSpec(recipeTabletopAugmentSpec(caster,it,ti,{rows,meta},'weapon',opts)),{kind:'weapon',id:it&&it.id||'',name:it&&it.n||''});
 }
 const bg3GithbornMindcrusherWeaponSpecCore=weaponSpecOf;
 weaponSpecOf=function(caster,it,ti,opts){return bg3GithbornMindcrusherWithFreshFx(()=>bg3GithbornMindcrusherWeaponSpecCore(caster,it,ti,opts));};
@@ -15675,7 +15747,7 @@ function weaponAttackResourcePlan(caster,entryId,mode,opts){
 if(!entryId) return {ok:true};
 const e=invEntryOf(caster,entryId),it=e&&itemOf(e.itemId);
 if(!e||!it) return {ok:false,reason:'Выбранное оружие больше не находится в инвентаре.'};
-const pr=itemProfile(it),plan={ok:true,caster,e,it,pr,weaponPolicy:bg3InterruptDeepFreeze(itemClone(pr&&pr.weapon||null)),campaignRule:bg3InterruptDeepFreeze(itemClone(itemCampaignRules(it)||null)),mode:mode||'melee',ammo:null,ammoItem:null,thrown:false};
+const pr=artificerWeaponProfile(caster,entryId,itemProfile(it)),plan={ok:true,caster,e,it,pr,weaponPolicy:bg3InterruptDeepFreeze(itemClone(pr&&pr.weapon||null)),campaignRule:bg3InterruptDeepFreeze(itemClone(itemCampaignRules(it)||null)),mode:mode||'melee',ammo:null,ammoItem:null,thrown:false};
 if(opts&&opts.rangeBand==='out') return {ok:false,reason:'Цель находится дальше максимальной дистанции оружия.'};
 if(opts&&opts.cover==='total') return {ok:false,reason:'Цель за полным укрытием — прямая атака невозможна.'};
 if(opts&&opts.two&&pr.weapon&&pr.weapon.versatile&&!weaponCanUseTwoHands(caster,entryId))
@@ -15694,7 +15766,7 @@ const token=entryId+'@'+actionNo;
 if(r.loadingUsed[token]) return {ok:false,reason:(pr.weapon.net?'Сетью можно совершить только одну атаку за действие.':'Свойство «Перезарядка» разрешает выстрелить из «'+it.n+'» только один раз за это действие.')};
 plan.loadingTurn=combat.turn; plan.loadingToken=token;
 }
-plan.thrown=!!(pr.weapon&&pr.weapon.thrown&&mode==='throw');
+plan.thrown=!!(pr.weapon&&pr.weapon.thrown&&mode==='throw'&&!artificerReturningWeapon(caster,entryId));
 if(plan.thrown&&(+e.qty||0)<=0) return {ok:false,reason:'«'+it.n+'» больше нет в инвентаре.'};
 if(plan.thrown){const transitionGuard=bg3InventoryMutationGuard(caster,[{entryId:e.id,qty:1}],{context:'thrown-weapon'});if(!transitionGuard.ok)return transitionGuard;}
 return plan;
@@ -16299,7 +16371,7 @@ return '<span class="fx-note">'+esc(label==='Игровое свойство'?la
 
 function fxPanelHTML(c){
 const src=charFxSources(c);
-let h='<h3 class="rubric" style="font-size:20px;margin-top:14px">✦ Действующие эффекты</h3>'+recipeTabletopControls(c)+arcanumControls(c)+arcanumLongCastControls(c);
+let h='<h3 class="rubric" style="font-size:20px;margin-top:14px">✦ Действующие эффекты</h3>'+recipeTabletopControls(c)+arcanumControls(c)+arcanumLongCastControls(c)+artificerSpellControls(c)+artificerUtilityControls(c)+artificerBasicControls(c);
 const cl=concLabelOf(c);
 if(cl){
 const tgt=concEntriesOf(c.id).map(o=>o.ch.id===c.id&&/цель: ([^·]+)/.test(o.a.why||'')?(o.a.why.match(/цель: ([^·]+)/)||[])[1]:o.ch.name).filter((v,i,a)=>v&&a.indexOf(v)===i);
@@ -17138,7 +17210,7 @@ cover:cover.key,coverBonus:cover.bonus,totalCover:cover.total,
 damageTags:{magical:!!a.magic,silvered:!!a.silvered,adamantine:!!a.adamantine}};
 if(a.kind==='attack'){
 const condMode=attackConditionMode(f,ti,{mode:a.mode||'',within5,rangeBand,threatenedWithin5:opts.threatenedWithin5});
-const atkFx=foeFxAll(f).filter(x=>x.stat==='attack');
+const atkFx=foeFxAll(f).filter(x=>x.stat==='attack'||x.stat==='weapon.attack'&&['weapon','natural'].includes(a.sourceKind));
 const hasAdv=condMode.adv.length>0||atkFx.some(x=>x.mode==='adv');
 const hasDis=condMode.dis.length>0||atkFx.some(x=>x.mode==='dis');
 const adv=(hasAdv===hasDis)?0:(hasAdv?1:2);
@@ -17281,12 +17353,15 @@ return info;
 }
 function endTriggeredFoeEffects(f,trigger){
 if(!f) return;
+if(trigger==='attack')artificerSanctuaryBreak(f);
 const gone=(f.activeFx||[]).filter(x=>(x.k==='spell'||x.k==='use')&&((x.breakOn||[]).indexOf(trigger)>=0
 ||(!x.mechanicsVersion&&!(x.breakOn||[]).length&&normSpellName(x.label)==='невидимость'&&(trigger==='attack'||trigger==='spell'))));
 if(gone.length){ f.activeFx=(f.activeFx||[]).filter(x=>gone.indexOf(x)<0); fxInvalidate(); }
 }
 function foeActionApplyTarget(f,a,target,rolls,ti,opts){
+if(!a.area)artificerSanctuaryCommitAttack(f,target,rolls);
 opts=opts||{};if(rolls&&rolls.consumeCasterFx&&rolls.consumeCasterFx.length){const gone=new Set(rolls.consumeCasterFx);f.activeFx=(f.activeFx||[]).filter(x=>!gone.has(x.uid));}
+if(a.kind==='attack'&&['weapon','natural'].includes(a.sourceKind))artificerSpellWeaponRollConsumed(f,rolls,'weapon');
 consumeOutcomeRollFx(null,target,rolls);if(!opts.skipAttackEnd&&rolls&&rolls.attackMade)endTriggeredFoeEffects(f,'attack');
 const before=ti.obj?{hp:+ti.obj.hp||0,hpTemp:+ti.obj.hpTemp||0}:null;let info=applyRollsToTarget(target,rolls,'☠ '+f.n+': '+a.n);
 if(a.condition&&outcomeAllowsEffect(rolls)&&ti.obj){const excluded=foeActionEffectExclusion(a,ti);
@@ -17557,7 +17632,7 @@ if((f.damageRules||[]).length) bars.push('условные защиты: '+esc(f
 if((f.condImmune||[]).length) bars.push('иммунитет к состояниям: '+esc(f.condImmune.join(', ')));
 const cond=effectiveFoeConditions(f);
 if(cond.length) bars.push('состояния: '+esc(cond.join(', ')));
-const effects=recipeTabletopControls(f)+arcanumControls(f)+(f.activeFx||[]).map(a=>'<span class="uses-box">✦ '+esc(a.label||'Эффект')+' · '+esc(fxDurationLabel(a))
+const effects=recipeTabletopControls(f)+arcanumControls(f)+artificerSpellControls(f)+artificerUtilityControls(f)+artificerBasicControls(f)+(f.activeFx||[]).map(a=>'<span class="uses-box">✦ '+esc(a.label||'Эффект')+' · '+esc(fxDurationLabel(a))
 +'<button class="del-x" title="Снять эффект" onclick="removeFoeActiveFx(\''+f.id+'\',\''+a.uid+'\')">✕</button></span>').join(' ');
 const actionBtns=foeActionsOf(f).map(a=>{ const ready=foeActionReady(f,a); return '<button class="btn '+(foeAlive(f)&&ready?'rub':'ghost')+' sm"'
 +(foeAlive(f)&&ready?'':' disabled')+' onclick="foeActionFx(\''+f.id+'\',\''+a.id+'\')" title="'+esc(foeActionFormula(a))+'">'
@@ -17887,6 +17962,7 @@ chars.forEach(c=>(c.inventory||[]).forEach(x=>{ if(x.korlinnHitPending)delete x.
 combat.turn={actorKey:key,actionUsed:false,actionMax:1,bg3ActionCapacityBonus:0,actionsUsed:0,actionKind:'',attacksUsed:0,attackMax:combatAttackCount(key),attackActionTaken:false,foeAttacks:[],foeUses:{},loadingUsed:{},bonusUsed:false,objectUsed:false,movementUsed:0,dash:false,disengage:false,spellCasts:[],bonusSpellUsed:false,abilityUsed:{},startedAt:new Date().toISOString()};
 if(e.kind==='ally') activeCharId=e.id;
 recipeTabletopStartTurn(key);
+if(!artificerSpellTurnStart(key))return false;
 if(!arcanumPanicTurn(key,true))return false;
 combatLog('Ход: '+combatActorName(key),'round',key); return true;
 }
@@ -17911,6 +17987,8 @@ if(found<0){ setStatus('✕ Нет дееспособных участников
 const nextActorKey=combatEntryKey(combat.order[found]);
 if(!combatTransitionCommit(()=>{
 arcanumLongCastTurnEnd(oldKey);
+if(!artificerSpellTurnEnd(oldKey))return false;
+if(!artificerBasicTurnEnd(oldKey))return false;
 combatClearEndEffects(oldKey); combatLog('Ход завершен: '+combatActorName(oldKey),'round',oldKey);
 if(wrapped){ combat.round++; if(advanceFxRound(1,pendingExpiry)===false)return false; combatLog('Раунд '+combat.round+' начат.','round'); }
 arcanumRepairSummonOrder();
@@ -18123,7 +18201,7 @@ if(castCtx){ castCtx.combatActorKey=actorKey; castCtx.combatCost=cost; castCtx.c
 return false;
 }
 function combatSpellCost(sp){
-if(combat.active&&['conjureFey','createUndead'].includes(arcanumSpecial(sp))&&sp?.mechanics?.special===arcanumSpecial(sp))return 'action';
+if(combat.active&&arcanumLongCastSupported(sp))return 'action';
 if(sp&&sp.mechanics&&sp.mechanics.schemaVersion===GAME_MECHANICS_SCHEMA_VERSION&&sp.mechanics.mode!=='legacy') return sp.mechanics.activation.cost;
 const t=normRollTxt(sp&&sp.t||''),x=normRollTxt(sp&&sp.x||'');
 if(/реакц/.test(t)) return 'reaction';
@@ -18225,7 +18303,7 @@ if(!e||e.kind!=='foe'||!a||a.kind!=='utility'||!foeActionReady(f,a)) return fals
 const cost=a.cost||'action'; if(!combatCanSpend(cost,key)) return false;
 const finish=detail=>{
 if(!combatSpend(cost,a.n,key)) return false;
-if(a.combatEffect==='dash'||a.combatEffect==='dashToward') combat.turn.dash=true;
+if(a.combatEffect==='dash'||a.combatEffect==='dashToward') combatGrantDash();
 if(a.combatEffect==='disengage') combat.turn.disengage=true;
 if(a.combatEffect==='parry'){
 applyFxToFoe(f,{k:'foeaction',id:f.id+':'+a.id,label:'Парирование: КД +2 против одной атаки',from:f.n,casterId:f.id,
@@ -18320,7 +18398,7 @@ const key=combatCurrentKey(); if(code==='useobject'){ combat.uiGroup='items'; re
 if(code==='hide') return combatCheckAction(code,'Засада / Скрытность','Скрытность','dex');
 if(code==='search') return combatCheckAction(code,'Поиск / Внимательность','Внимательность','wis');
 if(!combatCanSpend('action',key)) return false; let label='',note='';
-if(code==='dash'){ label='Рывок'; combat.turn.dash=true; }
+if(code==='dash'){ label='Рывок'; combatGrantDash(); }
 else if(code==='disengage'){ label='Отход'; combat.turn.disengage=true; }
 else if(code==='dodge'){ label='Уклонение'; combatDodge(key); }
 else if(code==='help'){ label='Помощь'; note=window.prompt('Кому и в чем оказана помощь?','')||''; if(!note) return false; }
@@ -18346,7 +18424,7 @@ return true;
 }
 const label=code==='dash'?'Рывок':(code==='disengage'?'Отход':''); if(!label) return false;
 if(!combatSpend('bonus',label+' (Проворство чейнджлинга)',key)) return false;
-if(code==='dash') combat.turn.dash=true;
+if(code==='dash') combatGrantDash();
 if(code==='disengage') combat.turn.disengage=true;
 scheduleSave(); renderCombat(); return true;
 }
@@ -18488,9 +18566,9 @@ return combatRunItemActionForActor('ally:'+c.id,entryId,index);
 }
 function combatInspectItem(entryId){const key=combatFocusedKey(),actor=combatActorByKey(key),entry=actor&&invEntryOf(actor,entryId);if(!entry)return false;return bg3ItemInstructionsOpen(entry.itemId,actor.id,entry.id,'');}
 function combatSetGroup(g){ combat.uiGroup=g; renderCombat(); }
-function combatMoveSet(v){ if(!combat.active||!combat.turn) return; const n=Math.max(0,+v||0),max=combatMoveMax(),was=+combat.turn.movementUsed||0; combat.turn.movementUsed=Math.min(n,max); if(was!==combat.turn.movementUsed) combatLog(combatActorName(combat.turn.actorKey)+': перемещение '+was+'→'+combat.turn.movementUsed,'action',combat.turn.actorKey); scheduleSave(); renderCombat(); }
-function combatSpeedNumber(key){ const m=String(combatActorSpeed(key)).replace(',','.').match(/\d+(?:\.\d+)?/); return m?+m[0]:0; }
-function combatMoveMax(){ if(!combat.turn) return 0; return combatSpeedNumber(combat.turn.actorKey)*(combat.turn.dash?2:1); }
+function combatMoveSet(v){ if(!combat.active||!combat.turn) return; const n=Math.max(0,+v||0),max=combatMoveMax(),was=+combat.turn.movementUsed||0,next=Math.min(n,max),plan=artificerSpellMovePreflight(combat.turn.actorKey,Math.max(0,next-was));if(!plan.ok){setStatus(plan.reason,true);return false;}if(!combatTransitionCommit(()=>{artificerSpellMoveCommit(plan);combat.turn.movementUsed=next;return true;}))return false; if(was!==combat.turn.movementUsed) combatLog(combatActorName(combat.turn.actorKey)+': перемещение '+was+'→'+combat.turn.movementUsed,'action',combat.turn.actorKey); scheduleSave(); renderCombat(); }
+function combatSpeedNumber(key){ const m=String(combatActorSpeed(key)).replace(',','.').match(/\d+(?:\.\d+)?/); return artificerMovementSpeed(key,m?+m[0]:0); }
+function combatMoveMax(){ if(!combat.turn) return 0; return combatSpeedNumber(combat.turn.actorKey)*(1+(Number.isInteger(combat.turn.dashCount)?combat.turn.dashCount:combat.turn.dash?1:0)); }
 function combatAdjustHp(key,mode){
 const id=combatDomKey(key),el=document.getElementById('combatHpVal_'+id),n=Math.max(0,+(el&&el.value)||0); if(!n) return false;
 const o=combatActorByKey(key); if(!o) return false; let result=null,info='';
@@ -18852,11 +18930,12 @@ function gameActionTransactionSnapshot(){
 const comprehensive=typeof bg3InterruptWorldCheckpoint==='function'?bg3InterruptWorldCheckpoint([]):null,
 transientIdentity=typeof bg3InterruptIdentitySnapshot==='function'?bg3InterruptIdentitySnapshot([castCtx,rollSpec]):null;
 return {comprehensive,transientIdentity,economyIdentity:bg3InterruptIdentitySnapshot([economyState,merchantState]),economyRef:economyState,merchantRef:merchantState,economyState:gameActionClone(economyState),merchantState:gameActionClone(merchantState),chars:comprehensive?null:gameActionClone(chars),journal:comprehensive?null:gameActionClone(journal),foesDB:comprehensive?null:gameActionClone(foesDB),combat:comprehensive?null:gameActionClone(combat),
-harvestedSources:comprehensive?null:gameActionClone(harvestedSources),bg3SceneState:comprehensive?null:gameActionClone(bg3SceneState),chestState:gameActionClone(chestState),campaignMagic:gameActionClone(campaignMagic),activeCharId,fxRound,lastCastEvent,castCtx,rollSpec};
+harvestedSources:comprehensive?null:gameActionClone(harvestedSources),bg3SceneState:comprehensive?null:gameActionClone(bg3SceneState),chestState:gameActionClone(chestState),campaignMagic:gameActionClone(campaignMagic),partyUpdates:gameActionClone(partyUpdates),activeCharId,fxRound,lastCastEvent,castCtx,rollSpec};
 }
 function gameActionTransactionRestore(snapshot){
 if(snapshot.economyState){const restored=bg3InterruptIdentityRestore(snapshot.economyIdentity);economyState=restored?snapshot.economyRef:snapshot.economyState;merchantState=restored?snapshot.merchantRef:snapshot.merchantState;economyServiceCache=null;merchantServiceCache=null;}
 if(snapshot.campaignMagic)campaignMagic=MAGIC_RULES.settings(snapshot.campaignMagic);
+if(snapshot.partyUpdates)partyUpdates=itemClone(snapshot.partyUpdates);
 if(snapshot.comprehensive)bg3InterruptWorldRestore(snapshot.comprehensive);
 else{chars=snapshot.chars;journal=snapshot.journal;foesDB=snapshot.foesDB;combat=normalizeCombatState(snapshot.combat);harvestedSources=snapshot.harvestedSources;bg3SceneState=bg3SceneNormalizeState(snapshot.bg3SceneState);lastCastEvent=snapshot.lastCastEvent;}
 if(snapshot.transientIdentity&&typeof bg3InterruptIdentityRestore==='function')bg3InterruptIdentityRestore(snapshot.transientIdentity);
@@ -19063,7 +19142,7 @@ if(entry.kind==='ally') (o.abilities||[]).forEach(x=>{ const a=abilityOf(x.abili
 const opponents=combatOpponents(key),targetCtl=opponents.length?'<div class="combat-move"><span>◎ Быстрая цель</span><select id="combatQuickTarget">'+opponents.map(x=>{ const k=combatEntryKey(x); return '<option value="'+k+'">'+esc(combatActorName(k))+' · КД '+combatActorAc(k)+'</option>'; }).join('')+'</select><select id="combatContestDefense" title="Чем цель защищается от захвата/толчка"><option value="ath">Защита: Атлетика</option><option value="acr">Защита: Акробатика</option></select></div>':'';
 return '<div class="combat-stage-head"><div class="who">'+esc(o.name||o.n)+'</div><div class="subline">'+(current?'Текущий ход':'Фокус вне хода: доступны только реакции')+' · КД '+combatActorAc(key)+' · '+(+o.hp||0)+'/'+combatActorMaxHp(key)+' хитов</div></div><div class="combat-resources">'+resources+'</div>'
 +targetCtl
-+recipeTabletopControls(o,key)
++recipeTabletopControls(o,key)+artificerSpellControls(o)+artificerUtilityControls(o)+artificerBasicControls(o)+(current?artificerMovementControls(o):'')
 +combatZonesHTML()
 +(current?'<div class="combat-move">⇥ Перемещение <input type="number" min="0" max="'+max+'" step="1.5" value="'+mv+'" onchange="combatMoveSet(this.value)"> / '+max+' '+(String(combatActorSpeed(key)).indexOf('фут')>=0?'футов':'м')+(r.dash?' (Рывок)':'')+'</div>':'')
 +'<div class="combat-groups">'+groups.map(x=>'<button class="combat-group '+(combat.uiGroup===x[0]?'active':'')+'" onclick="combatSetGroup(\''+x[0]+'\')">'+x[1]+'</button>').join('')+'</div><div class="combat-actions">'+combatActionsHTML(key)+'</div>'
@@ -27296,7 +27375,7 @@ insist(caster.inventory[0].qty===beforeQty,'ошибочный префлайт 
 const ti=targetInfoOf(target),spec=itemUseSpecOf(caster,it,use,ti,opts);
 insist(!formulaContractErrors(spec).length,'формула не прошла контракт');
 const outcome=resolveOutcome(spec,itemAuditRollValues(spec),{});
-insist(useItemApply('tested-item',caster.id,target,outcome,use.id,opts)===true,'допустимое применение не завершилось');
+insist(useItemApply('tested-item',caster.id,target,outcome,use.id,opts)===true,'допустимое применение не завершилось: '+(document.getElementById('castErr')?.textContent||document.getElementById('saveStatus')?.textContent||'причина отсутствует'));
 insist(inventoryItemQty(caster,it.id)===beforeQty-1,'успех не списал ровно один предмет');
 return true;
 });
@@ -27781,7 +27860,7 @@ const weapon=itemProfile(it).weapon||{},damage=weaponDamageOf(it);
 const useDex=weapon.ranged||(weapon.finesse&&eMod(c,'dex')>=eMod(c,'str'));
 const m=useDex?eMod(c,'dex'):eMod(c,'str');
 const hasProf=(typeof weaponProfHas==='function')?weaponProfHas(c,it):true;
-const wb=weaponBonusOf(it), duel=duelingBonusOf(c,it,{entryId:e.id});
+const wb=artificerWeaponBonus(c,e.id,weaponBonusOf(it)), duel=duelingBonusOf(c,it,{entryId:e.id});
 rows.push({n:userFacingItemName(it,'Оружие')+(hasProf?'':' (без владения)'), entryId:e.id, itemId:it.id, atk:m+(hasProf?PROF[c.level]:0)+fxSum(c,'atk')+fxSum(c,'weapon.atk')+weaponScopedAttackBonus(c,e.id)+wb.atk,
 dmg:it.dmg||'', dt:it.dmgType||'',damage,m:m+(+damage.mod||0)+fxSum(c,'dmg')+wb.dmg+duel, abn:useDex?'Лов':'Сил',
 mode:weapon.ranged?'ranged':'melee', within5:(weapon.ranged||weapon.reach)?null:true,damageTags:weaponDamageTraitsOf(it)});
@@ -28461,7 +28540,7 @@ scheduleSave(); renderChars();
 function characterSetHpMax(v){const c=cc();if(!c||!Number.isInteger(Number(v))||+v<1)return false;c.hpMax=+v;fxInvalidate();c.hp=Math.min(c.hp,eHpMax(c));scheduleSave();renderChars();renderCombat();return true;}
 function characterFallDamage(amount){
 const c=cc();if(!c)return false;
-if(amount===undefined){if(holderFxFlag(c,'damage.fall.immune')){setStatus('Плавное падение: герой не получает урон от падения.');return true;}amount=prompt('Введите сумму урона от падения, выпавшую на костях.','');if(amount===null)return false;}
+if(amount===undefined){if(holderFxFlag(c,'damage.fall.immune')){artificerFeatherLanded(c);scheduleSave();renderChars();renderCombat();setStatus('Плавное падение: герой приземлился без урона.');return true;}amount=prompt('Введите сумму урона от падения, выпавшую на костях.','');if(amount===null)return false;}
 if(String(amount).trim()===''||!Number.isSafeInteger(Number(amount))||Number(amount)<0)return false;
 const context={sourceKind:'fall',magical:false},damage=dmgAfterTraits(c,Number(amount),'дробящий',context);
 const result=applyDamageTo('ally:'+c.id,damage.amount,'дробящий','Падение',context);dispatchDamageResult(result);
@@ -28657,7 +28736,7 @@ out=healed?.blocked?'d20 20 — '+healed.reason+'. Герой остается �
 else if(d.kind==='f')  c.deaths.f=Math.min(3,(c.deaths.f||0)+1);
 else                   c.deaths.s=Math.min(3,(c.deaths.s||0)+1);
 if(combat.active)combat.turn.deathSaveDone=true;
-if(c.deaths.f>=3) out+=' Три провала — герой погибает.';
+if(c.deaths.f>=3){artificerCreatorDied(c);out+=' Три провала — герой погибает.';}
 else if(c.deaths.s>=3){c.deaths.f=0;out+=' Три успеха — герой стабилизирован (без сознания, но жив).';}
 diceOutSet('Спасбросок от смерти: '+out, d.kind==='up'||d.kind==='s'?'var(--ok)':'var(--rubric)');
 setStatus('⚂ '+c.name+' — спасбросок от смерти: '+out);
@@ -29611,10 +29690,13 @@ if(end) detachActiveFx(c,a); else keep.push(a);
 c.activeFx=keep.concat(addedAfterRemove.filter(x=>!keep.includes(x)));
 c.spentRest=0; c.arcUsed=false; c.naturalRecoveryUsed=false;
 recipeTabletopRest(c,'long');
+artificerElixirRest(c);
 if(typeof rechargeItems==='function') rechargeItems(c,'long');
 if(typeof fxInvalidate==='function') fxInvalidate();
 syncStackedGrants(c);
 c.hp=(typeof eHpMax==='function')?eHpMax(c):c.hpMax;
+artificerLongRest(c);
+artificerElixirRestReady(c);
 if(prepCommit.error) setStatus('☾ Долгий отдых завершен, но '+prepCommit.error+' Активный список подготовки сохранен.',true);
 else setStatus('☾ Долгий отдых завершен.'+(prepCommit.changed?' Новый список подготовки вступил в силу: '+prepCommit.count+' заклинаний.':''));
 arcanumRestFinished();
@@ -29948,7 +30030,7 @@ return '<div class="spell-dash"><div class="sd-line">Способностей с
 +'</div>';
 }
 function stAbilities(c){
-let h='<div class="panel">';
+let h=artificerFeaturesHTML(c)+artificerElixirControls(c)+'<div class="panel">';
 const cats=[['all','Все способности'],['class','Классовые'],['racial','Расовые'],['feat','Черты'],['background','Предыстории'],['other','Прочие']];
 h+='<div class="subtabs" style="margin-top:0">'+cats.map(x=>'<button class="subtab'+(abFlt.cat===x[0]?' active':'')+'" onclick="abFlt.cat=\''+x[0]+'\';renderChars()">'+x[1]+'</button>').join('')+'</div>';
 h+='<div class="row-line" style="margin:4px 0"><span class="grow"></span><button class="btn ghost sm" title="Восстановить способности с ограничением «раз за бой» у всех героев" onclick="encounterEnd()">⚔ Бой окончен</button></div>'+abilityDashHTML(c);

@@ -1,0 +1,1399 @@
+{
+  "schemaVersion": "dnd-world-alchemist-drive-reference/1",
+  "checkedAt": "2026-10-23",
+  "rules": "D&D 5e 2014",
+  "sourceFiles": [
+    {
+      "id": "1t7puzH9RSh74WvU-XP5ClfpmSytsscDi",
+      "size": 3408372380,
+      "entries": 685,
+      "transferredBytes": 133135,
+      "files": [
+        {
+          "name": "deck-index.json",
+          "size": 119335,
+          "crc32": "dcdd07d0",
+          "sha256": "e638950f5505dd4e3096124c89017f8b19a6b3b6eb585c249ab2b290b6a81611"
+        },
+        {
+          "name": "SOURCES-AND-SCOPE.txt",
+          "size": 3217,
+          "crc32": "d891c86f",
+          "sha256": "832af724d24c93dc9453215f823d699ef1ced8ba95a2f7a3ac47e37e5c9eb2a3"
+        },
+        {
+          "name": "copy-and-omissions.json",
+          "size": 22229,
+          "crc32": "d01d93ed",
+          "sha256": "35bfd09f5584f49256e03ee72b51b0880600707e713eebc8012a62a547ef35aa"
+        },
+        {
+          "name": "ALCHEMIST-FULL-REFERENCE.html",
+          "size": 357045,
+          "crc32": "b9f24e42",
+          "sha256": "e0bf361e486b4bead0d21586013fc0a30c1d99014219884c3411fbda5a59176b"
+        },
+        {
+          "name": "print-kit/card-order.csv",
+          "size": 6268,
+          "crc32": "81003ac8",
+          "sha256": "668e3aa2a14e12fbc3edfb5f3da01409c0c6f30ef6c03796ad6e49e3ad57005a"
+        }
+      ]
+    },
+    {
+      "id": "1x7_3n0SpVq2pi08a8DAH-gttt-dw3rX0",
+      "size": 1032001708,
+      "entries": 7,
+      "transferredBytes": 29168,
+      "files": [
+        {
+          "name": "print-kit/card-order.csv",
+          "size": 6268,
+          "crc32": "81003ac8",
+          "sha256": "668e3aa2a14e12fbc3edfb5f3da01409c0c6f30ef6c03796ad6e49e3ad57005a"
+        },
+        {
+          "name": "print-kit/print-map.json",
+          "size": 122236,
+          "crc32": "207f54c3",
+          "sha256": "327be285d34e068926535061ed0c8fcaf24cfd17931e7dcf07af24321385f864"
+        }
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "number": 1,
+      "name": "Волшебная рука",
+      "english": "Mage Hand",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · 1 минута",
+      "components": "В, С"
+    },
+    {
+      "number": 2,
+      "name": "Волшебный камень",
+      "english": "Magic Stone",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 бонусное действие · Касание · 1 минута",
+      "components": "В, С"
+    },
+    {
+      "number": 3,
+      "name": "Вспышка мечей",
+      "english": "Sword Burst",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя (радиус 5 футов) · Мгновенно",
+      "components": "В"
+    },
+    {
+      "number": 4,
+      "name": "Громовой клинок",
+      "english": "Booming Blade",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя (радиус 5 футов) · 1 раунд",
+      "components": "С, М (рукопашное оружие стоимостью не менее 1 см)"
+    },
+    {
+      "number": 5,
+      "name": "Кислотные брызги",
+      "english": "Acid Splash",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 6,
+      "name": "Клинок зеленого пламени",
+      "english": "Green-Flame Blade",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя (радиус 5 футов) · Мгновенно",
+      "components": "С, М (рукопашное оружие стоимостью не менее 1 см)"
+    },
+    {
+      "number": 7,
+      "name": "Луч холода",
+      "english": "Ray of Frost",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 8,
+      "name": "Наставление",
+      "english": "Guidance",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Концентрация, до 1 минуты",
+      "components": "В, С"
+    },
+    {
+      "number": 9,
+      "name": "Обморожение",
+      "english": "Frostbite",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · Мгновенно",
+      "components": "В, С"
+    },
+    {
+      "number": 10,
+      "name": "Огненный снаряд",
+      "english": "Fire Bolt",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 120 футов · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 11,
+      "name": "Пляшущие огоньки",
+      "english": "Dancing Lights",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 120 футов · Концентрация, до 1 минуты",
+      "components": "В, С, М (Кусочек фосфора или древесины вичвуда либо светлячок.)"
+    },
+    {
+      "number": 12,
+      "name": "Починка",
+      "english": "Mending",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 минута · Касание · Мгновенная",
+      "components": "В, С, М (Два магнита.)"
+    },
+    {
+      "number": 13,
+      "name": "Притягивающая молния",
+      "english": "Lightning Lure",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя (радиус 15 футов) · Мгновенно",
+      "components": "В"
+    },
+    {
+      "number": 14,
+      "name": "Раскат грома",
+      "english": "Thunderclap",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 5 футов · Мгновенно",
+      "components": "С"
+    },
+    {
+      "number": 15,
+      "name": "Свет",
+      "english": "Light",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · 1 час",
+      "components": "В, М (Светлячок или фосфоресцирующий мох.)"
+    },
+    {
+      "number": 16,
+      "name": "Сообщение",
+      "english": "Message",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 120 футов · 1 раунд",
+      "components": "В, С, М (Короткий кусок медной проволоки.)"
+    },
+    {
+      "number": 17,
+      "name": "Сопротивление",
+      "english": "Resistance",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Концентрация, до 1 минуты",
+      "components": "В, С, М (Миниатюрный плащ.)"
+    },
+    {
+      "number": 18,
+      "name": "Сотворение костра",
+      "english": "Create Bonfire",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · Концентрация, До 1 минуты",
+      "components": "В, С"
+    },
+    {
+      "number": 19,
+      "name": "Терновый кнут",
+      "english": "Thorn Whip",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · Мгновенно",
+      "components": "В, С, М (стебель растения с шипами)"
+    },
+    {
+      "number": 20,
+      "name": "Уход за умирающим",
+      "english": "Spare the Dying",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 21,
+      "name": "Фокусы",
+      "english": "Prestidigitation",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 10 футов · до 1 часа",
+      "components": "В, С"
+    },
+    {
+      "number": 22,
+      "name": "Электрошок",
+      "english": "Shocking Grasp",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 23,
+      "name": "Ядовитые брызги",
+      "english": "Poison Spray",
+      "level": 0,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 10 футов · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 24,
+      "name": "Едкое варево Таши",
+      "english": "Tasha's Caustic Brew",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя (линия 30 футов) · Концентрация, До 1 минуты",
+      "components": "В, С, М (немного испорченной еды)"
+    },
+    {
+      "number": 25,
+      "name": "Катапульта",
+      "english": "Catapult",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · Мгновенно",
+      "components": "С"
+    },
+    {
+      "number": 26,
+      "name": "Лечащее слово",
+      "english": "Healing Word",
+      "level": 1,
+      "membership": {
+        "kind": "alchemist-spells",
+        "artificerLevel": 3
+      },
+      "meta": "1 бонусное действие · 60 футов · Мгновенная",
+      "components": "В"
+    },
+    {
+      "number": 27,
+      "name": "Лечение ран",
+      "english": "Cure Wounds",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 28,
+      "name": "Ложная жизнь",
+      "english": "False Life",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя · 1 час",
+      "components": "В, С, М (Небольшое количество спирта или крепких спиртных напитков.)"
+    },
+    {
+      "number": 29,
+      "name": "Луч болезни",
+      "english": "Ray of Sickness",
+      "level": 1,
+      "membership": {
+        "kind": "alchemist-spells",
+        "artificerLevel": 3
+      },
+      "meta": "1 действие · 60 футов · Мгновенно",
+      "components": "В, С"
+    },
+    {
+      "number": 30,
+      "name": "Маскировка",
+      "english": "Disguise Self",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя · 1 час",
+      "components": "В, С"
+    },
+    {
+      "number": 31,
+      "name": "Обнаружение магии",
+      "english": "Detect Magic",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя · Концентрация, до 10 минут · Ритуал",
+      "components": "В, С"
+    },
+    {
+      "number": 32,
+      "name": "Огонь фей",
+      "english": "Faerie Fire",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · Концентрация, до 1 минуты",
+      "components": "В"
+    },
+    {
+      "number": 33,
+      "name": "Опознание",
+      "english": "Identify",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 минута · Касание · Мгновенная · Ритуал",
+      "components": "В, С, М (Жемчужина стоимостью не менее 100 золотых и перо совы.)"
+    },
+    {
+      "number": 34,
+      "name": "Очищение пищи и питья",
+      "english": "Purify Food and Drink",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 10 футов · Мгновенная · Ритуал",
+      "components": "В, С"
+    },
+    {
+      "number": 35,
+      "name": "Плавное падение",
+      "english": "Feather Fall",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 реакция, когда вы или существо в пределах 60 футов падает · 60 футов · 1 минута",
+      "components": "В, М (Небольшое перо или кусочек пуха.)"
+    },
+    {
+      "number": 36,
+      "name": "Поглощение стихий",
+      "english": "Absorb Elements",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 реакция, когда вы получаете урон кислотой, холодом, огнем, электричеством или звуком · На себя · 1 раунд",
+      "components": "С"
+    },
+    {
+      "number": 37,
+      "name": "Поспешное отступление",
+      "english": "Expeditious Retreat",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 бонусное действие · На себя · Концентрация, до 10 минут",
+      "components": "В, С"
+    },
+    {
+      "number": 38,
+      "name": "Прыжок",
+      "english": "Jump",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · 1 минута",
+      "components": "В, С, М (Задняя нога кузнечика.)"
+    },
+    {
+      "number": 39,
+      "name": "Сигнализация",
+      "english": "Alarm",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 минута · 30 футов · 8 часов · Ритуал",
+      "components": "В, С, М (Крошечный колокольчик и кусок тонкой серебряной проволоки.)"
+    },
+    {
+      "number": 40,
+      "name": "Силок",
+      "english": "Snare",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 минута · Касание · 8 часов",
+      "components": "С, М (25 футов веревки; расходуется)"
+    },
+    {
+      "number": 41,
+      "name": "Скользкий жир",
+      "english": "Grease",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · 1 минута",
+      "components": "В, С, М (Немного свиной шкуры или сливочного масла.)"
+    },
+    {
+      "number": 42,
+      "name": "Скороход",
+      "english": "Longstrider",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · 1 час",
+      "components": "В, С, М (Щепотка земли.)"
+    },
+    {
+      "number": 43,
+      "name": "Убежище",
+      "english": "Sanctuary",
+      "level": 1,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 бонусное действие · 30 футов · 1 минута",
+      "components": "В, С, М (Маленькое серебряное зеркальце.)"
+    },
+    {
+      "number": 44,
+      "name": "Вечный огонь",
+      "english": "Continual Flame",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · До рассеивания",
+      "components": "В, С, М (Рубиновая пыль стоимостью 50 зм, которую расходует заклинание.)"
+    },
+    {
+      "number": 45,
+      "name": "Видение невидимого",
+      "english": "See Invisibility",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя · 1 час",
+      "components": "В, С, М (Немного талька и небольшое количество серебряной пудры.)"
+    },
+    {
+      "number": 46,
+      "name": "Вихревой скачок",
+      "english": "Vortex Warp",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 90 футов · Мгновенно",
+      "components": "В, С"
+    },
+    {
+      "number": 47,
+      "name": "Воздушный пузырь",
+      "english": "Air Bubble",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · 24 часа",
+      "components": "С"
+    },
+    {
+      "number": 48,
+      "name": "Волшебные уста",
+      "english": "Magic Mouth",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 минута · 30 футов · До рассеивания · Ритуал",
+      "components": "В, С, М (Небольшое количество сот и нефритовой пыли стоимостью не менее 10 зм, которые расходуются на заклинание)"
+    },
+    {
+      "number": 49,
+      "name": "Волшебный замок",
+      "english": "Arcane Lock",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · До рассеивания",
+      "components": "В, С, М (Золотая пыль стоимостью не менее 25 золотых, которую расходует заклинание.)"
+    },
+    {
+      "number": 50,
+      "name": "Защита от яда",
+      "english": "Protection from Poison",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · 1 час",
+      "components": "В, С"
+    },
+    {
+      "number": 51,
+      "name": "Кинетический скачок",
+      "english": "Kinetic Jaunt",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 бонусное действие · На себя · Концентрация, До 1 минуты",
+      "components": "С"
+    },
+    {
+      "number": 52,
+      "name": "Кислотная стрела",
+      "english": "Melf's Acid Arrow",
+      "level": 2,
+      "membership": {
+        "kind": "alchemist-spells",
+        "artificerLevel": 5
+      },
+      "meta": "1 действие · 90 футов · Мгновенная",
+      "components": "В, С, М (Порошок листьев ревеня и желудок змеи.)"
+    },
+    {
+      "number": 53,
+      "name": "Левитация",
+      "english": "Levitate",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · Концентрация, до 10 минут",
+      "components": "В, С, М (Либо небольшая кожаная петля, либо кусок золотой проволоки, согнутой в форме чашки с длинным стержнем на одном конце.)"
+    },
+    {
+      "number": 54,
+      "name": "Магическое оружие",
+      "english": "Magic Weapon",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 бонусное действие · Касание · Концентрация, до 1 часа",
+      "components": "В, С"
+    },
+    {
+      "number": 55,
+      "name": "Малое восстановление",
+      "english": "Lesser Restoration",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 56,
+      "name": "Небесное письмо",
+      "english": "Skywrite",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · В пределах видимости · Концентрация, До 1 часа · Ритуал",
+      "components": "В, С"
+    },
+    {
+      "number": 57,
+      "name": "Невидимость",
+      "english": "Invisibility",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Концентрация, до 1 часа",
+      "components": "В, С, М (Ресница, заключенная в гуммиарабик.)"
+    },
+    {
+      "number": 58,
+      "name": "Паутина",
+      "english": "Web",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · Концентрация, до 1 часа",
+      "components": "В, С, М (Немного паутины.)"
+    },
+    {
+      "number": 59,
+      "name": "Паучье лазание",
+      "english": "Spider Climb",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Концентрация, до 1 часа",
+      "components": "В, С, М (Капля битума и паук.)"
+    },
+    {
+      "number": 60,
+      "name": "Пиротехника",
+      "english": "Pyrotechnics",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · Мгновенно",
+      "components": "В, С"
+    },
+    {
+      "number": 61,
+      "name": "Подмога",
+      "english": "Aid",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · 8 часов",
+      "components": "В, С, М (Крошечная полоска белой ткани.)"
+    },
+    {
+      "number": 62,
+      "name": "Пылающий шар",
+      "english": "Flaming Sphere",
+      "level": 2,
+      "membership": {
+        "kind": "alchemist-spells",
+        "artificerLevel": 5
+      },
+      "meta": "1 действие · 60 футов · Концентрация, до 1 минуты",
+      "components": "В, С, М (Немного сала, щепотка серы и щепотка железного порошка.)"
+    },
+    {
+      "number": 63,
+      "name": "Размытый образ",
+      "english": "Blur",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя · Концентрация, до 1 минуты",
+      "components": "В"
+    },
+    {
+      "number": 64,
+      "name": "Раскаленный металл",
+      "english": "Heat Metal",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 60 футов · Концентрация, до 1 минуты",
+      "components": "В, С, М (Кусочек железа и пламя.)"
+    },
+    {
+      "number": 65,
+      "name": "Смена обличья",
+      "english": "Alter Self",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя · Концентрация, до 1 часа",
+      "components": "В, С"
+    },
+    {
+      "number": 66,
+      "name": "Темное зрение",
+      "english": "Darkvision",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · 8 часов",
+      "components": "В, С, М (Либо щепотка сушеной моркови, либо агат.)"
+    },
+    {
+      "number": 67,
+      "name": "Трюк с веревкой",
+      "english": "Rope Trick",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · 1 час",
+      "components": "В, С, М (Порошкообразный кукурузный экстракт и скрученная петля пергамента.)"
+    },
+    {
+      "number": 68,
+      "name": "Увеличение/уменьшение",
+      "english": "Enlarge/Reduce",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · Концентрация, до 1 минуты",
+      "components": "В, С, М (Щепотка железного порошка.)"
+    },
+    {
+      "number": 69,
+      "name": "Улучшение характеристики",
+      "english": "Enhance Ability",
+      "level": 2,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Концентрация, до 1 часа",
+      "components": "В, С, М (Мех или перо зверя.)"
+    },
+    {
+      "number": 70,
+      "name": "Газообразная форма",
+      "english": "Gaseous Form",
+      "level": 3,
+      "membership": {
+        "kind": "alchemist-spells",
+        "artificerLevel": 9
+      },
+      "meta": "1 действие · Касание · Концентрация, до 1 часа",
+      "components": "В, С, М (Кусочек марли и струйка дыма.)"
+    },
+    {
+      "number": 71,
+      "name": "Защита от энергии",
+      "english": "Protection from Energy",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Концентрация, до 1 часа",
+      "components": "В, С"
+    },
+    {
+      "number": 72,
+      "name": "Кошачий сон",
+      "english": "Catnap",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · 10 минут",
+      "components": "С, М (щепотка песка)"
+    },
+    {
+      "number": 73,
+      "name": "Крепость интеллекта",
+      "english": "Intellect Fortress",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · Концентрация, До 1 часа",
+      "components": "В"
+    },
+    {
+      "number": 74,
+      "name": "Крошечный слуга",
+      "english": "Tiny Servant",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 минута · Касание · 8 часов",
+      "components": "В, С"
+    },
+    {
+      "number": 75,
+      "name": "Массовое лечащее слово",
+      "english": "Mass Healing Word",
+      "level": 3,
+      "membership": {
+        "kind": "alchemist-spells",
+        "artificerLevel": 9
+      },
+      "meta": "1 бонусное действие · 60 футов · Мгновенная",
+      "components": "В"
+    },
+    {
+      "number": 76,
+      "name": "Мерцание",
+      "english": "Blink",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · На себя · 1 минута",
+      "components": "В, С"
+    },
+    {
+      "number": 77,
+      "name": "Огненные стрелы",
+      "english": "Flame Arrows",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Концентрация, До 1 часа",
+      "components": "В, С"
+    },
+    {
+      "number": 78,
+      "name": "Оживление",
+      "english": "Revivify",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Мгновенная",
+      "components": "В, С, М (Алмазы стоимостью 300 золотых, которые расходуются на заклинание.)"
+    },
+    {
+      "number": 79,
+      "name": "Охранная руна",
+      "english": "Glyph of Warding",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 час · Касание · До рассеивания или срабатывания",
+      "components": "В, С, М (Благовония и алмазный порошок стоимостью не менее 200 зм, которые расходуются на заклинание.)"
+    },
+    {
+      "number": 80,
+      "name": "Подводное дыхание",
+      "english": "Water Breathing",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · 24 часов · Ритуал",
+      "components": "В, С, М (Короткий кусочек камыша или соломинки.)"
+    },
+    {
+      "number": 81,
+      "name": "Полет",
+      "english": "Fly",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Концентрация, до 10 минут",
+      "components": "В, С, М (Перо любой птицы.)"
+    },
+    {
+      "number": 82,
+      "name": "Поступь Ашардалона",
+      "english": "Ashardalon's Stride",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 бонусное действие · На себя · Концентрация, До 1 минуты",
+      "components": "В, С"
+    },
+    {
+      "number": 83,
+      "name": "Рассеивание магии",
+      "english": "Dispel Magic",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 120 футов · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 84,
+      "name": "Создание пищи и воды",
+      "english": "Create Food and Water",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 85,
+      "name": "Стихийное оружие",
+      "english": "Elemental Weapon",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Концентрация, До 1 часа",
+      "components": "В, С"
+    },
+    {
+      "number": 86,
+      "name": "Ускорение",
+      "english": "Haste",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · Концентрация, до 1 минуты",
+      "components": "В, С, М (стружка корня солодки.)"
+    },
+    {
+      "number": 87,
+      "name": "Хождение по воде",
+      "english": "Water Walk",
+      "level": 3,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · 1 час · Ритуал",
+      "components": "В, С, М (кусочек пробки)"
+    },
+    {
+      "number": 88,
+      "name": "Верный пес",
+      "english": "Mordenkainen's Faithful Hound",
+      "level": 4,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · 8 часов",
+      "components": "В, С, М (Крошечный серебряный свисток, кусок кости и нитка)"
+    },
+    {
+      "number": 89,
+      "name": "Защита от смерти",
+      "english": "Death Ward",
+      "level": 4,
+      "membership": {
+        "kind": "alchemist-spells",
+        "artificerLevel": 13
+      },
+      "meta": "1 действие · Касание · 8 часов",
+      "components": "В, С"
+    },
+    {
+      "number": 90,
+      "name": "Изготовление",
+      "english": "Fabricate",
+      "level": 4,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "10 минут · 120 футов · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 91,
+      "name": "Изменение формы камня",
+      "english": "Stone Shape",
+      "level": 4,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Мгновенная",
+      "components": "В, С, М (Мягкая глина, из которой нужно вылепить приблизительную форму желаемого каменного предмета.)"
+    },
+    {
+      "number": 92,
+      "name": "Каменная кожа",
+      "english": "Stoneskin",
+      "level": 4,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Концентрация, до 1 часа",
+      "components": "В, С, М (Алмазная пыль стоимостью 100 зм, которую расходует заклинание.)"
+    },
+    {
+      "number": 93,
+      "name": "Личное святилище",
+      "english": "Mordenkainen's Private Sanctum",
+      "level": 4,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "10 минут · 120 футов · 24 часов",
+      "components": "В, С, М (Тонкий лист свинца, кусок непрозрачного стекла, комок ваты или ткани и измельченный в порошок хризолит.)"
+    },
+    {
+      "number": 94,
+      "name": "Магический глаз",
+      "english": "Arcane Eye",
+      "level": 4,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · Концентрация, до 1 часа",
+      "components": "В, С, М (Кусочек меха летучей мыши.)"
+    },
+    {
+      "number": 95,
+      "name": "Потайной сундук",
+      "english": "Leomund's Secret Chest",
+      "level": 4,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Мгновенная",
+      "components": "В, С, М (Изысканный сундук размером 3 х 2 х 2 фута, построенный из редких материалов стоимостью не менее 5000 зм, и Крошечная копия, сделанная из тех же материалов, стоимостью не менее 50 зм.)"
+    },
+    {
+      "number": 96,
+      "name": "Призыв конструкта",
+      "english": "Summon Construct",
+      "level": 4,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 90 футов · Концентрация, До 1 часа",
+      "components": "В, С, М (изящный запирающийся ларец из камня и металла стоимостью не менее 400 зм)"
+    },
+    {
+      "number": 97,
+      "name": "Свобода перемещения",
+      "english": "Freedom of Movement",
+      "level": 4,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · 1 час",
+      "components": "В, С, М (Кожаный ремешок, обвязанный вокруг руки или аналогичной конечности.)"
+    },
+    {
+      "number": 98,
+      "name": "Стихийная погибель",
+      "english": "Elemental Bane",
+      "level": 4,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 90 футов · Концентрация, До 1 минуты",
+      "components": "В, С"
+    },
+    {
+      "number": 99,
+      "name": "Упругая сфера",
+      "english": "Otiluke's Resilient Sphere",
+      "level": 4,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 30 футов · Концентрация, до 1 минуты",
+      "components": "В, С, М (Полусферический кусок прозрачного кристалла и соответствующий полусферический кусок гуммиарабика.)"
+    },
+    {
+      "number": 100,
+      "name": "Усыхание",
+      "english": "Blight",
+      "level": 4,
+      "membership": {
+        "kind": "alchemist-spells",
+        "artificerLevel": 13
+      },
+      "meta": "1 действие · 30 футов · Мгновенная",
+      "components": "В, С"
+    },
+    {
+      "number": 101,
+      "name": "Воскрешение мертвого",
+      "english": "Raise Dead",
+      "level": 5,
+      "membership": {
+        "kind": "alchemist-spells",
+        "artificerLevel": 17
+      },
+      "meta": "1 час · Касание · Мгновенная",
+      "components": "В, С, М (Алмаз стоимостью не менее 500 золотых, который расходуется на заклинание.)"
+    },
+    {
+      "number": 102,
+      "name": "Высшее восстановление",
+      "english": "Greater Restoration",
+      "level": 5,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Мгновенная",
+      "components": "В, С, М (Алмазная пыль стоимостью не менее 100 золотых, которую расходует заклинание.)"
+    },
+    {
+      "number": 103,
+      "name": "Каменная стена",
+      "english": "Wall of Stone",
+      "level": 5,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 120 футов · Концентрация, до 10 минут",
+      "components": "В, С, М (Небольшой блок гранита.)"
+    },
+    {
+      "number": 104,
+      "name": "Магическая ладонь",
+      "english": "Bigby's Hand",
+      "level": 5,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 120 футов · Концентрация, до 1 минуты",
+      "components": "В, С, М (Яичная скорлупа и перчатка из змеиной кожи.)"
+    },
+    {
+      "number": 105,
+      "name": "Облако смерти",
+      "english": "Cloudkill",
+      "level": 5,
+      "membership": {
+        "kind": "alchemist-spells",
+        "artificerLevel": 17
+      },
+      "meta": "1 действие · 120 футов · Концентрация, до 10 минут",
+      "components": "В, С"
+    },
+    {
+      "number": 106,
+      "name": "Оживление предметов",
+      "english": "Animate Objects",
+      "level": 5,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 120 футов · Концентрация, до 1 минуты",
+      "components": "В, С"
+    },
+    {
+      "number": 107,
+      "name": "Преобразование камня",
+      "english": "Transmute Rock",
+      "level": 5,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · 120 футов · Пока не рассеяно",
+      "components": "В, С, М (глина и вода)"
+    },
+    {
+      "number": 108,
+      "name": "Сотворение",
+      "english": "Creation",
+      "level": 5,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 минута · 30 футов · Особая",
+      "components": "В, С, М (Крошечный кусочек материи того же типа, что и предмет, который вы планируете создать.)"
+    },
+    {
+      "number": 109,
+      "name": "Спеллджаммерский штурвал",
+      "english": "Create Spelljamming Helm",
+      "level": 5,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Мгновенно",
+      "components": "В, С, М (хрустальный жезл стоимостью не менее 5000 зм; расходуется)"
+    },
+    {
+      "number": 110,
+      "name": "Улучшение навыка",
+      "english": "Skill Empowerment",
+      "level": 5,
+      "membership": {
+        "kind": "class-list",
+        "artificerLevel": null
+      },
+      "meta": "1 действие · Касание · Концентрация, До 1 часа",
+      "components": "В, С"
+    },
+    {
+      "number": 111,
+      "name": "Исцеление",
+      "english": "Heal",
+      "level": 6,
+      "membership": {
+        "kind": "chemical-mastery",
+        "artificerLevel": 15
+      },
+      "meta": "1 действие · 60 футов · Мгновенная",
+      "components": "В, С"
+    }
+  ]
+}

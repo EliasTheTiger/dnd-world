@@ -1,3 +1,4 @@
+import {loadArtificerScripts} from './helpers/artificer-script-loader.cjs';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -83,6 +84,7 @@ function loadLocalItemsFromEngine() {
   vm.runInContext(fs.readFileSync(path.join(repositoryRoot, 'scripts', 'recipe-tabletop-rules.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repositoryRoot, 'scripts', 'recipe-tabletop-items.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repositoryRoot, 'scripts', 'recipe-tabletop-runtime.js'), 'utf8'), context);
+  loadArtificerScripts(context);
   vm.runInContext(source, context);
   return JSON.parse(JSON.stringify(context.__itemDomainLocalItems));
 }

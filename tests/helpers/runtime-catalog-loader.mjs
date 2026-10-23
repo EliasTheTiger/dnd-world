@@ -41,6 +41,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
   const dependencySources = [...html.matchAll(/<script\s+src="([^"]+)"\s*><\/script>/g)]
     .map(match => match[1])
     .filter(relative => options.itemDomain !== false || relative !== 'scripts/item-domain-model.js')
+    .filter(relative => options.openDnd5eCatalog !== false || relative !== 'data/dnd5e/open5e-cc-v1/catalog.js')
     .map(relative => fs.readFileSync(new URL(relative, rootUrl), 'utf8'));
   source = dependencySources.join('\n') + '\n' + source;
   source += options.exposeEngine === true ? `
@@ -50,7 +51,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         races: seedRacesDB(), classes: seedClassesDB(), foes: seedFoesDB()
       },
       setState(s) {
-        campaignMagic=MAGIC_RULES.settings(s.campaignMagic);recipeState=RECIPE_RULES.state(s.recipeState);
+        partyUpdates=s.partyUpdates||{};campaignMagic=MAGIC_RULES.settings(s.campaignMagic);recipeState=RECIPE_RULES.state(s.recipeState);
         chars=s.chars||[]; journal=s.journal||[]; itemsDB=s.items||s.itemsDB||[];
         spellsDB=s.spells||s.spellsDB||[]; abilitiesDB=s.abilities||s.abilitiesDB||[];
         racesDB=s.races||s.racesDB||[]; classesDB=s.classes||s.classesDB||[];
@@ -60,11 +61,17 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
         rollSpec=null; rollQueue=[]; rollCompleting=false; fxInvalidate();
       },
       state() { return {
-        campaignMagic,recipeState,chars,journal,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,
+        campaignMagic,partyUpdates,recipeState,chars,journal,items:itemsDB,spells:spellsDB,abilities:abilitiesDB,races:racesDB,
         classes:classesDB,rules:rulesDB,foes:foesDB,itemsDB,spellsDB,abilitiesDB,
         racesDB,classesDB,rulesDB,foesDB,activeCharId,fxRound,combat,lastCastEvent
       }; },
       runItemIntegrationAudit, runRareBattleAudit, runSpellPreparationAudit,
+      sanctuaryApi:{entry:artificerSanctuaryEntry,collect:artificerSanctuaryCollect,plan:artificerSanctuaryPlan,prepare:artificerSanctuaryPrepareSpec,preflight:artificerSanctuarySpellPreflight,break:artificerSanctuaryBreak,commit:artificerSanctuaryCommitPlan,area:artificerSanctuarySpellArea,harmful:artificerSanctuarySpellHarmful,canSpend:combatCanSpendPure,castCollect:spellCollectExecutionInput},
+      artificerBasicApi:{kind:artificerBasicKind,reconcile:artificerBasicReconcile,preflight:artificerBasicPreflight,commit:artificerBasicCommitCast,save:artificerBasicSave,zone:artificerBasicZoneEvent,turnEnd:artificerBasicTurnEnd,inGrease:artificerBasicInGrease,dash:artificerBasicDash,moveMax:combatMoveMax,basicAction:combatBasicAction,spellPreflight:spellExecutionPreflight,controls:artificerBasicControls},
+      artificerSpellApi:{special:artificerSpellSpecial,reconcile:artificerSpellReconcile,collect:artificerSpellCollectInput,preflight:artificerSpellPreflight,commit:artificerSpellCommitCast,spec:artificerSpellSpec,resolved:artificerSpellResolved,turnStart:artificerSpellTurnStart,turnEnd:artificerSpellTurnEnd,movePreflight:artificerSpellMovePreflight,moveCommit:artificerSpellMoveCommit,event:artificerSpellEventOpen,controls:artificerSpellControls,readValues:artificerSpellReadValues,absorbs:{prepare:artificerAbsorbPrepare,augment:artificerAbsorbAugmentSpec,outcome:artificerAbsorbOutcome,plan:artificerAbsorbReactionPlan,commit:artificerAbsorbReactionCommit,attackSpec:artificerAbsorbAttackSpec,attackConsume:artificerAbsorbAttackConsume},quiet(){renderChars=()=>{};renderFoes=()=>{};renderCombat=()=>{};},dialogs(fn){window.prompt=fn;},setCast(ctx){castCtx=ctx;}},
+      artificerApi:{state:artificerInfusionState,infusion:artificerInfusionOf,active:artificerInfusionActive,needsAttune:artificerNeedsAttune,entryAttuned:artificerEntryAttuned,attunementChanged:artificerAttunementChanged,attune:artificerAttune,fx:artificerFxSources,weaponProfile:artificerWeaponProfile,weaponBonus:artificerWeaponBonus,weaponMagical:artificerWeaponMagical,returning:artificerReturningWeapon,focus:artificerSpellFocus,focusCheck:artificerSpellFocusCheck,focusTake:artificerFocusTake,rest:artificerLongRest,infuse:artificerInfusionsApply,tinker:artificerTinker,dismiss:artificerTinkerDismiss,rightTool:artificerRightTool,creatorDied:artificerCreatorDied,cantripTraining:artificerCantripTraining,cantripLevel:artificerCantripLevel,cantripReplace:artificerCantripReplace,replaceableCantrips:artificerReplaceableCantrips,movementModes:artificerMovementModes,movementSet:artificerMovementSet,movementSpeed:artificerMovementSpeed,movementControls:artificerMovementControls,html:artificerFeaturesHTML,profile:itemProfile,weaponResource:weaponAttackResourcePlan,weaponSpec:weaponSpecOf,attuned:attunedEntries,materialCover,quiet(){renderChars=()=>{};renderFoes=()=>{};renderCombat=()=>{};}},
+      artificerElixirApi:{create:artificerElixirCreate,createPlan:artificerElixirCreatePlan,use:artificerElixirUse,usePlan:artificerElixirUsePlan,rest:artificerElixirRest,state:artificerElixirState,controls:artificerElixirControls,templates:artificerElixirTemplates,effects:artificerElixirEffects,unarmed:artificerElixirAugmentUnarmed,round:advanceFxRound},
+      artificerUtilityApi:{definition:artificerUtilityDefinition,reconcile:artificerUtilityReconcile,collect:artificerUtilityCollectInput,preflight:artificerUtilityPreflight,commit:artificerUtilityCommitCast,action:artificerUtilityAction,entries:artificerUtilityEntries,controls:artificerUtilityControls,saveSpec:artificerUtilitySaveSpec,longCast:artificerUtilityLongCastSupported,round:advanceFxRound,breakConcentration},
       itemsApi: {
         initializeSpells:ensureSpellAudit, playerModel:itemPlayerModel, playerText:itemPlayerText, playerRules:itemPlayerRules, instructions:bg3ItemInstructionsOpen,
         rows:itemWorkspaceCanonicalRows, search:itemWorkspaceSearch, filters:dbFlt.it,
@@ -126,6 +133,7 @@ function loadRuntimeContext(rootUrl = new URL('../..', import.meta.url), options
       craftPlanFor,commitCraftPlan,inventoryItemQty,combatSnapshotOf,combatSyncChanges,gameContextFor,resetCustomCharacterForCombat,
       castState() { return {ctx:castCtx,spec:(castCtx&&castCtx.spec)||rollSpec}; }, castConfirm, castFormulaConfirm, castDistanceSet,
       buildRoku, buildTorgar, buildSeptih, buildLegerem, buildBlank,
+      partyStarterApi:{ensureCatalogs:ensurePartyStarterCatalogs,spellIds:partyStarterSpellIds,prepare:partyStarterPrepareLiora,update:applyPartyStarterUpdate,rename:updC,updates:()=>partyUpdates},
       arcanumApi:{profile:mysticArcanumProfile,candidates:mysticArcanumCandidates,state:c=>c.mysticArcanum,cast:mysticArcanumCastApply,token:mysticArcanumCastToken,payment:mysticArcanumPaymentPlan,commitPayment:commitMysticArcanumPayment,sync:mysticArcanumSync,html:mysticArcanumProfileHTML,abilityProfile:ab=>ABILITY_GAMEPLAY.profile(ab)},
       arcanumRuntime:{longStart:arcanumLongCastStart,longContinue:arcanumLongCastContinue,longPreflight:arcanumLongCastPreflight,longEnd:arcanumLongCastEndCombat,saveSpec:arcanumSaveSpec,repeatCommit:arcanumRepeatCommit,stamp:arcanumTurnStamp,pending:arcanumPendingRepeatSaves,controls:arcanumControls,summonPreflight:arcanumSummonPreflight,tick:arcanumAdvanceTime,command:arcanumCommand,conditionEvent:arcanumConditionEvent,retarget:arcanumRetarget,dispel:castDispel,remove:removeActiveFx,removeFoe:removeFoeActiveFx,foeHp:foeHpDelta,foeReset:foeFullHeal,panic:arcanumPanicTurn},
       learningApi:{profile:spellLearningProfile,html:spellLearningProfileHTML,book:spellBookLearningSlots,plan:spellLearningPlan,commit:spellLearningCommit,select:spellLearningSelect,token:spellLearningViewToken,autoLevel:autoLevelSpells,scrollCopyPlan,commitScrollCopy,

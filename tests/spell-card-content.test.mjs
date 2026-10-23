@@ -8,7 +8,7 @@ const world=()=>{const e=loadRuntimeIntegrationEngine();e.setState({...e.catalog
 
 test('every catalog card omits technical metadata and keeps its gameplay fields unchanged',()=>{
   const {g,rows}=world();
-  assert.equal(rows.filter(g.grimoireActive).length,321);
+  assert.equal(rows.filter(g.grimoireActive).length,351);
   for(const sp of rows){
     const before=JSON.stringify(sp);
     const html=g.spellCardHTML(sp),visible=text(html);

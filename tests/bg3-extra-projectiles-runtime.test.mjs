@@ -1,3 +1,4 @@
+import {loadArtificerScripts} from './helpers/artificer-script-loader.cjs';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -529,6 +530,7 @@ function loadFailClosedEngine(random) {
   vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-summons.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-runtime.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-long-cast.js', import.meta.url), 'utf8'), context);
+  loadArtificerScripts(context);
   vm.runInContext(source, context);
   vm.runInContext('renderMerchants=()=>{};renderChests=()=>{};', context);
   return context.__bg3ExtraProjectileFailClosed;
@@ -668,6 +670,7 @@ function loadArrowRuntimeEngine(random) {
   vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-summons.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-runtime.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-long-cast.js', import.meta.url), 'utf8'), context);
+  loadArtificerScripts(context);
   vm.runInContext(source, context);
   vm.runInContext('renderMerchants=()=>{};renderChests=()=>{};', context);
   return context.__bg3ArrowRuntime;

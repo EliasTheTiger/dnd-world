@@ -83,6 +83,11 @@ jobs:
           QA_SITE_ROOT: _site
           QA_EXPECTED_COMMIT: ${{ github.sha }}
         run: npm run qa:spell-learning
+      - name: Check the alchemist, starter equipment and durable gameplay
+        env:
+          QA_SITE_ROOT: _site
+          QA_EXPECTED_COMMIT: ${{ github.sha }}
+        run: npm run qa:alchemist
       - name: Check the public interface and excluded diagnostic artifacts
         env:
           QA_SITE_ROOT: _site

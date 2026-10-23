@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {loadRuntimeIntegrationEngine} from './helpers/runtime-catalog-loader.mjs';
+import '../scripts/artificer-catalog.js';
 const plain=value=>JSON.parse(JSON.stringify(value));
 test('array migration cannot treat an element index as an explicit force-recompile request',()=>{
  const {e,g,rows}=world(),spells=rows.map(s=>JSON.stringify(s.mechanics)),abilities=e.catalogs.abilities.map(s=>JSON.stringify(s.mechanics));rows.forEach(g.upgradeSpell);e.catalogs.abilities.forEach(g.upgradeAbility);
@@ -11,16 +12,16 @@ test('array migration cannot treat an element index as an explicit force-recompi
 });
 function world(){const e=loadRuntimeIntegrationEngine();e.setState({...e.catalogs,chars:[]});return {e,g:e.grimoireApi,a:e.charactersApi,rows:e.state().spells};}
 test('grimoire has one active 2014 card per identity; raw editions remain only as archived provenance',()=>{
- const {g,rows}=world(),report=g.rules.audit(rows);assert.equal(report.active,321);assert.deepEqual(plain(report.errors),[]);assert.equal(report.officialRussian,0);assert.equal(rows.filter(s=>g.grimoireActive(s)&&s.catalogSource).length,319);
+ const {g,rows}=world(),report=g.rules.audit(rows);assert.equal(report.active,351);assert.deepEqual(plain(report.errors),[]);assert.equal(report.officialRussian,0);assert.equal(rows.filter(s=>g.grimoireActive(s)&&s.catalogSource).length,319);
  assert.ok(rows.some(s=>s.grimoire.status==='alias'&&s.catalogSource?.documentKey==='srd-2024'));
- assert.equal(new Set(rows.filter(g.grimoireActive).map(s=>g.rules.normalize(s.n))).size,321);
+ assert.equal(new Set(rows.filter(g.grimoireActive).map(s=>g.rules.normalize(s.n))).size,351);
 });
 test('publisher PDF supplies all 319 spell headers and eight exact base class lists',()=>{
  const {rows,g}=world(),ctx=vm.createContext({});vm.runInContext(fs.readFileSync('data/dnd5e/srd51-spell-facts.js','utf8'),ctx);const source=ctx.DND_SRD51_SPELL_FACTS;
  assert.equal(source.sha256,'2504d2a0abb0a4d491a939be4f17910a2dde0312570ab8d208080225ccf0a1f0');assert.equal(Object.keys(source.spells).length,319);
- for(const s of rows.filter(s=>g.grimoireActive(s)&&s.catalogSource)){const f=source.spells[s.grimoire.english];assert.ok(f,s.n);assert.equal(s.l,f.level);assert.equal(s.conc,f.concentration);assert.equal(s.ritual,f.ritual);assert.deepEqual(plain(g.spellClassTokens(s)),plain(g.rules.classTokens(f.classes.join(', '))));assert.ok(f.page>=114&&f.page<=194);assert.ok(f.castingTime.length<150&&f.range.length<80&&f.components.length<600,f.name);assert.doesNotMatch(s.r+s.t+s.d,/[A-Za-z]/);}
+ for(const s of rows.filter(s=>g.grimoireActive(s)&&s.catalogSource)){const f=source.spells[s.grimoire.english];assert.ok(f,s.n);assert.equal(s.l,f.level);assert.equal(s.conc,f.concentration);assert.equal(s.ritual,f.ritual);assert.deepEqual(plain(g.spellClassTokens(s)),plain(g.rules.classTokens(f.classes.join(', '))).concat(globalThis.DND_ARTIFICER_CATALOG.classNamesFor(s.grimoire.english)));assert.ok(f.page>=114&&f.page<=194);assert.ok(f.castingTime.length<150&&f.range.length<80&&f.components.length<600,f.name);assert.doesNotMatch(s.r+s.t+s.d,/[A-Za-z]/);}
  const revive=g.spellOf('sp_оживление');assert.equal(revive.s,'Некромантия');assert.equal(revive.r,'Касание');assert.match(revive.c,/Пал/);
- const identify=rows.find(s=>g.grimoireActive(s)&&s.grimoire.english==='Identify');assert.deepEqual(plain(g.spellClassTokens(identify)),['Брд','Влш']);
+ const identify=rows.find(s=>g.grimoireActive(s)&&s.grimoire.english==='Identify');assert.deepEqual(plain(g.spellClassTokens(identify)),['Брд','Влш','Изб']);
  assert.equal(g.spellRuleOf(g.spellOf('sp_оживление_мертвых')).level,3);
  for(const s of rows.filter(s=>g.grimoireActive(s)&&s.catalogSource)){const f=source.spells[s.grimoire.english];assert.equal(s.grimoire.upcastPresent,f.upcast);if(f.upcast)assert.ok(s.hi,s.n+' must explain its higher-circle benefit');}
 });

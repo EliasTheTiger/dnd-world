@@ -1,3 +1,4 @@
+import {loadArtificerScripts} from './helpers/artificer-script-loader.cjs';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -392,6 +393,7 @@ function loadEngine(storage = new Map()) {
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(repo,'scripts/recipe-rules.js'),'utf8'),context);
   vm.runInContext(fs.readFileSync(path.join(repo,'scripts/recipe-workbench.js'),'utf8'),context);
+  loadArtificerScripts(context);
   vm.runInContext(source, context);
   const api = context.__bg3RootCausal;
   api.storedWorldSnapshot = () => storage.get('dndworld2:world-snapshot') || null;

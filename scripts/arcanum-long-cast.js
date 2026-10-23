@@ -44,6 +44,7 @@
 // These adapters are evaluated with the application scripts and invoked only
 // after the normal combat, spell, resource and persistence services initialize.
 let arcanumLongCastPreparing=null;
+function arcanumLongCastSupported(sp){return ['conjureFey','createUndead'].includes(arcanumSpecial(sp))||typeof artificerSpellSpecial==='function'&&artificerSpellSpecial(sp)==='snare'||typeof artificerUtilityLongCastSupported==='function'&&artificerUtilityLongCastSupported(sp);}
 function arcanumLongCastEntry(casterId){return getCh(casterId)?.activeFx?.find(entry=>entry.arcanumLongCast?.status==='casting')||null;}
 function arcanumLongCastContext(casterId){return {casterId,combatId:combat.id,round:combat.round,turnStamp:arcanumTurnStamp(),ownTurn:combat.active&&combatCurrentKey()==='ally:'+casterId};}
 function arcanumLongCastStable(value){return Array.isArray(value)?value.map(arcanumLongCastStable):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().filter(key=>value[key]!==undefined).map(key=>[key,arcanumLongCastStable(value[key])])):value;}
@@ -59,7 +60,7 @@ function arcanumLongCastPayment(caster,sp,slotSel){
 }
 function arcanumLongCastGuard(caster,entry){
   const state=entry?.arcanumLongCast,sp=state&&spellOf(state.spellId);
-  if(!sp||!caster||!entry.conc||!Array.isArray(state.args)||!['conjureFey','createUndead'].includes(arcanumSpecial(sp)))return {ok:false,reason:'Концентрация длительного наложения прервана.'};
+  if(!sp||!caster||!entry.conc||!Array.isArray(state.args)||!arcanumLongCastSupported(sp))return {ok:false,reason:'Концентрация длительного наложения прервана.'};
   if(arcanumLongCastDefinition(caster,sp)!==state.definitionToken)return {ok:false,reason:'Заклинание или профиль заклинателя изменились; начните наложение заново.'};
   const payment=arcanumLongCastPayment(caster,sp,state.args[5]);
   if(!payment.ok||payment.mode!==state.paymentMode||payment.token!==state.paymentToken)return {ok:false,reason:payment.reason||'Ресурс или выбор арканума изменился; начните наложение заново.'};
@@ -90,7 +91,7 @@ async function arcanumLongCastStart(args){
   const failure=message=>({success:false,message});
   if(!Array.isArray(args))return failure('Не переданы условия длительного наложения.');
   const saved=mechanicsClone(args),caster=getCh(saved[1]),sp=spellOf(saved[0]),stamp=arcanumTurnStamp();
-  if(!caster||!sp||!['conjureFey','createUndead'].includes(arcanumSpecial(sp)))return failure('Это заклинание не использует минутное наложение.');
+  if(!caster||!sp||!arcanumLongCastSupported(sp))return failure('Это заклинание не использует минутное наложение.');
   const current=concLabelOf(caster);
   const openedPayment=castCtx?.kind==='spell'&&castCtx.casterId===caster.id&&castCtx.spellId===sp.id?castCtx.arcanumToken:null;
   if(current&&!window.confirm('Начать минутное наложение «'+sp.n+'» и прервать концентрацию на «'+current+'»? Ячейка или арканум будут потрачены только при завершении.'))return failure('Наложение отменено; действие и ресурс не потрачены.');
@@ -135,7 +136,7 @@ async function arcanumLongCastContinue(casterId,executionInput){
   if(castCtx||rollSpec)return fail('Завершите открытое действие перед завершением минутного наложения.');
   const input=mechanicsClone(executionInput||guard.state.args[9]||{});input.arcanum=input.arcanum||{};
   if(!executionInput){
-    const question=arcanumSpecial(guard.sp)==='conjureFey'?'Место появления по-прежнему видно, свободно и в пределах 90 футов?':
+    const question=typeof artificerSpellSpecial==='function'&&artificerSpellSpecial(guard.sp)==='snare'?'Вы по-прежнему касаетесь выбранного места на земле; нужная верёвка при вас и круг радиусом 5 футов свободен для ловушки?':arcanumSpecial(guard.sp)==='conjureFey'?'Место появления по-прежнему видно, свободно и в пределах 90 футов?':
       'В мире по-прежнему ночь, все выбранные трупы или гули находятся в пределах 10 футов и условия наложения сохранились?';
     if(!window.confirm('Завершить «'+guard.sp.n+'» десятым действием?\n\n'+question))return fail('Завершение отменено; ресурс не потрачен. Наложение ещё можно продолжить в этом ходу.');
     input.arcanum.completionFactsConfirmed=true;

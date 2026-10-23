@@ -1,3 +1,4 @@
+import {loadArtificerScripts} from './helpers/artificer-script-loader.cjs';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -885,6 +886,7 @@ function loadEngine() {
   vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-runtime.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/arcanum-long-cast.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/character-rules.js', import.meta.url), 'utf8'), context);
+  loadArtificerScripts(context);
   vm.runInContext(source, context);
   return context.__bg3ActionBoundary;
 }

@@ -42,17 +42,21 @@ for(const format of ['envelope','legacy-snapshot','split-keys'])test(format+' re
   else assert.equal((await persistence.verifyEnvelope(JSON.parse(await engine.storeGet(key+':backup')))).ok,true,'normal subsequent commits retain the previous verified envelope');
 });
 
-test('an intentionally empty saved party stays empty',async()=>{
+test('an intentionally emptied party stays empty after the one-time new hero has been received',async()=>{
   const engine=loadRuntimeIntegrationEngine();await engine.storeSet('dndworld2:chars','[]');await engine.loadAll();
+  assert.deepEqual(plain(engine.state().chars.map(c=>c.id)),['char_liora'],'only the explicitly requested new release hero is added');
+  engine.setState({...engine.state(),chars:[]});assert.equal(await engine.saveWorldNow(),true);await engine.loadAll();
   assert.deepEqual(plain(engine.state().chars),[]);
 });
 
-test('the earliest local character format keeps its party, HP, inventory and journal without adding a starting hero',async()=>{
+test('the earliest local character format keeps its hero, HP, inventory and journal while receiving only the new alchemist once',async()=>{
   const engine=loadRuntimeIntegrationEngine(),old=[{id:'original-hero',name:'Старый герой',hp:2,hpMax:20,notes:'Моя летопись',inv:[{n:'Старый амулет',q:2}]}];
   await engine.storeSet('dndworld:chars',JSON.stringify(old));await engine.storeSet('dndworld:journal','[{"id":"old-note","text":"Не стирать"}]');await engine.loadAll();
-  assert.deepEqual(plain(engine.state().chars.map(c=>c.id)),['original-hero']);const actor=engine.state().chars[0];
+  assert.deepEqual(plain(engine.state().chars.map(c=>c.id)),['original-hero','char_liora']);const actor=engine.state().chars[0];
   assert.equal(actor.hp,2);assert.equal(actor.notes,old[0].notes);assert.equal(actor.inventory[0].qty,2);assert.equal(engine.state().journal[0].text,'Не стирать');
   assert.equal(await engine.storeGet('dndworld:chars'),JSON.stringify(old));
+  assert.equal(await engine.saveWorldNow(),true);await engine.loadAll();
+  assert.deepEqual(plain(engine.state().chars.map(c=>c.id)),['original-hero','char_liora'],'the release hero is never duplicated on reload');
 });
 
 test('active application exposes no cloud or campaign replacement path',()=>{

@@ -1,6 +1,7 @@
 import {loadRuntimeIntegrationEngine} from './runtime-catalog-loader.mjs';
 
-// A saved session deliberately lacks all one-time seed/migration flags.
+// A saved session lacks legacy seed flags, but has already completed the
+// separately tested alchemist update. These journeys isolate preservation.
 export function localCampaignFixture() {
   const engine=loadRuntimeIntegrationEngine();
   const first=Object.assign(engine.buildBlank(),{id:'char_septih',name:'Септих — текущая игра',hp:7,hpMax:29,hpTemp:3,
@@ -13,6 +14,6 @@ export function localCampaignFixture() {
     turn:{actorKey:'ally:'+second.id,actionUsed:true,actionsUsed:1,bonusUsed:true,movementUsed:3},
     log:[{id:'kept-combat-log',text:'Ход продолжается',round:4}],history:[{id:'kept-history',name:'Прежний бой',log:[]}]});
   const journal=[{id:'kept-journal',date:'2026-10-22',title:'Моя летопись',text:'Запись до обновления'}];
-  engine.setState({chars:[first,second],items:[{id:'kept-item',n:'Памятный камень',custom:true,type:'equipment',weight:'0.2',desc:'Не заменять'}],combat,journal,fxRound:13});
+  engine.setState({chars:[first,second],partyUpdates:{alchemist20261023:true},items:[{id:'kept-item',n:'Памятный камень',custom:true,type:'equipment',weight:'0.2',desc:'Не заменять'}],combat,journal,fxRound:13});
   return {snapshot:engine.localSnapshot(),journal};
 }

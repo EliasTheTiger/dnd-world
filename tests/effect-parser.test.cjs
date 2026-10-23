@@ -1,3 +1,4 @@
+const {loadArtificerScripts} = require('./helpers/artificer-script-loader.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -73,6 +74,7 @@ function loadEngine() {
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'scripts', filename), 'utf8'), sandbox, { filename });
   }
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'data/dnd5e/srd51-spell-facts.js'), 'utf8'), sandbox);
+  loadArtificerScripts(sandbox);
   vm.runInContext(source, sandbox);
   return sandbox.__engine;
 }

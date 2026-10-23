@@ -5,7 +5,7 @@ const keys = ['str','dex','con','int','wis','cha'];
 const clone = value => JSON.parse(JSON.stringify(value));
 const mod = value => Math.floor((value - 10) / 2);
 const unique = values => [...new Set(values)];
-const subclassLevels = {Варвар:3,Бард:3,Воин:3,Волшебник:2,Друид:2,Жрец:1,Колдун:1,Монах:3,Паладин:3,Плут:3,Следопыт:3,Чародей:1};
+const subclassLevels = {Варвар:3,Бард:3,Воин:3,Волшебник:2,Друид:2,Жрец:1,Изобретатель:3,Колдун:1,Монах:3,Паладин:3,Плут:3,Следопыт:3,Чародей:1};
 const aliases = {'Воин|Мастер боевых искусств':'Боевой мастер'};
 const races = {
   Человек:{ab:{str:1,dex:1,con:1,int:1,wis:1,cha:1},speed:9,languages:['Общий'],languageChoices:1},
@@ -165,6 +165,12 @@ function classTraining(cls,c){
   if(weaponNames[c.cls])p.weapons.names=weaponNames[c.cls];
   p.toolChoices=c.cls==='Бард'?[instruments,instruments,instruments]:c.cls==='Монах'?[[...artisan,...instruments]]:[];
   const sub=subclassName(c.cls,c.subcls),active=c.level>=subclassLevel(cls);
+  if(c.cls==='Изобретатель'){
+    p.armor={...p.armor,light:true,medium:true,shield:true};p.weapons={...p.weapons,simple:true};p.savingThrows=['con','int'];
+    p.skills={choose:2,from:['Магия','История','Расследование','Медицина','Природа','Внимательность','Ловкость рук']};
+    p.tools=['Воровские инструменты','Инструменты жестянщика'];p.toolChoices=[artisan.filter(t=>t!=='Инструменты жестянщика')];
+    if(active&&sub==='Алхимик')p.tools.push('Инструменты алхимика');
+  }
   if(active&&c.cls==='Жрец'){
     if(['Домен Жизни','Домен Бури','Домен Войны','Домен Природы'].includes(sub))p.armor.heavy=true;
     if(['Домен Бури','Домен Войны'].includes(sub))p.weapons.martial=true;
@@ -180,6 +186,10 @@ function training(c,race,cls,bg,skillNames){
     {key:'backgroundSkills',label:'Навыки предыстории',count:bg&&bg.skillChoices||0,options:bg&&bg.skillOptions||skillNames},
     {key:'duplicateSkills',label:'Замена совпавших владений',count:granted.length-fixed.length,options:skillNames}];
   const toolChoices=[...(p.toolChoices||[]),...(cp.toolChoices||[]),...(bg&&bg.toolChoices||[])];
+  if(c.cls==='Изобретатель'&&c.subcls==='Алхимик'&&c.level>=3){
+    const prior=[...(p.tools||[]),...(bg?.tools||[]),...(ch.tools||[]).slice(0,toolChoices.length).filter((v,i)=>toolChoices[i].includes(v))];
+    if(prior.includes('Инструменты алхимика'))toolChoices.push(artisan.filter(t=>t!=='Инструменты алхимика'&&t!=='Инструменты жестянщика'&&!prior.includes(t)));
+  }
   const pickedTools=(ch.tools||[]).slice(0,toolChoices.length).filter((v,i)=>toolChoices[i].includes(v)),extraLanguage=pickedTools.filter(x=>x==='Дополнительный язык').length;
   const languageChoices=p.languageChoices+(bg&&bg.languageChoices||0)+extraLanguage;
   return {fixed,groups,skills:unique([...fixed,...groups.flatMap(g=>(ch[g.key]||[]).slice(0,g.count).filter(v=>g.options.includes(v)))]),

@@ -1,3 +1,4 @@
+import {loadArtificerScripts} from './helpers/artificer-script-loader.cjs';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -339,6 +340,7 @@ function loadEngine() {
   context.window = context;
   context.globalThis = context;
   vm.createContext(context);
+  loadArtificerScripts(context);
   vm.runInContext(source, context);
   return context.__bg3ItemGuardAudit;
 }

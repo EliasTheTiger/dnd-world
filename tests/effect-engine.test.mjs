@@ -8,6 +8,7 @@ import vm from 'node:vm';
 import {TextEncoder} from 'node:util';
 import {selectBg3Catalog} from './bg3-catalog-selection.mjs';
 import persistenceCore from '../scripts/persistence-core.js';
+import {loadArtificerScripts} from './helpers/artificer-script-loader.cjs';
 
 const effectShardTotal=Number.parseInt(process.env.DND_EFFECT_ENGINE_SHARD_TOTAL||'',10),effectShardIndex=Number.parseInt(process.env.DND_EFFECT_ENGINE_SHARD_INDEX||'',10),effectShardActive=Number.isInteger(effectShardTotal)&&effectShardTotal>0&&Number.isInteger(effectShardIndex)&&effectShardIndex>=0&&effectShardIndex<effectShardTotal;
 let effectTestOrdinal=0;
@@ -481,6 +482,7 @@ function loadEngine(random = () => 0, fetchImpl = null, sharedStore = null, shar
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-tabletop-items.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-tabletop-runtime.js', import.meta.url), 'utf8'), context);
   for(const name of ['arcanum-core','arcanum-summons','arcanum-conditions','arcanum-runtime','arcanum-long-cast'])vm.runInContext(fs.readFileSync(new URL('../scripts/'+name+'.js',import.meta.url),'utf8'),context);
+  loadArtificerScripts(context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-rules.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../scripts/recipe-workbench.js', import.meta.url), 'utf8'), context);
   vm.runInContext(fs.readFileSync(new URL('../data/dnd5e/srd51-spell-facts.js', import.meta.url), 'utf8'), context);
@@ -1274,7 +1276,7 @@ test('контракт проверяет всю мировую базу, пре
   e.setState({spells, abilities, items, foes});
   const audit = e.gameDataAudit({spells, abilities, items, foes});
 
-  const expectedSpells = 121 + dnd5eOpenCatalogManifest.counts.importedSpells;
+  const expectedSpells = 121 + 30 + dnd5eOpenCatalogManifest.counts.importedSpells;
   const expectedAbilities = 77 + dnd5eOpenCatalogManifest.counts.importedAbilities;
   assert.deepEqual(plain(audit.counts), {spells: expectedSpells, abilities: expectedAbilities, items: 231, foes: 30, total: expectedSpells + expectedAbilities + 261});
   assert.ok(audit.counts.spells >= 500);
@@ -3455,10 +3457,10 @@ test('встроенная группа экипирована реактивн�
 });
 
 test('пустое хранилище загружается сразу с экипированной группой и полным кампанийным бестиарием', async () => {
-  const e = loadEngine();
+  const e = loadEngine(() => 0, null, null, null, {openDnd5eCatalog: true});
   await e.loadAll();
   const state = e.state();
-  assert.deepEqual(plain(state.chars.map(c => c.id)), ['char_roku','char_torgar','char_septih','char_legerem']);
+  assert.deepEqual(plain(state.chars.map(c => c.id)), ['char_roku','char_torgar','char_septih','char_legerem','char_liora']);
   assert.equal(state.foesDB.length, 30);
   ['foe_goblin_scout','foe_skeleton_guard','foe_orc_raider','foe_dire_wolf','foe_young_green_dragon','foe_cave_oracle','foe_dark_elf_plotter']
     .forEach(id => assert.ok(state.foesDB.some(f => f.id === id), `нет записи ${id}`));

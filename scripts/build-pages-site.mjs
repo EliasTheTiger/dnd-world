@@ -13,6 +13,9 @@ const runtimeFiles = ['economy-core.js', 'merchant-core.js', 'campaign-item-art.
 runtimeFiles.push('character-rules.js','magic-rules.js','grimoire-rules.js','hobbyworld-ability-terms.js','ability-rules.js','ability-gameplay.js','recipe-item-links.js','recipe-rules.js','recipe-workbench.js');
 runtimeFiles.push('recipe-tabletop-rules.js','recipe-tabletop-items.js','recipe-tabletop-runtime.js');
 runtimeFiles.push('arcanum-core.js','arcanum-conditions.js','arcanum-summons.js','arcanum-runtime.js','arcanum-long-cast.js');
+runtimeFiles.push('artificer-rules.js','artificer-catalog.js','artificer-spell-runtime.js','artificer-elixir-runtime.js','party-starter.js');
+runtimeFiles.push('artificer-runtime.js','party-starter-runtime.js');
+runtimeFiles.push('artificer-utility-runtime.js','artificer-basic-spells.js');
 runtimeFiles.push('gm-reference-data.js','gm-reference.js');
 runtimeFiles.push('world-navigation.js','dialog-accessibility.js','action-ui-guard.js');
 const RELEASE_PLACEHOLDER = '__DND_WORLD_RELEASE__';

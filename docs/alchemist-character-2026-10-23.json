@@ -1,0 +1,109 @@
+{
+  "date": "2026-10-23",
+  "scope": "Level-three half-elf Alchemist in the existing single local campaign",
+  "rules": "D&D 5e 2014 with Artificer and Alchemist from Tasha's Cauldron of Everything (2020)",
+  "character": {
+    "id": "char_liora",
+    "name": "Лиора Меднолист",
+    "race": "Полуэльф",
+    "gender": "женский",
+    "class": "Изобретатель",
+    "subclass": "Алхимик",
+    "level": 3,
+    "background": "Гильдейский ремесленник",
+    "abilityScores": {"str": 8, "dex": 14, "con": 14, "int": 16, "wis": 13, "cha": 10},
+    "hp": 24,
+    "armorClassWithInfusion": 15,
+    "cantrips": ["Fire Bolt", "Guidance"],
+    "prepared": ["Cure Wounds", "Faerie Fire", "Detect Magic", "Grease"],
+    "alwaysPrepared": ["Healing Word", "Ray of Sickness"],
+    "firstCircleSlots": 3,
+    "knownInfusions": ["enhanced-defense", "enhanced-weapon", "repeating-shot", "returning-weapon"],
+    "activeInfusions": ["enhanced-defense", "repeating-shot"]
+  },
+  "racialChoices": {
+    "abilityBonuses": ["int", "wis"],
+    "skills": ["Медицина", "Внимательность"],
+    "additionalLanguage": "Гномий",
+    "effectiveSkillProficiencies": 6
+  },
+  "inventoryPolicy": {
+    "newHero": "Artificer class equipment and guild artisan background equipment; no extra magic loot or free shield",
+    "flasks": "Two empty ordinary flasks bought for 4 copper from the background's 15 gold",
+    "existingHeroes": "Semantic missing-item checks, preserve existing equipment and remaining ammunition; one-time durable receipts prevent replenishment after sale or consumption",
+    "unknownItems": "Defer equipment grants until saved catalog references can be resolved"
+  },
+  "persistence": {
+    "receipt": "partyUpdates.alchemist20261023, stored with the campaign envelope",
+    "deletedHero": "Not recreated after the addition receipt is committed",
+    "renaming": "Unlimited edits of the name field preserve the stable character identity",
+    "failures": "Restore characters, receipt and combat log when the durable save fails"
+  },
+  "automatedThirdLevelFeatures": [
+    "Intelligence spellcasting, preparation after long rest, prepared rituals and tool or own infused-item focus",
+    "Six experimental elixirs, player-entered dice, flask accounting, slot or MP payment, action accounting, durations and creator-rest expiry",
+    "Per-instance infusions, attunement ownership, generated ammunition and returning thrown weapons",
+    "Magical Tinkering with its object limit and oldest-effect replacement",
+    "The Right Tool for the Job with an actual hour of game time and replacement of the prior created toolkit"
+  ],
+  "catalogPolicy": "Add 30 missing 2014-compatible spell records and Artificer membership to existing canonical spells, matching the user's verified 111-card Drive archive. New spells above the character's available circles explicitly identify unimplemented scene consequences and do not silently apply them.",
+  "availableSpellAudit": {
+    "artificerClassList": 100,
+    "availableAtLevelThree": 43,
+    "cantrips": 23,
+    "firstCircleClassSpells": 18,
+    "alwaysPreparedSubclassSpells": 2,
+    "structuredMechanics": 43,
+    "manualFallbacks": 0,
+    "invalidDefinitions": 0,
+    "duplicateDefinitions": 0,
+    "scope": "Only currently available circles; scene facts and physical dice are supplied by the players or GM"
+  },
+  "driveReference": {
+    "folder": "https://drive.google.com/drive/folders/1Kmx3GDaeqyX-Fg5BJTuXSbQwUNubp1me",
+    "verification": "Fresh HTTPS range reads of both ZIP directories and seven text records, checked by ZIP CRC32 and recorded SHA256. Both printed card orders match all 111 entries of the complete archive and its HTML reference.",
+    "fixture": "tests/fixtures/alchemist-drive-deck-index.json",
+    "cards": 111,
+    "ordinaryClassSpells": 100,
+    "additionalAlchemistSpells": 10,
+    "chemicalMasterySpell": "Heal, available through the level-15 feature; not added to ordinary class preparation or level-three access",
+    "missingClassSpellsAdded": ["Vortex Warp", "Air Bubble", "Kinetic Jaunt", "Ashardalon's Stride", "Create Spelljamming Helm"],
+    "archiveNameSearch": "Archive names are additional searchable aliases; canonical spell IDs and custom names remain intact",
+    "mechanicsCorrections": [
+      "Ray of Frost applies the entered cold damage and slows only on a hit until the caster's next turn",
+      "Snare retains its original eight-hour deadline and ends when its restrained creature is released",
+      "Faerie Fire grants its sight-dependent benefit only to an attacker able to see the target",
+      "Cure Wounds, Healing Word and Spare the Dying reject undead and constructs before spending resources",
+      "Healing Word and Poison Spray require actual target visibility, including blindness and invisibility checks",
+      "Spare the Dying sets the existing stable death-save state at zero hit points; later damage restarts dying",
+      "Create Bonfire needs visible ground but can affect unseen creatures in the cube",
+      "Fire Bolt uses entered attack and damage dice for objects and ignites only hit flammable unattended objects",
+      "Object ignition survives concentration ending and reload; the GM can confirm extinguishing with durable rollback on failed save",
+      "Catapult object damage uses the supported scene-save format and survives reload together with creature damage and the single slot payment"
+    ]
+  },
+  "primarySources": [
+    "https://www.dndbeyond.com/posts/908-artificer-101-alchemist-from-tashas-cauldron-of",
+    "https://www.dndbeyond.com/posts/854-artificer-101-a-beginners-guide-to-making-magical",
+    "https://www.dndbeyond.com/posts/1353-artificer-201-the-best-infusions-for-artificers",
+    "https://www.dndbeyond.com/sources/dnd/basic-rules-2014/equipment",
+    "https://media.wizards.com/2015/downloads/dnd/EE_PlayersCompanion.pdf"
+  ],
+  "validation": {
+    "status": "local-release-gates-passed",
+    "unitAndEngineTests": "node --test tests/*.test.*",
+    "fullSuite": {
+      "passed": 3945,
+      "failed": 0,
+      "skipped": 1,
+      "skipReason": "The historical immutable v3 diagnostic catalog is not present; all current runtime gates ran",
+      "durationMs": 981364.1976
+    },
+    "browserScript": "scripts/alchemist-browser-qa.mjs",
+    "sourceBrowserScenarios": 14,
+    "sourceBrowserErrors": 0,
+    "generatedCatalogChecks": {"passed": 6, "failed": 0},
+    "diffCheck": "passed",
+    "publicSite": "Audit documents and QA evidence are excluded from the deployed site"
+  }
+}

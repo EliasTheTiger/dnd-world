@@ -1,3 +1,4 @@
+import {loadArtificerScripts} from './helpers/artificer-script-loader.cjs';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -372,6 +373,7 @@ function loadEngine(random) {
   for (const dependency of ['scripts/hobbyworld-ability-terms.js', 'scripts/ability-rules.js', 'scripts/ability-gameplay.js']) {
     vm.runInContext(fs.readFileSync(repoFile(dependency), 'utf8'), context, {filename: dependency});
   }
+  loadArtificerScripts(context);
   vm.runInContext(source, context, {filename: 'index.html#bg3-learn-spell-readiness'});
   return context.__bg3LearnReadiness;
 }

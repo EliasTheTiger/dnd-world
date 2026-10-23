@@ -1,3 +1,4 @@
+import {loadArtificerScripts} from './helpers/artificer-script-loader.cjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -126,7 +127,8 @@ function loadEngine() {
     },
   };
   context.window = context;context.globalThis = context;
-  vm.createContext(context);vm.runInContext(source, context);return context.__bg3BookTest;
+  vm.createContext(context);loadArtificerScripts(context);
+  vm.runInContext(source, context);return context.__bg3BookTest;
 }
 
 const engine = loadEngine();

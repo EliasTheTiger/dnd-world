@@ -11,7 +11,7 @@ test('an interrupted first boot cannot mistake seed flags for saved heroes',asyn
   const engine=loadRuntimeIntegrationEngine();
   for(const name of ['torgar','septih','legerem'])await engine.storeSet('dndworld2:'+name,'1');
   await engine.loadAll();
-  const ids=['char_roku','char_torgar','char_septih','char_legerem'];
+  const ids=['char_roku','char_torgar','char_septih','char_legerem','char_liora'];
   assert.deepEqual(plain(engine.state().chars.map(c=>c.id)),ids);
   assert.equal(engine.saveSafety.pending(),false,'first playable state waits for a durable save');
   const raw=await engine.storeGet(envelopeKey),verified=await persistence.verifyEnvelope(JSON.parse(raw));
@@ -34,7 +34,7 @@ test('a save timer firing during the initial party construction cannot persist a
     return write(key,value);
   });
   await engine.loadAll();assert.equal(intercepted,true);
-  assert.deepEqual(JSON.parse(await engine.storeGet(envelopeKey)).state.chars.map(c=>c.id),['char_roku','char_torgar','char_septih','char_legerem']);
+  assert.deepEqual(JSON.parse(await engine.storeGet(envelopeKey)).state.chars.map(c=>c.id),['char_roku','char_torgar','char_septih','char_legerem','char_liora']);
   assert.equal(engine.saveSafety.pending(),false);
 });
 
@@ -60,6 +60,9 @@ async function savedEncounter(){
     const input={templateId:'foe_wolf',positionConfirmed:true,initiativeDie:13};
     assert.equal(succeeded(await engine.arcanumRuntime.longStart([spell.id,caster.id,'none','',undefined,'6:arcanum',{},[],{},{arcanum:input}])),true);
     const snapshot=engine.localSnapshot();
+    // This fixture already completed the separately tested party update. Keep the
+    // loading regression focused on preserving the in-progress encounter.
+    snapshot.partyUpdates={alchemist20261023:true};
     // A real catalog reference on another party member forces startup hydration,
     // without making the independent caster's action depend on that missing item.
     const pointer=JSON.parse(fs.readFileSync(new URL('../data/bg3/current.json',import.meta.url),'utf8'));

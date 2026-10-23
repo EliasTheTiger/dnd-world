@@ -1,6 +1,6 @@
 (function(root){
 'use strict';
-const revision='grimoire-2014-2';
+const revision='grimoire-2014-3';
 const normalize=value=>String(value||'').normalize('NFKC').toLocaleLowerCase('ru').replace(/ё/g,'е').replace(/[^а-яa-z0-9]+/g,' ').trim();
 const clone=value=>JSON.parse(JSON.stringify(value));
 const classes={Брд:'Бард',Жрц:'Жрец',Дрд:'Друид',Пал:'Паладин',Слд:'Следопыт',Чрд:'Чародей',Клд:'Колдун',Влш:'Волшебник',Изб:'Изобретатель'};
@@ -360,6 +360,7 @@ function reconcile(rows){
   if(!Array.isArray(rows))return rows;
   const srd=rows.filter(row=>row?.catalogSource?.documentKey==='srd-2014');
   if(!srd.length)return rows; // Small isolated/custom worlds are not replaced by the bundled catalog.
+  root.DND_ARTIFICER_CATALOG?.install(rows);
   const byName=new Map(),groups=new Map();
   const addName=(name,key)=>{const n=normalize(name);if(!byName.has(n))byName.set(n,key);else if(byName.get(n)!==key)byName.set(n,null);};
   for(const row of srd){const key=normalize(row.open5e.originalName);groups.set(key,{source:row,rows:[]});addName(row.n,key);addName(names[row.open5e.originalName],key);}
@@ -368,7 +369,7 @@ function reconcile(rows){
     const key=row.open5e?.originalName?normalize(row.open5e.originalName):row.grimoire?.key||normalize(localAliases[row.id])||byName.get(normalize(row.n));
     if(!excludedLocal.has(row.id)&&groups.has(key))groups.get(key).rows.push(row);
     else if(row.catalogSource||excludedLocal.has(row.id))row.grimoire={...row.grimoire,revision,key:key||identity(row),status:'archive',reason:row.catalogSource?.documentKey==='srd-2024'?'Другая редакция: D&D 2024':'Вариант вне стандартного каталога D&D 2014'};
-    else {row.grimoire={...row.grimoire,revision,key:normalize(extra2014[row.id]||row.n),status:'active',edition:'2014',translation:row.grimoire?.translation||'project',officialRussian:false,custom:!extra2014[row.id]};
+    else {row.grimoire={...row.grimoire,revision,key:normalize(row.grimoire?.english||extra2014[row.id]||row.n),status:'active',edition:'2014',translation:row.grimoire?.translation||'project',officialRussian:false,custom:!extra2014[row.id]&&!row.artificerSpell};
       if(row.id==='sp_ведьмин_снаряд'&&row.grimoire.translation!=='custom'){if(!row.grimoire.legacyDefinition)row.grimoire.legacyDefinition=clone(row);row.c='Влш, Чрд, Клд';row.x='Дальнобойная атака заклинанием по существу в пределах 30 футов: при попадании 1d12 урона молнией и связь с целью на время концентрации, до 1 минуты. В последующие ходы можно действием автоматически наносить той же цели 1d12 урона молнией. Любое другое действие прекращает заклинание. Оно также заканчивается, если цель выходит за пределы дистанции или получает полное укрытие от вас. Бонус к обычным атакам это заклинание не даёт.';row.hi='За каждый круг выше первого только начальный урон увеличивается на 1d12.';row.grimoire.requiresManual=true;}
     }
   }
@@ -393,6 +394,7 @@ function reconcile(rows){
     for(const row of group.rows)if(row!==canonical)row.grimoire={...row.grimoire,revision,key,status:'alias',canonicalId:canonical.id,reason:'Объединено с единственной карточкой D&D 2014'};
   }
   for(const [id,english] of Object.entries(extra2014)){const canonical=rows.find(row=>row.id===id);if(!canonical)continue;for(const row of rows)if(row!==canonical&&row.open5e?.originalName===english)row.grimoire={...row.grimoire,revision,key:normalize(english),status:'alias',canonicalId:id,reason:'Объединено с карточкой PHB 2014'};}
+  root.DND_ARTIFICER_CATALOG?.install(rows);
   return rows;
 }
 function resolveId(rows,id){const seen=new Set();let current=id;while(!seen.has(current)){seen.add(current);const row=rows.find(row=>row?.id===current);if(!row?.grimoire?.canonicalId)return current;current=row.grimoire.canonicalId;}return id;}

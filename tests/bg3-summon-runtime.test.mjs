@@ -1,3 +1,4 @@
+import {loadArtificerScripts} from './helpers/artificer-script-loader.cjs';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -889,6 +890,7 @@ function loadEngine(random = () => 0, fetchImpl = null) {
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-runtime.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'arcanum-long-cast.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'character-rules.js'), 'utf8'), context);
+  loadArtificerScripts(context);
   vm.runInContext(source, context);
   vm.runInContext('renderMerchants=()=>{};renderChests=()=>{};', context);
   return context.__bg3SummonRuntimeAudit;

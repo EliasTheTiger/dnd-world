@@ -82,6 +82,7 @@ const landSpells=Object.freeze({
   'Болото':[['Acid Arrow','Darkness'],['Water Walk','Stinking Cloud'],['Freedom of Movement','Locate Creature'],['Insect Plague','Scrying']]
 });
 const subclassLists=Object.freeze([
+  {cls:'Изобретатель',subcls:'Алхимик',kind:'prepared',levels:[3,5,9,13,17],spells:[['Healing Word','Ray of Sickness'],['Flaming Sphere','Acid Arrow'],['Gaseous Form','Mass Healing Word'],['Blight','Death Ward'],['Cloudkill','Raise Dead']]},
   {cls:'Жрец',subcls:'Домен Жизни',kind:'prepared',levels:[1,3,5,7,9],spells:[['Bless','Cure Wounds'],['Lesser Restoration','Spiritual Weapon'],['Beacon of Hope','Revivify'],['Death Ward','Guardian of Faith'],['Mass Cure Wounds','Raise Dead']]},
   {cls:'Паладин',subcls:'Клятва Преданности',kind:'prepared',levels:[3,5,9,13,17],spells:[['Protection from Evil and Good','Sanctuary'],['Lesser Restoration','Zone of Truth'],['Beacon of Hope','Dispel Magic'],['Freedom of Movement','Guardian of Faith'],['Commune','Flame Strike']]},
   {cls:'Колдун',subcls:'Исчадие',kind:'expanded',levels:[1,3,5,7,9],spells:[['Burning Hands','Command'],['Blindness/Deafness','Scorching Ray'],['Fireball','Stinking Cloud'],['Fire Shield','Wall of Fire'],['Flame Strike','Hallow']]}

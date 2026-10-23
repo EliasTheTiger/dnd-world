@@ -1,3 +1,4 @@
+import {loadArtificerScripts} from './helpers/artificer-script-loader.cjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -106,6 +107,7 @@ function loadWorkspaceAudit() {
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'recipe-tabletop-rules.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'recipe-tabletop-items.js'), 'utf8'), context);
   vm.runInContext(fs.readFileSync(path.join(repo, 'scripts', 'recipe-tabletop-runtime.js'), 'utf8'), context);
+  loadArtificerScripts(context);
   vm.runInContext(source, context);
   return context.__itemWorkspaceTaxonomyAudit;
 }
