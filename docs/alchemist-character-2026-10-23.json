@@ -102,6 +102,10 @@
     "browserScript": "scripts/alchemist-browser-qa.mjs",
     "sourceBrowserScenarios": 14,
     "sourceBrowserErrors": 0,
+    "compiledAlchemistBrowserScenarios": 14,
+    "independentPlayerJourneyPhasesPassed": 15,
+    "campaignSaveAndReloadScenariosPassed": 500,
+    "browserFixtureUpdates": "Existing MP checks now answer the required visibility question; the player journey includes all five ready heroes and verifies entered initiative for all nine selected combatants",
     "generatedCatalogChecks": {"passed": 6, "failed": 0},
     "diffCheck": "passed",
     "publicSite": "Audit documents and QA evidence are excluded from the deployed site"

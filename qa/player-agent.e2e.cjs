@@ -20,11 +20,12 @@ const RUN_ID = process.env.QA_RUN_ID ||
 const ARTIFACT_DIR = path.resolve(process.env.QA_ARTIFACT_DIR || path.join(__dirname, 'evidence', RUN_ID));
 const HEADLESS = !process.argv.includes('--headed') && process.env.QA_HEADLESS !== '0';
 const HERO_NAME = `Элария QA ${RUN_ID.replace(/[^a-z0-9]/gi, '').slice(-6) || '001'}`;
+const READY_HERO_NAMES = Object.freeze(['Року', 'Торгар Железная Вера', 'Септих', 'Легерем', 'Лиора Меднолист']);
 
 const PLAYER_ROLE = 'Ты опытный игрок в D&D. Ты впервые открыл D&D World. Тебе неизвестна история разработки проекта. Начни новую кампанию и используй сайт так, как использовал бы его реальный игрок.';
 
 const PHASES = Object.freeze([
-  { id: 'P01', title: 'Новый герой и четыре готовых персонажа' },
+  { id: 'P01', title: 'Новый герой и пять готовых персонажей' },
   { id: 'P02', title: 'Сюжетная кампания и начало боя' },
   { id: 'P03', title: 'Подробное изучение интерфейса' },
   { id: 'P04', title: 'Инвентарь и разные предметные ситуации' },
@@ -548,17 +549,24 @@ async function startStoryCombatFromSetup() {
     if (!await checkbox.count()) throw new QaFailure(`У противника «${foeName}» нет выбора участия.`);
     if (!await checkbox.isChecked()) await checkbox.check();
   }
-  const heroNames = ['Року', 'Торгар Железная Вера', 'Септих', 'Легерем', HERO_NAME];
-  const initiatives = [18, 17, 13, 12, 10];
+  const heroNames = [...READY_HERO_NAMES, HERO_NAME];
+  const initiatives = [18, 17, 13, 12, 11, 10];
   for (let index = 0; index < heroNames.length; index += 1) {
     const row = page.locator('.combat-setup-row').filter({ visible: true, hasText: heroNames[index] }).first();
     const field = row.locator('input[type="number"]');
     if (!await field.count()) throw new QaFailure(`Нет ручного поля инициативы для «${heroNames[index]}».`);
+    await row.locator('input[type="checkbox"]').check();
     await field.fill(String(initiatives[index]));
   }
   for (const [foeName, initiative] of [['Гоблин-разведчик', 14], ['Скелет-страж', 9], ['Охристое желе', 6]]) {
     const row = page.locator('.combat-setup-row').filter({ visible: true, hasText: foeName }).first();
     await row.locator('input[type="number"]').fill(String(initiative));
+  }
+  const selected = page.locator('.combat-setup-row').filter({ visible: true, has: page.locator('input[type="checkbox"]:checked') });
+  if (await selected.count() !== heroNames.length + 3) throw new QaFailure('Выбраны не все шесть героев и три противника сюжетной схватки.');
+  for (let index = 0; index < await selected.count(); index += 1) {
+    const row = selected.nth(index), value = Number(await row.locator('input[type="number"]').inputValue());
+    if (!Number.isInteger(value) || value < 1 || value > 20) throw new QaFailure(`Для выбранного участника «${await row.locator('span b').innerText()}» не введён допустимый d20 инициативы.`);
   }
   await clickButton('⚔ Начать бой', { waitMs: 600 });
   const text = await bodyText();
@@ -570,14 +578,14 @@ async function startStoryCombatFromSetup() {
 async function runJourney() {
   await step({
     phase: 'P01', id: 'create-and-use-five-heroes',
-    action: 'Открыть чистую кампанию, проверить четырех готовых героев, создать полуэльфа-паладина и снова открыть список.',
-    expected: 'В списке одновременно видны Року, Торгар, Септих, Легерем и новый герой; изменение получает подтверждение сохранения.',
-    reproduction: ['Открыть D&D World в чистом профиле.', 'Открыть «Персонажи».', 'По очереди открыть четырех готовых героев.', 'Создать нового полуэльфа-паладина.', 'Вернуться к списку.']
+    action: 'Открыть чистую кампанию, проверить пятерых готовых героев, создать полуэльфа-паладина и снова открыть список.',
+    expected: 'В списке одновременно видны Року, Торгар, Септих, Легерем, Лиора и новый герой; изменение получает подтверждение сохранения.',
+    reproduction: ['Открыть D&D World в чистом профиле.', 'Открыть «Персонажи».', 'По очереди открыть пятерых готовых героев.', 'Создать нового полуэльфа-паладина.', 'Вернуться к списку.']
   }, async () => {
     await page.goto(`${baseUrl}?qa-run=${encodeURIComponent(RUN_ID)}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.getByRole('heading', { name: 'D&D World', exact: true }).waitFor({ timeout: 15000 });
     await page.waitForTimeout(1200);
-    const existing = ['Року', 'Торгар Железная Вера', 'Септих', 'Легерем'];
+    const existing = READY_HERO_NAMES;
     for (const name of existing) {
       await openCharacter(name);
       await clickButton('← К списку героев');
@@ -606,12 +614,12 @@ async function runJourney() {
     const visible = await bodyText();
     for (const name of [...existing, HERO_NAME]) if (!visible.includes(name)) throw new QaFailure(`После создания в списке отсутствует «${name}».`);
     await assertNoSaveFailure('Создание героя');
-    return `Создан ${HERO_NAME}; четыре исходных героя открыты через UI.`;
+    return `Создан ${HERO_NAME}; пять исходных героев открыты через UI.`;
   });
 
   await step({
     phase: 'P02', id: 'start-story-combat',
-    action: 'Назвать сюжетную сцену «Медный Брод: проклятая шахта», включить пятерых героев, гоблина, скелета и охристое желе, вручную ввести инициативу и начать бой.',
+    action: 'Назвать сюжетную сцену «Медный Брод: проклятая шахта», включить шестерых героев, гоблина, скелета и охристое желе, вручную ввести инициативу и начать бой.',
     expected: 'Бой начинается с рассчитанным порядком; сайт не бросает кости сам и сохраняет сцену.',
     reproduction: ['Открыть «Бой».', 'Выбрать участников.', 'Ввести фактические d20.', 'Нажать «Начать бой».']
   }, async () => {
