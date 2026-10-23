@@ -7,7 +7,8 @@ import {loadRuntimeIntegrationEngine} from './helpers/runtime-catalog-loader.mjs
 const root=new URL('../',import.meta.url);
 let result;
 test('every game item has the same complete player rules in the catalog, inventory and equipment without technical copy',async()=>{
- result=await auditItemPlayerCards();assert.equal(result.count,2115);assert.equal(result.visibleCount,2115);assert.deepEqual(result.issues,[]);
+ result=await auditItemPlayerCards();assert.equal(result.count,2121);assert.equal(result.visibleCount,2121);assert.deepEqual(result.issues,[]);
+ assert.deepEqual(result.records.filter(row=>row.id.startsWith('it_starter_')).map(row=>row.id),['it_starter_alms_box','it_starter_empty_flask','it_starter_guild_letter','it_starter_identify_pearl','it_starter_prayer_book','it_starter_signet_ring'],'audit the six new distinct starter items alongside existing catalog equivalents');
  const byName=name=>result.records.find(r=>r.name===name);
  for(const name of ['Иглы для духовой трубки (50)','Зелье высшего лечения']){
   const card=byName(name).player;assert.ok((card.description+card.gameplayDescription).length>60,name+' keeps the actual game rule when an old sentence also contained engineering commentary');

@@ -10,7 +10,10 @@ const server=http.createServer((req,res)=>{const relative=decodeURIComponent(new
   await page.goto(base,{waitUntil:'domcontentloaded'});await page.getByRole('button',{name:'✠ Новый герой',exact:true}).or(page.getByRole('button',{name:'← К списку героев',exact:true})).first().waitFor({timeout:120000});
   await page.evaluate(async()=>{await bg3CatalogEnsureIndex();await bg3ItemPresentationEnsure();const c=buildBlank();c.id='card-reader';c.name='Следопыт';chars=[c];activeCharId=c.id;switchTab('itemsdb');});
   if(process.env.QA_EXPECTED_RELEASE)assert.equal(await page.evaluate(()=>RELEASE_COMMIT),process.env.QA_EXPECTED_RELEASE);
-  assert.equal(await page.evaluate(()=>itemWorkspaceCanonicalRows().length),2115);
+  const collection=await page.evaluate(()=>itemWorkspaceCanonicalRows().map(row=>row.id));
+  assert.equal(collection.length,2121,'the complete catalog includes the new alchemist equipment');
+  assert.equal(new Set(collection).size,collection.length,'catalog entries remain unique');
+  assert.deepEqual(collection.filter(id=>id.startsWith('it_starter_')).sort(),['it_starter_alms_box','it_starter_empty_flask','it_starter_guild_letter','it_starter_identify_pearl','it_starter_prayer_book','it_starter_signet_ring'],'new distinct starter items are visible alongside existing catalog equivalents');
   fs.writeFileSync(path.join(output,'collection.json'),JSON.stringify(await page.evaluate(()=>itemWorkspaceCanonicalRows().map(r=>({id:r.id,name:r.name}))),null,2));
   const names=['Маркохешкир','Амулет арфистов','Амулет недостойных','Шлем независимости','Башмаки Деннона','Яд дроу','Набор травника','Зелье высшего лечения','Адский самовзводный арбалет'];
   for(let i=0;i<names.length;i++){

@@ -105,7 +105,8 @@
     "compiledAlchemistBrowserScenarios": 14,
     "independentPlayerJourneyPhasesPassed": 15,
     "campaignSaveAndReloadScenariosPassed": 500,
-    "browserFixtureUpdates": "Existing MP checks now answer the required visibility question; the player journey includes all five ready heroes and verifies entered initiative for all nine selected combatants",
+    "browserFixtureUpdates": "Existing MP checks now answer the required visibility question; the player journey includes all five ready heroes and verifies entered initiative for all nine selected combatants; the item-card audit initializes the starter catalog and verifies all 2121 unique visible cards, including the six new distinct starter items",
+    "compiledRecipeBrowserScenarios": {"workbenchPassed": 13, "tabletopPassed": 9, "errors": 0},
     "generatedCatalogChecks": {"passed": 6, "failed": 0},
     "diffCheck": "passed",
     "publicSite": "Audit documents and QA evidence are excluded from the deployed site"

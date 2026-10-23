@@ -10,7 +10,7 @@ export const visibleText=html=>{
 };
 export async function auditItemPlayerCards(){
  const e=loadRuntimeIntegrationEngine(root,{fetch:async url=>{const bytes=fs.readFileSync(new URL(String(url).replace(/^\.\//,''),root));return {ok:true,status:200,text:async()=>bytes.toString(),json:async()=>JSON.parse(bytes)};}});
- e.setState({items:e.catalogs.items,spells:e.catalogs.spells});await e.itemsApi.load();await e.itemsApi.audit();const legacyRows=e.itemsApi.rows();await e.itemsApi.initializeSpells();const visible=e.itemsApi.rows(),visibleIds=new Set(visible.map(r=>r.id)),rows=visible.concat(legacyRows.filter(r=>!visibleIds.has(r.id)));await e.itemsApi.hydrate(rows.filter(r=>r.id.startsWith('bg3:')).map(r=>r.id));
+ e.setState({items:e.catalogs.items,spells:e.catalogs.spells});e.partyStarterApi.ensureCatalogs();await e.itemsApi.load();await e.itemsApi.audit();const legacyRows=e.itemsApi.rows();await e.itemsApi.initializeSpells();const visible=e.itemsApi.rows(),visibleIds=new Set(visible.map(r=>r.id)),rows=visible.concat(legacyRows.filter(r=>!visibleIds.has(r.id)));await e.itemsApi.hydrate(rows.filter(r=>r.id.startsWith('bg3:')).map(r=>r.id));
  const actor=e.buildBlank();actor.id='item-presentation-audit';actor.name='Следопыт';actor.inventory=[];
  e.setState({...e.state(),chars:[actor],activeCharId:actor.id});
  const records=[],issues=[];
