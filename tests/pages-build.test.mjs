@@ -65,6 +65,18 @@ test('Pages build validates and publishes only the current immutable catalog', (
   const versionedIndex = readFileSync(new URL(`../_site/releases/${release}/index.html`, import.meta.url), 'utf8');
   const releaseManifest = JSON.parse(readFileSync(new URL('../_site/release.json', import.meta.url), 'utf8'));
   assert.equal(builtIndex, versionedIndex);
+  const recovery = readFileSync(new URL('../_site/404.html', import.meta.url), 'utf8');
+  const recoveryScript = recovery.match(/<script>([\s\S]*?)<\/script>/u)[1];
+  for (const pathname of [`/dnd-world/releases/${'a'.repeat(40)}/index.html`, '/dnd-world/not-a-release']) {
+    const navigations = [], link = {};
+    const location = {origin:'https://eliasthetiger.github.io', pathname, hash:'#combat', replace:url=>navigations.push(url)};
+    vm.runInNewContext(recoveryScript,{URL, location, document:{getElementById:()=>link}});
+    assert.equal(new URL(link.href).pathname,'/dnd-world/');
+    assert.ok(new URL(link.href).searchParams.get('refresh'));
+    assert.equal(new URL(link.href).hash,'#combat');
+    assert.equal(navigations.length,pathname.includes('/releases/')?1:0,'only expired release bookmarks auto-recover');
+  }
+
   assert.match(builtIndex, /href="\/dnd-world\/styles\/treasure-workspaces\.css\?v=[0-9a-f]{64}"/u);
   assert.match(builtIndex, /href="\/dnd-world\/styles\/gm-reference\.css\?v=[0-9a-f]{64}"/u);
   assert.match(readFileSync(new URL('../_site/styles/treasure-workspaces.css', import.meta.url), 'utf8'), /\.trade-workspace/);
@@ -167,16 +179,17 @@ test('cached canonical page replaces itself with the newly deployed versioned re
   const written = [];
   const requests = [];
   const context = {
-    URL,
+    URL, setInterval() {}, addEventListener() {},
     location: {hostname: 'eliasthetiger.github.io', origin: 'https://eliasthetiger.github.io', href: 'https://eliasthetiger.github.io/dnd-world/', replace(value){written.push(value);}},
     document: {
+      addEventListener() {}, getElementById() { return null; }, querySelectorAll() { return []; },
       open() { written.push('open'); },
       write(value) { written.push(value); },
       close() { written.push('close'); },
     },
     fetch: async url => {
       requests.push(String(url));
-      if (String(url).endsWith('/dnd-world/release.json')) return {ok: true, json: async () => ({schemaVersion: 'dnd-world-release/1', commit: newRelease})};
+      if (new URL(url).pathname === '/dnd-world/release.json') return {ok: true, json: async () => ({schemaVersion: 'dnd-world-release/1', commit: newRelease})};
       return {ok: true, text: async () => `<meta name="dnd-world-release" content="${newRelease}"><main>new release</main>`};
     },
   };
@@ -184,7 +197,8 @@ test('cached canonical page replaces itself with the newly deployed versioned re
   vm.runInNewContext(bootstrap.replaceAll('__DND_WORLD_RELEASE__', oldRelease), context);
   await new Promise(resolve => setTimeout(resolve, 0));
 
-  assert.deepEqual(requests, [
+  assert.ok(new URL(requests[0]).searchParams.get('check'), 'manifest request bypasses a stale URL cache');
+  assert.deepEqual(requests.map(url => new URL(url).origin + new URL(url).pathname), [
     'https://eliasthetiger.github.io/dnd-world/release.json',
     `https://eliasthetiger.github.io/dnd-world/releases/${newRelease}/index.html`,
   ]);

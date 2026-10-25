@@ -21,18 +21,77 @@
     location.replace(new URL('/dnd-world/releases/' + embedded + '/index.html', location.origin).href);
     return;
   }
-  const releaseManifest = new URL('/dnd-world/release.json', location.origin);
-  fetch(releaseManifest, {cache: 'no-store'}).then(response => response.ok ? response.json() : null).then(release => {
-    const latest = String(release && release.commit || '').toLowerCase();
-    if (!/^[0-9a-f]{40}$/u.test(latest) || latest === embedded) return null;
-    const versioned = new URL('/dnd-world/releases/' + latest + '/index.html', location.origin);
-    return fetch(versioned, {cache: 'no-store'}).then(response => response.ok ? response.text() : '').then(html => {
-      const marker = '<meta name="dnd-world-release" content="' + latest + '">';
-      if (!html.includes(marker)) return;
+  let checking = false, pending = '', interacted = false, applying = false;
+  const started = Date.now();
+  const valid = value => /^[0-9a-f]{40}$/u.test(value);
+  function status(message) {
+    const box = document.getElementById('releaseUpdateNotice');
+    if (!box) return;
+    box.hidden = false;
+    document.getElementById('releaseUpdateText').textContent = message;
+    document.getElementById('releaseUpdateApply').hidden = !pending;
+  }
+  function busy() {
+    return (typeof gameActionInteractionLocked === 'function' && gameActionInteractionLocked())
+      || (typeof hasUnsavedCampaignChanges === 'function' && hasUnsavedCampaignChanges())
+      || [...document.querySelectorAll('[role="dialog"]')].some(el => !el.hidden && getComputedStyle(el).display !== 'none');
+  }
+  async function readRelease(url, json = false) {
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), 10000) : null;
+    try {
+      const response = await fetch(url, {cache: 'no-store', ...(controller ? {signal: controller.signal} : {})});
+      if (!response.ok) throw new Error('release-unavailable');
+      return await (json ? response.json() : response.text());
+    } finally { if (timer != null) clearTimeout(timer); }
+  }
+  async function apply(automatic = false) {
+    if (!pending || applying) return;
+    if (busy()) { status('Сначала завершите действие и дождитесь сохранения. Затем нажмите «Обновить сайт».'); return; }
+    applying = true;
+    try {
+      // Recheck the destination: the deployment may have changed since discovery.
+      const target = new URL('/dnd-world/releases/' + pending + '/index.html', location.origin);
+      const html = await readRelease(target);
+      if (!html.includes('<meta name="dnd-world-release" content="' + pending + '">')) throw new Error('release-not-ready');
+      if (automatic === true && interacted) { status('Обновление готово. Нажмите «Обновить сайт», когда завершите ввод.'); return; }
+      if (busy()) { status('Обновление готово. Завершите текущее действие перед переходом.'); return; }
       globalThis.DND_WORLD_RELOADING = true;
-      location.replace(versioned.href);
-    });
-  }).catch(() => {});
+      location.replace(target.href);
+    } catch (_) { status('Обновление пока не загрузилось. Текущая игра остаётся открытой; попробуйте ещё раз.'); }
+    finally { applying = false; }
+  }
+  async function check(manual = false) {
+    if (checking || applying || globalThis.DND_WORLD_RELOADING) return;
+    checking = true;
+    try {
+      const manifest = new URL('/dnd-world/release.json', location.origin);
+      manifest.searchParams.set('check', Date.now().toString(36));
+      const release = await readRelease(manifest, true);
+      const latest = String(release && release.commit || '').toLowerCase();
+      if (!valid(latest)) throw new Error('release-unavailable');
+      if (latest === embedded) { pending = ''; const notice = document.getElementById('releaseUpdateNotice'); if (notice) notice.hidden = true; if (manual) status('На этом устройстве открыта последняя версия сайта.'); return; }
+      pending = latest;
+      status('Доступна новая версия сайта. Персонажи и сохранённая игра останутся на этом устройстве.');
+      // An untouched opening page can advance automatically. Once play or editing
+      // has started, a deliberate button press owns the navigation.
+      if (!interacted && Date.now() - started < 15000 && !busy()) await apply(true);
+    } catch (_) { if (manual) status('Не удалось проверить обновления. Проверьте соединение и попробуйте ещё раз.'); }
+    finally { checking = false; }
+  }
+  globalThis.DndWorldReleaseUpdates = Object.freeze({check, apply});
+  for (const name of ['pointerdown', 'keydown', 'input']) document.addEventListener(name, () => { interacted = true; }, {capture: true, once: true});
+  function controls() {
+    const button = document.getElementById('releaseUpdateCheck');
+    if (button) { button.hidden = false; button.addEventListener('click', () => check(true)); }
+    document.getElementById('releaseUpdateApply')?.addEventListener('click', () => apply());
+    if (pending) status('Доступна новая версия сайта. Персонажи и сохранённая игра останутся на этом устройстве.');
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', controls, {once: true}); else controls();
+  for (const name of ['online', 'focus', 'pageshow']) globalThis.addEventListener(name, () => check());
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+  setInterval(() => { if (document.visibilityState === 'visible') check(); }, 60000);
+  check();
 })();
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -45,6 +104,7 @@
 <div id="actionBusyNotice" class="action-busy-notice" role="status" aria-live="polite" hidden>Сохраняем действие… Изменения будут доступны после завершения записи.</div>
 <a class="skip-link" href="#main-content" onclick="event.preventDefault();document.getElementById('main-content').focus()">Перейти к содержимому</a>
 <div class="wrap">
+<div id="releaseUpdateNotice" class="site-update-notice" role="status" aria-live="polite" hidden><span id="releaseUpdateText"></span> <button id="releaseUpdateApply" type="button" class="btn ghost sm" hidden>Обновить сайт</button></div>
 <header class="masthead">
 <span class="corner tl">✠</span><span class="corner tr">✠</span>
 <span class="corner bl">✠</span><span class="corner br">✠</span>
@@ -79,7 +139,7 @@
 <div id="tab-foes" class="hidden"></div>
 <div id="tab-rules" class="hidden"></div>
 </main>
-<footer class="colophon">Писано рукою мастера · все в сей книге правится вручную и хранится меж сессиями ❦</footer>
+<footer class="colophon"><button id="releaseUpdateCheck" type="button" class="btn ghost sm" hidden>Проверить обновления</button><br>Писано рукою мастера · все в сей книге правится вручную и хранится меж сессиями ❦</footer>
 </div>
 <div id="castBack" class="cast-back" role="dialog" aria-modal="true" aria-labelledby="castTitle" aria-describedby="castInfo" style="display:none" onclick="if(event.target===this)closeCastModal()">
 <div class="cast-modal">

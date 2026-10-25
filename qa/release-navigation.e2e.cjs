@@ -25,8 +25,8 @@ fs.mkdirSync(output,{recursive:true});
  const origin='https://eliasthetiger.github.io',canonical=origin+'/dnd-world/',versioned=canonical+'releases/'+newSha+'/index.html';
  const browser=await chromium.launch({headless:true}),checks=[];
  try{
-  for(const mode of ['legacy-document-write','modern-navigation']){
-   const context=await browser.newContext(),page=await context.newPage(),errors=[],navigations=[];let unlock,firstManifest=true;
+  for(const mode of ['legacy-document-write','modern-navigation','offline-return','open-tab-return','expired-bookmark']){
+   const context=await browser.newContext(),page=await context.newPage(),errors=[],navigations=[];let unlock,firstManifest=true,releaseEnabled=false;
    const releaseGate=new Promise(resolve=>{unlock=resolve;});
    page.on('pageerror',error=>errors.push(error.message));page.on('framenavigated',frame=>{if(frame===page.mainFrame())navigations.push(frame.url());});
    await context.addInitScript(({raw,journal})=>{
@@ -41,10 +41,12 @@ fs.mkdirSync(output,{recursive:true});
     if(url.origin!==origin){await route.fulfill({status:204,body:''});return;}
     const relative=url.pathname.replace(/^\/dnd-world\/?/,'');
     if(relative==='release.json'){
+     if(['offline-return','open-tab-return','expired-bookmark'].includes(mode)&&!releaseEnabled){if(mode==='offline-return'){await route.abort('internetdisconnected');return;}await route.fulfill({contentType:'application/json',body:JSON.stringify({commit:oldSha})});return;}
      if(firstManifest){firstManifest=false;await releaseGate;}
      await route.fulfill({contentType:'application/json',body:JSON.stringify({schemaVersion:'dnd-world-release/1',commit:newSha})});return;
     }
-    if(!relative||relative==='index.html'){await route.fulfill({contentType:'text/html',body:mode==='legacy-document-write'?legacyHtml:modernOldHtml});return;}
+    if(!relative||relative==='index.html'){await route.fulfill({contentType:'text/html',body:mode==='expired-bookmark'&&url.searchParams.has('refresh')?newHtml:mode==='legacy-document-write'?legacyHtml:modernOldHtml});return;}
+    if(relative==='releases/'+oldSha+'/index.html'){await route.fulfill({status:404,contentType:'text/html',body:fs.readFileSync(path.join(repo,process.env.QA_SITE_ROOT||'_site','404.html'),'utf8')});return;}
     if(relative==='releases/'+newSha+'/index.html'){await route.fulfill({contentType:'text/html',body:newHtml});return;}
     if(assets.has(relative)){await route.fulfill({contentType:/\.(?:js|mjs)$/.test(relative)?'text/javascript':relative.endsWith('.wasm')?'application/wasm':'application/octet-stream',body:assets.get(relative)});return;}
     const file=path.resolve(repo,relative);if(!file.startsWith(repo+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){await route.fulfill({status:404,body:''});return;}
@@ -55,10 +57,28 @@ fs.mkdirSync(output,{recursive:true});
     local:Object.fromEntries(Object.keys(localStorage).sort().map(key=>[key,localStorage.getItem(key)])),indexed:await idbStoreGet('dndworld2:campaign-envelope'),indexedBackup:await idbStoreGet('dndworld2:campaign-envelope:backup')}));
    await page.goto(canonical,{waitUntil:'domcontentloaded',timeout:120000});await settled();
    const before=await snapshot();assert.equal(before.release,oldSha);assert.deepEqual(before.chars.map(c=>c.id),fixture.snapshot.chars.map(c=>c.id));
-   const navigation=page.waitForURL(versioned,{timeout:120000});unlock();await navigation;await settled();await page.waitForFunction(()=>DndWorldDelivery.complete);
+   if(mode==='expired-bookmark'){
+    releaseEnabled=true;unlock();await page.goto(canonical+'releases/'+oldSha+'/index.html',{waitUntil:'domcontentloaded'});await page.waitForURL(url=>url.pathname==='/dnd-world/'&&url.searchParams.has('refresh'),{timeout:120000});
+   }else{
+    const navigation=page.waitForURL(versioned,{timeout:120000});
+    if(['offline-return','open-tab-return'].includes(mode)){
+     // A real click marks an in-progress session; resume must offer an update,
+     // rather than discard a form or interrupt a physical roll.
+     await page.locator('.title').click();releaseEnabled=true;unlock();await page.evaluate(()=>window.dispatchEvent(new Event('online')));
+     await page.locator('#releaseUpdateApply').waitFor({state:'visible'});assert.equal(page.url(),canonical);
+     if(mode==='offline-return'){
+      await page.setViewportSize({width:390,height:844});
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true,'update controls fit a mobile screen');
+      await page.screenshot({path:path.join(output,'update-mobile.png')});
+     }
+     await page.locator('#releaseUpdateApply').click();
+    }else{unlock();}
+    await navigation;
+   }
+   await settled();await page.waitForFunction(()=>DndWorldDelivery.complete);
    const after=await snapshot();assert.notEqual(after.realm,before.realm,'upgrade creates a fresh JavaScript realm');assert.equal(after.release,newSha);
    for(const key of ['chars','combat','journal','fxRound','local','indexed','indexedBackup'])assert.deepEqual(after[key],before[key],mode+' preserves '+key+' without reinitializing or rewriting the saved session');
-   assert.deepEqual(errors,[],'no duplicate global declarations or other startup errors');assert.equal(navigations.filter(url=>url===versioned).length,1,'exactly one replacement navigation');
+   assert.deepEqual(errors,[],'no duplicate global declarations or other startup errors');assert.equal(navigations.filter(url=>url===versioned).length,mode==='expired-bookmark'?0:1,'exactly one replacement navigation, or the stable recovery URL');
    checks.push({mode,navigations,preservedHeroIds:after.chars.map(c=>c.id),storageBytesUnchanged:true,errors});
    console.log(mode+': fresh realm, one replacement navigation, unchanged campaign bytes and combat');await context.close();
   }

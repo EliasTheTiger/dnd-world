@@ -82,6 +82,18 @@ async function renderPublishedIndex(source, release, catalogPaths) {
   return {renderedIndex:rendered.replace('<head>', `<head>\n<base href="${PAGES_BASE}">`), deliveryAssets:delivery.assets, deliveryGenerated:delivery.generated};
 }
 
+function recoveryPage() {
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>D&D World — открыть сайт</title></head><body><main><h1>D&D World</h1><p>Эта ссылка относится к прежней версии сайта.</p><p><a id="currentSite" href="/dnd-world/">Открыть текущую версию</a></p><p>Сохранённые персонажи остаются в этом браузере.</p></main><script>
+(() => {
+  const target = new URL('/dnd-world/', location.origin);
+  target.searchParams.set('refresh', Date.now().toString(36));
+  target.hash = location.hash;
+  document.getElementById('currentSite').href = target.href;
+  if (/^\\/dnd-world\\/releases\\/[0-9a-f]{40}\\/(?:index\\.html)?$/i.test(location.pathname)) location.replace(target.href);
+})();
+</script></body></html>\n`;
+}
+
 async function inspectTree(root) {
   let files = 0;
   let bytes = 0;
@@ -157,16 +169,17 @@ async function validateInputs() {
     commit: release,
     catalogVersion: version,
   }, null, 2)}\n`;
-  const indexBytes = Buffer.byteLength(renderedIndex) * 2;
+  const recovery = recoveryPage();
+  const indexBytes = Buffer.byteLength(renderedIndex) * 2 + Buffer.byteLength(recovery);
   const styleBytes = (await stat(join(repositoryRoot, 'styles.css'))).size;
   const currentBytes = (await stat(currentPath)).size;
   const runtimeBytes = (await Promise.all(runtimeFiles.map(name => stat(join(repositoryRoot, 'scripts', name))))).reduce((sum, row) => sum + row.size, 0);
   const deliveryBytes = [...deliveryAssets,...deliveryGenerated].reduce((sum, asset) => sum + Buffer.byteLength(asset.code), 0);
   const bytes = measurements.reduce((sum, row) => sum + row.bytes, indexBytes + styleBytes + currentBytes + runtimeBytes + deliveryBytes + Buffer.byteLength(releaseManifest));
-  const files = measurements.reduce((sum, row) => sum + row.files, 6 + runtimeFiles.length + deliveryAssets.length + deliveryGenerated.length);
+  const files = measurements.reduce((sum, row) => sum + row.files, 7 + runtimeFiles.length + deliveryAssets.length + deliveryGenerated.length);
   invariant(bytes < 10_000_000_000, 'current Pages artifact exceeds the 10 GB upload limit');
 
-  return { currentPath, version, catalogRoot, uiRoot, uiNames, files, bytes, renderedIndex, releaseManifest, release, deliveryAssets, deliveryGenerated };
+  return { currentPath, version, catalogRoot, uiRoot, uiNames, files, bytes, renderedIndex, recovery, releaseManifest, release, deliveryAssets, deliveryGenerated };
 }
 
 async function buildSite(inputs) {
@@ -177,6 +190,7 @@ async function buildSite(inputs) {
   await mkdir(join(outputRoot, 'scripts', 'delivery'), { recursive: true });
   for (const asset of [...inputs.deliveryAssets,...inputs.deliveryGenerated]) await writeFile(join(outputRoot, asset.path), asset.code);
   await writeFile(join(outputRoot, 'index.html'), inputs.renderedIndex);
+  await writeFile(join(outputRoot, '404.html'), inputs.recovery);
   await writeFile(join(outputRoot, 'releases', inputs.release, 'index.html'), inputs.renderedIndex);
   await writeFile(join(outputRoot, 'release.json'), inputs.releaseManifest);
   await cp(join(repositoryRoot, 'styles.css'), join(outputRoot, 'styles.css'));
